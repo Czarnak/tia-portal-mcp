@@ -3,7 +3,8 @@
 **Status:** Refreshed offline qualification passed. Whole-candidate review and the scoped
 final-fix re-review are Approved with no remaining findings. Exact live authorization was received
 on October 6; the [separate installed-tool report](2026-10-06-multiuser-pr3-live-verification.md)
-records partial Task 5 verification. This report makes no merge-ready claim.
+records the captured Task 5 verification and the maintainer's October 6 decision that PR 3 live
+testing is finished and passed. Unexecuted cases remain documented as non-blocking evidence limitations.
 
 **Compiled source/test candidate:** `3f45b940ebc66752f14590b900218fcca336d665` on
 `feature/multiuser-pr3`, with base `ea269c222e7415af347f2929cbc82a366aa2ee0f`. The final fix
@@ -136,7 +137,7 @@ Non-escalated Git reads warned about the inaccessible user ignore file; authoriz
 and qualification succeeded. No credential/dependency change or environment failure was treated
 as passing evidence. The original checkout and its unrelated work were not edited.
 
-## Separate partial live verification
+## Separate live acceptance
 
 The delivered surface is default-compatible `bind_project` plus `list_portals` and five exact
 Project Server inventories. Discovery remains 6/16/16. The [maintained reference](../../../SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md)
@@ -151,7 +152,8 @@ under `C:\Users\LCZ\Documents\Automation\Sessions`. The
 all six inspection actions with opened sessions, then a separately authorized standalone `.ap21`
 phase. All five inventories succeeded with `.ap21` open and with zero open projects; healthy
 verified binding/cursors and genuine worker-loss invalidation/recovery were observed. The exact
-prerequisite comparison is complete; remaining Task 5 matrix cases still prevent a merge-ready claim. No source changes
+prerequisite comparison is complete. The maintainer accepted PR 3 live testing as finished and
+passed on October 6; the retained unexecuted matrix cases do not block its live acceptance. No source changes
 or expensive offline rerun accompanied that documentation update.
 Historical PR 2 standalone acceptance does not qualify PR 3 inventories. `.als21` adoption,
 session content/state/markings and mutations, and Issue #65 completion remain undelivered.

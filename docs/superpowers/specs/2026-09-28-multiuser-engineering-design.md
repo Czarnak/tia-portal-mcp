@@ -4,7 +4,7 @@
 
 **Revised:** 2026-10-03 for lifecycle alignment; 2026-10-05 for the user-selected `bind_project` read surface, against `main` at `ea269c222e7415af347f2929cbc82a366aa2ee0f`
 
-**Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. Revised PR 3 implementation plan accepted and offline-qualified. October 6 exact fixture authorizations enabled [partial installed-tool live verification](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) of all six inspection actions, including the zero-project/standalone prerequisite comparison; outstanding Task 5 matrix cases still prevent full acceptance.
+**Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. PR 3 is implemented and offline-qualified; the maintainer accepted its live testing as finished and passed on October 6. The [installed-tool live report](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) preserves executed observations and non-blocking unexecuted cases. Successor PR gates remain unchanged.
 
 **Source:** Issue [#65](https://github.com/Czarnak/tia-portal-mcp/issues/65), repository
 commit `269f9b94c3e9df19e5a2e51d0ca7da515aca84ca`, the installed TIA Portal V21
@@ -640,6 +640,10 @@ mechanically rebased.
   fixture tier; default `.ap21` binding, ambiguity, switching, ownership, and cursor continuity
   receive regression verification on the same frozen candidate.
 
+PR 3 acceptance update (2026-10-06): the maintainer accepted all PR 3 live testing as finished
+and passed. Its report retains unexecuted matrix cases as non-blocking evidence limitations;
+this decision closes PR 3's gate without changing PR 4–9 scope or acceptance requirements.
+
 ### Lifecycle integration checkpoint
 
 Before the first `.als21` selection/lifecycle operation or Multiuser mutation, refresh from merged
@@ -809,8 +813,9 @@ was subsequently accepted and implemented/offline-qualified. Final review and sc
 are Approved. The user subsequently authorized live verification and any actions against three
 disposable local sessions under `C:\Users\LCZ\Documents\Automation\Sessions`. The
 [October 6 installed-tool report](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
-records partial Task 5 evidence plus a separately authorized disposable standalone `.ap21` phase:
-the exact zero-project/standalone prerequisite comparison is complete, while remaining matrix
-cases still prevent full acceptance. Authorized save/close/reopen and one worker-loss injection
+records Task 5 evidence plus a separately authorized disposable standalone `.ap21` phase:
+the exact zero-project/standalone prerequisite comparison is complete. The maintainer accepted
+all PR 3 live testing as finished and passed on October 6, with unexecuted cases preserved as
+non-blocking evidence limitations. Authorized save/close/reopen and one worker-loss injection
 were performed; no installed configuration change or remote write was performed. Successor mutation surfaces remain separately
 planned; this PR 3 routing decision adds no mutation action to `bind_project`.

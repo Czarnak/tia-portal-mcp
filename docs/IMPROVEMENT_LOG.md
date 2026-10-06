@@ -26,7 +26,7 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: Multiuser live qualification and remaining operations
+## Open: Multiuser successor operations
 
 PR 2 implements the internal active project context and typed lifecycle owners on the merged
 PR 1 foundation. Its frozen standalone candidate is offline qualified and live accepted within
@@ -34,7 +34,9 @@ the bounds in the [acceptance report](superpowers/acceptance/reports/2026-10-05-
 PR 3 implements six explicit discovery/inventory actions through `bind_project` without a new
 tool or binding mutation. Its combined offline qualification is recorded in the
 [PR 3 report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md).
-Operation-specific live acceptance remains pending exact fixture/scope authorization.
+PR 3 live acceptance was subsequently finished and passed by maintainer decision on 2026-10-06;
+the [live report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+preserves executed observations and non-blocking unexecuted cases. Successor Multiuser operations remain open.
 The [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) distinguishes
 this partial delivery from Issue #65 completion. Public `.als21` selection/open and local-session
 lifecycle operations remain later work. Preserve
@@ -956,7 +958,7 @@ form acceptance was scripted. Independent review found no Important/Critical beh
 No production change or expensive suite replay followed these documentation-only results.
 Public Multiuser operations and Issue #65 remain open.
 
-## Multiuser PR 3 discovery and inventory — offline qualified (2026-10-06)
+## Multiuser PR 3 discovery and inventory — offline qualified and live accepted (2026-10-06)
 
 `bind_project` retains default/null binding and adds six explicit inspection actions without
 changing 6/16/16 discovery. Exact raw-key selectors, persistent Portal-only attachment, local
@@ -970,4 +972,6 @@ Step7 `Tags.cs:112` CS0108 remains deferred. Local package `3.0.1-local.316.gfba
 checks and includes the maintained README. The [offline report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md)
 records exact commands, scoped/changed coverage, hashes and limits. Documentation review and
 scoped session-ID clarification re-review passed; final whole-branch review is separate.
-Task 5 live operation-specific acceptance remains pending exact fixture/scope authorization.
+Task 5 live acceptance was subsequently finished and passed by maintainer decision on 2026-10-06.
+The [live report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+records 73 installed calls and retains unexecuted cases as non-blocking evidence limitations.

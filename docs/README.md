@@ -20,8 +20,8 @@ For the project overview, tool list, and quick start, see the [README](../README
 | --- | --- |
 | [Architecture](ARCHITECTURE.md) | Two-process topology, tier enforcement, explicit binding/cursor invalidation, transport, canonical JSON, mode-derived confirmation/audit v2, and testing |
 | [Multiuser inventory and acceptance boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) | Exact bind_project inspection actions, persistent attachment, current-user/lock limits and undelivered ALS21/session mutations |
-| [PR 3 offline qualification](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md) | Combined candidate, serial suite/coverage, installed-reference compilation and local package checks; live gate pending |
-| [PR 3 partial installed-tool live verification](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) | All six inspection actions, zero-project/standalone prerequisites, healthy binding/cursors and worker-loss recovery; remaining matrix cases recorded |
+| [PR 3 offline qualification](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md) | Combined candidate, serial suite/coverage, installed-reference compilation and local package checks; live acceptance passed by maintainer decision |
+| [PR 3 installed-tool live acceptance](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) | Finished and passed by maintainer decision on October 6; all six inspection actions, zero-project/standalone prerequisites, binding/cursors, worker-loss recovery and recorded evidence limitations |
 | [PR 2 standalone live acceptance](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md) | Offline qualification, frozen live candidate, selection/lifecycle/headless evidence and restored fixtures |
 
 ## Building and contributing
@@ -75,7 +75,7 @@ and [authorized live lifecycle validation](superpowers/acceptance/reports/2026-1
 the [Multiuser Engineering design](superpowers/specs/2026-09-28-multiuser-engineering-design.md)
 and its [PR 1 reference and contract foundation plan](superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md)
 and [PR 2 active project context plan](superpowers/plans/2026-10-05-multiuser-pr2-active-project-context.md)
-and [PR 3 inventory through bind_project plan (offline-qualified; partial live verification)](superpowers/plans/2026-10-05-multiuser-pr3-read-only-inventory.md),
+and [PR 3 inventory through bind_project plan (offline-qualified; live acceptance passed)](superpowers/plans/2026-10-05-multiuser-pr3-read-only-inventory.md),
 the [JSON contract Phase 1b required-member enforcement design](superpowers/specs/2026-09-28-json-contract-phase1b-required-members-design.md)
 and its [implementation plan](superpowers/plans/2026-09-28-json-contract-phase1b-required-members.md),
 the [JSON contract Phase 1a worker-wire plan](superpowers/plans/2026-09-28-json-contract-phase1a-worker-wire.md),

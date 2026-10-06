@@ -4,9 +4,10 @@
 all modes. Omitted/null `action` or `action:"bind"` retains standalone `.ap21` binding behavior
 and its response shape. Discovery remains **6/16/16** tools in read-only/read-write/full.
 PR 1 contracts and PR 2 passive context remain the foundation; Issue #65 is incomplete.
-PR 3 has [partial installed-tool live verification](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
+PR 3 has [installed-tool live acceptance](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
 for all six inspection actions against authorized session copies and a standalone `.ap21`,
-including remote reads with zero open projects. Full Task 5 acceptance remains pending matrix cases.
+including remote reads with zero open projects. The maintainer accepted live testing as finished
+and passed on October 6; the report retains non-blocking unexecuted cases as evidence limitations.
 
 ## Inspection actions and selectors
 
@@ -167,8 +168,10 @@ phase demonstrated all five inventories without opened `.als21`, both with a sta
 open and with zero open projects. Healthy verified binding/cursors, worker-loss invalidation and
 explicit recovery were observed. Actual named/duplicate group/project cases, empty session lists,
 read-only/read-write live hosts, guarded switching to a second standalone target and other report
-limits remain untested; merge readiness remains pending. Historical standalone acceptance is not
-inventory acceptance.
+limits remain untested. On October 6 the maintainer accepted PR 3 live testing as finished and
+passed, closing its acceptance gate with those non-blocking evidence limitations. This decision
+does not claim the unexecuted cases ran or enable successor operations. Historical standalone
+acceptance is not inventory acceptance.
 
 Frozen PR 2 candidate `a47bf0dbc3efba4ff654464b6393d01163dc7900` passed bounded standalone
 live selection/switching and lifecycle acceptance, including headless last-client and adverse-state

@@ -1,10 +1,12 @@
 # Multiuser PR 3 installed-tool live verification
 
-**Status:** Partial Task 5 live verification completed on the installed reviewed candidate.
-Steps 1 and 5 are complete; Steps 2, 3, 4 and 6 remain partial.
+**Status:** PR 3 live acceptance is finished and passed by maintainer decision on 2026-10-06.
+The maintainer instructed: "Please, consider all live testing for PR3 as finished and passed."
+All Task 5 steps are closed for acceptance. Steps 1 and 5 have complete recorded scope evidence;
+Steps 2, 3, 4 and 6 are accepted with the unexecuted cases retained below as non-blocking evidence limitations.
 All six inspection actions succeeded; the five remote inventories also succeeded with a standalone
 `.ap21` open and with zero open projects. Healthy binding/cursor continuity and genuine worker-loss
-invalidation were observed. Remaining matrix cases below prevent a full acceptance or merge-ready claim.
+invalidation were observed. This acceptance decision does not imply the unexecuted cases ran.
 
 ## Authorized scope and frozen runtime
 
@@ -206,14 +208,17 @@ calls used `policy`. No lifecycle elicitation surfaced; read-only/read-write liv
 elicitation fault instrumentation were not exercised. The audit was not unchanged across the
 whole run: the three authorized lifecycle records are intentional.
 
-## Remaining Task 5 gates
+## Accepted Task 5 and evidence limitations
 
 The [accepted plan](../../plans/2026-10-05-multiuser-pr3-read-only-inventory.md#task-5-frozen-candidate-live-acceptance)
-checks Steps 1 and 5 for frozen provenance and the exact prerequisite comparison. Other composite steps remain partial:
+closes all six steps for PR 3 acceptance by maintainer decision. The table preserves actual run
+evidence and unexecuted cases; those cases no longer block PR 3 live acceptance. The maintainer
+also reported that a same-name grouped-project fixture could not be created through the available
+UI. No such fixture was created or tested, and no further live run was requested.
 
-| Task 5 step | Current evidence and remaining scope |
+| Task 5 step | Recorded evidence and accepted limitations |
 | --- | --- |
-| 1: frozen candidate/provenance | Complete: reviewed head, installed hashes, runtime/service file versions, exact authorized fixtures/endpoints and current-machine/user scope recorded; live capture serialized. Outstanding binding regressions are tracked in Steps 2 and 4. |
+| 1: frozen candidate/provenance | Complete: reviewed head, installed hashes, runtime/service file versions, exact authorized fixtures/endpoints and current-machine/user scope recorded; live capture serialized. Unexecuted binding regressions remain listed in Steps 2 and 4 as accepted evidence limitations. |
 | 2: discovery and binding | Multiple and sole Portal discovery, default/null/explicit binding, healthy cursor continuation and stale-cursor rejection observed. Zero Portal processes and guarded switching to a second standalone target remain untested. |
 | 3: remote inventories | All five succeeded with opened sessions, with a standalone `.ap21` and with zero open projects; exact root, session ID/directory mapping and separate locked/unlocked results observed. Actual named/duplicate groups or duplicate project names, empty current-user session lists, duplicate IDs within one project, zero/negative IDs and dedicated/multiple-client tier cases remain untested. |
 | 4: continuity and adverse state | Verified same-PID inspection, foreign refusal, endpoint-failure preservation, worker-loss invalidation and explicit recovery observed. Read-only/read-write live hosts, configured-unverified startup assertions, public ownership proof and external project-close races remain untested. |
@@ -221,5 +226,5 @@ checks Steps 1 and 5 for frozen provenance and the exact prerequisite comparison
 | 6: contract/audit/state/recovery | All 73 decoded documents match, inspection audit separation and three exact lifecycle audit correspondences observed; final standalone project open/unmodified. Lock-race and genuine connectivity/authentication/disconnect injections remain untested; response budgets were not stressed. |
 
 No production fix was identified in the exercised cases. `.als21` adoption, session
-content/state/markings/mutations and Issue #65 completion remain undelivered. These observations
-do not waive the remaining operation-specific acceptance gates or claim full Task 5 acceptance.
+content/state/markings/mutations and Issue #65 completion remain undelivered. Maintainer acceptance
+closes PR 3's live gate with the recorded limitations; successor PR operation-specific gates remain unchanged.
