@@ -59,8 +59,8 @@ var guardedPnAutoGeneration = new Dictionary<string, bool>(StringComparer.Ordina
 // each already connected to a node. Sharing this exact list across the main scenario and its
 // switch variants (malformed/postcondition-failed/second-item-failure/alt-path) means a resolved
 // subnet's identity is byte-for-byte identical no matter which of those keys reads it, so a
-// project-path tampering test can bind a token against one key and get rejected against another
-// for exactly that reason - never a coincidentally different target. Connected subnets are never
+// project-path binding test can bind against one key and get rejected against another for
+// exactly that reason - never a coincidentally different target. Connected subnets are never
 // treated as undeletable here: delete_subnet removes them unconditionally, matching production's
 // "connected deletion is allowed, no dependency inventory" rule.
 var subnetLifecycleState = new List<SubnetLifecycleSubnetState>
@@ -84,7 +84,6 @@ var subnetLifecycleState = new List<SubnetLifecycleSubnetState>
 };
 var subnetLifecycleNextId = 1;
 var subnetLifecycleSecondFailureWriteCount = 0;
-var subnetLifecycleStateDriftReadCount = 0;
 var updateBlockPostconditionAttempt = 0;
 var blockOutcomeUpdateAttempt = 0;
 var createBlockPostconditionAttempt = 0;
@@ -852,10 +851,10 @@ while ((line = Console.In.ReadLine()) is not null)
                 { DiscoveryEvidence = new() { Scope = "project", Complete = true } })));
             break;
         case "network-write-item-failure":
-            // Stable hardware state (so preview/apply token binding holds) followed by a failing
-            // first write: the batch RAN, so the MCP call itself is not an error. The read models a
-            // resolvable "PLC_1"/"node-1" target so the configure_network_device operation in the
-            // batch can resolve against it at both preview and apply, before its own write call
+            // Stable hardware state followed by a failing first write: the batch RAN, so the MCP
+            // call itself is not an error. The read models a resolvable "PLC_1"/"node-1" target so
+            // the configure_network_device operation in the batch resolves against it before its
+            // own write call
             // fails structurally like every other method in this scenario.
             Respond(ReadMethod(line) switch
             {
@@ -881,7 +880,7 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-ambiguous-node":
             // A contract-valid HardwareConfigInfo where ONE device exposes TWO nodes reporting the
             // SAME nodeId across its two interfaces: proves NetworkIdentityResolver's ambiguous-match
-            // fail-closed path (postcondition_failed, no token issued) through the actual worker/tool
+            // fail-closed path (target_ambiguous, nothing written) through the actual worker/tool
             // wiring, not only the pure resolver unit tests.
             Respond(Success(ToCamelCaseJson(AmbiguousNodeHardwareConfig())));
             break;
@@ -1282,8 +1281,7 @@ while ((line = Console.In.ReadLine()) is not null)
 
         case "network-subnet-lifecycle":
             // The main stateful scenario: normal create/update/delete round trips, canonical
-            // text/structuredContent equality, minimal-result shape, audit, and every token
-            // tampering path bind against this key.
+            // text/structuredContent equality, minimal-result shape, and audit bind against this key.
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
@@ -1296,9 +1294,9 @@ while ((line = Console.In.ReadLine()) is not null)
 
         case "network-subnet-lifecycle-alt-path":
             // Same shared mutable state as "network-subnet-lifecycle", reached through a
-            // DIFFERENT scenario key: a token issued against one key is rejected against this one
-            // purely because the project path differs, never because the resolved target differs
-            // (both keys read the exact same underlying list).
+            // DIFFERENT scenario key: a write naming this key while bound to the main one is
+            // rejected purely because the project path differs, never because the resolved target
+            // differs (both keys read the exact same underlying list).
             Respond(ReadMethod(line) switch
             {
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
@@ -1354,24 +1352,6 @@ while ((line = Console.In.ReadLine()) is not null)
                     HandleSecondItemFailureWrite(line, subnetLifecycleState),
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-second-item-failure"}"""
             });
-            break;
-
-        case "network-subnet-lifecycle-state-drift":
-            // read_hardware_config reports the SAME subnet identity (name/subnetId) on every call,
-            // but its connectedNodeNames - deliberately never part of the resolved target evidence
-            // - differs after the first read. A token issued against the first read must be
-            // rejected at apply against the SECOND, drifted read via the whole-project
-            // current-state hash (state_changed), never via a "different target" mismatch, mirroring
-            // the pure-safety-layer proof in NetworkIntrospectionSafetySnapshotTests at the full FakeWorker
-            // level.
-            // Fixture bootstrap establishes a binding from the baseline without consuming the
-            // preview/apply drift sequence; only bound reads advance that sequence.
-            Respond(ReadMethod(line) == "read_hardware_config"
-                ? Success(ToCamelCaseJson(SubnetLifecycleStateDriftHardwareConfig(
-                    currentExpectedSessionIdentity is null
-                        ? 1
-                        : ++subnetLifecycleStateDriftReadCount)))
-                : $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-state-drift"}""");
             break;
 
         case "list-network-objects-large":
@@ -3239,30 +3219,6 @@ HardwareConfigInfo ConnectionEvidenceHardwareConfig(bool degraded)
     result.Subnets.Add(subnet);
     return result;
 }
-
-/// <summary>
-/// Dedicated fixture for the "network-subnet-lifecycle-state-drift" scenario: reports the SAME one
-/// Ethernet subnet identity on every read, but its connectedNodeNames differs after the first call
-/// - a relationship-only change that never appears in resolved target evidence but still
-/// invalidates a token via the whole-project current-state hash.
-/// </summary>
-HardwareConfigInfo SubnetLifecycleStateDriftHardwareConfig(int readCount) => new()
-{
-    Devices = SubnetLifecycleDevices(),
-    Subnets = new List<SubnetInfo>
-    {
-        SelectableSubnet(
-            "PN/IE_1",
-            "subnet-eth-1",
-            SubnetLifecycleContract.Ethernet,
-            SubnetLifecycleContract.Ethernet,
-            Array.Empty<IoSystemInfo>(),
-            readCount <= 1
-                ? new[] { "PLC_1.X1" }
-                : new[] { "PLC_1.X1", "PLC_2.X1" }),
-    },
-    Messages = new List<string>(),
-};
 
 /// <summary>
 /// Dispatches one subnet lifecycle write against the shared mutable state and returns the exact

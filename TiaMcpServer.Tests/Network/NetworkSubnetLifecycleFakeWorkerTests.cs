@@ -31,7 +31,6 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     private const string MalformedSuccessScenario = "network-subnet-lifecycle-malformed-success";
     private const string PostconditionFailedScenario = "network-subnet-lifecycle-postcondition-failed";
     private const string SecondItemFailureScenario = "network-subnet-lifecycle-second-item-failure";
-    private const string StateDriftScenario = "network-subnet-lifecycle-state-drift";
 
     private static OpennessWorkerClient CreateClient(ProjectSessionBinding? binding = null)
         => new(

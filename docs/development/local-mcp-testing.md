@@ -222,8 +222,8 @@ Read-write elicits once for every actual lifecycle call, including info-only cal
 guards, requiring `accept` plus boolean `confirm:true`. Unsupported clients, decline/cancel,
 timeout, or transport failure deny mutation. Full applies under policy without server elicitation.
 Block guards stop mutation in every mode, and dry runs never prompt. Confirm that all six tools
-expose `dryRun` and structured outputs with no agent confirmation array or public `confirm`/
-`safetyToken`; no tool accepts token inputs. Audit v2 records `user`, `policy`, or `none`.
+expose `dryRun` and structured outputs with no agent confirmation array or public `confirm`
+or token argument; no tool accepts token inputs. Audit v2 records `user`, `policy`, or `none`.
 
 Read the lifecycle `result` and `verification` as typed outcomes. A mutation or verification
 attempt that fails has `success:false`, `error:null`, and `isError:false`, with failure evidence

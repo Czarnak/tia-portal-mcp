@@ -218,7 +218,7 @@ public class WorkerRequest
     /// <summary>
     /// Forwarded by: add_network_device ONLY. configure_network_device does not forward it —
     /// setting it on that operation is silently dropped. The fallback to DeviceName when the
-    /// caller omits it is applied by BatchWorkerInvoker.ResolveDeviceItemName before the call.
+    /// caller omits it is applied by NetworkPayloadContract and the worker add_network_device handler.
     /// </summary>
     public string? DeviceItemName { get; set; }
 

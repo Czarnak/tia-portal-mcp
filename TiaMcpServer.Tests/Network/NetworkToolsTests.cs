@@ -317,7 +317,7 @@ public class NetworkToolsTests
     }
 
     [Fact]
-    public async Task NetworkWrite_PreviewFailsClosedWhenConfigureTargetCannotBeResolvedAndIssuesNoToken()
+    public async Task NetworkWrite_PreviewFailsClosedWhenConfigureTargetCannotBeResolved()
     {
         using var audit = new TempAuditDirectory();
         using var client = CreateWriteClient(audit, out var safety, "network-unresolvable-target");
@@ -392,13 +392,13 @@ public class NetworkToolsTests
     }
 
     [Fact]
-    public async Task NetworkWrite_StateDecodeFailureIsAWholeToolErrorAndIssuesNoToken()
+    public async Task NetworkWrite_StateDecodeFailureIsAWholeToolError()
     {
         using var audit = new TempAuditDirectory();
         using var client = CreateWriteClient(audit, out var safety, "ok");
 
         // Scenario "ok" answers read_hardware_config with {"seq":N}, which is not a
-        // HardwareConfigInfo: no token may be bound to a state that failed its contract.
+        // HardwareConfigInfo: nothing may be planned against a state that failed its contract.
         var result = await NetworkWrite(client, safety, new[] { AddDevice("w1", "ok") });
 
         var root = ReadStructured(result);

@@ -21,7 +21,6 @@ public sealed class WorkerTransportFailureGuidanceTests
     [InlineData("get_type_content", true)]
     [InlineData("update_type_content", false)]
     [InlineData("get_type_content_unrecognized", false)]
-    [InlineData("read_update_tag_safety_snapshot", false)]
     [InlineData("compile_check", false)]
     [InlineData("save_project", false)]
     [InlineData("update_tag", false)]

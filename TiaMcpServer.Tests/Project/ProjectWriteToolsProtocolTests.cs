@@ -52,7 +52,6 @@ public sealed class ProjectWriteToolsProtocolTests
         LifecycleTestCalls.Succeeded(document);
         LifecycleTestCalls.Phase(document, "preview");
         Assert.Equal("open_project", document.GetProperty("tool").GetString());
-        Assert.False(document.TryGetProperty("safetyToken", out _));
         Assert.Equal(JsonValueKind.Null, document.GetProperty("error").ValueKind);
         var effects = document.GetProperty("effects");
         Assert.Equal(JsonValueKind.Null, effects.GetProperty("sourceProjectPath").ValueKind);
