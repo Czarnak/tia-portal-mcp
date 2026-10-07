@@ -26,8 +26,9 @@ namespace Siemens.Engineering.HmiUnified.HmiConnections
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
-    public abstract class HmiConnection : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class HmiConnection : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public DriverPropertyComposition DriverProperties { get => throw new global::System.NotSupportedException(); }
         public string Comment { get => throw new global::System.NotSupportedException(); }
         public string CommunicationDriver { get => throw new global::System.NotSupportedException(); }

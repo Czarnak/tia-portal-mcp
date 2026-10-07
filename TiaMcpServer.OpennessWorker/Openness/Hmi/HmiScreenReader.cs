@@ -256,6 +256,10 @@ public static class HmiScreenReader
         }
     }
 
+    /// <summary>Every screen with its name, for <c>validate</c>.</summary>
+    internal static List<(object Item, string Name)> NamedScreens(HmiSoftware software)
+        => AllScreens(software).Select(s => ((object)s.Screen, s.Name)).ToList();
+
     private static (string Name, HmiScreen Screen) FindScreen(HmiSoftware software, string screenName)
     {
         var matches = AllScreens(software)

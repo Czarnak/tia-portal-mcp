@@ -65,8 +65,9 @@ namespace Siemens.Engineering.HmiUnified.HmiLogging.HmiLoggingCommon
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
     }
-    public abstract class LoggingBase : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class LoggingBase : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public LogBackup Backup { get => throw new global::System.NotSupportedException(); }
         public LogSegment Segment { get => throw new global::System.NotSupportedException(); }
         public LogSettings Settings { get => throw new global::System.NotSupportedException(); }

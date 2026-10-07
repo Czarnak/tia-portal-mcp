@@ -116,6 +116,21 @@ public class HmiPayloadContractDecodeTests
             } },
         { "get_screen_navigation", new HmiScreenNavigationInfo
             { StartScreen = "s", Edges = { new HmiScreenEdgeInfo { FromScreen = "s", ViaItem = "w", ToScreen = "t" } } } },
+        { "validate", new HmiValidationInfo
+            {
+                Page = new HmiPage(0, 100, 2, null),
+                Scanned = 2,
+                Clean = 1,
+                Findings =
+                {
+                    new HmiValidationFindingInfo
+                    {
+                        ObjectKind = "HmiTag", Name = "a",
+                        Results = { new HmiValidationResultInfo { PropertyName = null, Errors = { "e" }, Warnings = { "w" } } },
+                    },
+                },
+                NotValidatable = { "HmiSystemTag" },
+            } },
     };
 
     [Theory]

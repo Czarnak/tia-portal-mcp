@@ -27,7 +27,7 @@ namespace Siemens.Engineering.HmiUnified.HmiConnections
 
     public sealed class DriverPropertyComposition : Composition<DriverProperty> { }
 
-    public sealed class HmiConnection : PropertyBagNamed
+    public sealed class HmiConnection : Common.ValidatableBag
     {
         private readonly DriverPropertyComposition driverProperties = new();
 
@@ -50,7 +50,7 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon
     public enum HmiAlarmStateMachine { Raise, RaiseClear, RaiseRequiresAcknowledgement, RaiseClearOptionalAcknowledgement, RaiseClearRequiresAcknowledgement, RaiseClearRequiresAcknowledgementAndReset }
     public enum HmiDiscreteAlarmTriggerMode { OnRisingEdge, OnFallingEdge }
 
-    public abstract class AlarmBase : PropertyBagNamed
+    public abstract class AlarmBase : Common.ValidatableBag
     {
         public MultilingualText EventText { get => Get<MultilingualText>(); set => Set(value); }
         public MultilingualText EventText1 { get => Get<MultilingualText>(); set => Set(value); }
@@ -74,7 +74,7 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon
 
 namespace Siemens.Engineering.HmiUnified.HmiAlarm
 {
-    public sealed class HmiAlarmClass : PropertyBagNamed
+    public sealed class HmiAlarmClass : Common.ValidatableBag
     {
         public string CommonAlarmClass { get => Get<string>(); set => Set(value); }
         public uint Id { get => Get<uint>(); set => Set(value); }
@@ -109,14 +109,14 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
 
 namespace Siemens.Engineering.HmiUnified.HmiAudit
 {
-    public sealed class HmiAlarmAuditClass : PropertyBagNamed { }
+    public sealed class HmiAlarmAuditClass : Common.ValidatableBag { }
 
     public sealed class HmiAlarmAuditClassComposition : Composition<HmiAlarmAuditClass> { }
 }
 
 namespace Siemens.Engineering.HmiUnified.HmiOpcUaAlarm
 {
-    public sealed class HmiOpcUaAlarmType : PropertyBagNamed
+    public sealed class HmiOpcUaAlarmType : Common.ValidatableBag
     {
         public string AlarmClass { get => Get<string>(); set => Set(value); }
         public string Area { get => Get<string>(); set => Set(value); }

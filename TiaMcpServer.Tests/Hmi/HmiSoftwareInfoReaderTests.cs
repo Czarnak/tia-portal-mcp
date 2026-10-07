@@ -230,7 +230,7 @@ public class HmiSoftwareInfoReaderTests
         Assert.IsType<HmiScriptModuleListInfo>(HmiReadDispatch.Read(project, "hmi_list_script_modules", query));
         Assert.IsType<HmiTextAndGraphicListsInfo>(HmiReadDispatch.Read(project, "hmi_list_text_and_graphic_lists", query));
         Assert.IsType<HmiProjectLanguagesInfo>(HmiReadDispatch.Read(project, "hmi_list_project_languages", query));
-        var ex = Assert.Throws<WorkerOperationException>(() => HmiReadDispatch.Read(project, "hmi_validate", query));
+        var ex = Assert.Throws<WorkerOperationException>(() => HmiReadDispatch.Read(project, "hmi_not_an_operation", query));
         Assert.Equal(WorkerFailureCategories.ValidationError, ex.FailureCategory);
     }
 

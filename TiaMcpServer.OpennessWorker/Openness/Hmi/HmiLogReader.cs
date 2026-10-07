@@ -41,6 +41,19 @@ public static class HmiLogReader
         }
     }
 
+    /// <summary>Every data log, alarm log and audit trail with its name, for <c>validate</c>.</summary>
+    internal static List<(object Item, string Name)> NamedLogs(HmiSoftware software)
+    {
+        var all = new List<(object, string)>();
+        all.AddRange(HmiReadLog.Guard(() => software.DataLogs.ToList(), "The data logs")
+            .Select(l => ((object)l, HmiReadLog.Guard(() => l.Name, "A data log name"))));
+        all.AddRange(HmiReadLog.Guard(() => software.AlarmLogs.ToList(), "The alarm logs")
+            .Select(l => ((object)l, HmiReadLog.Guard(() => l.Name, "An alarm log name"))));
+        all.AddRange(HmiReadLog.Guard(() => software.AuditTrails.ToList(), "The audit trails")
+            .Select(l => ((object)l, HmiReadLog.Guard(() => l.Name, "An audit trail name"))));
+        return all;
+    }
+
     private static List<HmiLogInfo> Read<T>(IEnumerable<T> logs, Func<T, string> nameOf, string kind, HmiReadLog log)
         where T : LoggingBase
     {

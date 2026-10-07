@@ -16,8 +16,9 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon
     public enum HmiAlarmCondition { LowerLimit, UpperLimit, Equal, NotEqual, LowerLimitOrEqual, UpperLimitOrEqual }
     public enum HmiAlarmStateMachine { Raise, RaiseClear, RaiseRequiresAcknowledgement, RaiseClearOptionalAcknowledgement, RaiseClearRequiresAcknowledgement, RaiseClearRequiresAcknowledgementAndReset }
     public enum HmiDiscreteAlarmTriggerMode { OnRisingEdge, OnFallingEdge }
-    public abstract class AlarmBase : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class AlarmBase : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.MultilingualText EventText { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.MultilingualText EventText1 { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.MultilingualText EventText2 { get => throw new global::System.NotSupportedException(); }
@@ -43,8 +44,9 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon
 }
 namespace Siemens.Engineering.HmiUnified.HmiAlarm
 {
-    public abstract class HmiAlarmClass : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class HmiAlarmClass : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public string CommonAlarmClass { get => throw new global::System.NotSupportedException(); }
         public uint Id { get => throw new global::System.NotSupportedException(); }
         public bool IsSystem { get => throw new global::System.NotSupportedException(); }
@@ -97,8 +99,9 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
 }
 namespace Siemens.Engineering.HmiUnified.HmiAudit
 {
-    public abstract class HmiAuditClass : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class HmiAuditClass : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public string Name { get => throw new global::System.NotSupportedException(); }
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
@@ -118,8 +121,9 @@ namespace Siemens.Engineering.HmiUnified.HmiAudit
 }
 namespace Siemens.Engineering.HmiUnified.HmiOpcUaAlarm
 {
-    public abstract class HmiOpcUaAlarmType : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class HmiOpcUaAlarmType : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public string AlarmClass { get => throw new global::System.NotSupportedException(); }
         public string Area { get => throw new global::System.NotSupportedException(); }
         public string ConditionTypeId { get => throw new global::System.NotSupportedException(); }

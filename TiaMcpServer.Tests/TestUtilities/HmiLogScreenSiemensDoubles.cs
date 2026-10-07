@@ -55,7 +55,7 @@ namespace Siemens.Engineering.HmiUnified.HmiLogging.HmiLoggingCommon
         public string PrimaryPath { get => Get<string>(); set => Set(value); }
     }
 
-    public abstract class LoggingBase : PropertyBagNamed
+    public abstract class LoggingBase : Common.ValidatableBag
     {
         public LogBackup Backup { get => Get<LogBackup>(); set => Set(value); }
         public LogSegment Segment { get => Get<LogSegment>(); set => Set(value); }
@@ -158,7 +158,7 @@ namespace Siemens.Engineering.HmiUnified.UI.Screens
         public string Screen { get => Get<string>(); set => Set(value); }
     }
 
-    public sealed class HmiScreen : PropertyBagNamed
+    public sealed class HmiScreen : Common.ValidatableBag
     {
         private readonly HmiScreenItemBaseComposition screenItems = new();
         public HmiScreenItemBaseComposition ScreenItems { get { Check(nameof(ScreenItems)); return screenItems; } }

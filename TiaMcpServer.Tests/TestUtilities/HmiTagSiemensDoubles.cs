@@ -17,6 +17,32 @@ namespace Siemens.Engineering.HmiUnified
 namespace Siemens.Engineering.HmiUnified.Common
 {
     public abstract class HmiGroupBase : NamedObject { }
+
+    public sealed class HmiValidationResult
+    {
+        public string PropertyName { get; set; } = string.Empty;
+        public IEnumerable<string> Errors { get; set; } = Array.Empty<string>();
+        public IEnumerable<string> Warnings { get; set; } = Array.Empty<string>();
+    }
+
+    public interface IValidator
+    {
+        IList<HmiValidationResult> Validate();
+    }
+
+    /// <summary>A property bag with <c>Validate</c>: returns <c>Results</c>, or throws <c>ValidateFailure</c>, and counts calls.</summary>
+    public abstract class ValidatableBag : HmiTags.PropertyBagNamed, IValidator
+    {
+        public List<HmiValidationResult> Results { get; } = new();
+        public Exception? ValidateFailure { get; set; }
+        public int ValidateCalls { get; private set; }
+
+        public IList<HmiValidationResult> Validate()
+        {
+            ValidateCalls++;
+            return ValidateFailure is null ? Results.ToList() : throw ValidateFailure;
+        }
+    }
 }
 
 namespace Siemens.Engineering.HmiUnified.HmiTags
@@ -49,7 +75,7 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     public enum HmiLimitValueType { None, Constant, Tag }
     public enum HmiThresholdMode { None, Upper, Lower }
 
-    public sealed class HmiTag : PropertyBagNamed
+    public sealed class HmiTag : Common.ValidatableBag
     {
         private readonly LoggingTags.HmiLoggingTagComposition loggingTags = new();
         private readonly HmiTagComposition members = new();
@@ -135,7 +161,7 @@ namespace Siemens.Engineering.HmiUnified.LoggingTags
     public enum HmiLoggingMode { Undefined, Cyclic, OnDemand, OnChange }
     public enum HmiTriggerMode { None, RisingEdge, FallingEdge, RisingAndFallingEdge }
 
-    public sealed class HmiLoggingTag : HmiTags.PropertyBagNamed
+    public sealed class HmiLoggingTag : Common.ValidatableBag
     {
         public string Cycle { get => Get<string>(); set => Set(value); }
         public string DataLog { get => Get<string>(); set => Set(value); }

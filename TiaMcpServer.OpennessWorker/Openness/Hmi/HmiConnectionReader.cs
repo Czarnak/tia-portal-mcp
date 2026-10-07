@@ -25,6 +25,11 @@ public static class HmiConnectionReader
         return new HmiConnectionListInfo { IsComplete = log.IsComplete, Messages = log.Messages, Connections = rows };
     }
 
+    /// <summary>Every connection with its name, for <c>validate</c>.</summary>
+    internal static List<(object Item, string Name)> NamedConnections(HmiSoftware software)
+        => HmiReadLog.Guard(() => software.Connections.ToList(), "The connections")
+            .Select(c => ((object)c, HmiReadLog.Guard(() => c.Name, "A connection name"))).ToList();
+
     private static HmiConnectionInfo ReadRow(HmiConnection connection, string name, HmiReadLog log)
     {
         string What(string property) => $"Property {property} of connection '{name}'";

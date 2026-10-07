@@ -128,6 +128,23 @@ public static class HmiAlarmReader
         return entries;
     }
 
+    /// <summary>Every discrete and analog alarm with its name, for <c>validate</c>.</summary>
+    internal static List<(object Item, string Name)> NamedAlarms(HmiSoftware software)
+        => Entries(software, null).Select(e => ((object)e.Alarm, e.Name)).ToList();
+
+    /// <summary>Alarm classes, alarm audit classes and OPC UA alarm types with their names, for <c>validate</c>.</summary>
+    internal static List<(object Item, string Name)> NamedAlarmClasses(HmiSoftware software)
+    {
+        var all = new List<(object, string)>();
+        all.AddRange(HmiReadLog.Guard(() => software.AlarmClasses.ToList(), "The alarm classes")
+            .Select(c => ((object)c, HmiReadLog.Guard(() => c.Name, "An alarm class name"))));
+        all.AddRange(HmiReadLog.Guard(() => software.HmiAlarmAuditClass.ToList(), "The alarm audit classes")
+            .Select(c => ((object)c, HmiReadLog.Guard(() => c.Name, "An alarm audit class name"))));
+        all.AddRange(HmiReadLog.Guard(() => software.OpcUaAlarmTypes.ToList(), "The OPC UA alarm types")
+            .Select(t => ((object)t, HmiReadLog.Guard(() => t.Name, "An OPC UA alarm type name"))));
+        return all;
+    }
+
     private static HmiAlarmRowInfo ReadRow(Entry entry, string? language, HmiReadLog log)
     {
         var alarm = entry.Alarm;

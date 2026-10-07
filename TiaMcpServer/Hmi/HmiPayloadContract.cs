@@ -36,6 +36,7 @@ public static class HmiPayloadContract
         ["list_screen_items"] = typeof(HmiScreenItemListInfo),
         ["list_faceplate_instances"] = typeof(HmiFaceplateInstanceListInfo),
         ["get_screen_navigation"] = typeof(HmiScreenNavigationInfo),
+        ["validate"] = typeof(HmiValidationInfo),
     };
 
     private static readonly MethodInfo NormalizeAsMethod =

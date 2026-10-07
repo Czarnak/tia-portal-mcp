@@ -44,6 +44,12 @@ public static class HmiReadDispatch
             "hmi_list_faceplate_instances" => HmiScreenReader.ListFaceplateInstances(
                 Software(project, query), query.ScreenName, Offset(query), Limit(query)),
             "hmi_get_screen_navigation" => HmiScreenReader.GetScreenNavigation(Software(project, query)),
+            "hmi_validate" => HmiValidationReader.Validate(
+                Software(project, query),
+                query.Category ?? throw MissingField("category"),
+                query.Name,
+                Offset(query),
+                Limit(query)),
             _ => throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError, $"Unsupported HMI worker method '{method}'."),
         };

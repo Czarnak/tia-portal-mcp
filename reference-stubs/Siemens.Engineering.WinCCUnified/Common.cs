@@ -77,3 +77,20 @@ namespace Siemens.Engineering.HmiUnified.TextGraphicList
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
 }
+namespace Siemens.Engineering.HmiUnified.Common
+{
+    public interface IValidator
+    {
+        global::System.Collections.Generic.IList<HmiValidationResult> Validate();
+    }
+    public abstract class HmiValidationResult : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    {
+        public global::System.Collections.Generic.IEnumerable<string> Errors { get => throw new global::System.NotSupportedException(); }
+        public string PropertyName { get => throw new global::System.NotSupportedException(); }
+        public global::System.Collections.Generic.IEnumerable<string> Warnings { get => throw new global::System.NotSupportedException(); }
+        object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
+        void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
+        global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
+        global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
+    }
+}

@@ -28,8 +28,9 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     public enum HmiSubstituteValueUsage { None, InvalidValue, RangeViolation, InvalidValueOrRangeViolation }
     public enum HmiLimitValueType { None, Constant, Tag }
     public enum HmiThresholdMode { None, Upper, Lower }
-    public abstract class HmiTag : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class HmiTag : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.MultilingualText Comment { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HmiUnified.LoggingTags.HmiLoggingTagComposition LoggingTags { get => throw new global::System.NotSupportedException(); }
         public HmiTagComposition Members { get => throw new global::System.NotSupportedException(); }
@@ -157,8 +158,9 @@ namespace Siemens.Engineering.HmiUnified.LoggingTags
 {
     public enum HmiLoggingMode { Undefined, Cyclic, OnDemand, OnChange }
     public enum HmiTriggerMode { None, RisingEdge, FallingEdge, RisingAndFallingEdge }
-    public abstract class HmiLoggingTag : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class HmiLoggingTag : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public string Cycle { get => throw new global::System.NotSupportedException(); }
         public string DataLog { get => throw new global::System.NotSupportedException(); }
         public object HighLimit { get => throw new global::System.NotSupportedException(); }

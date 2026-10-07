@@ -332,6 +332,14 @@ public static class HmiTagReader
         }
     }
 
+    /// <summary>The tags with their names, for <c>validate</c>; a name or composition failure fails the item.</summary>
+    internal static List<(object Item, string Name)> NamedTags(HmiSoftware software)
+        => Guard(() => software.Tags.ToList(), "The tags").Select(t => ((object)t, TagName(t))).ToList();
+
+    internal static List<(object Item, string Name)> NamedSystemTags(HmiSoftware software)
+        => Guard(() => software.SystemTags.ToList(), "The system tags")
+            .Select(s => ((object)s, Guard(() => s.Name, "A system tag name"))).ToList();
+
     private static HmiTag FindUniqueTag(HmiSoftware software, string tagName)
     {
         var matches = Guard(() => software.Tags.ToList(), "The tags")
