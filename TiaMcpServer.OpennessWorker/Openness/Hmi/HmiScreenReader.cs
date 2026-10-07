@@ -1,8 +1,8 @@
-using System.Globalization;
 using Siemens.Engineering;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HmiUnified.UI.Base;
 using Siemens.Engineering.HmiUnified.UI.Controls;
+using Siemens.Engineering.HmiUnified.UI.Features;
 using Siemens.Engineering.HmiUnified.UI.ScreenGroup;
 using Siemens.Engineering.HmiUnified.UI.Screens;
 using TiaMcpServer.Contracts;
@@ -12,13 +12,11 @@ namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 /// <summary>
 /// Operations 12 to 15: screens, screen items, faceplate instances and navigation. Reads enumerate compositions
 /// (never <c>Find</c>); properties are read from explicit lists only. Item geometry lives on the concrete item
-/// types, so it is read by attribute name through <see cref="IEngineeringObject.GetAttribute"/>. An unreadable
+/// types, so it is read through <see cref="IHmiBoxFeature"/>; an item type without it has null geometry (a fact, no message). An unreadable
 /// composition fails the item; an unreadable property is null plus a message.
 /// </summary>
 public static class HmiScreenReader
 {
-    private static readonly string[] GeometryAttributes = { "Left", "Top", "Width", "Height" };
-
     /// <summary>The CLR short type name of a screen item, for example <c>HmiButton</c>.</summary>
     public static string ItemTypeName(object item) => item.GetType().Name;
 
@@ -134,17 +132,17 @@ public static class HmiScreenReader
     private static HmiScreenItemInfo ReadItem(HmiScreenItemBase item, string name, HmiReadLog log)
     {
         string What(string property) => $"Property {property} of screen item '{name}'";
-        long? Geometry(string attribute) => log.Try(
-            () => (long?)Convert.ToInt64(((IEngineeringObject)item).GetAttribute(attribute), CultureInfo.InvariantCulture),
-            What(attribute));
+        // Geometry is a fact of the item type: only items implementing IHmiBoxFeature have it.
+        var box = item as IHmiBoxFeature;
+        long? Geometry(string property, Func<long> read) => box is null ? null : log.Try(() => (long?)read(), What(property));
         return new HmiScreenItemInfo
         {
             Name = name,
             ItemType = ItemTypeName(item),
-            Left = Geometry(GeometryAttributes[0]),
-            Top = Geometry(GeometryAttributes[1]),
-            Width = Geometry(GeometryAttributes[2]),
-            Height = Geometry(GeometryAttributes[3]),
+            Left = Geometry("Left", () => box!.Left),
+            Top = Geometry("Top", () => box!.Top),
+            Width = Geometry("Width", () => box!.Width),
+            Height = Geometry("Height", () => box!.Height),
             Visible = log.Try(() => (bool?)item.Visible, What("Visible")),
             Enabled = log.Try(() => (bool?)item.Enabled, What("Enabled")),
         };
@@ -153,13 +151,13 @@ public static class HmiScreenReader
     private static HmiFaceplateInstanceInfo ReadFaceplate(string screen, string container, HmiFaceplateContainer source, HmiReadLog log)
     {
         string What(string property) => $"Property {property} of faceplate container '{container}' on screen '{screen}'";
-        var bindings = log.Try(() => source.Interface, What("Interface"));
+        var bindings = HmiReadLog.Guard(() => source.Interface, $"The interface of faceplate container '{container}'");
         return new HmiFaceplateInstanceInfo
         {
             Screen = screen,
             Container = container,
             ContainedType = log.Try(() => source.ContainedType, What("ContainedType")),
-            Bindings = bindings is null ? null : ReadBindings(bindings, container, log),
+            Bindings = ReadBindings(bindings, container, log),
         };
     }
 

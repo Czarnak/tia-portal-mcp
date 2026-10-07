@@ -111,7 +111,7 @@ public class HmiPayloadContractDecodeTests
                         Screen = "s", Container = "c", ContainedType = @"V0.0.3\FP",
                         Bindings = { new HmiFaceplateBindingInfo { PropertyName = "p", Value = new HmiVariant("System.Boolean", JsonDocument.Parse("false").RootElement.Clone()) } },
                     },
-                    new HmiFaceplateInstanceInfo { Screen = "s", Container = "d", Bindings = null },
+                    new HmiFaceplateInstanceInfo { Screen = "s", Container = "d" },
                 },
             } },
         { "get_screen_navigation", new HmiScreenNavigationInfo

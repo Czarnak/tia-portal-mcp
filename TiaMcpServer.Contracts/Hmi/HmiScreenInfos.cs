@@ -95,8 +95,8 @@ public class HmiFaceplateInstanceInfo
     /// <summary>Of the form <c>V&lt;version&gt;\&lt;faceplate type&gt;</c>; null when unreadable.</summary>
     public string? ContainedType { get; set; }
 
-    /// <summary>Interface bindings; null when the interface could not be read.</summary>
-    public List<HmiFaceplateBindingInfo>? Bindings { get; set; } = new List<HmiFaceplateBindingInfo>();
+    /// <summary>Interface bindings ordered by property name; an unreadable interface fails the item.</summary>
+    public List<HmiFaceplateBindingInfo> Bindings { get; set; } = new List<HmiFaceplateBindingInfo>();
 }
 
 public class HmiFaceplateBindingInfo

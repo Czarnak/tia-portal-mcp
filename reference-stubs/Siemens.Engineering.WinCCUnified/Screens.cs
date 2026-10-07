@@ -43,6 +43,16 @@ namespace Siemens.Engineering.HmiUnified.UI.Base
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
 }
+namespace Siemens.Engineering.HmiUnified.UI.Features
+{
+    public interface IHmiBoxFeature
+    {
+        uint Height { get; }
+        int Left { get; }
+        int Top { get; }
+        uint Width { get; }
+    }
+}
 namespace Siemens.Engineering.HmiUnified.UI.Controls
 {
     public abstract class HmiFaceplateContainer : global::Siemens.Engineering.HmiUnified.UI.Base.HmiContainerBase

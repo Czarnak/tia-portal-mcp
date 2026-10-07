@@ -75,31 +75,27 @@ namespace Siemens.Engineering.HmiUnified.HmiLogging
 
 namespace Siemens.Engineering.HmiUnified.UI.Base
 {
-    /// <summary>
-    /// A screen item. <c>Attributes</c> backs <c>GetAttribute</c> (geometry lives on the concrete types, so the
-    /// reader asks for it by name); an attribute that is not set behaves like one the type does not have.
-    /// </summary>
     public abstract class HmiScreenItemBase : PropertyBagNamed
     {
-        public Dictionary<string, object> Attributes { get; } = new();
         public bool Enabled { get => Get<bool>(); set => Set(value); }
         public bool Visible { get => Get<bool>(); set => Set(value); }
+    }
 
-        public HmiScreenItemBase At(int left, int top, uint width, uint height)
+    /// <summary>An item with box geometry, like the real concrete types that implement IHmiBoxFeature.</summary>
+    public abstract class BoxItem : HmiScreenItemBase, Features.IHmiBoxFeature
+    {
+        public int Left { get => Get<int>(); set => Set(value); }
+        public int Top { get => Get<int>(); set => Set(value); }
+        public uint Width { get => Get<uint>(); set => Set(value); }
+        public uint Height { get => Get<uint>(); set => Set(value); }
+
+        public BoxItem At(int left, int top, uint width, uint height)
         {
-            Attributes["Left"] = left;
-            Attributes["Top"] = top;
-            Attributes["Width"] = width;
-            Attributes["Height"] = height;
+            Left = left;
+            Top = top;
+            Width = width;
+            Height = height;
             return this;
-        }
-
-        public override object GetAttribute(string attributeName)
-        {
-            Check(attributeName);
-            return Attributes.TryGetValue(attributeName, out var value)
-                ? value
-                : throw new EngineeringNotSupportedException($"Attribute '{attributeName}' is not supported.");
         }
     }
 
@@ -133,12 +129,26 @@ namespace Siemens.Engineering.HmiUnified.UI.Parts
 
 namespace Siemens.Engineering.HmiUnified.UI.Widgets
 {
-    public sealed class HmiButton : HmiScreenItemBase { }
+    public sealed class HmiButton : BoxItem { }
+}
+
+namespace Siemens.Engineering.HmiUnified.UI.Features
+{
+    public interface IHmiBoxFeature
+    {
+        uint Height { get; }
+        int Left { get; }
+        int Top { get; }
+        uint Width { get; }
+    }
 }
 
 namespace Siemens.Engineering.HmiUnified.UI.Shapes
 {
-    public sealed class HmiGraphicView : HmiScreenItemBase { }
+    /// <summary>A shape without box geometry (real circles expose a centre and radius instead).</summary>
+    public sealed class HmiCircle : HmiScreenItemBase { }
+
+    public sealed class HmiGraphicView : BoxItem { }
 }
 
 namespace Siemens.Engineering.HmiUnified.UI.Screens

@@ -158,23 +158,35 @@ public class HmiScreenReaderTests
     }
 
     [Fact]
-    public void ItemWithoutGeometryHasNullsAndAMessage()
+    public void ItemWithoutBoxGeometryHasNullsAndNoMessage()
     {
         var software = Unified("Panel_RT");
-        var noGeometry = new HmiButton { Name = "Bare", Visible = true, Enabled = true };
+        software.Screens.Items.Add(Screen("S", new HmiCircle { Name = "Round", Visible = true, Enabled = true }));
+
+        var list = HmiScreenReader.ListScreenItems(software, "S", 0, 10);
+
+        Assert.True(list.IsComplete);
+        Assert.Empty(list.Messages);
+        var round = Assert.Single(list.Items);
+        Assert.Equal("HmiCircle", round.ItemType);
+        Assert.Equal((null, null, null, null), (round.Left, round.Top, round.Width, round.Height));
+        Assert.Equal((true, true), (round.Visible, round.Enabled));
+    }
+
+    [Fact]
+    public void GeometryReadFailureIsNullWithAMessageAndIncomplete()
+    {
+        var software = Unified("Panel_RT");
         var failing = new HmiButton { Name = "Failing", Visible = true, Enabled = true }.At(1, 2, 3, 4);
         failing.Failures["Left"] = new EngineeringTargetInvocationException("no left");
-        software.Screens.Items.Add(Screen("S", noGeometry, failing));
+        software.Screens.Items.Add(Screen("S", failing));
 
         var list = HmiScreenReader.ListScreenItems(software, "S", 0, 10);
 
         Assert.False(list.IsComplete);
-        var bare = list.Items.Single(i => i.Name == "Bare");
-        Assert.Equal((null, null, null, null), (bare.Left, bare.Top, bare.Width, bare.Height));
-        var broken = list.Items.Single(i => i.Name == "Failing");
+        var broken = Assert.Single(list.Items);
         Assert.Equal((null, 2L, 3L, 4L), (broken.Left, broken.Top, broken.Width, broken.Height));
         Assert.Contains(list.Messages, m => m.Contains("Left") && m.Contains("Failing"));
-        Assert.Contains(list.Messages, m => m.Contains("Left") && m.Contains("Bare"));
     }
 
     [Fact]
@@ -208,18 +220,17 @@ public class HmiScreenReaderTests
     }
 
     [Fact]
-    public void UnreadableInterfaceIsNullBindingsWithAMessage()
+    public void UnreadableInterfaceFailsTheItem()
     {
         var software = Unified("Panel_RT");
         var container = Faceplate("FP", @"V0.0.3\FP_Estop", ("Tag", "x"));
         container.Failures["Interface"] = new EngineeringTargetInvocationException("no interface");
         software.Screens.Items.Add(Screen("S", container));
 
-        var list = HmiScreenReader.ListFaceplateInstances(software, null, 0, 10);
+        var ex = Assert.Throws<WorkerOperationException>(() => HmiScreenReader.ListFaceplateInstances(software, null, 0, 10));
 
-        Assert.Null(Assert.Single(list.Instances).Bindings);
-        Assert.False(list.IsComplete);
-        Assert.Contains(list.Messages, m => m.Contains("Interface") && m.Contains("FP"));
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Contains("FP", ex.Message);
     }
 
     [Fact]
