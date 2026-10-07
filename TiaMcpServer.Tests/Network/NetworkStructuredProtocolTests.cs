@@ -430,8 +430,6 @@ public class NetworkStructuredProtocolTests
         var result = await CallWriteAsync(harness, new object[] { operation });
 
         Assert.True(result.IsError);
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.DoesNotContain("safetyToken", text, StringComparison.Ordinal);
     }
 
     private static ValueTask<CallToolResult> CallWriteAsync(

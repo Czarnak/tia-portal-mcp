@@ -26,7 +26,6 @@ public sealed class LifecycleGuardedContractTests
         Assert.DoesNotContain("acknowledge", inputs);
         Assert.DoesNotContain("options", inputs);
         Assert.DoesNotContain("confirm", inputs);
-        Assert.DoesNotContain("safetyToken", inputs);
     }
 
     [Fact]

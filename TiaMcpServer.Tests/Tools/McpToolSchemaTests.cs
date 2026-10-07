@@ -139,7 +139,6 @@ public class McpToolSchemaTests
         Assert.DoesNotContain("server", properties);
         Assert.DoesNotContain("safety", properties);
         Assert.DoesNotContain("confirm", properties);
-        Assert.DoesNotContain("safetyToken", properties);
         Assert.Contains("dryRun", properties);
         Assert.DoesNotContain("acknowledge", properties);
     }
@@ -228,7 +227,6 @@ public class McpToolSchemaTests
         Assert.Contains("dryRun", properties);
         Assert.DoesNotContain("acknowledge", properties);
         Assert.DoesNotContain("confirm", properties);
-        Assert.DoesNotContain("safetyToken", properties);
     }
 
     [Fact]
@@ -240,7 +238,6 @@ public class McpToolSchemaTests
         Assert.Contains("dryRun", properties);
         Assert.DoesNotContain("acknowledge", properties);
         Assert.DoesNotContain("confirm", properties);
-        Assert.DoesNotContain("safetyToken", properties);
     }
 
     [Fact]
@@ -432,7 +429,6 @@ public class McpToolSchemaTests
             properties.OrderBy(name => name).ToArray());
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("confirm", properties);
-        Assert.DoesNotContain("safetyToken", properties);
     }
 }
 

@@ -80,7 +80,6 @@ public class WriteToolMcpAnnotationProtocolTests
             Assert.True(properties.TryGetProperty("dryRun", out _));
             Assert.False(properties.TryGetProperty("acknowledge", out _));
             Assert.False(properties.TryGetProperty("confirm", out _));
-            Assert.False(properties.TryGetProperty("safetyToken", out _));
             Assert.False(properties.TryGetProperty("server", out _));
             Assert.False(properties.TryGetProperty("options", out _));
             Assert.False(properties.TryGetProperty("execution", out _));

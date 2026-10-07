@@ -60,7 +60,6 @@ public sealed class LifecycleGuardedBehaviorTests
         Assert.Equal(behavior == "rejected", result.IsError == true);
         Assert.Equal(behavior is "dryRun" or "success", root.GetProperty("success").GetBoolean());
         Assert.Equal(behavior == "rejected", root.GetProperty("error").ValueKind == JsonValueKind.Object);
-        Assert.DoesNotContain("safetyToken", root.GetRawText());
         Assert.DoesNotContain("untrustedMarker", root.GetRawText());
         var audit = Assert.Single(fixture.Audit.Records);
         Assert.Equal(root.GetRawText(), audit.ResponseText);

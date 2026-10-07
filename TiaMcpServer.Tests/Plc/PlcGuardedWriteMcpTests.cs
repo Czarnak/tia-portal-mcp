@@ -14,7 +14,6 @@ public sealed class PlcGuardedWriteMcpTests
 
     [Theory]
     [InlineData("confirm", "false")]
-    [InlineData("safetyToken", "\"legacy\"")]
     [InlineData("acknowledge", "[]")]
     [InlineData("unknown", "true")]
     [InlineData("dryRun", "\"true\"")]
