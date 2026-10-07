@@ -222,7 +222,8 @@ public static class HmiSoftwareInfoReader
         }
         catch (EngineeringException ex)
         {
-            log.Fail($"LanguageAndFonts could not be read: {ex.Message}");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed, $"The LanguageAndFonts could not be read: {ex.Message}");
         }
 
         return entries
@@ -254,7 +255,7 @@ public static class HmiSoftwareInfoReader
         }
         catch (EngineeringException ex)
         {
-            log.Fail($"{name} could not be read: {ex.Message}");
+            log.Recover(ex, $"{name} could not be read: {ex.Message}");
             return null;
         }
 

@@ -7,6 +7,16 @@ using System.Runtime.CompilerServices;
 
 namespace Siemens.Engineering
 {
+    public sealed class EngineeringTargetInvocationException : EngineeringException
+    {
+        public EngineeringTargetInvocationException(string message) : base(message) { }
+    }
+
+    public sealed class EngineeringObjectDisposedException : EngineeringException
+    {
+        public EngineeringObjectDisposedException(string message) : base(message) { }
+    }
+
     public sealed class Language
     {
         public CultureInfo Culture { get; set; } = CultureInfo.InvariantCulture;

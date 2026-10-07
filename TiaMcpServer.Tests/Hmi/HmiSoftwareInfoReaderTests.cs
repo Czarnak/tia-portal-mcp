@@ -19,8 +19,9 @@ public class HmiSoftwareInfoReaderTests
         // Comfort panel: Device.TypeIdentifier is null, the head item (named like the device) carries it.
         var comfort = DeviceWith("Panel_B", Unified("Panel_B_RT"));
         comfort.DeviceItems.Items.Insert(0, new DeviceItem { Name = "Panel_B", TypeIdentifier = "OrderNumber:6AV2 123" });
-        // PC station: the type identifier is on the device.
+        // PC station: the order number is on the software item; Device.TypeIdentifier is only System:Device.PC.
         var pc = DeviceWith("PC_A", Unified("PC_A_RT"), typeIdentifier: "System:Device.PC");
+        pc.DeviceItems.Items[0].TypeIdentifier = "OrderNumber:6AV2 155";
         var classic = DeviceWith("Old", Classic("Old_RT"));
         var project = ProjectWith(comfort, pc, classic);
 
@@ -30,7 +31,7 @@ public class HmiSoftwareInfoReaderTests
         Assert.Equal(new[] { "Old", "Panel_B", "PC_A" }, info.Devices.Select(d => d.DeviceName));
         Assert.Equal(new[] { "classic", "unified", "unified" }, info.Devices.Select(d => d.Kind));
         Assert.Equal("OrderNumber:6AV2 123", info.Devices[1].TypeIdentifier);
-        Assert.Equal("System:Device.PC", info.Devices[2].TypeIdentifier);
+        Assert.Equal("OrderNumber:6AV2 155", info.Devices[2].TypeIdentifier);
         Assert.Null(info.Devices[0].TypeIdentifier);
         Assert.Equal("Panel_B_RT", info.Devices[1].SoftwareName);
     }
@@ -39,7 +40,7 @@ public class HmiSoftwareInfoReaderTests
     public void UnreadableTypeIdentifierIsNullWithMessageAndIncomplete()
     {
         var device = DeviceWith("PC_A", Unified("PC_A_RT"));
-        device.TypeIdentifierFailure = new EngineeringException("no type");
+        device.TypeIdentifierFailure = new EngineeringTargetInvocationException("no type");
 
         var info = HmiSoftwareInfoReader.ListDevices(ProjectWith(device));
 
@@ -56,9 +57,9 @@ public class HmiSoftwareInfoReaderTests
         var settings = software.RuntimeSettings;
         settings.StartScreen = "Start";
         settings.ScreenResolution = Siemens.Engineering.HmiUnified.RuntimeSettings.HmiRuntimeSettingsCommon.ScreenResolution.SR_1280X800;
-        settings.Failures["GMPEnabled"] = new EngineeringException("GMPEnabled is not supported on the current device version.");
+        settings.Failures["GMPEnabled"] = new EngineeringTargetInvocationException("GMPEnabled is not supported on the current device version.");
         settings.HmiUnifiedTagSettings = new HmiUnifiedTagSettings();
-        settings.HmiUnifiedTagSettings.Failures["TagOptimizationActive"] = new EngineeringException("not supported");
+        settings.HmiUnifiedTagSettings.Failures["TagOptimizationActive"] = new EngineeringTargetInvocationException("not supported");
         settings.LanguageAndFonts.Items.Add(new HmiLanguageAndFont { Language = "pl-PL", Order = 2, Enable = true, DefaultFont = "Arial" });
         settings.LanguageAndFonts.Items.Add(new HmiLanguageAndFont { Language = "en-US", Order = 1, Enable = true });
 
@@ -94,6 +95,41 @@ public class HmiSoftwareInfoReaderTests
         var values = info.MaxLogin!.Values.ToDictionary(v => v.Name, v => v.Value);
         Assert.Equal("true", values["EnableLockAfterNumberOfAttempts"]);
         Assert.Equal("3", values["MaxLoginErrors"]);
+    }
+
+    [Fact]
+    public void DisposedObjectDuringAPropertyReadFailsTheItemInsteadOfNullingIt()
+    {
+        var software = Unified("Panel_RT");
+        software.RuntimeSettings.Failures["StartScreen"] = new EngineeringObjectDisposedException("TIA Portal has been disposed.");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => HmiSoftwareInfoReader.ReadRuntimeSettings(software));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Contains("disposed", ex.Message);
+    }
+
+    [Fact]
+    public void DisposedSubObjectReadFailsTheItem()
+    {
+        var software = Unified("Panel_RT");
+        software.RuntimeSettings.Failures["HmiReportingSettings"] = new EngineeringObjectDisposedException("gone");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => HmiSoftwareInfoReader.ReadRuntimeSettings(software));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+    }
+
+    [Fact]
+    public void UnreadableLanguageAndFontsCompositionFailsTheItem()
+    {
+        var software = Unified("Panel_RT");
+        software.RuntimeSettings.LanguageAndFonts.EnumerationFailure = new EngineeringTargetInvocationException("fonts unavailable");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => HmiSoftwareInfoReader.ReadRuntimeSettings(software));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Contains("fonts unavailable", ex.Message);
     }
 
     [Fact]
@@ -135,7 +171,7 @@ public class HmiSoftwareInfoReaderTests
     {
         var software = Unified("Panel_RT");
         software.Scripts.Items.Add(new HmiScriptModule { Name = "ok" });
-        software.Scripts.Items.Add(new HmiScriptModule { NameFailure = new EngineeringException("name gone") });
+        software.Scripts.Items.Add(new HmiScriptModule { NameFailure = new EngineeringTargetInvocationException("name gone") });
 
         var scripts = HmiSoftwareInfoReader.ListScriptModules(software);
 
@@ -173,7 +209,7 @@ public class HmiSoftwareInfoReaderTests
     public void UnreadableReferenceLanguageIsNullWithMessage()
     {
         var project = ProjectWith().WithLanguages("en-US", "en-US", "en-US");
-        project.LanguageSettings.ReferenceLanguageFailure = new EngineeringException("no reference");
+        project.LanguageSettings.ReferenceLanguageFailure = new EngineeringTargetInvocationException("no reference");
 
         var info = HmiSoftwareInfoReader.ListProjectLanguages(project);
 

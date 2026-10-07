@@ -29,7 +29,7 @@ public static class HmiTextMapper
                         texts.Add(new HmiText(culture, item.Text));
                     }
                 }
-                catch (EngineeringException ex)
+                catch (EngineeringException ex) when (HmiReadLog.IsRecoverable(ex))
                 {
                     messages.Add($"A text item could not be read: {ex.Message}");
                 }

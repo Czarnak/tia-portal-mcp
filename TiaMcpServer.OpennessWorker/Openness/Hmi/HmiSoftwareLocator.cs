@@ -236,8 +236,9 @@ public static class HmiSoftwareLocator
     }
 
     /// <summary>
-    /// Comfort panels carry the type identifier on the head device item (named like the device), PC stations
-    /// on the device or the software item; <c>Device.TypeIdentifier</c> is null on Comfort.
+    /// Comfort panels carry the type identifier (order number) on the head device item (named like the device),
+    /// PC stations on the software item; <c>Device.TypeIdentifier</c> is null on Comfort and only <c>System:Device.PC</c>
+    /// on a PC station, so it is the last resort.
     /// </summary>
     private static string? ReadTypeIdentifier(Found found, ICollection<string>? messages)
     {
@@ -247,15 +248,14 @@ public static class HmiSoftwareLocator
             {
                 return get();
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException ex) when (HmiReadLog.IsRecoverable(ex))
             {
                 messages?.Add($"The type identifier of {what} could not be read: {ex.Message}");
                 return null;
             }
         }
 
-        var id = Read(() => found.Device.TypeIdentifier, $"device '{found.DeviceName}'")
-            ?? Read(() => found.Host.TypeIdentifier, $"the software item of '{found.SoftwareName}'");
+        var id = Read(() => found.Host.TypeIdentifier, $"the software item of '{found.SoftwareName}'");
         if (id is not null)
         {
             return id;
@@ -265,10 +265,11 @@ public static class HmiSoftwareLocator
         {
             if (Read(() => item.Name, "a device item") == found.DeviceName)
             {
-                return Read(() => item.TypeIdentifier, $"the head item of '{found.DeviceName}'");
+                id = Read(() => item.TypeIdentifier, $"the head item of '{found.DeviceName}'");
+                break;
             }
         }
 
-        return null;
+        return id ?? Read(() => found.Device.TypeIdentifier, $"device '{found.DeviceName}'");
     }
 }
