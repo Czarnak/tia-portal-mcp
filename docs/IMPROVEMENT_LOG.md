@@ -1110,3 +1110,12 @@ and live acceptance in read-write and full are in the
 
 - **Pipeline fix `9886a23`:** a re-planned dependent item's repeated guard is reported once. The
   defect had been on `main` since `028108b` (the guarded pipeline); `plc_write` found it live.
+
+## Write-safety Phase 5 cleanup — completed 2026-10-07 (release excluded)
+
+Removed the last token-era test and FakeWorker leftovers (the unused state-drift scenario, token
+wording, two `confirm`/`safetyToken` read-only bypass tests, a retired snapshot method row) and
+renamed `NetworkIntrospectionSafetySnapshotTests` to `NetworkHardwareConfigDeterminismTests`. No
+production code references a safety token; remaining mentions are rejection tests and migration
+notes. Major version, release notes, agent migration note and tag stay open for the maintainer
+([redesign spec](superpowers/specs/2026-09-29-write-safety-redesign-design.md)).
