@@ -191,7 +191,7 @@ public static class HmiAlarmReader
     }
 
     /// <summary>The raw per-culture texts, or null (plus a message) when the property could not be read.</summary>
-    private static List<HmiText>? ReadText(Func<MultilingualText?> read, string? language, HmiReadLog log, string what)
+    internal static List<HmiText>? ReadText(Func<MultilingualText?> read, string? language, HmiReadLog log, string what)
     {
         MultilingualText? text;
         try
@@ -214,7 +214,7 @@ public static class HmiAlarmReader
         return texts;
     }
 
-    private static HmiVariant? ReadVariant(Func<object?> read, HmiReadLog log, string what)
+    internal static HmiVariant? ReadVariant(Func<object?> read, HmiReadLog log, string what)
     {
         object? value;
         try

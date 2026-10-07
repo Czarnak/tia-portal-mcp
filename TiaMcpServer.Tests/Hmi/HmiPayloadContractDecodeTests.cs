@@ -80,6 +80,42 @@ public class HmiPayloadContractDecodeTests
                 AuditClasses = { new HmiAuditClassInfo { Name = "a" } },
                 OpcUaAlarmTypes = { new HmiOpcUaAlarmTypeInfo { Name = "u" } },
             } },
+        { "list_logs", new HmiLogsInfo
+            {
+                DataLogs =
+                {
+                    new HmiLogInfo
+                    {
+                        Name = "d",
+                        Settings = new HmiLogSettingsInfo { LogMaxSize = 10, LogTimePeriod = new HmiDurationInfo { Days = 1 }, StorageDevice = "Local", StorageFolder = null },
+                        Segment = new HmiLogSegmentInfo { SegmentStartTime = "2026-01-01T00:00:00.0000000" },
+                        Backup = new HmiLogBackupInfo { BackupMode = "NoBackup" },
+                    },
+                },
+                AlarmLogs = { new HmiLogInfo { Name = "a" } },
+            } },
+        { "list_screens", new HmiScreenTreeInfo
+            {
+                Screens = { new HmiScreenInfo { Name = "s", DisplayName = { new HmiText("en-US", "S") }, ScreenNumber = 1, ItemCount = 2 } },
+                Groups = { new HmiScreenGroupInfo { Name = "g", Groups = { new HmiScreenGroupInfo { Name = "h" } } } },
+            } },
+        { "list_screen_items", new HmiScreenItemListInfo
+            { Screen = "s", Page = new HmiPage(0, 100, 1, null), Items = { new HmiScreenItemInfo { Name = "b", ItemType = "HmiButton", Left = 1, Top = 2, Width = 3, Height = null } } } },
+        { "list_faceplate_instances", new HmiFaceplateInstanceListInfo
+            {
+                Page = new HmiPage(0, 100, 2, null),
+                Instances =
+                {
+                    new HmiFaceplateInstanceInfo
+                    {
+                        Screen = "s", Container = "c", ContainedType = @"V0.0.3\FP",
+                        Bindings = { new HmiFaceplateBindingInfo { PropertyName = "p", Value = new HmiVariant("System.Boolean", JsonDocument.Parse("false").RootElement.Clone()) } },
+                    },
+                    new HmiFaceplateInstanceInfo { Screen = "s", Container = "d", Bindings = null },
+                },
+            } },
+        { "get_screen_navigation", new HmiScreenNavigationInfo
+            { StartScreen = "s", Edges = { new HmiScreenEdgeInfo { FromScreen = "s", ViaItem = "w", ToScreen = "t" } } } },
     };
 
     [Theory]

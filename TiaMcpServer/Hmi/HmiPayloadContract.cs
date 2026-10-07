@@ -31,6 +31,11 @@ public static class HmiPayloadContract
         ["list_alarms"] = typeof(HmiAlarmListInfo),
         ["get_alarm"] = typeof(HmiAlarmDetailInfo),
         ["list_alarm_classes"] = typeof(HmiAlarmClassesInfo),
+        ["list_logs"] = typeof(HmiLogsInfo),
+        ["list_screens"] = typeof(HmiScreenTreeInfo),
+        ["list_screen_items"] = typeof(HmiScreenItemListInfo),
+        ["list_faceplate_instances"] = typeof(HmiFaceplateInstanceListInfo),
+        ["get_screen_navigation"] = typeof(HmiScreenNavigationInfo),
     };
 
     private static readonly MethodInfo NormalizeAsMethod =

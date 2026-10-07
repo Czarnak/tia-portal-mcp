@@ -1,6 +1,7 @@
 using Siemens.Engineering;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HmiUnified.HmiTags;
+using Siemens.Engineering.HmiUnified.HmiLogging;
 using Siemens.Engineering.HmiUnified.LoggingTags;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker;
@@ -329,6 +330,20 @@ public class HmiTagReaderTests
     }
 
     [Fact]
+    public void LoggingTagsOfAnUnknownDataLogFailTheItem()
+    {
+        var software = SoftwareWith(Table("T1", Tag("a")));
+        software.DataLogs.Items.Add(new HmiDataLog { Name = "Log1" });
+
+        var known = HmiTagReader.ListLoggingTags(software, "log1", null, 0, 10);
+        var ex = Assert.Throws<WorkerOperationException>(() => HmiTagReader.ListLoggingTags(software, "Nope", null, 0, 10));
+
+        Assert.Empty(known.LoggingTags);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, ex.FailureCategory);
+        Assert.Contains("list_logs", ex.Message);
+    }
+
+    [Fact]
     public void LoggingTagsFilterByDataLogAndTag()
     {
         var a = Tag("a");
@@ -337,6 +352,8 @@ public class HmiTagReaderTests
         var b = Tag("b");
         b.LoggingTags.Items.Add(new HmiLoggingTag { Name = "b_l1", DataLog = "log1", LoggingMode = HmiLoggingMode.OnDemand, Cycle = "1 s", TriggerMode = HmiTriggerMode.None });
         var software = SoftwareWith(Table("T1", a, b, Tag("c")));
+        software.DataLogs.Items.Add(new HmiDataLog { Name = "Log1" });
+        software.DataLogs.Items.Add(new HmiDataLog { Name = "Log2" });
 
         var all = HmiTagReader.ListLoggingTags(software, null, null, 0, 10);
         var byLog = HmiTagReader.ListLoggingTags(software, "LOG1", null, 0, 10);

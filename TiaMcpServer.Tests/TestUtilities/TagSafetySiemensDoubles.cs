@@ -6,7 +6,7 @@ namespace Siemens.Engineering
 {
     public abstract class NamedObject : IEngineeringServiceProvider, IEngineeringObject
     {
-        public object GetAttribute(string attributeName) => attributeName == "Name"
+        public virtual object GetAttribute(string attributeName) => attributeName == "Name"
             ? Name
             : throw new EngineeringException($"Attribute '{attributeName}' is not modeled.");
         private string name = string.Empty;

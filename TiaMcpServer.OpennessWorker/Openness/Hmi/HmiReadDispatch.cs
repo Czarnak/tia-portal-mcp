@@ -37,6 +37,13 @@ public static class HmiReadDispatch
                 query.AlarmKind ?? throw MissingField("alarmKind"),
                 query.Language),
             "hmi_list_alarm_classes" => HmiAlarmReader.ListAlarmClasses(Software(project, query)),
+            "hmi_list_logs" => HmiLogReader.ListLogs(Software(project, query)),
+            "hmi_list_screens" => HmiScreenReader.ListScreens(Software(project, query), query.GroupPath, query.Language),
+            "hmi_list_screen_items" => HmiScreenReader.ListScreenItems(
+                Software(project, query), query.ScreenName ?? throw MissingField("screenName"), Offset(query), Limit(query)),
+            "hmi_list_faceplate_instances" => HmiScreenReader.ListFaceplateInstances(
+                Software(project, query), query.ScreenName, Offset(query), Limit(query)),
+            "hmi_get_screen_navigation" => HmiScreenReader.GetScreenNavigation(Software(project, query)),
             _ => throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError, $"Unsupported HMI worker method '{method}'."),
         };

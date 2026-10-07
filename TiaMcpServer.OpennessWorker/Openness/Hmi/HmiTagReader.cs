@@ -115,6 +115,11 @@ public static class HmiTagReader
     public static HmiLoggingTagListInfo ListLoggingTags(
         HmiSoftware software, string? dataLogName, string? tagName, int offset, int limit)
     {
+        if (dataLogName is not null)
+        {
+            HmiLogReader.RequireDataLog(software, dataLogName);
+        }
+
         var log = new HmiReadLog();
         var tags = Guard(() => software.Tags.ToList(), "The tags");
         if (tagName is not null)
