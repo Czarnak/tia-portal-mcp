@@ -100,11 +100,11 @@ codebase the change is about. Prefer the area names used for issue and PR labels
 
 | Scope | Covers |
 | --- | --- |
-| `plc-blocks` | PLC blocks and types, source/XML formats, cross-references, `compile_check`, PLC start/stop |
+| `plc-blocks` | PLC blocks and types, `plc_read`/`plc_write`, source/XML formats, cross-references, `compile_check` |
 | `plc-tags` | Tag tables, tags, user constants |
 | `network` | `network_read`/`network_write`, hardware configuration, subnets, I/O maps |
 | `project` | Project tree, project status, lifecycle, binding |
-| `write-safety` | Preview-then-apply, safety tokens, audit, read-only mode |
+| `write-safety` | Guarded write pipeline, guards, `dryRun`, audit, read-only mode |
 | `mcp-protocol` | Tool schemas, canonical JSON, batch engine, cursors |
 | `worker` | Openness worker process, host-worker IPC, contracts |
 | `cli` | `doctor`, `install`, `--version` |

@@ -30,12 +30,12 @@ Configure your MCP client to launch the tool command:
 }
 ```
 
-Without explicit access arguments the server starts in `read-write` with sixteen tools: edits,
+Without explicit access arguments the server starts in `read-write` with fifteen tools: edits,
 compilation, and all six lifecycle tools. Each actual lifecycle call asks once through form
 elicitation `accept` with boolean `confirm:true`, even with no guards or only info guards. A client
 without that capability receives `access_denied`; decline, cancel, timeout, or transport failure
-also denies. Set `"args": ["--access-mode", "full"]` for the same sixteen tools with lifecycle
-policy confirmation and no server elicitation, plus OnlineControl (PLC run/stop).
+also denies. Set `"args": ["--access-mode", "full"]` for the same fifteen tools with lifecycle
+policy confirmation and no server elicitation; full adds no tools or operations.
 `tia-mcp install` defaults separately to read-only with six tools, including `bind_project`.
 Block guards stop the call in every mode. See [Installation](installation.md#access-modes).
 
@@ -48,12 +48,14 @@ Remove the old startup confirmation switch; it is rejected with:
 Lifecycle inputs use `dryRun`; remove former agent confirmation arrays and old public `confirm`
 and `safetyToken` arguments. Read the structured `result` and `verification` outcomes and audit v2
 confirmation by `user`, `policy`, or `none`. A dry run never elicits, although a client
-may still show its destructive-tool permission prompt. Only generic batch writes retain tokens.
-Network takes `operations` and optional boolean `dryRun=false`; **omitting dryRun executes**.
+may still show its destructive-tool permission prompt. No tool uses safety tokens; replace
+`preview_write_batch`/`apply_write_batch` callers with `plc_write`, passing `content` plus
+`expectedContentHash` (from `plc_read`) instead of `yamlContent`/`sourceContent`.
+`plc_write` and Network take `operations` and optional boolean `dryRun=false`; **omitting dryRun executes**.
 Set `dryRun:true` for every preview caller. Remove `confirm`, `safetyToken`, `acknowledge` and
 unknown root keys: SDK/wrapper rejection before entry is a normal MCP error with no write audit.
 Entered validation/binding/guard denials use a canonical root error and one audit v2 record.
-No Network server elicitation occurs in either writable mode, including connected deletion.
+No `plc_write` or Network server elicitation occurs in either writable mode, including deletes.
 Read `batch`, `effects`, `verification` and explicit-null root `omission`; delivery failure can
 coexist with successful execution summaries. Inspect original exact selectors before retry. Keep destructive tools out of client auto-approve lists if you require a
 permission prompt on every call; the server cannot establish whether a human saw an accepted

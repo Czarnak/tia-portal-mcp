@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Plc;
@@ -11,6 +12,9 @@ public sealed record PlcContentResult(
     string Content,
     string? ContentHash,
     IReadOnlyList<string> Warnings);
+
+/// <summary>Result of a completed update_block_logic: the normalized write format and the worker's typed import evidence.</summary>
+public sealed record PlcBlockImportResult(string Format, BlockImportOutcomeInfo ImportOutcome);
 
 /// <summary>
 /// Declared output schema of <c>plc_read</c>. Exactly one of <see cref="Batch"/> and

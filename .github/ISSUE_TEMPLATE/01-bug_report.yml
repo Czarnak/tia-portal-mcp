@@ -104,7 +104,7 @@ body:
         - Tags and user constants
         - Network and hardware
         - Project tree and lifecycle
-        - Write safety (preview and apply)
+        - Write safety (dryRun, guards, audit)
         - MCP protocol and tool schemas
         - Openness worker or connection to TIA Portal
         - CLI (doctor / install / version)
@@ -139,7 +139,7 @@ body:
     attributes:
       label: Was the TIA Portal project changed?
       description: >-
-        Write batches apply operations one by one, stop at the first failure, and do not roll
+        Multi-item writes apply operations one by one, stop at the first failure, and do not roll
         back. For a write, say what state the project was left in.
       options:
         - Not a write operation
@@ -215,7 +215,7 @@ body:
     attributes:
       label: Audit record
       description: >-
-        Write problems only. The JSONL line for the affected apply, from the audit folder
+        Write problems only. The JSONL line for the affected write call, from the audit folder
         under %LOCALAPPDATA%\TiaMcpServer\audit.
       render: json
     validations:

@@ -39,6 +39,8 @@ public sealed class ConditionalMemberRegisterTests
         "NodeInfo.ConnectionEvidence",
         "SubnetInfo.ConnectionEvidence",
         "WorkerResponse.BlockImportOutcome",
+        // plc_write: present only on a failed content-import item (update_block_logic).
+        "StructuredOperationFailure.BlockImportOutcome",
         // Only explicit bind_project inspection actions add this host value; default binding omits it.
         "ProjectBindingResult.Inspection",
     };
@@ -46,7 +48,10 @@ public sealed class ConditionalMemberRegisterTests
     [Fact]
     public void ConditionalMembers_AreExactlyTheRegisteredSet()
     {
-        var actual = typeof(WorkerJson).Assembly.GetTypes().Append(typeof(TiaMcpServer.Tools.ProjectBindingResult))
+        // The contracts assembly, plus the host response members that share the convention.
+        var actual = typeof(WorkerJson).Assembly.GetTypes()
+            .Append(typeof(TiaMcpServer.OperationBatches.StructuredOperationFailure))
+            .Append(typeof(TiaMcpServer.Tools.ProjectBindingResult))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(IsWhenWritingNullConditional)

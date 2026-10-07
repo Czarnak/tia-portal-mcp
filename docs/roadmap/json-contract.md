@@ -16,13 +16,13 @@ documentation/spec updates are complete. The report bounds the maintainer's work
 conclusion because the worker PID changed between read-write and read-only. Offline qualification at `3bb504b`
 passed 4,946 tests and 93.24% linked host/contracts line coverage; this is not Siemens coverage.
 Phase 4 Network alignment and guarded writes are implemented with focused offline qualification;
-final combined gates and fresh live acceptance remain pending. Project-tree alignment/batch
-retirement remain future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
+final combined gates and fresh live acceptance remain pending. The batch tools are retired
+(`plc_write`, 2026-10-07); project-tree alignment remains future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
 On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
-tokens) and added the token core to Phase 4. The three batch tools are excluded from this roadmap;
-the redesign's Phase 4 resolves that exclusion. See [Scope](#scope).
+tokens) and added the token core to Phase 4. The three batch tools were excluded from this roadmap;
+`plc_read` and `plc_write` replaced them, so every registered tool is now structured. See [Scope](#scope).
 
 ## Objective
 
@@ -32,7 +32,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. Fourteen tools now follow it. This roadmap moves the rest onto
+already describe that contract. All fifteen registered tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
@@ -45,39 +45,35 @@ it without inventing a second mechanism.
 | `bind_project` | Structured standalone envelope (`1.0`) | Implemented; Task13 live-accepted 2026-10-03 in all three modes, with the separate human read-only dialog observation recorded |
 | `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Structured guarded lifecycle envelope (`1.0`) | Phase 3 implemented; current-candidate full/read-write live matrix passed 2026-10-03 |
 | `plc_read`, `read_cross_references` | Structured (`1.0`, root warnings/explicit nulls; 60,000-character value and 180,000-character document budgets) | Implemented and live-accepted 2026-10-05; replace `execute_read_batch`, which was retired |
-| `preview_write_batch`, `apply_write_batch` | Legacy batch text | **Excluded**; retired by write-safety redesign Phase 4 (`plc_write` planned) |
+| `plc_write` | Structured guarded write envelope (`1.0`; effects, guards, typed batch and verification, omission) | Implemented and live-accepted 2026-10-07; replaces `preview_write_batch` and `apply_write_batch`, which were retired |
 
-The batch tools are excluded because a separate redesign splits them into domain read/write tools
-(`block_read`, `tag_write`, and so on) in the `network_read`/`network_write` shape. The
-[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) sets what
-those write tools must do (its §4.9) and, in its Phase 4, retires the batch pair once the domain
-tools cover every operation it offers. This roadmap does not otherwise constrain that redesign.
-Until it lands, the batch tools keep their current output, and the legacy machinery they depend on
-stays in place: `OperationBatchResult`, `OperationBatchExecutionEngine`,
-`OperationBatchPayloadBudget`, `OperationBatchResultFormatter`, the presentation-serializer methods
-on `WriteSafetyService` (`CreatePreview`, `ValidateEnvelope`, `ValidateAndConsume`, `AppendAudit`),
-and the legacy audit record. The domain tools are built on the structured contract, and the batch
-tools leave the guard's legacy register when they are retired.
+The batch tools were excluded because the
+[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) split them
+into domain read/write tools in the `network_read`/`network_write` shape. `plc_read` and `plc_write`
+now cover every operation they offered, so the batch pair, its legacy machinery
+(`OperationBatchResult`, `OperationBatchExecutionEngine`, `OperationBatchPayloadBudget`,
+`OperationBatchResultFormatter`, the `WriteSafetyService` presentation methods) and the legacy
+audit record were removed, and the guard's legacy register is empty.
 
 ## Current State
 
-Two active output families remain after Phase 3. The original findings were taken at `0862ac9`.
+One active output family remains after the batch tools were retired; two remained after Phase 3. The original findings were taken at `0862ac9`.
 
 | Family | How the response is built | Main departures from the target |
 | --- | --- | --- |
-| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone/lifecycle/Network tools use the target envelope; project-tree alignment remains |
-| Batch (excluded) | `TiaJson.Presentation` anonymous objects | Item `result` is a string holding JSON, raw source text, `Error: …` prose, an omission marker, or JSON cut at a character limit |
+| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone/lifecycle/Network/PLC tools use the target envelope; project-tree alignment remains |
 
-Every legacy tool returns a plain string, so the SDK never sets `isError` or `structuredContent`
-for them: a handled failure is a successful MCP call carrying `success: false` in text.
+The legacy batch family (`TiaJson.Presentation` anonymous objects with JSON inside strings) was
+removed with the batch tools.
 
 Below the tool surface, the host and worker also disagree about JSON:
 
 - Null handling is declared per worker payload contract (Phase 1a). `WorkerJson.SerializePayload`
   (`TiaMcpServer.Contracts/WorkerJson.cs`) writes null members unless the payload root carries
   `[LegacyNullOmission(reason)]`. The network payload roots, `ProjectTreeBrowseResultInfo` and
-  `ProjectRebindStateInfo` write explicit nulls (Phase 1b removed the network markers). The
-  remaining marked roots are consumed by legacy batch paths. Lifecycle/basic-status roots now
+  `ProjectRebindStateInfo` write explicit nulls (Phase 1b removed the network markers). No
+  production payload root carries the marker any more; the batch-only roots went with the batch
+  tools. Lifecycle/basic-status roots now
   write explicit nulls and decode through the worker-payload reader. The worker,
   `PersistentWorkerTransport` and the FakeWorker all render through `WorkerJson`, so IPC tests see
   the production shape.
@@ -91,7 +87,7 @@ Below the tool surface, the host and worker also disagree about JSON:
   `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
   the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
   rebind-state readers now go through `ProjectRebindStatePayloadContract`.
-- Legacy generic-batch token audit files retain their existing shapes. Lifecycle and Network use one canonical guarded
+- The legacy generic-batch token audit stream was retired. Lifecycle, Network and PLC writes use one canonical guarded
   write record per call in the separate `writes-yyyy-MM-dd.jsonl` stream, with a record discriminator,
   exact response/hash, and confirmation/guard satisfaction provenance; blocked calls and dry runs are included.
 
@@ -106,8 +102,7 @@ This is the contract every in-scope tool ends on.
 - The tool declares `UseStructuredContent = true` and an `OutputSchemaType` naming its response
   record.
 - `isError` is `true` exactly when the tool rejected the call before anything ran (validation,
-  access mode, binding, or a guard that blocked the write). Until a tool leaves the token flow, a
-  rejected safety token is also such a rejection. A call that ran and partly or wholly failed is
+  access mode, binding, or a guard that blocked the write). A call that ran and partly or wholly failed is
   not a protocol error: `isError` is `false` and the envelope says what failed.
 
 ### Envelope
@@ -140,9 +135,7 @@ Per-operation items keep the existing `StructuredOperationItem` shape: `operatio
   truncation, as `StructuredOperationBatchPayloadBudget` already does.
 - **Guarded writes, no tokens.** Structured write tools run through the guarded write pipeline and
   write one canonical audit record through its audit sink (write-safety redesign §4.1 and §4.8).
-  `network_write` binds tokens through `CanonicalWriteSafety` (`CreateCanonicalPreview`,
-  `ValidateAndConsumeCanonical`, `AppendCanonicalAudit`) until the redesign's Phase 3 removes them;
-  no other tool adopts that binding.
+  `CanonicalWriteSafety` and every other token binding are retired.
 
 ### Where the existing structured tools deviate
 
@@ -293,7 +286,7 @@ built lifecycle tokens only for the redesign to delete them.
 `bind_project` adds explicit session selection in every mode with a typed standalone result,
 non-null before/after binding state and in-call Portal inventory. No request implicitly opens a
 project; ordinary reads never bind or switch. Project-tree cursors now reject binding changes as
-`cursor_binding_mismatch`. Mode counts are 6/16/16. The
+`cursor_binding_mismatch`. Mode counts are 6/15/15. The
 [engineering log](../IMPROVEMENT_LOG.md) records the completed human dialog observation and tracks the
 `totally-integrated-claude` plugin's `tia-portal-mcp` skill migration; installed plugin files were
 not changed by this documentation task.
@@ -304,12 +297,11 @@ not changed by this documentation task.
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
 - Delete remaining legacy pieces such as `StandaloneToolResultFormatter` and
   `WorkerCallResult.ToEnvelopeText` only after caller inventory proves they are unused.
-  Lifecycle wrapper/token paths and Network-only token paths are retired; generic-batch
-  `WriteSafetyTooling` remains until its migration.
-- Retire the remaining token core with the write-safety redesign: `CanonicalWriteSafety` is retired in its Phase 3
-  (network); the batch token paths go in its Phase 4, when the batch tools are retired; the
-  `WriteSafetyService` token core (including the presentation token binding), the legacy audit
-  record, `WriteSafetyTooling`, and `SafetyRead` go in its Phase 5.
+  Lifecycle, Network and generic-batch token paths are retired.
+- Token core retired with `plc_write`: `CanonicalWriteSafety` went with Network; the batch tools,
+  the `WriteSafetyService` token core (including the presentation token binding), the legacy audit
+  record, `WriteSafetyTooling`, and `SafetyRead` went with the PLC delivery instead of a later
+  Phase 5.
 
 Phases 2-4 change what clients receive. `README.md` is also the NuGet readme, so each of those
 phases updates it and its release notes.

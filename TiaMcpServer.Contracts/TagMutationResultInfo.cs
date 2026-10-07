@@ -1,6 +1,5 @@
 namespace TiaMcpServer.Contracts;
 
-[LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
 public class TagMutationResultInfo
 {
     public bool Success { get; set; } = true;

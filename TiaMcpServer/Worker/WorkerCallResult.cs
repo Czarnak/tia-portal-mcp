@@ -76,7 +76,7 @@ public sealed record WorkerCallResult(
 
     /// <summary>
     /// Structured agent-facing envelope for direct lifecycle results (as opposed to guarded
-    /// writes, which render through <c>WriteSafetyTooling.BuildApplyResult</c>). Always emits
+    /// writes, which render through the guarded write pipeline). Always emits
     /// <c>success</c>, <c>payload</c>, <c>failureCategory</c>, <c>error</c>, and <c>warnings</c> so
     /// the category is a first-class, independently readable field rather than text embedded in
     /// a message string.

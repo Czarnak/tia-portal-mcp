@@ -23,7 +23,7 @@ internal static class BlockTargetResolver
 {
     public static ResolvedBlockTarget ResolveForExport(Project project, BlockAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
         return ResolveForExport(plcSoftware, address);
     }
 
@@ -34,7 +34,7 @@ internal static class BlockTargetResolver
             var owner = ResolveOwnerForDeterministicPath(plcSoftware, address);
             var group = FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
             var block = group.Blocks.Find(address.BlockName)
-                ?? throw new InvalidOperationException($"Block '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
+                ?? throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Block '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
 
             return new ResolvedBlockTarget(owner.ExternalSourceGroup, group, block, address.BlockName);
         }
@@ -42,12 +42,13 @@ internal static class BlockTargetResolver
         var matches = FindLegacyMatches(plcSoftware, address.BlockName);
         if (matches.Count == 0)
         {
-            throw new InvalidOperationException($"Block '{address.BlockName}' not found.");
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Block '{address.BlockName}' not found.");
         }
 
         if (matches.Count > 1)
         {
-            throw new InvalidOperationException(
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetAmbiguous,
                 $"Block '{address.BlockName}' is ambiguous. Use the deterministic Path from browse_project_tree, for example 'PLC/Blocks/.../Block' or 'PLC/Units/Unit/Blocks/.../Block'.");
         }
 
@@ -56,7 +57,7 @@ internal static class BlockTargetResolver
 
     public static ResolvedBlockTarget ResolveForImport(Project project, BlockAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
         if (address.IsDeterministic)
         {
@@ -66,20 +67,20 @@ internal static class BlockTargetResolver
             return new ResolvedBlockTarget(owner.ExternalSourceGroup, group, existing, address.BlockName);
         }
 
+        // No root-group fallback: a name that matches nothing is not a place to import into.
         var matches = FindLegacyMatches(plcSoftware, address.BlockName);
         if (matches.Count > 1)
         {
-            throw new InvalidOperationException(
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetAmbiguous,
                 $"Block '{address.BlockName}' is ambiguous. Use the deterministic Path from browse_project_tree, for example 'PLC/Blocks/.../Block' or 'PLC/Units/Unit/Blocks/.../Block'.");
         }
 
         return matches.Count == 1
             ? matches[0]
-            : new ResolvedBlockTarget(
-                plcSoftware.ExternalSourceGroup,
-                plcSoftware.BlockGroup,
-                block: null,
-                address.BlockName);
+            : throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
+                $"Block '{address.BlockName}' was not found.");
     }
 
     internal static ResolvedBlockOwner ResolveOwnerForDeterministicPath(
@@ -112,7 +113,7 @@ internal static class BlockTargetResolver
         PlcUnitProvider? unitProvider = plcSoftware.GetService<PlcUnitProvider>();
         if (unitProvider is null)
         {
-            throw new InvalidOperationException($"PLC software '{plcSoftware.Name}' does not expose software units.");
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"PLC software '{plcSoftware.Name}' does not expose software units.");
         }
 
         foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
@@ -123,7 +124,7 @@ internal static class BlockTargetResolver
             }
         }
 
-        throw new InvalidOperationException($"Software Unit '{unitName}' not found in PLC software '{plcSoftware.Name}'.");
+        throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Software Unit '{unitName}' not found in PLC software '{plcSoftware.Name}'.");
     }
 
     internal static PlcBlockGroup FindBlockGroup(
@@ -150,7 +151,7 @@ internal static class BlockTargetResolver
                 }
             }
 
-            current = next ?? throw new InvalidOperationException($"Block folder '{folderName}' not found.");
+            current = next ?? throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Block folder '{folderName}' not found.");
             resolvedFolderNames.Add(current.Name);
         }
 

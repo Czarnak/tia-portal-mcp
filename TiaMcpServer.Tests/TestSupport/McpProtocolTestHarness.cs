@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
@@ -131,7 +130,9 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
                 ? builder.WithProjectBindingTools()
                 : typeof(TTools) == typeof(NetworkWriteTools)
                     ? builder.WithNetworkWriteTools()
-                    : builder.WithTools<TTools>();
+                    : typeof(TTools) == typeof(TiaMcpServer.Plc.PlcWriteTools)
+                        ? builder.WithPlcWriteTools()
+                        : builder.WithTools<TTools>();
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,
@@ -162,7 +163,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(workerClient);
         collection.AddSingleton(sp => new WriteExecution(
             new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
-            new JsonlWriteAuditSink(auditDirectory), new WriteGuardCatalog(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions)), TimeProvider.System));
+            new JsonlWriteAuditSink(auditDirectory), WriteGuardRegistration.ProductionCatalog(), TimeProvider.System));
         collection.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
         collection.AddSingleton(sp => new ProjectTreeCursorCodec(
             sp.GetRequiredService<AuthenticatedCursorProtector>()));
@@ -175,11 +176,6 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             sp.GetRequiredService<ProjectTreeSnapshotStore>(),
             sp.GetRequiredService<ProjectTreePageProjector>(),
             TimeProvider.System));
-        collection.AddSingleton(new WriteSafetyService(
-            binding,
-            () => DateTimeOffset.UtcNow,
-            WriteSafetyService.DefaultTokenLifetime,
-            auditDirectory));
         registerTools(collection.AddMcpServer());
         var services = collection.BuildServiceProvider();
 

@@ -33,6 +33,32 @@ public sealed class ProjectTreeWorkerPayloadContractTests
         Assert.NotSame(warnings, observed.Warnings);
     }
 
+    [Fact]
+    public void Decode_CopiesSkippedNodes()
+    {
+        var payload = CanonicalJson.Serialize(new ProjectTreeBrowseResultInfo
+        {
+            Roots = new List<ProjectTreeNode> { Node("PLC_1", ProjectTreeNodeTypes.Device) },
+            Skipped = new List<ProjectTreeSkippedNodeInfo>
+            {
+                new()
+                {
+                    ParentPath = Selector((ProjectTreeNodeTypes.Device, "PLC_1")).ToList(),
+                    NodeType = ProjectTreeNodeTypes.Block,
+                    Reason = "block hidden"
+                }
+            }
+        });
+
+        var observed = ProjectTreeWorkerPayloadContract.Decode(
+            SuccessfulWorker(payload, @"C:\Projects\Plant.ap21"), requestedSelector: null, requestedDepth: null);
+
+        var skipped = Assert.Single(observed.Skipped);
+        Assert.Equal(ProjectTreeNodeTypes.Block, skipped.NodeType);
+        Assert.Equal("block hidden", skipped.Reason);
+        Assert.Equal("PLC_1", Assert.Single(skipped.ParentPath).Name);
+    }
+
     // Production bug caught: a legacy untyped payload could otherwise bypass the v3 result contract.
     [Fact]
     public void Decode_LegacyBareArrayFailsClosedWithoutEchoingPayload()
@@ -328,44 +354,52 @@ public sealed class ProjectTreeWorkerPayloadContractTests
 
         return new TheoryData<string>
         {
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[],\"secret-marker\":true}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[],\"secret-marker\":true}",
             "{\"startSelector\":null,\"depth\":null}",
             "{\"startSelector\":null,\"depth\":null,\"Roots\":[]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":null}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[null]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"secret-marker\",\"nodeType\":\"device\",\"details\":{},\"children\":[]}]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\" \",\"nodeType\":\"Device\",\"details\":{\"marker\":\"secret-marker\"},\"children\":[]}]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{\"Path\":\"secret-marker\"},\"children\":[]}]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{\"pAtH\":\"secret-marker\"},\"children\":[]}]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{\"marker\":null},\"children\":[]}]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{},\"children\":null}]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{},\"children\":[null]}]}",
-            $"{{\"startSelector\":null,\"depth\":null,\"roots\":[{{\"Name\":\"secret-marker\",\"nodeType\":\"Device\",\"details\":{{}},\"children\":[]}}]}}",
-            $"{{\"startSelector\":null,\"depth\":null,\"roots\":[{{\"name\":\"secret-marker\",\"nodeType\":\"Device\",\"children\":[]}}]}}",
-            $"{{\"startSelector\":[{{\"nodeType\":\"Device\",\"name\":\"PLC_1\",\"marker\":\"secret-marker\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
-            $"{{\"startSelector\":[{{\"NodeType\":\"Device\",\"name\":\"secret-marker\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
-            $"{{\"startSelector\":[{{\"nodeType\":\"Device\"}}],\"depth\":null,\"roots\":[{validNode}]}}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":null}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[null]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"secret-marker\",\"nodeType\":\"device\",\"details\":{},\"children\":[]}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\" \",\"nodeType\":\"Device\",\"details\":{\"marker\":\"secret-marker\"},\"children\":[]}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{\"Path\":\"secret-marker\"},\"children\":[]}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{\"pAtH\":\"secret-marker\"},\"children\":[]}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{\"marker\":null},\"children\":[]}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{},\"children\":null}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{},\"children\":[null]}]}",
+            $"{{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{{\"Name\":\"secret-marker\",\"nodeType\":\"Device\",\"details\":{{}},\"children\":[]}}]}}",
+            $"{{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{{\"name\":\"secret-marker\",\"nodeType\":\"Device\",\"children\":[]}}]}}",
+            $"{{\"startSelector\":[{{\"nodeType\":\"Device\",\"name\":\"PLC_1\",\"marker\":\"secret-marker\"}}],\"depth\":null,\"skipped\":[],\"roots\":[{validNode}]}}",
+            $"{{\"startSelector\":[{{\"NodeType\":\"Device\",\"name\":\"secret-marker\"}}],\"depth\":null,\"skipped\":[],\"roots\":[{validNode}]}}",
+            $"{{\"startSelector\":[{{\"nodeType\":\"Device\"}}],\"depth\":null,\"skipped\":[],\"roots\":[{validNode}]}}",
 
             // Root members startSelector and depth are required; the worker-payload reader rejects
             // a root missing either (roots missing is already covered two rows above).
-            "{\"depth\":null,\"roots\":[]}",
-            "{\"startSelector\":null,\"roots\":[]}",
+            "{\"depth\":null,\"skipped\":[],\"roots\":[]}",
+            "{\"startSelector\":null,\"skipped\":[],\"roots\":[]}",
 
             // A startSelector[] segment's nodeType/name are required to be strings, not merely
             // present (missing nodeType/name are already covered above via wrong casing).
-            "{\"startSelector\":[{\"nodeType\":123,\"name\":\"PLC_1\"}],\"depth\":null,\"roots\":[]}",
-            "{\"startSelector\":[{\"nodeType\":\"Device\",\"name\":123}],\"depth\":null,\"roots\":[]}",
+            "{\"startSelector\":[{\"nodeType\":123,\"name\":\"PLC_1\"}],\"depth\":null,\"skipped\":[],\"roots\":[]}",
+            "{\"startSelector\":[{\"nodeType\":\"Device\",\"name\":123}],\"depth\":null,\"skipped\":[],\"roots\":[]}",
 
             // A null element in startSelector[] (roots[]/children[] null elements are already
             // covered above).
-            "{\"startSelector\":[null],\"depth\":null,\"roots\":[]}",
+            "{\"startSelector\":[null],\"depth\":null,\"skipped\":[],\"roots\":[]}",
 
             // A node missing nodeType or children (name and details are already covered above).
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"details\":{},\"children\":[]}]}",
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{}}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"PLC_1\",\"details\":{},\"children\":[]}]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[{\"name\":\"PLC_1\",\"nodeType\":\"Device\",\"details\":{}}]}",
 
             // A roots[] element that is not an object at all (not just null).
-            "{\"startSelector\":null,\"depth\":null,\"roots\":[\"not-an-object\"]}"
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[],\"roots\":[\"not-an-object\"]}",
+
+            // skipped is required, non-null, and holds well-formed nodes.
+            "{\"startSelector\":null,\"depth\":null,\"roots\":[]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":null,\"roots\":[]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[null],\"roots\":[]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[{\"parentPath\":[],\"nodeType\":\"Nope\",\"reason\":\"x\"}],\"roots\":[]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[{\"parentPath\":[{\"nodeType\":\"Device\",\"name\":\"A\"},{\"nodeType\":\"Device\",\"name\":\"B\"}],\"nodeType\":\"Block\",\"reason\":\"x\"}],\"roots\":[]}",
+            "{\"startSelector\":null,\"depth\":null,\"skipped\":[{\"nodeType\":\"Block\",\"reason\":\"x\"}],\"roots\":[]}"
         };
     }
 

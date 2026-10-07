@@ -77,9 +77,6 @@ public class WorkerRequest
     /// </summary>
     public string? BlockPath { get; set; }
 
-    /// <summary>Forwarded by: update_block_logic.</summary>
-    public string? YamlContent { get; set; }
-
     /// <summary>Forwarded by: create_block. Valid values: FB, FC, OB, GlobalDB.</summary>
     public string? BlockType { get; set; }
 
@@ -98,8 +95,14 @@ public class WorkerRequest
     /// <summary>Forwarded by: get_type_content, update_type_content.</summary>
     public string? TypePath { get; set; }
 
-    /// <summary>Forwarded by: update_type_content.</summary>
-    public string? SourceContent { get; set; }
+    /// <summary>Forwarded by: update_block_logic, update_type_content. The document text to import.</summary>
+    public string? Content { get; set; }
+
+    /// <summary>
+    /// Forwarded by: update_block_logic, update_type_content (optional). Format-tagged hash the
+    /// worker compares against the freshly exported text before writing.
+    /// </summary>
+    public string? ExpectedContentHash { get; set; }
 
     /// <summary>
     /// Forwarded by: get_type_content, update_type_content, get_block_content,
@@ -110,8 +113,8 @@ public class WorkerRequest
 
     /// <summary>
     /// Forwarded by: get_block_content, get_type_content. Selects GenerateOptions.WithDependencies
-    /// over GenerateOptions.None on the export. Never forwarded by a write: the safety token binds
-    /// to the single-object form of the object being written.
+    /// over GenerateOptions.None on the export. Never forwarded by a write: a write acts on
+    /// the single-object form of the object being written.
     /// </summary>
     public bool? WithDependencies { get; set; }
 
@@ -120,8 +123,8 @@ public class WorkerRequest
     #region PLC scoping, tag tables, tags, and user constants
 
     /// <summary>
-    /// Forwarded by: compile_check, list_tag_tables, start_plc,
-    /// stop_plc, read_hardware_config (optional — selects the PLC used for tag matching),
+    /// Forwarded by: compile_check, list_tag_tables,
+    /// read_hardware_config (optional — selects the PLC used for tag matching),
     /// and every tag-table, tag, and user-constant operation.
     /// </summary>
     public string? PlcName { get; set; }

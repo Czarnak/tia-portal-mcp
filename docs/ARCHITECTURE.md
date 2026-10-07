@@ -26,7 +26,7 @@ TIA Portal V21
 ```
 
 The host owns the MCP protocol, dependency injection, tool registration,
-access policy, session binding, batching, diagnostics, and write-safety tokens.
+access policy, session binding, batching, diagnostics, and the guarded write pipeline.
 The worker owns every Siemens API call and keeps one long-lived TIA Portal
 attachment for its process lifetime.
 
@@ -64,17 +64,18 @@ falling back to another mode.
 
 ### Read-write mode
 
-Read-write exposes sixteen tools: five observation tools, `bind_project`, `compile_check`, the
-batch write pair, `network_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
-transitional `SafetyRead`, `SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`.
-Legacy batches retain tokens. Network never elicits; every actual lifecycle call asks once through client form elicitation.
-Legacy batch PLC control is denied before binding, snapshots, or dispatch. Reads never bind,
-switch, or open; `bind_project` selects an already-open project.
+Read-write exposes fifteen tools: five observation tools, `bind_project`, `compile_check`,
+`network_write`, `plc_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
+`SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`. `plc_write` and
+`network_write` never elicit; every actual lifecycle call asks once through client form elicitation.
+Reads never bind, switch, or open; `bind_project` selects an already-open project.
 
 ### Full mode
 
-Full exposes the same sixteen tools and adds `OnlineControl` (PLC run/stop). Lifecycle runs
-under policy without server elicitation. Block guards stop the call in every mode.
+Full exposes the same fifteen tools and permits the same capabilities; it adds no tools or
+operations. Lifecycle runs under policy without server elicitation. Block guards stop the call in
+every mode. PLC run/stop (`start_plc`/`stop_plc`) was removed; `OperationCapability.OnlineControl`
+remains as a reserved value with no operation and is permitted in no mode.
 
 ### Confirmation configuration
 
@@ -82,7 +83,8 @@ Confirmation derives from the binding gate's access mode. Read-write asks once f
 lifecycle call, even with no guards or only info guards; form acceptance needs `accept` and boolean
 `confirm:true`. Unsupported capability, decline, cancel, timeout, or transport failure denies with
 `access_denied`. Full uses policy satisfaction without server elicitation. Dry runs and block guards
-never elicit. Lifecycle has no agent confirmation list; only generic batches retain tokens. Network uses guarded execution without server elicitation.
+never elicit. Lifecycle has no agent confirmation list, and no tool uses safety tokens. `plc_write`
+and `network_write` use guarded execution without server elicitation.
 The removed startup switch is rejected by `RemovedCliOptions` with:
 
 ```text
@@ -93,7 +95,7 @@ The removed startup switch is rejected by `RemovedCliOptions` with:
 
 Read-only mode exposes observation tools and explicit session selection (`SessionSelection`).
 It never opens, creates, saves,
-archives, or closes a project; never compiles; never controls a PLC;
+archives, or closes a project; never compiles;
 and never performs project-data mutations. It operates only on a project that
 is already open in the attached TIA Portal instance.
 
@@ -108,15 +110,15 @@ It must identify the currently open project; those tools never use it to open or
 Tool registration is explicit and mode-dependent. The host always registers:
 
 - `ProjectReadTools`
-- `ReadBatchTools`
-- `NetworkReadTools`
 - `ProjectBindingTools`
+- `NetworkReadTools`
+- `PlcReadTools`
+- `CrossReferenceReadTools`
 
 The shared `McpToolRegistration.WithAccessModeTools` helper registers these in read-write and full:
 
-- `ProjectEngineeringTools`
-- `WriteBatchTools`
-- `NetworkWriteTools`
+- `ProjectEngineeringTools` (when the mode permits `Compile`)
+- `NetworkWriteTools` and `PlcWriteTools` (when the mode permits `ProjectMutation`)
 
 `ProjectWriteTools` is registered when the mode permits `ProjectLifecycle` (read-write and full).
 
@@ -124,10 +126,11 @@ This prevents project mutation and lifecycle tools from appearing in MCP discove
 read-only. Decorated tool classes that are not explicitly registered are not
 part of the active tool surface.
 
-`Program.cs` and production-surface protocol tests use the same registration helper.
-`BatchTools` remains an unregistered compatibility wrapper for internal callers and tests.
-The lifecycle migration removes `ProjectLifecycleTools` and its now-unused token paths; it does
-not retire generic-batch token support. Network-only token paths are now retired by the separate guarded Network migration. The earlier registered-surface delegation and
+`Program.cs` and production-surface protocol tests use the same registration helper, and
+`WriteGuardRegistration.ProductionCatalog()` builds the one guard catalog (lifecycle, Network and
+PLC). The generic batch tools (`preview_write_batch`, `apply_write_batch`, `execute_read_batch`),
+the `BatchTools` wrapper and every token path were removed; their operations moved to `plc_read`
+and `plc_write`. The earlier registered-surface delegation and
 preview-only live V21 evidence are recorded in the
 [PR 2 acceptance report](superpowers/acceptance/reports/2026-09-01-pr2-registered-tool-delegation-live.md).
 
@@ -188,10 +191,9 @@ A deeper direct-Openness selector resolver and depth-pruned traversal remains a 
 
 | Tool | Purpose |
 |---|---|
-| `compile_check` | Compile a PLC or selected block and return compiler messages in read-write or full. Does not use a safety token. |
-| `preview_write_batch` | Validate writes, capture current state, and issue a safety token. |
-| `apply_write_batch` | Redeem the token and execute writes sequentially. |
+| `compile_check` | Compile a PLC or selected block and return compiler messages in read-write or full. |
 | `network_write` | Preview or apply an ordered dedicated-network write request. |
+| `plc_write` | Preview or apply up to 50 ordered PLC software writes (blocks, types, block groups, tag tables, tags, user constants) through the guarded pipeline. |
 
 ### Lifecycle tools in read-write and full
 
@@ -217,13 +219,13 @@ discover or invoke them through the normal protocol surface.
 
 `OperationAccessPolicy` checks each worker operation before the child process is
 started or a request is written. The shared `OperationPolicyCatalog` classifies
-all known worker operations as observation, temporary export, compilation,
-project lifecycle, project mutation, or online control.
+all known worker operations as observation, temporary export, session selection, compilation,
+project lifecycle, or project mutation.
 
-Read-only allows observation, temporary export, transitional SafetyRead, and session selection.
-Read-write adds compilation, project mutation and lifecycle; full adds online control.
-Transitional `SafetyRead` supports the remaining token tools. Unknown operations are denied
-in every mode, including full.
+Read-only allows observation, temporary export, and session selection. Read-write and full both
+add compilation, project mutation and lifecycle; full permits nothing more. `SafetyRead` was
+retired with the token core, and `OnlineControl` is a reserved value with no operation. Unknown
+operations are denied in every mode, including full.
 
 ### 4.3 Worker authorization
 
@@ -329,7 +331,7 @@ handlers and release the Portal without calling project or local-session lifecyc
 The internal capability collection is empty, and remote identity/connection observation are
 null. These fields describe unpopulated preparation and grant no permission or advertised
 compatibility. Host binding epochs, public schemas, protocol version, confirmation, audit,
-and discovery counts remain unchanged by that internal migration. Current counts are 6/16/16;
+and discovery counts remain unchanged by that internal migration. Current counts are 6/15/15;
 PR3 inventory live acceptance remains separate from historical standalone acceptance. `.als21`
 adoption/content/session/markings/mutations remain undelivered; see the
 [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
@@ -370,14 +372,15 @@ directories and remove them in `finally` blocks.
 
 ## 7. Batch and network execution
 
-`BatchOperationCatalog` and `BatchWorkerInvoker` own only generic batch operations.
+`PlcOperationCatalog` and `PlcWorkerInvoker` own the PLC read operations and the 14 `plc_write`
+operations, sharing one `PlcOperationRequest` between read and write.
 `NetworkOperationCatalog` and `NetworkWorkerInvoker` own the nine dedicated network
 operations, including the Phase 4 subnet lifecycle operations (`create_subnet`,
 `update_subnet`, `delete_subnet`). Each domain validates against its own request type and
-catalog before a worker invocation; a new worker method belongs to its owning domain catalog
-and is not implicitly a generic batch operation.
+catalog before a worker invocation; a new worker method belongs to its owning domain catalog.
+`BatchOperationCatalog` and `BatchWorkerInvoker` were removed with the generic batch tools.
 
-`OperationBatches` provides request-agnostic shared execution, result formatting, and
+`OperationBatches` provides request-agnostic shared execution and
 payload-budget infrastructure to both domains. Its network call sites use network-specific
 payload-budget hints, such as narrowing `query`/`maxResults` or splitting a network batch.
 
@@ -390,11 +393,12 @@ remaining items from running.
 Write batches execute sequentially and stop on the first failure. Already
 completed writes are not rolled back.
 
-`network_write(operations, dryRun=false)` is a guarded single-call write. Explicit `dryRun:true`
-previews effects/guards; omitting `dryRun` executes. No Network server elicitation occurs in
-read-write/full or previews. Planning, sequential re-planning, mutation, immediate/final verification,
-composition and audit retain one pinned verified binding to the exact already-open project.
-Stops on the first failure, no rollback/replay; generic batches retain their token flow.
+`network_write(operations, dryRun=false)` and `plc_write(operations, dryRun=false)` are guarded
+single-call writes. Explicit `dryRun:true` previews effects/guards; omitting `dryRun` executes. No
+server elicitation occurs in read-write/full or previews. Planning, sequential re-planning,
+mutation, verification, composition and audit retain one pinned verified binding to the exact
+already-open project. They stop on the first failure, with no rollback or replay. See §8 for the
+PLC domain.
 
 `compile_check` is absent from read-only tool discovery. The underlying access
 policy also rejects internal compile requests in read-only mode before they are
@@ -404,9 +408,9 @@ sent to the worker.
 
 `network_read` and `network_write` were the first tools to opt into a reusable canonical-JSON
 gate; `browse_project_tree` (project-tree v3, §3), `get_project_status`, `compile_check`, and all six
-lifecycle tools use it too. The three excluded batch tools retain their legacy text contracts. The
-[JSON contract roadmap](roadmap/json-contract.md) records the target envelope, the migration order,
-and the batch tools' exclusion from it.
+lifecycle tools use it too, as do `plc_read`, `read_cross_references` and `plc_write`. Every
+registered tool is now structured; the three batch tools were removed rather than migrated. The
+[JSON contract roadmap](roadmap/json-contract.md) records the target envelope and the migration order.
 
 - `TiaMcpServer/Json/CanonicalJson.cs` provides strict typed parsing (rejects duplicate
   properties, unmapped members, and case-mismatched names) and a repository-defined canonical
@@ -432,9 +436,11 @@ and the batch tools' exclusion from it.
 - `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs` provides the shared
   item/failure/omission/count/truncation batch model and a read/write execution engine whose
   stop decision covers `protocol_error` alongside ordinary worker failures.
-- Network read/write use version `1.0`, warnings arrays and explicit nulls. Network-only
-  `CanonicalWriteSafety` and token preview DTOs are retired. Generic batch `WriteSafetyService`,
-  `WriteSafetyTooling`, `SafetyRead` and their audits remain in place.
+  `StructuredOperationFailure.blockImportOutcome` is a conditional member on every structured
+  tool's failure schema; it appears only on a failed `update_block_logic` content-import item.
+- Network and PLC read/write use version `1.0`, warnings arrays and explicit nulls.
+  `CanonicalWriteSafety`, token preview DTOs, `WriteSafetyService`, `WriteSafetyTooling`,
+  `SafetyRead` and the legacy write audit are retired.
 
 Any future tool that wants a single-layer structured JSON contract reuses this same seam rather
 than inventing a parallel one. `TiaMcpServer.Tests/Tools/ToolOutputContractConformanceTests.cs`
@@ -493,11 +499,11 @@ JSON or silently substituting a shortened path for complete identity evidence.
 Last-resort failure-prose shortening is disclosed and preserves the failure category and
 rejection-versus-attempted-failure classification.
 
-The six tools leave the output-conformance legacy register; only `preview_write_batch` and
-`apply_write_batch` remain (`plc_read` and `read_cross_references` are structured). Public `confirm`/`safetyToken` are removed
-from lifecycle schemas, while worker-internal confirmation fences remain. The [lifecycle reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
-describes guards and client migration. This describes the lifecycle delivery unit; separate Network token
-retirement is now implemented, while generic-batch retirement and package release remain later gates.
+The six tools left the output-conformance legacy register, which is now empty. Public
+`confirm`/`safetyToken` are removed from every schema, while worker-internal confirmation fences
+remain. The [lifecycle reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
+describes guards and client migration. Network and PLC token retirement are implemented; package
+release remains a later gate.
 
 ### Typed Network payload registry
 
@@ -776,171 +782,76 @@ after the later public acceptance work.
 
 ## 8. Write safety
 
-Lifecycle and Network writes use the guarded single-call pipeline described below. Lifecycle
-read-write confirms every actual call; Network has no server elicitation. Generic batches retain
-preview/apply tokens as server-side consistency checks, never proof of human consent. Client
-permission prompts and accepted elicitation do not establish that a human saw the consequence.
+Lifecycle, Network and PLC writes use the guarded single-call pipeline described below.
+Lifecycle read-write confirms every actual call; Network and PLC have no server elicitation. No
+tool uses safety tokens. Client permission prompts and accepted elicitation do not establish that a
+human saw the consequence.
 
 ### MCP tool annotations
 
 The MCP `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations are explicit,
 client-facing metadata. They are untrusted advisory hints for a client deciding how to present a
-tool; they neither authorize a request nor relax server behavior. In particular,
-`preview_write_batch` is marked as a non-destructive preview even though the follow-up
-`apply_write_batch` is destructive, and lifecycle writes carry conservative mutating hints even
-for a `dryRun`. The server enforces the access policy, binding lease, current-state checks, guards
-or transitional tokens, and audit. A client may prompt independently on any destructive tool call.
+tool; they neither authorize a request nor relax server behavior. In particular, `plc_write`,
+`network_write` and the lifecycle writes carry conservative destructive hints even for a `dryRun`.
+The server enforces the access policy, binding lease, current-state checks, guards, and audit. A client may prompt independently on any destructive tool call.
 
-### Preview→apply token flow
+### Lifecycle continuity
 
-Generic batch data writes alone retain the two-tool flow:
-
-1. The preview call (`preview_write_batch`) reads current state, produces a human-readable description,
-   and creates a short-lived, single-use safety token bound to the tool,
-   host binding revision, requested input, and current-state hashes. Project-scoped
-   writes require that revision to contain a complete verified worker/Portal/project
-   identity.
-2. The apply call (`apply_write_batch`) supplies
-   `confirm=true` and the token. `confirm` is an argument the caller sets, not a user
-   confirmation. The server reads current
-   state again and consumes the token only when every bound value still matches.
-
-For `update_block_logic` and `update_type_content`, `preview_write_batch` may include a
-response-only structured `diff` object built from the already-bound exact-format current text and
-the submitted replacement text. This object is outside safety-token issuance and validation.
-
-The complete apply critical section is protected by a pinned binding lease:
-fresh-state read, token validation and consumption, Siemens mutation,
-post-verification, and audit capture all see the same worker id, Portal PID,
-project generation, and canonical path. Rebind, close, and save-as transitions
-use the same lease. This prevents a valid token for project A from being applied
-to project B, and prevents two concurrent applies based on the same old state
-from both succeeding.
-
-Lifecycle responses are also continuity-checked. An already verified session
+Lifecycle responses are continuity-checked. An already verified session
 may change path or generation only through the authorized lifecycle transition,
 and the response must keep the same worker id and Portal PID. A restart, PID
 change, same-path close/reopen, or malformed close result is rejected rather
-than adopted as a new binding.
+than adopted as a new binding. Read-only mode is categorically stronger than any
+write path: the access policy refuses write operations before binding.
 
-Changed input, changed project state, wrong tool, wrong project, expiry, or token
-reuse causes rejection. Completed writes are appended to the audit log under
-`%LOCALAPPDATA%\TiaMcpServer\audit`.
+### PLC writes (`plc_write`)
 
-Read-only mode is categorically stronger than this token flow: `confirm=true` and
-a valid token cannot override the access policy.
+`PlcWriteDomain` implements the guarded runner with `ConfirmsEveryCall=false` and only `block` and
+`info` guards (`PlcGuardDefinitions`), so no mode and no dry run elicits. Audit confirmation is
+`none` in read-write and `policy` in full. `PlcWritePlanner` plans from public reads only (one tag inventory, one project-tree snapshot per
+involved PLC, one export per content item), applies earlier items to an in-call working state, and
+fires guards:
 
-The eight tag/table/user-constant writes bind typed, operation-specific safety snapshots instead
-of the full `list_tag_tables` payload. All identities retain the resolved PLC, folder, table,
-and canonical object path. Collision probes retain matching candidate identity, kind, name,
-logical address where applicable, and whether the candidate is the target; unrelated candidate
-state is excluded. Table-name collisions search the selected PLC's complete tag-table hierarchy,
-including sibling and nested folders, while retaining the exact destination-folder identity.
-Tag and user-constant name probes compare names case-insensitively across PLC tags, user constants,
-and blocks in the selected PLC's unqualified CPU namespace. They traverse all tag-table folders
-and the ordinary program-block hierarchy, including nested user groups and system-block groups.
-Each matching candidate retains its actual kind (`tag-name`, `user-constant-name`, or `block-name`)
-and canonical path; target marking requires both the kind and exact path. Logical-address probes
-remain tag-only. All probes bind only matching names/addresses in deterministic order, and traversal
-or discovery errors propagate even after a match has been found.
+| Guard | Severity | Fires when |
+| --- | --- | --- |
+| `plc_state_unverifiable` | block | Evidence relevant to the target is incomplete or unreadable (including an incomplete root inventory, which fires for every item) |
+| `plc_name_collision` | block | A new or renamed object collides with an existing or in-call object in the CPU namespace |
+| `plc_block_exists` | block | `create_block` targets an existing block |
+| `plc_default_tag_table` | block | `delete_tag_table` targets the default tag table |
+| `plc_attribute_unreadable` | block | A requested external-access flag is unreadable on the current tag |
+| `plc_deletes_block` | info | `delete_block` removes the block and its content |
+| `plc_deletes_group_contents` | info | `delete_block_group` removes every block and group inside it |
+| `plc_deletes_table_contents` | info | `delete_tag_table` removes its tags and user constants |
+| `plc_address_overlap` | info | The requested logical address is already used by another tag (exact string match) |
 
-These scopes follow the Siemens V21 rules for [PLC tag and tag-table names](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/rules-for-plc-tags/valid-names-of-plc-tags)
-and [global user-constant names](https://docs.tia.siemens.cloud/r/en-us/v21/declaring-plc-tags/declaring-global-constants/rules-for-global-user-constants).
-Software Unit namespace resolution is not modeled by these operations: unit-local block names are
-not folded into the unqualified CPU namespace. Namespace-aware coverage remains a design/live
-qualification follow-up.
+Content writes require `expectedContentHash`. The planner compares it with a fresh export in the
+write's format: a mismatch fails the call as `state_changed` at plan time, and the worker re-checks
+the hash immediately before import, failing the item with `state_changed` if the content changed
+in between. Content over the 60,000-character value is omitted from `plc_read`, has no hash, and
+cannot be written. A content preview may include a bounded `contentDiff` (40 excerpt lines and
+8,192 characters per side, 32,768 characters per call).
 
-| Operation / exact selector | Bound current state |
-| --- | --- |
-| `create_tag_table` | Resolved PLC and destination folder, requested table name, and matching table-name occupancy throughout that PLC's tag-table hierarchy |
-| `delete_tag_table` | Exact target-table identity and its normalized Simatic ML export, SHA-256, and character count |
-| `create_tag` | Exact target-table identity, effective name/address, matching tag/constant/block names, and tag-only address probes |
-| `update_tag` | Exact target-table and tag identity/state, effective name/address, matching tag/constant/block names, and tag-only address probes |
-| `delete_tag` | Exact target-table and tag identity/state |
-| `create_user_constant` | Exact target-table identity, effective constant name, and matching tag/constant/block names |
-| `update_user_constant` | Exact target-table and constant identity/state, effective constant name, and matching tag/constant/block names |
-| `delete_user_constant` | Exact target-table and constant identity/state |
+Later items may use objects created earlier in the same call; such items carry `DependsOn` and are
+re-planned just before their own mutation. `PlcWriteVerifier` re-reads every attempted item and
+marks an item whose object a later item changed again as `superseded`. `PlcWritePayloadBudget`
+applies the 60,000-character value and 180,000-character document budgets and omits whole values.
+Worker resolution uses `PlcSoftwareLocator.FindUnique`, which considers every PLC including grouped
+devices and fails `target_ambiguous` on several matches; the shared target resolvers make
+`plc_read` content reads unique-PLC as well. The
+[PLC operations summary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#plc-writes-plc_write) has the
+operation fields and known limits.
 
-Tag state includes data type, logical address, and the three external access flags. Constant state
-includes data type and value. A requested external flag whose current value is unreadable still
-fails before token issuance; unreadable required evidence or a malformed typed worker payload
-fails closed. Table deletion binds the selected table's export, including exported content that
-the public table list does not expose; it does not bind sibling-table exports.
-
-Within one preview or apply read phase, identical tag selectors share one worker read. The key
-contains operation kind, canonical project path, PLC selector, folder, table, object name,
-effective name, and requested logical address; request fields conservatively distinguish keys.
-The shared result is validated for each requesting operation and expanded back into the original
-operation order before composing the combined state. Operation IDs and list order remain bound.
-The map is local to that one phase: **there is no cross-phase cache**. Apply always reads fresh
-state under the pinned binding lease. Deduplication does not make the sequential reads atomic.
-
-Offline tests execute the safety reader against test-only Siemens object graphs, including
-cross-kind name drift, nested user/system blocks, CPU-wide table-name occupancy, strict traversal
-failures, and unrelated-name tolerance. They pass those snapshots through the real typed decoder
-and token validator without loading Openness assemblies. Offline and FakeWorker tests also cover
-typed selectors, ordered expansion, within-phase deduplication,
-fresh apply reads, same-object/collision drift rejection, unrelated sibling tolerance, authorized
-apply, and replay rejection. The
-[guarded live TIA Portal V21 acceptance](superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
-completed against the exact recorded host, PID, disposable copy, and fixtures: all eight previews
-and ordered duplicate selection passed; same-object and name/address collision drift returned
-`state_changed`; unrelated sibling drift preserved the original token; one authorized unchanged-token
-apply succeeded; no-save discard preserved the saved baseline; and the clean source project was
-restored open. Static/offline and bounded live evidence remain separate, complementary claims.
-
-PR 5 explicitly defers multilingual per-tag comment binding, public `list_tag_tables`
-completeness changes, broader snapshot narrowing, Software Unit namespace-aware collisions, and
-PLC `start_plc` / `stop_plc` safety work. The public table list remains best-effort and unchanged.
-
-The three structural block operations use typed project-tree safety snapshots instead of a broad
-project-tree browse. `BlockAddress` and `BlockTargetResolver` are the shared ownership authority:
-they resolve either the PLC-global block root or the exact Software Unit block root, and the
-snapshot reader returns that owner scope, PLC name, optional Software Unit name, and canonical
-root path. Parent and ancestor paths retain that owner prefix end to end.
-
-| Operation / exact selector | Bound current state |
-| --- | --- |
-| `create_block` | Exact owner scope, parent group, ancestor chain, requested-name occupancy in that parent, and the exact occupied block's deterministic XML export when the name is already occupied by a block |
-| `create_block_group` | Exact owner scope, parent group, ancestor chain, and both block and group occupancy for the requested name |
-| `delete_block_group` | Exact owner scope and target group, parent membership, ancestor chain, and the complete content-bearing descendant hierarchy, including deterministic XML exports for every contained block |
-
-Occupied and descendant block content goes through the authoritative block-export path. The
-safety-only export fails closed unless it has authoritative XML; it does not accept a companion
-document as the block export. The host strictly validates required members, canonical owner/path
-relationships, uniqueness, and cardinality before canonical serialization. Missing, empty,
-malformed, or conflicting payloads return `protocol_error`, and the rejected worker payload is not
-echoed to the caller.
-
-Identical project-tree selectors share one internal worker read only within the current preview or
-apply state-read phase. The validated result is expanded back into ordered
-`OperationBatchCurrentState` entries before the combined state is hashed. A repeated preview and
-the apply phase each start with an empty cache, so apply still performs a fresh read under the
-pinned binding lease.
-
-The
-[guarded PR 6 live TIA Portal V21 acceptance](superpowers/acceptance/reports/2026-09-01-pr6-project-tree-safety-scopes-live.md)
-covered both PLC-global and Software Unit owners. Occupied-block content, descendant-block
-content, requested-name occupancy, and relevant descendant membership drift rejected stale
-tokens with `state_changed`; unrelated sibling-tree drift preserved the original token. Authorized
-applies were followed by byte-equivalent content restoration, public status re-verification, and
-successful compile checks. The report keeps repository-auditable coverage separate from the
-redacted live-only observations and makes no save, persistence, plant, or hardware-commissioning
-claim.
-
-PR 6 leaves the following scope unchanged: broader snapshot narrowing and `start_plc` /
-`stop_plc`.
-
-Internal exact-target selectors use the shared `SafetyRead` capability. A `SafetyRead` is
-side-effect-free and allowed in read-only mode, but it is not an ordinary observe: every request
-must carry the complete, exact worker/Portal/project session identity previously observed from the
-worker. This prevents an internal safety read from silently moving to a different same-path
-session while a preview is assembled.
+The earlier token-bound tag and project-tree safety snapshots (PR 5 and PR 6) were removed with the
+token core. Their live evidence remains historical; see the
+[tag](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#tag-safety-acceptance-boundary) and
+[project-tree](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#project-tree-safety-acceptance-boundary)
+acceptance boundaries.
 
 ### Guarded write pipeline (foundation and lifecycle)
 
-`TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaces the token flow.
-The six registered lifecycle tools and Network use it; generic batches migrate later. Network has no server elicitation; lifecycle read-write confirms every actual call.
+`TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaced the token flow.
+The six lifecycle tools, `network_write` and `plc_write` use it. Network and PLC have no server
+elicitation; lifecycle read-write confirms every actual call.
 The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
 are recorded separately; client acceptance does not prove that a person saw the consequence.
 
@@ -990,8 +901,9 @@ Every item is planned and every guard evaluated before the first mutation. An it
 `DependsOn` is re-planned just before its own mutation, against state the earlier items changed.
 `DecideLate` judges re-planned guards: any `block` guard stops the item with `guard_blocked`.
 In read-write a newly discovered acknowledge-severity guard not covered by initial client
-acceptance also stops the item; full satisfies that severity by policy. Registered lifecycle
-calls are single-item; this dependency mechanism supports future domain batches.
+acceptance also stops the item; full satisfies that severity by policy. Lifecycle calls are
+single-item; `plc_write` uses this mechanism for items that depend on objects created earlier in
+the call. A re-planned guard identical to one already reported for the item is reported once.
 
 #### Partial writes
 
@@ -1004,7 +916,7 @@ failure before mutation add neither.
 #### Audit stream
 
 Every call, in every phase, appends exactly one record to `writes-yyyy-MM-dd.jsonl` (UTC date,
-UTF-8 without a BOM) beside the legacy audit files, which it never touches. The record has
+UTF-8 without a BOM). The legacy write audit stream was retired. The record has
 `recordKind: "write"` and `recordVersion: 2`, and holds the tool, contract version, access mode,
 project path, the pinned binding, the requested operations, the phase, the response text and its
 `sha256:` hash, every fired guard, and per item the target, checked preconditions, status, failure,
@@ -1029,8 +941,9 @@ again. A failed append is reported on stderr and never hides the write result.
 `plc_read` returns `contentHash` on each succeeded `get_block_content` and `get_type_content` read:
 `xml:sha256:<hex>` or `source:sha256:<hex>` over the exact served text (`PlcContentHashes`,
 `ContentHashes.Compute`). It is an explicit `null` on `withDependencies` reads, and a result over the
-60,000-character value is omitted whole, so no hash is reported for it. A guarded write
-compares an expected hash with a fresh read through `ContentHashes.Check`: a malformed hash or a
+60,000-character value is omitted whole, so no hash is reported for it. `plc_write`
+compares an expected hash with a fresh read through `ContentHashes.Check` (hashing is shared with
+the worker through Contracts `ContentHashRules`): a malformed hash or a
 format that differs from the write's format is `validation_error`, content that no longer matches
 is `state_changed`, and the comparison is recorded as a `contentHash` precondition.
 
@@ -1052,7 +965,7 @@ being reported as fully ready without turning Doctor into an Openness client.
 ## 10. Testing
 
 `TiaMcpServer.Tests` links selected host and worker source files directly into
-the test assembly, allowing policy, parsing, tool metadata, generic-batch and network
+the test assembly, allowing policy, parsing, tool metadata, PLC and network
 catalog/invoker behavior, diagnostics, and IPC behavior to be tested on .NET 10 without a
 live TIA Portal installation. `TiaMcpServer.FakeWorker` covers the linked-source network
 requests and forwarded worker methods without a live TIA Portal installation.
@@ -1069,7 +982,7 @@ The read-only test suite covers:
 - host and worker authorization;
 - conditional tool surfaces;
 - batch access validation;
-- confirmation and safety-token bypass prevention;
+- confirmation bypass prevention and rejection of retired token arguments;
 - doctor output and CLI parity;
 - the output contract of every registered tool (§7a).
 
@@ -1077,7 +990,10 @@ Lifecycle regressions cover read-write/full binding preparation and stale-revisi
 refusal, all seven guards, mode-derived guard satisfaction, client elicitation outcomes, post-prompt
 state changes, typed attempted failures and verification, canonical audit provenance, and removal
 of public token inputs. Production-surface protocol tests distinguish actual applied lifecycle
-calls from dry-run previews and keep generic-batch tokens active. Network tests cover zero elicitation, exact binding, sparse partial outcomes and complete-envelope omission.
+calls from dry-run previews. Network tests cover zero elicitation, exact binding, sparse partial
+outcomes and complete-envelope omission. `plc_write` tests cover the planner overlay and every
+guard, the content-hash check, dependent items, superseded verification, the payload budget, and
+worker preconditions against test-only Siemens object graphs.
 
 Manual integration testing with a live TIA Portal remains necessary to validate
 Siemens-specific attachment, confirmation, project-path, packaging, and worker

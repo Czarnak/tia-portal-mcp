@@ -16,12 +16,16 @@ public static class BlockMutationService
     {
         var preflight = BlockWritePreflight.PrepareCreate(blockPath, blockType, language);
         var address = preflight.Address;
-        var plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
         var group = ResolveGroupFromAddress(plcSoftware, address);
 
         var blockName = address.BlockName;
         var normalizedType = preflight.BlockType;
         var normalizedLang = preflight.Language;
+
+        // The plan saw no occupant, so anything found now means the project changed since.
+        PlcWritePreconditions.RequireBlockAbsent(group, blockName);
+        PlcWritePreconditions.RequireCpuNameFree(plcSoftware, blockName, currentName: null);
 
         return BlockCreationCoordinator.Execute(
             () =>
@@ -87,12 +91,13 @@ public static class BlockMutationService
     public static BlockMutationResultInfo DeleteBlock(Project project, string blockPath)
     {
         var address = BlockAddress.Parse(blockPath);
-        var plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
         var target = BlockTargetResolver.ResolveForExport(project, address);
 
         if (target.Block is null)
         {
-            throw new InvalidOperationException(
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
                 $"Block '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
         }
 
@@ -110,9 +115,10 @@ public static class BlockMutationService
     public static BlockMutationResultInfo CreateBlockGroup(Project project, string blockPath)
     {
         var address = BlockAddress.Parse(blockPath);
-        var plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
         var parentGroup = ResolveGroupFromAddress(plcSoftware, address);
 
+        PlcWritePreconditions.RequireGroupNameFree(parentGroup, address.BlockName);
         parentGroup.Groups.Create(address.BlockName);
 
         return new BlockMutationResultInfo
@@ -127,17 +133,17 @@ public static class BlockMutationService
     public static BlockMutationResultInfo DeleteBlockGroup(Project project, string blockPath)
     {
         var address = BlockAddress.Parse(blockPath);
-        var plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
         // The group to delete is FolderPath + BlockName
         var allSegments = new List<string>(address.FolderPath) { address.BlockName };
-        var rootGroup = address.IsDeterministic
-            ? BlockTargetResolver.ResolveOwnerForDeterministicPath(plcSoftware, address).RootBlockGroup
-            : plcSoftware.BlockGroup;
+        var rootGroup = ResolveRootGroup(plcSoftware, address);
         var group = FindUserGroupByPath(rootGroup, allSegments)
-            ?? throw new InvalidOperationException(
+            ?? throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
                 $"Block group '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
 
+        PlcWritePreconditions.RequireReadableDescendants(group);
         group.Delete();
 
         return new BlockMutationResultInfo
@@ -149,16 +155,32 @@ public static class BlockMutationService
         };
     }
 
-    // Resolves the parent group that a new block/group would be created inside.
-    private static PlcBlockGroup ResolveGroupFromAddress(PlcSoftware plcSoftware, BlockAddress address)
+    // Resolves the parent group that a new block/group would be created inside. A deterministic path
+    // names it; the two-segment 'PLC/Name' means the PLC root group; a bare name is not accepted.
+    internal static PlcBlockGroup ResolveGroupFromAddress(PlcSoftware plcSoftware, BlockAddress address)
     {
-        if (!address.IsDeterministic)
+        var owner = ResolveRootGroup(plcSoftware, address);
+        return address.IsDeterministic
+            ? BlockTargetResolver.FindBlockGroup(owner, address.FolderPath)
+            : owner;
+    }
+
+    private static PlcBlockGroup ResolveRootGroup(PlcSoftware plcSoftware, BlockAddress address)
+    {
+        if (address.IsDeterministic)
         {
-            return plcSoftware.BlockGroup;
+            return BlockTargetResolver.ResolveOwnerForDeterministicPath(plcSoftware, address).RootBlockGroup;
         }
 
-        var owner = BlockTargetResolver.ResolveOwnerForDeterministicPath(plcSoftware, address);
-        return BlockTargetResolver.FindBlockGroup(owner.RootBlockGroup, address.FolderPath);
+        if (address.PlcName is null)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "The block path must name the PLC: use 'PLC/Name' for the PLC root group or "
+                + "'PLC/Blocks/.../Name' for a folder.");
+        }
+
+        return plcSoftware.BlockGroup;
     }
 
     // Same traversal as FindGroupByPath but typed as PlcBlockUserGroup so Delete() is available.
@@ -206,7 +228,7 @@ public static class BlockMutationService
         try
         {
             File.WriteAllText(tempFile, xml, System.Text.Encoding.UTF8);
-            group.Blocks.Import(new FileInfo(tempFile), ImportOptions.Override);
+            group.Blocks.Import(new FileInfo(tempFile), ImportOptions.None);
         }
         finally
         {

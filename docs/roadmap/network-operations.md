@@ -79,9 +79,9 @@ The implemented domain tools are:
 Reject legacy confirmation/token/acknowledge and unknown root keys or nonboolean dryRun before
 entry (normal MCP error, no audit). Entered denials are canonical and audited once. Exact current
 already-open verified binding, caller order/stop on failure, no rollback/replay, complete consequence
-guards and typed applied-subset verification govern execution. Generic batches retain tokens.
+guards and typed applied-subset verification govern execution. No tool uses safety tokens; the generic batch tools were retired in favor of `plc_read`/`plc_write`.
 
-The following operations have moved out of the generic batch surface:
+The following operations moved out of the (since retired) generic batch surface:
 
 - `read_hardware_config`
 - `search_equipment_catalog`
@@ -232,7 +232,7 @@ and [bounded live report](../superpowers/acceptance/reports/2026-09-24-network-p
 
 The temporary `probe_io_system_qualification` produced that
 evidence, but add no public operation. `update_io_system` is still unshipped. Later modeled
-and dynamic slices require their own plans from merged `main`, strict TDD, public preview/apply
+and dynamic slices require their own plans from merged `main`, strict TDD, guarded-pipeline dry-run
 and audit gates, and scope-specific live acceptance. A known committed post-read or hardware
 compile failure must be reported truthfully; no live failed compile was induced in PR 2.
 

@@ -8,31 +8,15 @@ namespace TiaMcpServer.Tests.Worker;
 /// Register of the Contracts payload types that still omit null members on the wire, with the
 /// reason each has not switched (docs/roadmap/json-contract.md). The register only shrinks:
 /// Phase 1b is done — the RequiredMemberEnforcement entries are gone — and Phases 2-3 (the
-/// ToolMigration entries) and the batch redesign (the rest) remain. Adding or removing a marker
-/// without updating it fails here, so a wire-policy change is always a reviewed change. The
-/// worker-assembly contract (PlcTypeImportResult) is not visible to this assembly and is listed
-/// in the plan instead.
+/// ToolMigration entries) remain. Adding or removing a marker
+/// without updating it fails here, so a wire-policy change is always a reviewed change.
+/// PlcTypeImportResultInfo, TagMutationResultInfo and BlockMutationResultInfo write nulls and are
+/// deliberately unmarked.
 /// </summary>
 public sealed class WorkerPayloadNullPolicyRegisterTests
 {
     private static readonly IReadOnlyDictionary<string, LegacyNullOmissionReason> Expected =
-        new Dictionary<string, LegacyNullOmissionReason>(StringComparer.Ordinal)
-        {
-            ["CreateBlockSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateBlockGroupSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteBlockGroupSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateTagTableSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteTagTableSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateTagSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["UpdateTagSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteTagSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["CreateUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["UpdateUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["DeleteUserConstantSafetySnapshotInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["TagMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["BlockMutationResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
-            ["PlcOnlineResultInfo"] = LegacyNullOmissionReason.BatchRedesign,
-        };
+        new Dictionary<string, LegacyNullOmissionReason>(StringComparer.Ordinal);
 
     [Fact]
     public void ContractsMarkedToOmitNullMembers_AreExactlyTheRegisteredSet()

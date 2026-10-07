@@ -174,16 +174,18 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-only** - six tools: five observation tools plus `bind_project`; no compile, edits,
-  lifecycle, or PLC control.
-- **read-write** (server startup default) - sixteen tools: the read-only surface plus
-  `compile_check`, `preview_write_batch`, `apply_write_batch`, `network_write`, and all six lifecycle
-  tools. Every actual lifecycle call requires one confirmation form.
-- **full** - the same sixteen tools; lifecycle runs without server elicitation, and legacy batch
-  `start_plc` / `stop_plc` is permitted through OnlineControl. Unknown operations remain denied.
+- **read-only** - six tools: five observation tools plus `bind_project`; no compile, edits, or
+  lifecycle.
+- **read-write** (server startup default) - fifteen tools: the read-only surface plus
+  `compile_check`, `network_write`, `plc_write`, and all six lifecycle tools. Every actual lifecycle
+  call requires one confirmation form; `plc_write` and `network_write` never prompt.
+- **full** - the same fifteen tools and operations; lifecycle runs without server elicitation.
+  Unknown operations remain denied.
 
 **Migration:** read-write clients can save, close, and use all lifecycle tools with confirmation.
-Select `--access-mode full` for lifecycle without server elicitation or PLC runtime control.
+Select `--access-mode full` for lifecycle without server elicitation. PLC run/stop
+(`start_plc`/`stop_plc`) and the generic batch tools (`preview_write_batch`, `apply_write_batch`)
+were removed; PLC writes use `plc_write`.
 The install command still defaults
 to read-only. To preview registration without changing client configuration:
 
@@ -220,8 +222,7 @@ The following operations are **not available** in read-only mode:
 
 - `compile_check` (invokes the Siemens compilation API)
 - All project lifecycle operations (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`)
-- All data mutations (block, PLC type, tag, tag table, user constant, and network-device operations)
-- All PLC control operations (`start_plc`, `stop_plc`)
+- All data mutations (`plc_write` and `network_write`)
 
 In read-only mode, the server operates only on an already-open project. It never opens, creates, saves or closes a project. Explicit `bind_project` can switch the selected session; ordinary reads cannot. A read's `projectPath` is an assertion that must match the open project. Project-tree cursors reject binding changes with `cursor_binding_mismatch`, even after switching back to the original path.
 
@@ -261,8 +262,8 @@ without server elicitation. Block guards stop a call in every mode, and `dryRun:
 Lifecycle accepts `dryRun` with its operation inputs; the former agent confirmation array is removed.
 After accepted elicitation the server resolves fresh state under the same binding lease before
 dispatch. Audit v2 records confirmation by `user`, `policy`, or `none`; acknowledge guard satisfaction
-is `user`, `policy`, or null. Network uses guarded writes without server elicitation: preview with
-`dryRun:true`; omitted `dryRun` executes. Generic-batch token tools retain their behavior.
+is `user`, `policy`, or null. `plc_write` and `network_write` use guarded writes without server
+elicitation: preview with `dryRun:true`; omitted `dryRun` executes. No tool uses safety tokens.
 
 An elicitation client's accepted response does not prove that a person saw a dialog. Keep
 destructive tools out of client auto-approve lists to require client permission prompts on every

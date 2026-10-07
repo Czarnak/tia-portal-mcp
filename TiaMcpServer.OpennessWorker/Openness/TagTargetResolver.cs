@@ -1,9 +1,12 @@
 using Siemens.Engineering;
+using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Tags;
+using TiaMcpServer.Contracts;
 
 namespace TiaMcpServer.OpennessWorker.Openness;
 
 internal sealed record ResolvedTagTarget(
+    PlcSoftware Plc,
     string PlcName,
     string FolderPath,
     PlcTagTable Table,
@@ -22,21 +25,24 @@ internal static class TagTargetResolver
         RequireName(name, "Name");
 
         var normalizedFolderPath = NormalizeFolderPath(folderPath);
-        var plcSoftware = PlcSoftwareLocator.Find(project, plcName);
+        var plcSoftware = PlcSoftwareLocator.FindUnique(project, plcName).Software;
         PlcTagTableGroup group = plcSoftware.TagTableGroup;
         foreach (var segment in SplitFolderPath(folderPath))
         {
             group = group.Groups.Find(segment)
-                ?? throw new InvalidOperationException($"Tag table folder '{normalizedFolderPath}' was not found.");
+                ?? throw NotFound($"Tag table folder '{normalizedFolderPath}' was not found.");
         }
 
         var table = group.TagTables.Find(tableName)
-            ?? throw new InvalidOperationException($"Tag table '{tableName}' was not found in '{normalizedFolderPath}'.");
+            ?? throw NotFound($"Tag table '{tableName}' was not found in '{normalizedFolderPath}'.");
         var tag = table.Tags.Find(name)
-            ?? throw new InvalidOperationException($"Tag '{name}' was not found in tag table '{tableName}'.");
+            ?? throw NotFound($"Tag '{name}' was not found in tag table '{tableName}'.");
 
-        return new ResolvedTagTarget(plcSoftware.Name, normalizedFolderPath, table, tag);
+        return new ResolvedTagTarget(plcSoftware, plcSoftware.Name, normalizedFolderPath, table, tag);
     }
+
+    private static WorkerOperationException NotFound(string message)
+        => new(WorkerFailureCategories.TargetNotFound, message);
 
     internal static string NormalizeFolderPath(string? folderPath)
     {

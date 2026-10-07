@@ -15,8 +15,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 /// </para>
 /// <para>
 /// Exactly one declaration is required. A source declaring several — which a real V21 export does
-/// whenever dependencies are included — is refused, because a write's preview names one object and
-/// its safety token binds to one object.
+/// whenever dependencies are included — is refused, because a write names one object.
 /// </para>
 /// <para>
 /// Siemens-free by construction so the test project can link and cover it.
@@ -65,7 +64,7 @@ internal static class PlcTypeSourcePreflight
         {
             error = $"The submitted source declares {declarations.Count} objects: "
                 + SourceDeclarationScanner.Describe(declarations)
-                + ". A write accepts exactly one, because its preview and safety token name exactly "
+                + ". A write accepts exactly one, because it names exactly "
                 + "one object. Submit a source declaring only the object being updated, and write "
                 + "the others separately.";
             return false;

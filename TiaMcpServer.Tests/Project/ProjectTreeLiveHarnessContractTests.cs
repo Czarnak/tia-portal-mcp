@@ -26,14 +26,13 @@ public sealed class ProjectTreeLiveHarnessContractTests
 
         foreach (var writeToolName in new[]
         {
-            "apply_write_batch",
             "archive_project",
             "close_project",
             "compile_check",
             "create_project",
             "network_write",
             "open_project",
-            "preview_write_batch",
+            "plc_write",
             "save_project",
             "save_project_as",
         })

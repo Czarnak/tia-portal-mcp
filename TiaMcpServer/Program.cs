@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Cli;
 using TiaMcpServer.Cli.Install;
 using TiaMcpServer.Contracts;
@@ -70,8 +69,6 @@ namespace TiaMcpServer
                 HostArgumentFilter.RemoveAccessModeArguments(args));
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(startupProjectPath));
-            builder.Services.AddSingleton(sp => new WriteSafetyService(
-                sp.GetRequiredService<ProjectSessionBinding>()));
             builder.Services.AddSingleton(accessPolicy);
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
@@ -79,7 +76,7 @@ namespace TiaMcpServer
                 accessPolicy: sp.GetRequiredService<OperationAccessPolicy>()));
             builder.Services.AddSingleton(sp => new WriteExecution(
                 new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
-                new JsonlWriteAuditSink(), new WriteGuardCatalog(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions)), TimeProvider.System));
+                new JsonlWriteAuditSink(), WriteGuardRegistration.ProductionCatalog(), TimeProvider.System));
             builder.Services.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
             builder.Services.AddSingleton(sp => new HardwarePageCursorCodec(
                 sp.GetRequiredService<AuthenticatedCursorProtector>()));

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Tools;
 using Xunit;
@@ -9,9 +8,9 @@ namespace TiaMcpServer.Tests.Project;
 public sealed class ProjectWriteToolsProtocolTests
 {
     [Fact]
-    public async Task RegisteredWriteTools_ToolsList_AdvertisesExactlyEightWriteTools()
+    public async Task RegisteredWriteTools_ToolsList_AdvertisesExactlySixWriteTools()
     {
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools, WriteBatchTools>(accessMode: McpAccessMode.Full);
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools>(accessMode: McpAccessMode.Full);
 
         var names = (await harness.Client.ListToolsAsync())
             .Select(tool => tool.Name)
@@ -21,12 +20,10 @@ public sealed class ProjectWriteToolsProtocolTests
         Assert.Equal(
             new[]
             {
-                "apply_write_batch",
                 "archive_project",
                 "close_project",
                 "create_project",
                 "open_project",
-                "preview_write_batch",
                 "save_project",
                 "save_project_as"
             },

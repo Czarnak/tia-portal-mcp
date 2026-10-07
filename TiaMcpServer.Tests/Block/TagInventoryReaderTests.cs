@@ -110,7 +110,7 @@ public class TagInventoryReaderTests
 
         var failure = Assert.Throws<WorkerOperationException>(() => TagTableReader.ReadInventory(project, "Missing"));
 
-        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, failure.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, failure.FailureCategory);
     }
 
     [Fact]

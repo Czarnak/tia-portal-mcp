@@ -59,6 +59,33 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     }
 
     [Fact]
+    public async Task BrowseProjection_IgnoresSkipped()
+    {
+        var skipped = new[]
+        {
+            new ProjectTreeSkippedNodeInfo
+            {
+                ParentPath = Selector((ProjectTreeNodeTypes.Device, "Node_0")).ToList(),
+                NodeType = ProjectTreeNodeTypes.Block,
+                Reason = "hidden"
+            }
+        };
+        using var plain = Fixture((path, selector, depth) =>
+            Task.FromResult(Success(path, selector, depth, 3)));
+        using var withSkipped = Fixture((path, selector, depth) =>
+            Task.FromResult(Success(path, selector, depth, 3, skipped: skipped)));
+
+        var expected = await plain.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 5));
+        var actual = await withSkipped.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 5));
+
+        Assert.True(actual.IsSuccess, actual.CanonicalText);
+        Assert.Equal(
+            expected.Response.Result!.Nodes.Select(n => (n.Sequence, n.Name)).ToArray(),
+            actual.Response.Result!.Nodes.Select(n => (n.Sequence, n.Name)).ToArray());
+        Assert.DoesNotContain("hidden", actual.CanonicalText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Cursor_SameBinding_Continues()
     {
         var binding = Bound();
@@ -527,7 +554,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         IReadOnlyList<ProjectTreeSelectorSegment>? requestedSelector,
         int? requestedDepth,
         int nodeCount,
-        IReadOnlyDictionary<string, string>? details = null)
+        IReadOnlyDictionary<string, string>? details = null,
+        IReadOnlyList<ProjectTreeSkippedNodeInfo>? skipped = null)
     {
         var path = ProjectPathNormalization.Canonicalize(requestedProjectPath) ?? ProjectPath;
         var payload = new ProjectTreeBrowseResultInfo
@@ -545,6 +573,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
                 Details = details is null ? null : new Dictionary<string, string>(details),
                 Children = new List<ProjectTreeNode>(),
             }).ToList(),
+            Skipped = skipped?.ToList() ?? new List<ProjectTreeSkippedNodeInfo>(),
         };
         return WorkerCallResult.Ok(CanonicalJson.Serialize(payload)) with { ResolvedProjectPath = path };
     }

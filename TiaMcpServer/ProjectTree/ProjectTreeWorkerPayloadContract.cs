@@ -10,6 +10,7 @@ internal sealed record ProjectTreeObservation(
     IReadOnlyList<ProjectTreeSelectorSegment>? CanonicalStartSelector,
     int? Depth,
     IReadOnlyList<ProjectTreeNode> Roots,
+    IReadOnlyList<ProjectTreeSkippedNodeInfo> Skipped,
     IReadOnlyList<string> Warnings);
 
 internal sealed class ProjectTreeProtocolException : Exception
@@ -55,6 +56,7 @@ internal static class ProjectTreeWorkerPayloadContract
                 CopySelector(payload.StartSelector),
                 payload.Depth,
                 payload.Roots,
+                payload.Skipped,
                 workerResult.Warnings.ToArray());
         }
         catch (Exception exception) when (exception is JsonException or ProjectTreeSelectionException)
@@ -73,6 +75,27 @@ internal static class ProjectTreeWorkerPayloadContract
         if (payload.Roots is null)
         {
             throw new JsonException("'roots' is declared non-nullable but the payload was null.");
+        }
+
+        if (payload.Skipped is null)
+        {
+            throw new JsonException("'skipped' is declared non-nullable but the payload was null.");
+        }
+
+        foreach (var skippedNode in payload.Skipped)
+        {
+            if (skippedNode is null
+                || skippedNode.ParentPath is null
+                || skippedNode.Reason is null
+                || !IsKnownNodeType(skippedNode.NodeType))
+            {
+                throw new JsonException("The project-tree payload contained an invalid skipped node.");
+            }
+
+            if (skippedNode.ParentPath.Count > 0)
+            {
+                ProjectTreeNodeTypes.Validate(skippedNode.ParentPath);
+            }
         }
 
         ProjectTreeNodeTypes.Validate(payload.StartSelector);

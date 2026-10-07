@@ -61,7 +61,7 @@ public static class ProjectLifecycleService
     /// <summary>
     /// The read-only status read (above) carries the extended metadata surface; the write-side
     /// probes (<see cref="ProbeStatusForLifecycle"/> and lifecycle result/close payloads) stay on
-    /// plain <see cref="ReadStatus"/> so their payloads and safety-token binding remain unchanged.
+    /// plain <see cref="ReadStatus"/> so their payloads and project binding remain unchanged.
     /// </summary>
     private static ProjectStatusInfo ReadStatusWithMetadata(Project project)
     {
@@ -350,7 +350,7 @@ public static class ProjectLifecycleService
     {
         // EnsureProject may re-scan a handle after Program's first identity check. Re-check here,
         // immediately before Save/SaveAs/Archive/Close, so a UI-side same-path close/reopen cannot
-        // make an old safety token act on a new project generation.
+        // make an earlier verified binding act on a new project generation.
         session.ValidateExpectedSessionIdentity(
             expectedSessionIdentity,
             allowMissingExpectedIdentity: false);

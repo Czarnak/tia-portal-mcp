@@ -1,4 +1,5 @@
 using Siemens.Engineering;
+using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Tags;
 using TiaMcpServer.Contracts;
 
@@ -14,14 +15,11 @@ public static class TagMutationService
     {
         RequireName(tableName, "TableName");
 
-        var group = ResolveGroup(project, plcName, folderPath);
-        if (group.TagTables.Find(tableName) is not null)
-        {
-            throw new InvalidOperationException($"Tag table '{tableName}' already exists in '{NormalizeFolderPath(folderPath)}'.");
-        }
+        var (plc, group) = ResolveGroup(project, plcName, folderPath);
+        PlcWritePreconditions.RequireTableNameFree(plc, tableName);
 
         var table = group.TagTables.Create(tableName);
-        return Result("create_tag_table", project, plcName, table.Name, NormalizeFolderPath(folderPath), null, null);
+        return Result("create_tag_table", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, null);
     }
 
     public static TagMutationResultInfo DeleteTagTable(
@@ -30,14 +28,16 @@ public static class TagMutationService
         string tableName,
         string? folderPath)
     {
-        var table = ResolveTable(project, plcName, tableName, folderPath);
+        var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
         if (table.IsDefault)
         {
-            throw new InvalidOperationException($"Tag table '{tableName}' is the default tag table and cannot be deleted.");
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed,
+                $"Tag table '{tableName}' is the default tag table and cannot be deleted.");
         }
 
         table.Delete();
-        return Result("delete_tag_table", project, plcName, tableName, NormalizeFolderPath(folderPath), null, null);
+        return Result("delete_tag_table", project, plc.Name, tableName, NormalizeFolderPath(folderPath), null, null);
     }
 
     public static TagMutationResultInfo CreateTag(
@@ -52,14 +52,11 @@ public static class TagMutationService
         RequireName(name, "Name");
         RequireName(dataType, "DataType");
 
-        var table = ResolveTable(project, plcName, tableName, folderPath);
-        if (table.Tags.Find(name) is not null)
-        {
-            throw new InvalidOperationException($"Tag '{name}' already exists in tag table '{tableName}'.");
-        }
+        var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
+        PlcWritePreconditions.RequireCpuNameFree(plc, name, null);
 
         var tag = table.Tags.Create(name, dataType, logicalAddress ?? string.Empty);
-        return Result("create_tag", project, plcName, table.Name, NormalizeFolderPath(folderPath), tag.Name, null);
+        return Result("create_tag", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), tag.Name, null);
     }
 
     public static TagMutationResultInfo UpdateTag(
@@ -88,12 +85,13 @@ public static class TagMutationService
         var table = resolved.Table;
         var tag = resolved.Tag;
 
-        if (!string.IsNullOrWhiteSpace(newName) &&
-            !string.Equals(name, newName, StringComparison.OrdinalIgnoreCase) &&
-            table.Tags.Find(newName) is not null)
+        if (!string.IsNullOrWhiteSpace(newName))
         {
-            throw new InvalidOperationException($"Tag '{newName}' already exists in tag table '{tableName}'.");
+            PlcWritePreconditions.RequireCpuNameFree(
+                resolved.Plc, newName!, tag.Name, PlcWritePreconditions.TableContainer(resolved.FolderPath, table.Name));
         }
+
+        PlcWritePreconditions.RequireReadableFlags(tag, externalAccessible, externalVisible, externalWritable);
 
         if (!string.IsNullOrWhiteSpace(newName))
         {
@@ -137,12 +135,12 @@ public static class TagMutationService
     {
         RequireName(name, "Name");
 
-        var table = ResolveTable(project, plcName, tableName, folderPath);
+        var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
         var tag = table.Tags.Find(name) ??
-            throw new InvalidOperationException($"Tag '{name}' was not found in tag table '{tableName}'.");
+            throw NotFound($"Tag '{name}' was not found in tag table '{tableName}'.");
 
         tag.Delete();
-        return Result("delete_tag", project, plcName, table.Name, NormalizeFolderPath(folderPath), name, null);
+        return Result("delete_tag", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), name, null);
     }
 
     public static TagMutationResultInfo CreateUserConstant(
@@ -157,17 +155,14 @@ public static class TagMutationService
         RequireName(name, "Name");
         RequireName(dataType, "DataType");
 
-        var table = ResolveTable(project, plcName, tableName, folderPath);
-        if (table.UserConstants.Find(name) is not null)
-        {
-            throw new InvalidOperationException($"User constant '{name}' already exists in tag table '{tableName}'.");
-        }
+        var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
+        PlcWritePreconditions.RequireCpuNameFree(plc, name, null);
 
         var constant = table.UserConstants.Create(name);
         constant.DataTypeName = dataType;
         constant.Value = value;
 
-        return Result("create_user_constant", project, plcName, table.Name, NormalizeFolderPath(folderPath), null, constant.Name);
+        return Result("create_user_constant", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, constant.Name);
     }
 
     public static TagMutationResultInfo UpdateUserConstant(
@@ -181,9 +176,10 @@ public static class TagMutationService
     {
         RequireName(name, "Name");
 
-        var table = ResolveTable(project, plcName, tableName, folderPath);
+        var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
         var constant = table.UserConstants.Find(name) ??
-            throw new InvalidOperationException($"User constant '{name}' was not found in tag table '{tableName}'.");
+            throw NotFound($"User constant '{name}' was not found in tag table '{tableName}'.");
+        PlcWritePreconditions.RequireReadableValue(constant);
 
         if (!string.IsNullOrWhiteSpace(dataType))
         {
@@ -195,7 +191,7 @@ public static class TagMutationService
             constant.Value = value;
         }
 
-        return Result("update_user_constant", project, plcName, table.Name, NormalizeFolderPath(folderPath), null, constant.Name);
+        return Result("update_user_constant", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, constant.Name);
     }
 
     public static TagMutationResultInfo DeleteUserConstant(
@@ -207,15 +203,16 @@ public static class TagMutationService
     {
         RequireName(name, "Name");
 
-        var table = ResolveTable(project, plcName, tableName, folderPath);
+        var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
         var constant = table.UserConstants.Find(name) ??
-            throw new InvalidOperationException($"User constant '{name}' was not found in tag table '{tableName}'.");
+            throw NotFound($"User constant '{name}' was not found in tag table '{tableName}'.");
+        PlcWritePreconditions.RequireReadableValue(constant);
 
         constant.Delete();
-        return Result("delete_user_constant", project, plcName, table.Name, NormalizeFolderPath(folderPath), null, name);
+        return Result("delete_user_constant", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, name);
     }
 
-    private static PlcTagTable ResolveTable(
+    private static (PlcSoftware Plc, PlcTagTable Table) ResolveTable(
         Project project,
         string? plcName,
         string tableName,
@@ -223,24 +220,31 @@ public static class TagMutationService
     {
         RequireName(tableName, "TableName");
 
-        var group = ResolveGroup(project, plcName, folderPath);
-        return group.TagTables.Find(tableName) ??
-            throw new InvalidOperationException($"Tag table '{tableName}' was not found in '{NormalizeFolderPath(folderPath)}'.");
+        var (plc, group) = ResolveGroup(project, plcName, folderPath);
+        var table = group.TagTables.Find(tableName) ??
+            throw NotFound($"Tag table '{tableName}' was not found in '{NormalizeFolderPath(folderPath)}'.");
+        return (plc, table);
     }
 
-    private static PlcTagTableGroup ResolveGroup(Project project, string? plcName, string? folderPath)
+    private static (PlcSoftware Plc, PlcTagTableGroup Group) ResolveGroup(
+        Project project,
+        string? plcName,
+        string? folderPath)
     {
-        var plcSoftware = PlcSoftwareLocator.Find(project, plcName);
+        var plcSoftware = PlcSoftwareLocator.FindUnique(project, plcName).Software;
         PlcTagTableGroup group = plcSoftware.TagTableGroup;
 
         foreach (var segment in SplitFolderPath(folderPath))
         {
             group = group.Groups.Find(segment) ??
-                throw new InvalidOperationException($"Tag table folder '{NormalizeFolderPath(folderPath)}' was not found.");
+                throw NotFound($"Tag table folder '{NormalizeFolderPath(folderPath)}' was not found.");
         }
 
-        return group;
+        return (plcSoftware, group);
     }
+
+    private static WorkerOperationException NotFound(string message)
+        => new(WorkerFailureCategories.TargetNotFound, message);
 
     private static string[] SplitFolderPath(string? folderPath)
     {
@@ -274,7 +278,7 @@ public static class TagMutationService
     private static TagMutationResultInfo Result(
         string operation,
         Project project,
-        string? plcName,
+        string plcName,
         string tableName,
         string folderPath,
         string? tagName,
@@ -284,7 +288,7 @@ public static class TagMutationService
         {
             Operation = operation,
             ProjectPath = project.Path?.FullName,
-            PlcName = plcName ?? string.Empty,
+            PlcName = plcName,
             TableName = tableName,
             FolderPath = folderPath,
             TagName = tagName,

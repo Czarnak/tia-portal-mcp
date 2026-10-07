@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Network;
 
@@ -304,7 +305,7 @@ public static class NetworkOperationCatalog
         {
             var distinctPaths = operations
                 .Where(operation => operation is not null && !string.IsNullOrWhiteSpace(operation.ProjectPath))
-                .Select(operation => WriteSafetyService.NormalizeProjectPath(operation!.ProjectPath))
+                .Select(operation => WriteProjectPaths.Normalize(operation!.ProjectPath))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (distinctPaths.Length > 1)

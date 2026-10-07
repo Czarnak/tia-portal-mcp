@@ -1,8 +1,8 @@
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
-/// Immutable host-side binding snapshot. Safety tokens retain this complete value so a worker
-/// restart, Portal switch, project close/reopen, or host binding transition invalidates them.
+/// Immutable host-side binding snapshot. Guarded writes retain this complete value so a worker
+/// restart, Portal switch, project close/reopen, or host binding transition is detected.
 /// </summary>
 public sealed class ProjectBindingSnapshot
 {

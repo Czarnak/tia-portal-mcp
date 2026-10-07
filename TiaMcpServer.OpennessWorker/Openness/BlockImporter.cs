@@ -11,24 +11,40 @@ public static class BlockImporter
         Project project,
         string blockPath,
         string yamlContent,
-        string format)
+        string format,
+        string? expectedContentHash = null)
     {
         if (project is null) throw new ArgumentNullException(nameof(project));
         if (yamlContent is null) throw new ArgumentNullException(nameof(yamlContent));
 
         if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
-            return ImportSource(project, blockPath, yamlContent);
+            return ImportSource(project, blockPath, yamlContent, expectedContentHash);
 
         var preflight = BlockImportCoordinator.ExecuteWithPreTargetOutcome(
             () =>
             {
                 var fallbackDocumentName = Path.GetFileName(blockPath) + ".xml";
-                return new XmlImportPreflight(
+                var prepared = BlockWritePreflight.PrepareUpdate(
+                    blockPath,
                     fallbackDocumentName,
-                    BlockWritePreflight.PrepareUpdate(
-                        blockPath,
-                        fallbackDocumentName,
-                        yamlContent));
+                    yamlContent);
+
+                // Update-only, and only against the document the write was planned on. Both refusals
+                // come before any import, so the outcome reports the import as not started.
+                var existing = BlockTargetResolver.ResolveForImport(project, prepared.Address);
+                if (existing.Block is null)
+                {
+                    throw new WorkerOperationException(
+                        WorkerFailureCategories.TargetNotFound,
+                        $"No block exists at '{prepared.Address.ToDisplayPath()}'. update_block_logic only updates a "
+                        + "block that is already in the project; it never creates one.");
+                }
+
+                PlcWritePreconditions.RequireContentHash(
+                    expectedContentHash,
+                    SourceFormatNames.Xml,
+                    BlockExporter.Export(project, blockPath, SourceFormatNames.Xml));
+                return new XmlImportPreflight(fallbackDocumentName, prepared);
             },
             sourceApplicable: false);
 
@@ -101,7 +117,8 @@ public static class BlockImporter
     private static BlockImportResult ImportSource(
         Project project,
         string blockPath,
-        string sourceContent)
+        string sourceContent,
+        string? expectedContentHash)
     {
         var preflight = BlockImportCoordinator.ExecuteWithPreTargetOutcome(
             () =>
@@ -111,7 +128,7 @@ public static class BlockImporter
                 if (target.Block is null)
                 {
                     throw new WorkerOperationException(
-                        WorkerFailureCategories.ValidationError,
+                        WorkerFailureCategories.TargetNotFound,
                         $"No block exists at '{address.ToDisplayPath()}'. update_block_logic only updates a "
                         + "block that is already in the project; it never creates one.");
                 }
@@ -139,6 +156,11 @@ public static class BlockImporter
                         + $"submit a document declaring '{targetName}', or address the block the document "
                         + "actually declares.");
                 }
+
+                PlcWritePreconditions.RequireContentHash(
+                    expectedContentHash,
+                    SourceFormatNames.Source,
+                    BlockExporter.Export(project, blockPath, SourceFormatNames.Source));
 
                 return new SourceImportPreflight(address, target, decision, targetName);
             },

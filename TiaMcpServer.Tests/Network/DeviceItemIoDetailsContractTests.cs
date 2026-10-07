@@ -118,7 +118,7 @@ public class DeviceItemIoDetailsContractTests
     {
         // The canonical serializer uses DefaultIgnoreCondition.Never, so the per-property
         // JsonIgnore(WhenWritingNull) is what keeps a default read's canonical document (and
-        // therefore a safety-token state hash) byte-identical to the legacy shape.
+        // therefore a state hash) byte-identical to the legacy shape.
         var config = new HardwareConfigInfo
         {
             Devices =

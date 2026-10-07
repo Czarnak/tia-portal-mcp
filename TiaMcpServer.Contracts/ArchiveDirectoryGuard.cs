@@ -51,8 +51,8 @@ public static class ArchiveDirectoryGuard
     /// <summary>
     /// Shared rejection text for both call sites: the worker's apply-time check (last line of
     /// defense before Openness touches the project) and the host's preview-time check (fails the
-    /// preview before a safety token is ever issued, so a caller learns the target is rejected
-    /// without spending a preview/apply round trip on it). Kept in one place so the two messages
+    /// dry run before any mutation, so a caller learns the target is rejected
+    /// without spending a write round trip on it). Kept in one place so the two messages
     /// can never drift apart.
     /// </summary>
     public static string BuildRejectionMessage(string archiveDirectory)

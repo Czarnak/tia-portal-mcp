@@ -25,14 +25,14 @@ internal static class PlcTypeTargetResolver
 {
     public static ResolvedTypeTarget ResolveForExport(Project project, PlcTypeAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
         if (address.IsDeterministic)
         {
             var owner = ResolveDeterministicOwner(plcSoftware, address);
             var group = FindTypeGroup(owner.RootTypeGroup, address.FolderPath);
             var type = group.Types.Find(address.TypeName)
-                ?? throw new InvalidOperationException($"PLC data type '{address.TypeName}' was not found at '{address.ToDisplayPath()}'.");
+                ?? throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"PLC data type '{address.TypeName}' was not found at '{address.ToDisplayPath()}'.");
 
             return new ResolvedTypeTarget(owner.ExternalSourceGroup, group, type, address.TypeName);
         }
@@ -40,12 +40,12 @@ internal static class PlcTypeTargetResolver
         var matches = FindLegacyMatches(plcSoftware, address.TypeName);
         if (matches.Count == 0)
         {
-            throw new InvalidOperationException($"PLC data type '{address.TypeName}' not found.");
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"PLC data type '{address.TypeName}' not found.");
         }
 
         if (matches.Count > 1)
         {
-            throw new InvalidOperationException(AmbiguousPathMessage(address.TypeName));
+            throw new WorkerOperationException(WorkerFailureCategories.TargetAmbiguous, AmbiguousPathMessage(address.TypeName));
         }
 
         return matches[0];
@@ -53,7 +53,7 @@ internal static class PlcTypeTargetResolver
 
     public static ResolvedTypeTarget ResolveForImport(Project project, PlcTypeAddress address)
     {
-        PlcSoftware plcSoftware = PlcSoftwareLocator.Find(project, address.PlcName);
+        PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
         if (address.IsDeterministic)
         {
@@ -64,19 +64,20 @@ internal static class PlcTypeTargetResolver
             return new ResolvedTypeTarget(owner.ExternalSourceGroup, group, existing, address.TypeName);
         }
 
+        // No root-group fallback: a name that matches nothing is not a place to import into.
         var matches = FindLegacyMatches(plcSoftware, address.TypeName);
         if (matches.Count > 1)
         {
-            throw new InvalidOperationException(AmbiguousPathMessage(address.TypeName));
+            throw new WorkerOperationException(
+                WorkerFailureCategories.TargetAmbiguous,
+                AmbiguousPathMessage(address.TypeName));
         }
 
         return matches.Count == 1
             ? matches[0]
-            : new ResolvedTypeTarget(
-                plcSoftware.ExternalSourceGroup,
-                plcSoftware.TypeGroup,
-                type: null,
-                address.TypeName);
+            : throw new WorkerOperationException(
+                WorkerFailureCategories.TargetNotFound,
+                $"PLC data type '{address.TypeName}' was not found.");
     }
 
     private static string AmbiguousPathMessage(string typeName)
@@ -100,7 +101,7 @@ internal static class PlcTypeTargetResolver
         PlcUnitProvider? unitProvider = plcSoftware.GetService<PlcUnitProvider>();
         if (unitProvider is null)
         {
-            throw new InvalidOperationException($"PLC software '{plcSoftware.Name}' does not expose software units.");
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"PLC software '{plcSoftware.Name}' does not expose software units.");
         }
 
         foreach (PlcUnit unit in unitProvider.UnitGroup.Units)
@@ -111,7 +112,7 @@ internal static class PlcTypeTargetResolver
             }
         }
 
-        throw new InvalidOperationException($"Software Unit '{unitName}' not found in PLC software '{plcSoftware.Name}'.");
+        throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Software Unit '{unitName}' not found in PLC software '{plcSoftware.Name}'.");
     }
 
     private static PlcTypeGroup FindTypeGroup(PlcTypeGroup rootGroup, IReadOnlyList<string> folderPath)
@@ -130,7 +131,7 @@ internal static class PlcTypeTargetResolver
                 }
             }
 
-            current = next ?? throw new InvalidOperationException($"Type folder '{folderName}' not found.");
+            current = next ?? throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Type folder '{folderName}' not found.");
         }
 
         return current;

@@ -492,24 +492,4 @@ public class NetworkToolsTests
         Assert.Equal(1, batch.Counts.Skipped);
     }
 
-    [Fact]
-    public async Task NetworkWriteApplyEngine_FirstFailureStopsAndMarksLaterItemsSkipped()
-    {
-        var operations = new[] { AddDevice("first"), ConfigureDevice("second") };
-        var invocations = 0;
-
-        var results = await OperationBatchExecutionEngine.ApplyWritesAsync(
-            operations,
-            _ =>
-            {
-                invocations++;
-                return Task.FromResult(WorkerCallResult.Fail(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    "first write failed"));
-            });
-
-        Assert.Equal(1, invocations);
-        Assert.Equal(OperationBatchStatus.Failed, results[0].Status);
-        Assert.Equal(OperationBatchStatus.Skipped, results[1].Status);
-    }
 }

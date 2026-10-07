@@ -147,9 +147,6 @@ internal static class Program
                     => WithPortalRead(request, _ => MultiuserPortalReadDispatch.Invoke(_sharedInventory, request)),
                 "select_portal_project" => SelectPortalProject(request),
                 "browse_project_tree_v3_snapshot" => BrowseProjectTreeV3Snapshot(request),
-                "read_create_block_safety_snapshot" => ReadCreateBlockSafetySnapshot(request),
-                "read_create_block_group_safety_snapshot" => ReadCreateBlockGroupSafetySnapshot(request),
-                "read_delete_block_group_safety_snapshot" => ReadDeleteBlockGroupSafetySnapshot(request),
                 "read_hardware_config" => ReadHardwareConfig(request),
                 "read_hardware_page_candidates" => ReadHardwarePageCandidates(request),
                 "list_network_objects" => ListNetworkObjects(request),
@@ -169,14 +166,6 @@ internal static class Program
                 "get_type_content"    => GetTypeContent(request),
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
-                "read_update_tag_safety_snapshot" => ReadUpdateTagSafetySnapshot(request),
-                "read_create_tag_table_safety_snapshot" => ReadCreateTagTableSafetySnapshot(request),
-                "read_delete_tag_table_safety_snapshot" => ReadDeleteTagTableSafetySnapshot(request),
-                "read_create_tag_safety_snapshot" => ReadCreateTagSafetySnapshot(request),
-                "read_delete_tag_safety_snapshot" => ReadDeleteTagSafetySnapshot(request),
-                "read_create_user_constant_safety_snapshot" => ReadCreateUserConstantSafetySnapshot(request),
-                "read_update_user_constant_safety_snapshot" => ReadUpdateUserConstantSafetySnapshot(request),
-                "read_delete_user_constant_safety_snapshot" => ReadDeleteUserConstantSafetySnapshot(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -194,8 +183,6 @@ internal static class Program
                 "delete_block"        => DeleteBlock(request),
                 "create_block_group"  => CreateBlockGroup(request),
                 "delete_block_group"  => DeleteBlockGroup(request),
-                "start_plc"           => StartPlc(request),
-                "stop_plc"            => StopPlc(request),
                 "open_project"        => OpenProject(request),
                 "create_project"      => CreateProject(request),
                 "save_project"        => SaveProject(request),
@@ -258,18 +245,6 @@ internal static class Program
         });
     }
 
-    private static WorkerResponse ReadCreateBlockSafetySnapshot(WorkerRequest request)
-        => WithProject(request, project => Success(ProjectTreeSafetySnapshotReader.ReadCreateBlockSnapshot(
-            project, request.BlockPath!, request.BlockType!, request.Language, request.OBEventClass)));
-
-    private static WorkerResponse ReadCreateBlockGroupSafetySnapshot(WorkerRequest request)
-        => WithProject(request, project => Success(ProjectTreeSafetySnapshotReader.ReadCreateBlockGroupSnapshot(
-            project, request.BlockPath!)));
-
-    private static WorkerResponse ReadDeleteBlockGroupSafetySnapshot(WorkerRequest request)
-        => WithProject(request, project => Success(ProjectTreeSafetySnapshotReader.ReadDeleteBlockGroupSnapshot(
-            project, request.BlockPath!)));
-
     private static WorkerResponse BrowseProjectTreeV3Snapshot(WorkerRequest request)
     {
         try
@@ -282,7 +257,8 @@ internal static class Program
                 {
                     StartSelector = selected.CanonicalStartSelector?.ToList(),
                     Depth = request.Depth,
-                    Roots = selected.Roots.ToList()
+                    Roots = selected.Roots.ToList(),
+                    Skipped = selected.Skipped.ToList()
                 });
             });
         }
@@ -898,9 +874,9 @@ internal static class Program
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
             }
 
-            if (string.IsNullOrEmpty(request.YamlContent))
+            if (string.IsNullOrEmpty(request.Content))
             {
-                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "YamlContent is required.");
+                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Content is required.");
             }
 
             normalizedFormat = NormalizeBlockFormat(request.Format);
@@ -908,7 +884,7 @@ internal static class Program
             var response = WithProject(request, project =>
             {
                 importerEntered = true;
-                var result = BlockImporter.Import(project, request.BlockPath!, request.YamlContent!, normalizedFormat);
+                var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat, request.ExpectedContentHash);
                 return RawPayload(result.Payload, result.Warnings, result.Outcome);
             });
             return response.Success
@@ -949,15 +925,15 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "TypePath is required.");
         }
 
-        if (string.IsNullOrEmpty(request.SourceContent))
+        if (string.IsNullOrEmpty(request.Content))
         {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SourceContent is required.");
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Content is required.");
         }
 
         var format = NormalizeTypeFormat(request.Format);
 
         return WithProject(request, project => Success(
-            PlcTypeImporter.Import(project, request.TypePath!, request.SourceContent!, format)));
+            PlcTypeImporter.Import(project, request.TypePath!, request.Content!, format, request.ExpectedContentHash)));
     }
 
     /// <summary>
@@ -998,54 +974,6 @@ internal static class Program
     {
         return WithProject(request, project => Success(TagTableReader.ReadInventory(
             project, request.PlcName, request.TableName, request.FolderPath)));
-    }
-
-    private static WorkerResponse ReadUpdateTagSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadUpdateTag(project, request)));
-    }
-
-    private static WorkerResponse ReadCreateTagTableSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadCreateTagTable(project, request)));
-    }
-
-    private static WorkerResponse ReadDeleteTagTableSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadDeleteTagTable(project, request)));
-    }
-
-    private static WorkerResponse ReadCreateTagSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadCreateTag(project, request)));
-    }
-
-    private static WorkerResponse ReadDeleteTagSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadDeleteTag(project, request)));
-    }
-
-    private static WorkerResponse ReadCreateUserConstantSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadCreateUserConstant(project, request)));
-    }
-
-    private static WorkerResponse ReadUpdateUserConstantSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadUpdateUserConstant(project, request)));
-    }
-
-    private static WorkerResponse ReadDeleteUserConstantSafetySnapshot(WorkerRequest request)
-    {
-        return WithProject(request, project => Success(
-            TagOperationSafetySnapshotReader.ReadDeleteUserConstant(project, request)));
     }
 
     private static WorkerResponse CompileCheck(WorkerRequest request)
@@ -1226,32 +1154,6 @@ internal static class Program
 
         return WithProject(request, project => Success(
             BlockMutationService.DeleteBlockGroup(project, request.BlockPath!)));
-    }
-
-    private static WorkerResponse StartPlc(WorkerRequest request)
-    {
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with starting the PLC.");
-        }
-
-        return WithProject(request, project => Success(
-            PlcOnlineService.Start(project, request.PlcName)));
-    }
-
-    private static WorkerResponse StopPlc(WorkerRequest request)
-    {
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with stopping the PLC.");
-        }
-
-        return WithProject(request, project => Success(
-            PlcOnlineService.Stop(project, request.PlcName)));
     }
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)

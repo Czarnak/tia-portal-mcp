@@ -11,6 +11,8 @@
 "area: plc-blocks":
   - changed-files:
       - any-glob-to-any-file:
+          - "TiaMcpServer/Plc/**"
+          - "TiaMcpServer.Tests/Plc/**"
           - "**/Block*"
           - "**/PlcType*"
           - "**/TypeOperation*"
@@ -19,7 +21,6 @@
           - "**/PlcCrossReference*"
           - "**/Compile*"
           - "**/PlcCompile*"
-          - "**/PlcOnline*"
           - "TiaMcpServer.Tests/Fixtures/**"
 
 "area: plc-tags":
@@ -67,7 +68,6 @@
           - "TiaMcpServer/Safety/**"
           - "TiaMcpServer.Tests/Safety/**"
           - "**/*Safety*"
-          - "**/*PreviewDiff*"
           - "**/OperationPolicyCatalog*"
           - "**/OperationCapability*"
           - "**/McpAccessMode*"

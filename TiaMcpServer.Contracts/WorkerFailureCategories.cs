@@ -15,7 +15,7 @@ public static class WorkerFailureCategories
     /// <summary>The requested project conflicts with what this session/worker is already bound to or has open.</summary>
     public const string BindingConflict = "binding_conflict";
 
-    /// <summary>The current project state no longer matches what a safety token was issued against.</summary>
+    /// <summary>The object or project state no longer matches what the caller last read (for example a content hash mismatch).</summary>
     public const string StateChanged = "state_changed";
 
     /// <summary>The requested target could not be resolved from the supplied selector.</summary>

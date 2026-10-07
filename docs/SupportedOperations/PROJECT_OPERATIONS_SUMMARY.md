@@ -49,7 +49,7 @@ cursors, cannot switch an existing attachment, and rejects binding selectors eve
 Results add conditional `result.value.inspection`, with observed PID and typed nullable slots;
 `transition:"none"` and `project:null`. Whole-value omission includes the inventory. See the
 [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md) for selectors, examples, current-user scope,
-lock/error/omission limits and pending live qualification. Tool discovery remains 6/16/16.
+lock/error/omission limits and pending live qualification. Tool discovery is 6/15/15.
 
 ### `browse_project_tree` v3
 
@@ -164,7 +164,7 @@ All project-tree failures retain the same envelope with `status: "failed"`, `res
 
 Per-item Openness degradation is retained in the envelope `warnings` array rather than changing a failure into success.
 
-`compile_check` is a standalone engineering operation. It is not marked read-only, does not use a safety token, and is exposed in read-write and full modes.
+`compile_check` is a standalone engineering operation. It is not marked read-only and is exposed in read-write and full modes.
 
 ### Standalone status and compilation contract
 
@@ -237,7 +237,7 @@ the plain project status only — it never enumerates history or the extended me
 ## Lifecycle operations
 
 All six lifecycle tools are available in read-write and full; the complete mode counts are
-6/16/16. Read-write requires one confirmation form per actual call; full executes under policy
+6/15/15. Read-write requires one confirmation form per actual call; full executes under policy
 without server elicitation. Block guards stop a call in every mode. Ordinary reads never bind,
 switch or open; use `bind_project` for already-open projects and open/create for deliberate opening.
 
@@ -352,8 +352,8 @@ response's rejection-versus-attempted-failure classification remain intact.
 Each call appends one guarded-write audit record, including previews and refusals, to
 `%LOCALAPPDATA%\TiaMcpServer\audit\writes-yyyy-MM-dd.jsonl`. The record retains the exact returned
 canonical document/hash, requested operation, prepared binding, target, guards, and acknowledgement
-provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. Lifecycle does not add or consume a safety token. Network and legacy batch tools retain
-their token and audit flows until their designated redesign phases.
+provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. No tool adds or consumes a safety token: Network and PLC writes use the same guarded pipeline and
+audit stream, and the legacy write audit was retired.
 
 Migration is staged for the final major release: remove client preview/token/apply loops for these
 six tools, remove old public confirmation/token arguments and agent confirmation arrays, use

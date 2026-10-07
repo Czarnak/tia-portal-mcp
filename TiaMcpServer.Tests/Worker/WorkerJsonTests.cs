@@ -77,7 +77,7 @@ public sealed class WorkerJsonTests
         public string? Optional { get; set; }
     }
 
-    [LegacyNullOmission(LegacyNullOmissionReason.BatchRedesign)]
+    [LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
     private sealed class MarkedPayload
     {
         public string Name { get; set; } = string.Empty;

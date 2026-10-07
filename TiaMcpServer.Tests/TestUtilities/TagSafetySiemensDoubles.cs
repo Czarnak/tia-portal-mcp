@@ -62,6 +62,7 @@ namespace Siemens.Engineering
     }
 
     public enum ExportOptions { None }
+    public enum ImportOptions { None = 0, Override = 1 }
     public enum DocumentInfoOptions { None }
     public class EngineeringException : Exception
     {
@@ -255,13 +256,42 @@ namespace Siemens.Engineering.SW.Tags
 {
     public sealed class PlcTagTableGroup : NamedObject
     {
-        public Composition<PlcTagTable> TagTables { get; } = new();
+        public PlcTagTableComposition TagTables { get; } = new();
         public Composition<PlcTagTableGroup> Groups { get; } = new();
+    }
+    public sealed class PlcTagTableComposition : Composition<PlcTagTable>
+    {
+        public PlcTagTable Create(string name)
+        {
+            var table = new PlcTagTable { Name = name, Owner = this };
+            Items.Add(table);
+            return table;
+        }
+    }
+    public sealed class PlcTagComposition : Composition<PlcTag>
+    {
+        public PlcTag Create(string name, string dataTypeName, string logicalAddress)
+        {
+            var tag = new PlcTag { Name = name, DataTypeName = dataTypeName, LogicalAddress = logicalAddress, Owner = this };
+            Items.Add(tag);
+            return tag;
+        }
+    }
+    public sealed class PlcUserConstantComposition : Composition<PlcUserConstant>
+    {
+        public PlcUserConstant Create(string name)
+        {
+            var constant = new PlcUserConstant { Name = name, Owner = this };
+            Items.Add(constant);
+            return constant;
+        }
     }
     public sealed class PlcTagTable : NamedObject
     {
-        public Composition<PlcTag> Tags { get; } = new();
-        public Composition<PlcUserConstant> UserConstants { get; } = new();
+        public PlcTagComposition Tags { get; } = new();
+        public PlcUserConstantComposition UserConstants { get; } = new();
+        internal PlcTagTableComposition? Owner { get; set; }
+        public void Delete() => Owner?.Items.Remove(this);
         public Composition<PlcSystemConstant> SystemConstants { get; } = new();
         public bool IsDefault { get; set; }
         public void Export(FileInfo path, ExportOptions options, DocumentInfoOptions documentInfo)
@@ -269,6 +299,8 @@ namespace Siemens.Engineering.SW.Tags
     }
     public sealed class PlcTag : NamedObject
     {
+        internal PlcTagComposition? Owner { get; set; }
+        public void Delete() => Owner?.Items.Remove(this);
         public string DataTypeName { get; set; } = "Bool";
         public string LogicalAddress { get; set; } = "%I0.0";
         private bool externalAccessible, externalVisible, externalWritable;
@@ -294,6 +326,8 @@ namespace Siemens.Engineering.SW.Tags
     public sealed class PlcSystemConstant : NamedObject { }
     public sealed class PlcUserConstant : NamedObject
     {
+        internal PlcUserConstantComposition? Owner { get; set; }
+        public void Delete() => Owner?.Items.Remove(this);
         public string DataTypeName { get; set; } = "Int";
         private object value = "25";
         public Exception? ValueFailure { get; set; }
@@ -312,6 +346,8 @@ namespace Siemens.Engineering.SW.Blocks
         public Compiler.ICompilable? CompilerService { get; set; }
         public override T? GetService<T>() where T : class => CompilerService as T ?? base.GetService<T>();
         public int Number { get; set; }
+        public bool Deleted { get; private set; }
+        public void Delete() => Deleted = true;
         public string ProgrammingLanguage { get; set; } = "SCL";
         public string? HeaderAuthor { get; set; }
         public string? HeaderFamily { get; set; }
@@ -324,16 +360,38 @@ namespace Siemens.Engineering.SW.Blocks
     public sealed class GlobalDB : PlcBlock { }
     public sealed class InstanceDB : PlcBlock { }
     public sealed class ArrayDB : PlcBlock { }
+    public sealed class PlcBlockComposition : Composition<PlcBlock>
+    {
+        public List<ImportOptions> ImportCalls { get; } = new();
+        public IList<PlcBlock> Import(FileInfo path, ImportOptions importOptions)
+        {
+            ImportCalls.Add(importOptions);
+            return new List<PlcBlock>();
+        }
+    }
+    public sealed class PlcBlockUserGroupComposition : Composition<PlcBlockGroup>
+    {
+        public PlcBlockUserGroup Create(string name)
+        {
+            var group = new PlcBlockUserGroup { Name = name };
+            Items.Add(group);
+            return group;
+        }
+    }
     public class PlcBlockGroup : NamedObject
     {
-        public Composition<PlcBlock> Blocks { get; } = new();
-        public Composition<PlcBlockGroup> Groups { get; } = new();
+        public PlcBlockComposition Blocks { get; } = new();
+        public PlcBlockUserGroupComposition Groups { get; } = new();
     }
     public sealed class PlcBlockSystemGroup : PlcBlockGroup
     {
         public Composition<PlcSystemBlockGroup> SystemBlockGroups { get; } = new();
     }
-    public sealed class PlcBlockUserGroup : PlcBlockGroup { }
+    public sealed class PlcBlockUserGroup : PlcBlockGroup
+    {
+        public bool Deleted { get; private set; }
+        public void Delete() => Deleted = true;
+    }
     public sealed class PlcSystemBlockGroup : NamedObject
     {
         public Composition<PlcBlock> Blocks { get; } = new();

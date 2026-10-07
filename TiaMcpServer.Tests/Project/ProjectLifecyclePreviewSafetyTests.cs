@@ -1,6 +1,5 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
-using TiaMcpServer.Batch;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
@@ -310,15 +309,15 @@ public sealed class ProjectLifecyclePreviewSafetyTests
     }
 
     [Fact]
-    public async Task RebindProbe_IsAbsentFromEightRegisteredWriteTools()
+    public async Task RebindProbe_IsAbsentFromSixRegisteredWriteTools()
     {
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools, WriteBatchTools>(accessMode: McpAccessMode.Full);
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectWriteTools>(accessMode: McpAccessMode.Full);
 
         var toolNames = (await harness.Client.ListToolsAsync())
             .Select(tool => tool.Name)
             .ToArray();
 
-        Assert.Equal(8, toolNames.Length);
+        Assert.Equal(6, toolNames.Length);
         Assert.DoesNotContain("probe_open_project_rebind", toolNames);
     }
 
