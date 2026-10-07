@@ -52,6 +52,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-07 | [Multiuser PR 4 — open existing sessions (planning only; implementation and live matrix)](plans/2026-10-07-multiuser-pr4-open-existing-sessions.md) |
 | 2026-10-05 | [Multiuser PR 3 — inventory through bind_project (offline-qualified; live acceptance passed)](plans/2026-10-05-multiuser-pr3-read-only-inventory.md) |
 | 2026-10-05 | [Multiuser PR 2 — active project context](plans/2026-10-05-multiuser-pr2-active-project-context.md) |
 | 2026-10-06 | [PLC write, PR B — `plc_write`, batch-tool and token-core retirement (implemented; live-accepted)](plans/2026-10-06-plc-write.md) |

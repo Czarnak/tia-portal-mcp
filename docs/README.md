@@ -53,6 +53,10 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
+Latest planning entry: [Multiuser PR 4 — open existing sessions](superpowers/plans/2026-10-07-multiuser-pr4-open-existing-sessions.md)
+defines the implementation tasks and frozen-candidate live matrix for `.als21` opening/adoption;
+implementation and live verification have not started.
+
 Latest process entries: the [PLC read/write and cross-references design](superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md),
 its [PR A `plc_read` and `read_cross_references` plan](superpowers/plans/2026-10-05-plc-read-and-cross-references.md)
 with its [validation report (offline and live-accepted)](superpowers/acceptance/reports/2026-10-05-plc-read-and-cross-references-validation.md),
