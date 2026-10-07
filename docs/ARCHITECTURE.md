@@ -521,12 +521,10 @@ write explicit nulls.
 
 The other host decodes of worker payloads use the reader as well:
 `HardwarePagePayloadContract`, `ProjectTreeWorkerPayloadContract` and
-`ProjectRebindStatePayloadContract`, plus `StandalonePayloadContract` and `LifecyclePayloadContract`. Four call sites deliberately stay on
-`CanonicalJson.Deserialize`: the three batch safety snapshot decodes (`BatchWorkerInvoker`,
-`ProjectTreeSafetyPayloadContract`, `TagOperationSafetySnapshotContract`), whose roots still omit
-nulls until the batch redesign, and the authenticated cursor decode
-(`AuthenticatedCursorProtector`), which reads a host-written envelope rather than a worker
-payload.
+`ProjectRebindStatePayloadContract`, plus `StandalonePayloadContract` and `LifecyclePayloadContract`. The
+authenticated cursor decode (`AuthenticatedCursorProtector`) deliberately stays on
+`CanonicalJson.Deserialize`, because it reads a host-written envelope rather than a worker
+payload. The batch safety snapshot decodes that also used it were removed with the token core.
 
 The paged hardware seam described next is the deliberate exception: its private candidate response
 is decoded by `HardwarePagePayloadContract` before projection into the same public
@@ -981,10 +979,11 @@ The read-only test suite covers:
 - operation-catalog classifications and deny-by-default behavior;
 - host and worker authorization;
 - conditional tool surfaces;
-- batch access validation;
-- confirmation bypass prevention and rejection of retired token arguments;
 - doctor output and CLI parity;
 - the output contract of every registered tool (§7a).
+
+Rejection of the retired `confirm`, `safetyToken` and `acknowledge` arguments is covered by the
+Network and PLC guarded-write MCP tests and `McpToolSchemaTests`, not by the read-only suite.
 
 Lifecycle regressions cover read-write/full binding preparation and stale-revision
 refusal, all seven guards, mode-derived guard satisfaction, client elicitation outcomes, post-prompt

@@ -450,7 +450,7 @@ it touches the worker, live TIA Portal V21 acceptance. Sizes are relative.
 | 2 — Lifecycle | Six lifecycle tools onto the pipeline and structured contract: `dryRun`, `acknowledge`, the six lifecycle guards, typed verification. Remove the lifecycle token paths and `ProjectLifecycleTools.cs`. Remove the six tools from the conformance guard's legacy register and add probes. | Live V21 acceptance of open/close/save-as/archive with each guard firing once. | M |
 | 3 — Network | `network_write` loses `confirm` and `safetyToken`; gains `dryRun`, `acknowledge`, `deletes_subnet_with_connected_nodes`, and current → requested `effects` (closes the network half of #78). Target resolution stays exactly where it is (fresh read under the lease). Delete `CanonicalWriteSafety.cs`. | Live V21 acceptance of the multi-homed configure and subnet delete paths. | S–M |
 | 4 — Domain write tools | Owned by the separate batch-split redesign, which gets its own spec. Each domain write tool (`block_write`, `tag_write`, …) is built on the pipeline with the requirements of §4.9. As a family lands, its snapshot reader's fail-closed rules move into the worker write methods with tests, and the reader is deleted. When the domain tools cover every legacy operation, delete the batch token paths, `BatchTools.cs`, the snapshot contracts, and the two legacy tools. | Live V21 acceptance per operation family; #78 and #79 closed. | L (in that redesign) |
-| 5 — Retire and release | Delete `WriteSafetyService.cs` token core, `WriteSafetyTooling.cs`, `SafetyRead`, remaining token tests. Rewrite `ARCHITECTURE.md` §8 and `README.md` write safety, update every operation summary and guide, bump the major version, write release notes and a migration note for agents and skills that hard-code the preview→apply flow. Tag the single release. | Zero references to `safetyToken` outside `superpowers/`; one tagged major release. | M |
+| 5 — Retire and release | Delete `WriteSafetyService.cs` token core, `WriteSafetyTooling.cs`, `SafetyRead`, remaining token tests. Rewrite `ARCHITECTURE.md` §8 and `README.md` write safety, update every operation summary and guide, bump the major version, write release notes and a migration note for agents and skills that hard-code the preview→apply flow. Tag the single release. | Zero functional references to `safetyToken` outside `superpowers/` (rejection tests and migration notes may name it; see the Phase 5 delivery note); one tagged major release. | M |
 
 Phases 2, 3, and 4 are independent of each other once Phase 1 has merged; the order is
 smallest-first (decided 2026-09-29). Phases merge to `main` as they complete, but the package is
@@ -499,12 +499,16 @@ this step removed the last token-era leftovers: the FakeWorker state-drift scena
 only to invalidate a token through the whole-project state hash, token wording in FakeWorker
 comments, two read-only tests that asserted `confirm`/`safetyToken` could not bypass the policy,
 a retired `read_*_safety_snapshot` method row in the transport-guidance test, and the
-`NetworkIntrospectionSafetySnapshotTests` name (now `NetworkHardwareConfigDeterminismTests`).
+`NetworkIntrospectionSafetySnapshotTests` name (now `NetworkHardwareConfigDeterminismTests`),
+together with token wording in test names, test comments and one `WorkerRequest` doc comment.
 `ARCHITECTURE.md` §8, `README.md` write safety, the operation summaries and the guides already
-described the guarded pipeline after Phase 4. No production code references a safety token. The
-remaining `safetyToken` mentions outside `superpowers/` are deliberate: tests that assert the
-argument is rejected or absent, and migration notes that tell callers to drop it. The release work
-(major version, release notes, agent migration note, tag) is left to the maintainer.
+described the guarded pipeline after Phase 4; two stale `ARCHITECTURE.md` passages (the batch
+snapshot decode call sites in §7a and the read-only test list in §10) were corrected here.
+No production code references a safety token. **Exit criterion as applied:** "zero references to
+`safetyToken`" is read as zero functional references. The remaining mentions outside
+`superpowers/` are deliberate: tests that assert the argument is rejected or absent, and migration
+notes that tell callers to drop it. The release work (major version, release notes, agent
+migration note, tag) is left to the maintainer.
 
 ## 7. Interactions
 
