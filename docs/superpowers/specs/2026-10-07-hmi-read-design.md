@@ -209,3 +209,21 @@ plumbing, contracts and host work do not.
   paging and the core/detail split.
 - Device- and version-dependent runtime settings (Unified PC V20+ only objects) — nullable DTOs.
 - Formatted-text markup in texts could bloat payloads (S5).
+
+## Corrections after implementation (2026-10-08)
+
+The sections above are the historical design. Where the implementation differs, the code and the
+[HMI operations summary](../../SupportedOperations/HMI_OPERATIONS_SUMMARY.md) win:
+
+- **D8 - completeness everywhere.** Every result carries `isComplete` and `messages`. An unreadable
+  property becomes null plus a message and `isComplete:false`; an unreadable composition fails the item
+  `worker_operation_failed`.
+- **D9 - `validate` paging.** Pages over scanned objects (bounded cost per call); `total` is the category
+  object count; clean objects are counted, not listed. Scope excludes member tags, logging tags and
+  screen items; system tags are counted but listed as `notValidatable`.
+- **D10 - `HmiVariant.value`** is a real JSON scalar, not a JSON-in-string, per the spike encoding table.
+- **Non-project language (Review Focus 3).** A `language` filter that is not a project culture fails the
+  item `target_not_found` and names the project languages.
+- **Default limit** is 100 (the spike lowered it from 500); maximum 2000.
+- **`list_connections` has no `language`**; connection comments are plain strings.
+- **Password omission.** Connection driver properties whose name contains "password" are never returned.

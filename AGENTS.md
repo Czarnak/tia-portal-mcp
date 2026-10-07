@@ -1,12 +1,12 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 6 tools in read-only, 15 in read-write (startup default), and the same 15 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 7 tools in read-only, 16 in read-write (startup default), and the same 16 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
 
 ## Two-process architecture (critical to understand)
 
 `bind_project` retains default/null/explicit `bind` behavior and adds six explicit inspections:
 `list_portals`, `list_server_connections`, `list_server_groups`, `list_server_projects`,
-`list_local_sessions`, `get_lock_state`. Counts are 6/15/15. Discovery never adopts; inventory
+`list_local_sessions`, `get_lock_state`. Counts are 7/16/16. Discovery never adopts; inventory
 uses persistent Portal-only attachment, never switches/adopts/opens a project. Selectors are exact
 raw-key validated; root group requires `{isRoot:true,name:null}`. Verified foreign-PID refusal is
 local/NotSent and preserves binding/cursors; genuine context/transport loss still invalidates.
@@ -26,7 +26,7 @@ The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`
 - Host communicates with worker via newline-delimited JSON over stdin/stdout
 - The host builds the worker and copies it to `openness-worker/` subdirectory automatically
 - The worker restarts automatically after crash or timeout
-- `ref/` contains compile-time Siemens stubs so CI can build without TIA Portal installed
+- `ref/` contains compile-time Siemens stubs (`Siemens.Engineering.Base`, `.Step7` and `.WinCCUnified`) so CI can build without TIA Portal installed
 
 **Do not try to run Openness code directly from the host process** — always go through the worker.
 
@@ -148,6 +148,7 @@ Network contract these rules describe in the abstract.
 
 - **`global.json`** pins stable .NET SDK 10.0.400 with `rollForward: latestFeature` and disallows prerelease SDKs — use `dotnet` commands, not version-specific aliases
 - **Tests link host source files** via `<Compile Include>` instead of a host project reference. Network/Tools files are explicitly enumerated; add new files to `TiaMcpServer.Tests.csproj` when needed. `Safety/Pipeline` uses a glob. Check actual project wiring before assuming a new source file is tested.
+- **HMI worker methods** are named `hmi_<operation>` (e.g. `hmi_list_tag_tables`) because `OperationPolicyCatalog` is one flat namespace and PLC already owns `list_tag_tables`/`create_tag`/...; `HmiOperationCatalog.WorkerMethod` is the single mapping. Parameters travel in the nested `WorkerRequest.HmiQuery`. Classic HMIs (type name `Siemens.Engineering.Hmi.HmiTarget`) fail `target_kind_unsupported`; the worker does not reference `Siemens.Engineering.WinCC.dll`. `hmi_read` is read-only, in every mode, 1-50 items, paging `limit` 1-2000 default 100; see [HMI reference](docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md).
 - **Worker methods** are dispatched by `method` string in `WorkerRequest` — add new operations in `TiaMcpServer.OpennessWorker/Program.cs` switch expression, then register them in their owning domain catalog and invoker. A worker method is not automatically a public operation; Network and PLC each use their own request, catalog, and invoker.
 - **Contract types** live in `TiaMcpServer.Contracts` (netstandard2.0) so both host and worker can share them — no Siemens dependencies here
 - **Worker payload JSON** goes through `WorkerJson.SerializePayload`. A new payload contract writes null members and is decoded through the worker-payload reader; `[LegacyNullOmission]` is only for the reasons in `LegacyNullOmissionReason` (a payload that omits nulls cannot go through the reader), and adding or removing one updates `WorkerPayloadNullPolicyRegisterTests`

@@ -32,7 +32,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. All fifteen registered tools now follow it. This roadmap moves the rest onto
+already describe that contract. All sixteen registered tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
@@ -286,7 +286,7 @@ built lifecycle tokens only for the redesign to delete them.
 `bind_project` adds explicit session selection in every mode with a typed standalone result,
 non-null before/after binding state and in-call Portal inventory. No request implicitly opens a
 project; ordinary reads never bind or switch. Project-tree cursors now reject binding changes as
-`cursor_binding_mismatch`. Mode counts are 6/15/15. The
+`cursor_binding_mismatch`. Mode counts are 7/16/16. The
 [engineering log](../IMPROVEMENT_LOG.md) records the completed human dialog observation and tracks the
 `totally-integrated-claude` plugin's `tia-portal-mcp` skill migration; installed plugin files were
 not changed by this documentation task.

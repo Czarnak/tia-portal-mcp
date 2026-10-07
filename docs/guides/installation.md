@@ -174,12 +174,12 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-only** - six tools: five observation tools plus `bind_project`; no compile, edits, or
+- **read-only** - seven tools: six observation tools plus `bind_project`; no compile, edits, or
   lifecycle.
-- **read-write** (server startup default) - fifteen tools: the read-only surface plus
+- **read-write** (server startup default) - sixteen tools: the read-only surface plus
   `compile_check`, `network_write`, `plc_write`, and all six lifecycle tools. Every actual lifecycle
   call requires one confirmation form; `plc_write` and `network_write` never prompt.
-- **full** - the same fifteen tools and operations; lifecycle runs without server elicitation.
+- **full** - the same sixteen tools and operations; lifecycle runs without server elicitation.
   Unknown operations remain denied.
 
 **Migration:** read-write clients can save, close, and use all lifecycle tools with confirmation.

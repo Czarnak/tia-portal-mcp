@@ -69,6 +69,27 @@ Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-ref
 - `CrossReferenceTargetResolver.MatchOne` duplicates `ProjectTreeFilter.ResolveOne`'s predicate (drift is pinned by a round-trip test).
 - Unverified cross-reference owner kinds (spec Appendix B): technology objects and Unified `HmiTag` are verified but not shipped; TO instance DBs and Classic HMI tags were not present in the spike project.
 
+## Open: hmi_read follow-ups (2026-10-08)
+
+Found while building and live-accepting [`hmi_read`](superpowers/specs/2026-10-07-hmi-read-design.md)
+([live acceptance report](superpowers/acceptance/reports/2026-10-08-hmi-read-live-acceptance.md)); none
+blocks it. Known limits are also listed in the
+[HMI operations summary](SupportedOperations/HMI_OPERATIONS_SUMMARY.md#known-limits).
+
+- **PR B: Unified `HmiTag` owner kind in `read_cross_references`.** Needs an HMI selector;
+  `browse_project_tree` has no HMI nodes.
+- **Performance of whole-project scans.** About 21-23 s per call on a large PC station regardless of
+  `limit`; paging is stateless, so each page re-scans (1,286 faceplates = 13 calls of about 22 s each).
+  Consider cursors or caching.
+- **net48 double formatting.** Non-integral values are unverified live (the project had only integral
+  values); a unit test pins the net10 behavior.
+- **Live evidence gaps.** Analog alarms, non-default connection drivers, tag comments, live validation
+  errors and warnings (finding shape covered offline only) and non-default Object values.
+- **Unread properties.** `GmpRelevant` and `MandatoryCommenting` are never read (unknown hazard, like
+  `ConfirmationType`, which crashed TIA Portal in the spike).
+- **`validate` scope.** Narrower than the spike's validatable set: member tags, logging tags and screen
+  items are excluded.
+
 ## Open: plc_write follow-ups (PR B, 2026-10-07)
 
 Found while building and live-accepting [PR B](superpowers/plans/2026-10-06-plc-write.md)
