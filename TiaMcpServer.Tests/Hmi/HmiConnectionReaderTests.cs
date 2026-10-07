@@ -61,6 +61,31 @@ public class HmiConnectionReaderTests
     }
 
     [Fact]
+    public void DriverPropertyNamedPasswordIsNeverEmitted()
+    {
+        var connection = Connection("c",
+            ("Protocol.Password", "s3cret", "i"), ("password", "s3cret", "i"), ("PASSWORD_hash", "s3cret", "i"), ("Baud", "9600", "i"));
+
+        var info = HmiConnectionReader.ListConnections(SoftwareWith(connection));
+
+        var property = Assert.Single(Assert.Single(info.Connections).DriverProperties);
+        Assert.Equal("Baud", property.PropertyName);
+        Assert.DoesNotContain("s3cret", System.Text.Json.JsonSerializer.Serialize(info));
+        Assert.Equal(1, connection.DriverProperties.Items.Sum(p => p.Reads.Count(r => r == "Value")));
+    }
+
+    [Fact]
+    public void DuplicateDriverPropertiesAreCollapsed()
+    {
+        var software = SoftwareWith(Connection("c", ("Baud", "9600", "i"), ("Baud", "9600", "i"), ("Baud", "19200", "i")));
+
+        var properties = Assert.Single(HmiConnectionReader.ListConnections(software).Connections).DriverProperties;
+
+        Assert.Equal(new[] { "9600", "19200" }, properties.Select(p => p.Value).OrderBy(v => v.Length));
+        Assert.Equal(2, properties.Count);
+    }
+
+    [Fact]
     public void ScalarsAndParsedAddressAreCarried()
     {
         var info = HmiConnectionReader.ListConnections(SoftwareWith(Connection("c")));

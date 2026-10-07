@@ -60,13 +60,22 @@ public static class HmiConnectionReader
         var rows = properties.Select(p =>
         {
             string What(string property) => $"Property {property} of a driver property of connection '{name}'";
+            var propertyName = log.Try(() => p.PropertyName, What("PropertyName"));
+            // Secrets never leave the worker: a password-named property is dropped before its value is read.
+            if (propertyName?.IndexOf("password", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return null;
+            }
+
             return new HmiDriverPropertyInfo
             {
-                PropertyName = log.Try(() => p.PropertyName, What("PropertyName")),
+                PropertyName = propertyName,
                 Value = log.Try(() => p.Value, What("Value")),
                 Info = log.Try(() => p.Info, What("Info")),
             };
-        });
+        }).OfType<HmiDriverPropertyInfo>()
+          .GroupBy(r => (r.PropertyName, r.Value)) // Openness returns every driver property twice
+          .Select(g => g.First());
         return HmiPager.InNameOrder(rows, r => r.PropertyName ?? string.Empty).ToList();
     }
 }
