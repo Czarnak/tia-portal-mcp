@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$artifactNames = @('Siemens.Engineering.Base.dll', 'Siemens.Engineering.Step7.dll')
+$artifactNames = @('Siemens.Engineering.Base.dll', 'Siemens.Engineering.Step7.dll', 'Siemens.Engineering.WinCCUnified.dll')
 $temporaryRoot = $null
 
 function Resolve-Directory([string]$Path) {
@@ -53,7 +53,7 @@ function Add-SourceFiles([string]$Directory, [string]$RepositoryRoot, [Collectio
 function Get-SourceHash([string]$RepositoryRoot) {
     $paths = [Collections.Generic.List[string]]::new()
     foreach ($relative in @('Directory.Build.props', 'reference-stubs/Directory.Build.props', 'reference-stubs/Siemens.Engineering.PublicKey.snk')) { $paths.Add($relative) }
-    foreach ($project in @('Siemens.Engineering.Base', 'Siemens.Engineering.Step7')) {
+    foreach ($project in @('Siemens.Engineering.Base', 'Siemens.Engineering.Step7', 'Siemens.Engineering.WinCCUnified')) {
         $directory = Resolve-Directory (Join-Path $RepositoryRoot "reference-stubs/$project")
         Assert-ChildPath $directory $RepositoryRoot
         Add-SourceFiles $directory $RepositoryRoot $paths
@@ -142,9 +142,12 @@ try {
         $output = Join-Path $temporaryRoot 'build/'
         $intermediate = Join-Path $temporaryRoot 'obj/'
         Invoke-Dotnet @('build', (Join-Path $repositoryRoot 'reference-stubs/Siemens.Engineering.Step7/Siemens.Engineering.Step7.csproj'), '--no-restore', '-m:1', '--configuration', $Configuration, "/p:StubSourceHash=$sourceHash", "/p:OutputPath=$output", "/p:IntermediateOutputPath=$intermediate")
+        $intermediateUnified = Join-Path $temporaryRoot 'obj-unified/'
+        Invoke-Dotnet @('build', (Join-Path $repositoryRoot 'reference-stubs/Siemens.Engineering.WinCCUnified/Siemens.Engineering.WinCCUnified.csproj'), '--no-restore', '-m:1', '--configuration', $Configuration, "/p:StubSourceHash=$sourceHash", "/p:OutputPath=$output", "/p:IntermediateOutputPath=$intermediateUnified")
         foreach ($name in $artifactNames) {
             # obj/ref contains compiler-produced reference assemblies; bin contains executable placeholders.
-            $reference = [IO.Path]::GetFullPath((Join-Path $intermediate "ref/$name"))
+            $referenceRoot = if ($name -ceq 'Siemens.Engineering.WinCCUnified.dll') { $intermediateUnified } else { $intermediate }
+            $reference = [IO.Path]::GetFullPath((Join-Path $referenceRoot "ref/$name"))
             Assert-ChildPath $reference $temporaryRoot
             Copy-Item -LiteralPath $reference -Destination (Join-Path $generatedDirectory $name)
         }
@@ -171,7 +174,7 @@ try {
         }
     }
     foreach ($name in $artifactNames) { Assert-Artifact ([IO.Path]::GetFullPath((Join-Path $targetDirectory $name))) $name $sourceHash }
-    Write-Output 'Both reference artifacts are current.'
+    Write-Output 'All reference artifacts are current.'
 } catch {
     Write-Error $_ -ErrorAction Continue
     exit 1

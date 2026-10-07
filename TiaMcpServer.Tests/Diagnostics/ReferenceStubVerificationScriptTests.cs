@@ -14,15 +14,17 @@ public class ReferenceStubVerificationScriptTests
         var before = fixture.Snapshot();
         var result = fixture.Run();
         Assert.True(result.ExitCode == 0, result.Output);
-        Assert.Contains("Both reference artifacts are current", result.Output);
+        Assert.Contains("All reference artifacts are current", result.Output);
         Assert.Equal(before, fixture.Snapshot());
     }
 
     [Theory]
     [InlineData("Siemens.Engineering.Base.dll", false)]
     [InlineData("Siemens.Engineering.Step7.dll", false)]
+    [InlineData("Siemens.Engineering.WinCCUnified.dll", false)]
     [InlineData("Siemens.Engineering.Base.dll", true)]
     [InlineData("Siemens.Engineering.Step7.dll", true)]
+    [InlineData("Siemens.Engineering.WinCCUnified.dll", true)]
     public void StaleEmbeddedHashFailsClosed(string name, bool generated)
     {
         using var fixture = new Fixture();
@@ -53,18 +55,18 @@ public class ReferenceStubVerificationScriptTests
     }
 
     [Fact]
-    public void UpdateReplacesOnlyTwoExactTargets()
+    public void UpdateReplacesOnlyThreeExactTargets()
     {
         using var fixture = new Fixture();
         foreach (var name in Fixture.Names) File.WriteAllText(Path.Combine(fixture.Target, name), "old artifact");
         File.WriteAllText(Path.Combine(fixture.Target, "unrelated.dll"), "preserved");
         var result = fixture.Run(update: true);
         Assert.True(result.ExitCode == 0, result.Output);
-        Assert.Equal(2, result.Output.Split("Replaced ", StringSplitOptions.None).Length - 1);
+        Assert.Equal(3, result.Output.Split("Replaced ", StringSplitOptions.None).Length - 1);
         foreach (var name in Fixture.Names)
             Assert.Equal(File.ReadAllBytes(Path.Combine(fixture.Generated, name)), File.ReadAllBytes(Path.Combine(fixture.Target, name)));
         Assert.Equal("preserved", File.ReadAllText(Path.Combine(fixture.Target, "unrelated.dll")));
-        Assert.Equal(3, Directory.GetFiles(fixture.Target).Length);
+        Assert.Equal(4, Directory.GetFiles(fixture.Target).Length);
     }
 
     [Theory]
@@ -107,7 +109,7 @@ public class ReferenceStubVerificationScriptTests
 
     private sealed class Fixture : IDisposable
     {
-        internal static readonly string[] Names = ["Siemens.Engineering.Base.dll", "Siemens.Engineering.Step7.dll"];
+        internal static readonly string[] Names = ["Siemens.Engineering.Base.dll", "Siemens.Engineering.Step7.dll", "Siemens.Engineering.WinCCUnified.dll"];
         private readonly string root = Path.Combine(Path.GetTempPath(), "reference-stub-test-" + Guid.NewGuid().ToString("N"));
         internal string Generated => Path.Combine(root, "generated");
         internal string Target => Path.Combine(root, "ref");
