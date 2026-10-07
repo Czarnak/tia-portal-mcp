@@ -173,6 +173,22 @@ public class HmiTagReaderTests
     }
 
     [Fact]
+    public void UnreadableCommentIsNullNotEmptyAndMarksIncomplete()
+    {
+        var bad = Tag("b");
+        bad.Failures["Comment"] = new EngineeringTargetInvocationException("comment unavailable");
+        var software = SoftwareWith(Table("T1", Tag("a"), bad));
+
+        var info = HmiTagReader.ListTags(software, null, "de-DE", 0, 10);
+
+        Assert.False(info.IsComplete);
+        Assert.Contains("comment unavailable", Assert.Single(info.Messages));
+        Assert.Null(info.Tags[1].Comment);
+        Assert.NotNull(info.Tags[0].Comment);
+        Assert.Empty(info.Tags[0].Comment!);
+    }
+
+    [Fact]
     public void DisposedObjectDuringARowReadFailsTheItem()
     {
         var bad = Tag("b");

@@ -170,10 +170,21 @@ public static class HmiTagReader
         };
     }
 
-    private static List<HmiText> ReadComment(HmiTag tag, string? language, HmiReadLog log, string what)
+    private static List<HmiText>? ReadComment(HmiTag tag, string? language, HmiReadLog log, string what)
     {
-        var text = log.Try(() => tag.Comment, what);
-        return HmiTextMapper.Map(text, language, log.Messages).ToList();
+        var failed = false;
+        MultilingualText? text = null;
+        try
+        {
+            text = tag.Comment;
+        }
+        catch (EngineeringException ex)
+        {
+            log.Recover(ex, $"{what} could not be read: {ex.Message}");
+            failed = true;
+        }
+
+        return failed ? null : HmiTextMapper.Map(text, language, log.Messages).ToList();
     }
 
     private static List<HmiTagMemberInfo> ReadMembers(

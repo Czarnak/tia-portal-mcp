@@ -70,7 +70,8 @@ public class HmiTagRowInfo
 
     public bool? LinearScaling { get; set; }
 
-    public List<HmiText> Comment { get; set; } = new List<HmiText>();
+    /// <summary>Null when the comment could not be read; empty when it has no text in the requested language.</summary>
+    public List<HmiText>? Comment { get; set; } = new List<HmiText>();
 }
 
 /// <summary>Result of <c>get_tag</c>: the core row plus members, thresholds, logging tags, ranges, substitute value and variants.</summary>
