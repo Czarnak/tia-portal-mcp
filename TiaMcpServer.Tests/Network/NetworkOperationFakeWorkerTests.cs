@@ -416,7 +416,7 @@ public class NetworkOperationFakeWorkerTests
     /// offline evidence through NetworkWriteTools/FakeWorker, not live TIA qualification.
     /// </summary>
     [Fact]
-    public async Task NetworkWrite_AmbiguousNodeIdFailsClosedWithNoTokenIssued()
+    public async Task NetworkWrite_AmbiguousNodeIdFailsClosedBeforeAnyWrite()
     {
         using var audit = new TempAuditDirectory();
         using var client = CreateWriteClient(audit, out var safety, "network-ambiguous-node");
