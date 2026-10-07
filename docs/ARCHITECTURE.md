@@ -500,7 +500,7 @@ Last-resort failure-prose shortening is disclosed and preserves the failure cate
 rejection-versus-attempted-failure classification.
 
 The six tools left the output-conformance legacy register, which is now empty. Public
-`confirm`/`safetyToken` are removed from every schema, while worker-internal confirmation fences
+`confirm` and the token argument are removed from every schema, while worker-internal confirmation fences
 remain. The [lifecycle reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
 describes guards and client migration. Network and PLC token retirement are implemented; package
 release remains a later gate.
@@ -580,7 +580,7 @@ budget then runs independently with pagination-safe retry guidance.
 ### Canonical safety flow (network writes)
 
 `NetworkWriteDomain` implements the shared guarded runner with `ConfirmsEveryCall=false` and
-no acknowledge guards. Public root argument rejection (`confirm`, `safetyToken`, `acknowledge`,
+no acknowledge guards. Public root argument rejection (`confirm`, `acknowledge`,
 unknown roots, nonboolean `dryRun`) happens before tool entry through the normal SDK/wrapper MCP
 error path and has no write audit. Entered validation/binding/guard denials have a canonical root
 error and one audit. Aggregate encoded-ID/protected-core admission runs before binding; it retains
@@ -982,7 +982,7 @@ The read-only test suite covers:
 - doctor output and CLI parity;
 - the output contract of every registered tool (§7a).
 
-Rejection of the retired `confirm`, `safetyToken` and `acknowledge` arguments is covered by the
+Rejection of the retired `confirm` and `acknowledge` arguments is covered by the
 Network and PLC guarded-write MCP tests and `McpToolSchemaTests`, not by the read-only suite.
 
 Lifecycle regressions cover read-write/full binding preparation and stale-revision

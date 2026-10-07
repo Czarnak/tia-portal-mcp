@@ -46,13 +46,13 @@ Remove the old startup confirmation switch; it is rejected with:
 ```
 
 Lifecycle inputs use `dryRun`; remove former agent confirmation arrays and old public `confirm`
-and `safetyToken` arguments. Read the structured `result` and `verification` outcomes and audit v2
+and token arguments. Read the structured `result` and `verification` outcomes and audit v2
 confirmation by `user`, `policy`, or `none`. A dry run never elicits, although a client
 may still show its destructive-tool permission prompt. No tool uses safety tokens; replace
 `preview_write_batch`/`apply_write_batch` callers with `plc_write`, passing `content` plus
 `expectedContentHash` (from `plc_read`) instead of `yamlContent`/`sourceContent`.
 `plc_write` and Network take `operations` and optional boolean `dryRun=false`; **omitting dryRun executes**.
-Set `dryRun:true` for every preview caller. Remove `confirm`, `safetyToken`, `acknowledge` and
+Set `dryRun:true` for every preview caller. Remove `confirm`, `acknowledge` and
 unknown root keys: SDK/wrapper rejection before entry is a normal MCP error with no write audit.
 Entered validation/binding/guard denials use a canonical root error and one audit v2 record.
 No `plc_write` or Network server elicitation occurs in either writable mode, including deletes.

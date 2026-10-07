@@ -1114,8 +1114,7 @@ and live acceptance in read-write and full are in the
 ## Write-safety Phase 5 cleanup — completed 2026-10-07 (release excluded)
 
 Removed the last token-era test and FakeWorker leftovers (the unused state-drift scenario, token
-wording, two `confirm`/`safetyToken` read-only bypass tests, a retired snapshot method row) and
+wording, two `confirm`/token read-only bypass tests, a retired snapshot method row) and
 renamed `NetworkIntrospectionSafetySnapshotTests` to `NetworkHardwareConfigDeterminismTests`. No
-production code references a safety token; remaining mentions are rejection tests and migration
-notes. Major version, release notes, agent migration note and tag stay open for the maintainer
+file outside `docs/superpowers/` names the retired token argument any more. Major version, release notes, agent migration note and tag stay open for the maintainer
 ([redesign spec](superpowers/specs/2026-09-29-write-safety-redesign-design.md)).
