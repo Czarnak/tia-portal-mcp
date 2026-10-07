@@ -14,7 +14,7 @@ namespace TiaMcpServer.Tests.Network;
 ///
 /// This preserves deterministic canonical hardware evidence.
 /// </summary>
-public class NetworkIntrospectionSafetySnapshotTests
+public class NetworkHardwareConfigDeterminismTests
 {
     /// <summary>
     /// Serializes a fully-populated, selector-enriched <see cref="HardwareConfigInfo"/> graph twice

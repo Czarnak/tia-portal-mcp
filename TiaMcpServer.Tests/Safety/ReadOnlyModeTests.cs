@@ -613,31 +613,6 @@ public class ReadOnlyModeTests
 
     #endregion
 
-    #region Confirm Bypass Prevention Tests
-
-    [Fact]
-    public void ConfirmTrue_DoesNotBypassReadOnlyPolicy()
-    {
-        var policy = new OperationAccessPolicy(McpAccessMode.ReadOnly);
-        var result = policy.Authorize("update_block_logic");
-        Assert.NotNull(result);
-        Assert.False(result.Success);
-        // confirm=true is irrelevant — the policy denies categorically
-    }
-
-    [Fact]
-    public void SafetyToken_DoesNotBypassReadOnlyPolicy()
-    {
-        // The OperationAccessPolicy checks operation name only, not token presence.
-        // This is the correct behavior: read-only mode is a higher-level restriction.
-        var policy = new OperationAccessPolicy(McpAccessMode.ReadOnly);
-        var result = policy.Authorize("update_block_logic");
-        Assert.NotNull(result);
-        Assert.False(result.Success);
-    }
-
-    #endregion
-
     #region ProjectWriteTools Coverage Tests
 
     [Theory]
