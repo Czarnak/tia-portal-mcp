@@ -209,7 +209,7 @@ Configuration precedence: CLI argument > environment variable > default (read-wr
 
 The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
 
-In read-only mode, the server exposes exactly six MCP tools:
+In read-only mode, the server exposes exactly seven MCP tools:
 
 - `bind_project` — adopt or switch to an already-open project without project mutation.
 - `get_project_status` — read active project metadata without opening or switching projects.
@@ -217,6 +217,7 @@ In read-only mode, the server exposes exactly six MCP tools:
 - `plc_read` — run PLC block, type and tag-table reads in a batch.
 - `read_cross_references` — read the cross-references of one project-tree target.
 - `network_read` — run dedicated network reads in a batch.
+- `hmi_read` — run read-only WinCC Unified HMI reads in a batch.
 
 The following operations are **not available** in read-only mode:
 

@@ -46,7 +46,7 @@ lifecycle confirmation, and audit v2. Capability descriptions remain descriptive
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
-6/15/15 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`;
+6/15/15 tool counts (at the time; now 7/16/16 with `hmi_read`) (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`;
 `plc_write` replaces `preview_write_batch`/`apply_write_batch`, with `content` plus
 `expectedContentHash` instead of `yamlContent`/`sourceContent` and no safety token; full adds no
 tools and PLC run/stop is gone), `bind_project` for already-open projects, no implicit opens, per-call
@@ -60,7 +60,7 @@ plugin cache or user configuration.
 Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-references.md); none blocks it.
 
 - Network: `PlcSoftwareLocator.FindAll` (used by Network) never sees PLCs in device groups; `FindEveryPlc` does.
-- `totally-integrated-claude` skill: tracked in the skill-migration entry above (now 6/15/15 and `plc_write`).
+- `totally-integrated-claude` skill: tracked in the skill-migration entry above (at the time 6/15/15 and `plc_write`; now 7/16/16 with `hmi_read`).
 - `list_tag_tables`: when `tableName`/`folderPath` match nothing but part of the tree was unreadable, the incomplete inventory is returned without an explicit "not found among readable tables" message.
 - `read_cross_references` budget: the trim never recurses inside a kept child; a bare source over budget (pathological names or messages) is still withheld by the renderer; the standalone fallback guidance omits `filter`.
 - `read_cross_references`: a `maxResults` cut does not count into `omittedSourceCount`; the shared incomplete message mentions "unused-object audit" for every filter.
