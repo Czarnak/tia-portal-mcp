@@ -505,8 +505,10 @@ together with token wording in test names, test comments and one `WorkerRequest`
 described the guarded pipeline after Phase 4; two stale `ARCHITECTURE.md` passages (the batch
 snapshot decode call sites in §7a and the read-only test list in §10) were corrected here.
 The exit criterion holds literally: no file outside `superpowers/` names `safetyToken`. Tests that
-asserted the argument was absent or rejected lost those rows; unknown root arguments are still
-rejected generically, and current docs call it "the token argument". The release work (major
+asserted the argument was absent or rejected lost those rows. Unknown root arguments are still
+rejected generically, and the lifecycle schemas are pinned to their exact input sets. Current docs
+refer to it in prose (for example "the former safety-token argument") or cover it as an unknown
+root key. The release work (major
 version, release notes, agent migration note, tag) is left to the maintainer.
 
 ## 7. Interactions

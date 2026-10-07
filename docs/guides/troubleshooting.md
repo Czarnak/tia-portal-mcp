@@ -73,7 +73,7 @@ worker-reported copied project path; verify it with a subsequent status or read 
   the project and destination artifacts before retrying. Lifecycle writes are never replayed
   automatically.
 
-The former lifecycle agent confirmation array and public `confirm` and token inputs are removed.
+The former lifecycle agent confirmation array and the public `confirm` and safety-token inputs are removed.
 Network now uses `dryRun:true` for preview and executes by default, without server elicitation, as does `plc_write`; no tool uses safety tokens. Removed Network root inputs fail before entry as a normal MCP error with no write audit. Entered denials are canonical and audited once; inspect typed partial/verification/omission outcomes before retry. The removed startup switch fails with:
 
 ```text
