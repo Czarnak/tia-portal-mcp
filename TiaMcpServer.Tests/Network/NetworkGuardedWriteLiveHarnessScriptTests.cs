@@ -31,11 +31,10 @@ public sealed class NetworkGuardedWriteLiveHarnessScriptTests
         Assert.Contains("$AccessMode = 'read-write'", script);
     }
     [Fact]
-    public void PublicCalls_UseDryRunAndNoTokens()
+    public void PublicCalls_UseDryRunWithoutConfirm()
     {
         var script = Source;
         Assert.Contains("dryRun = $false", script);
-        Assert.DoesNotContain("safetyToken", script);
         Assert.DoesNotMatch(new Regex(@"(?i)\bconfirm\s*="), script);
         Assert.Contains("earlierOperationFailed", script);
         Assert.Contains("immediateChecks", script);

@@ -255,7 +255,7 @@ Supported archive modes are `None`, `DiscardRestorableData`, `Compressed`, and `
 ### Single-call writes and dry runs
 
 Every lifecycle tool accepts `dryRun:bool=false` with its operation inputs. A normal call
-applies once its guards pass. The public `confirm` and `safetyToken` inputs are removed.
+applies once its guards pass. The public `confirm` and safety-token inputs are removed.
 `dryRun:true` resolves the target and reports effects and every fired guard as `phase:preview`,
 without lifecycle mutation, elicitation, or a token. A hard guard is visible in that preview;
 an actual call returns `phase:blocked`. Invalid input or an unresolved target still fails a dry run.

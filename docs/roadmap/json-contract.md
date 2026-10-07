@@ -273,7 +273,7 @@ built lifecycle tokens only for the redesign to delete them.
 - The six tools leave the guard's legacy register and gain production-surface success/rejection,
   schema, typed failure, omission, and elicitation probes. Only the three batch tools remain legacy.
 - `ProjectLifecycleTools` and unused lifecycle token paths are retired here. Batch/Network token
-  helpers, `SafetyRead`, and their legacy audit support remain until the designated phases.
+  helpers, `SafetyRead`, and their legacy audit support stayed until Phase 4 retired them.
 - The [implementation plan](../superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md) records
   the delivery and gates. The Oct1 run passed on its source; Task13's Oct3 replacement qualified
   six operations, seven guards, accepted/declined/unsupported client behavior, dry runs, persisted

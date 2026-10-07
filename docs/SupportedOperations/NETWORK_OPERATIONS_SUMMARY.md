@@ -359,7 +359,7 @@ and sets `isError:true`.
 
 Public input is `network_write(operations, dryRun=false)`: **omitting `dryRun` executes**.
 An older operations-only call used to preview; migrate every preview caller to `dryRun:true`.
-`confirm`, `safetyToken`, `acknowledge`, unknown root keys and nonboolean `dryRun` are rejected
+`confirm`, `acknowledge`, unknown root keys and nonboolean `dryRun` are rejected
 by the SDK/wrapper before tool entry, with a normal MCP error and no write audit. That rejection
 need not be a guarded canonical envelope. Entered validation, binding and guard denials have
 a typed canonical top-level `error`, MCP `isError:true`, and exactly one audit v2 record.

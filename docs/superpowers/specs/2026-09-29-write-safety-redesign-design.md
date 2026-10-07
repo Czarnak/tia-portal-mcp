@@ -6,8 +6,8 @@ the same day; points marked **Decided 2026-09-29** record the answer next to the
 change. Phases 0, 1, 1b, 2 (lifecycle, amended by the
 [lifecycle tiers design](2026-10-01-lifecycle-tiers-and-project-binding-design.md)), 3 (Network) and
 4 (PLC domain tools, see the delivery note before §7) are delivered. Phase 4 also carried the
-Phase 5 deletions; only the Phase 5 release work (major version, release notes, agent migration
-note, one tag) remains.
+Phase 5 deletions; the Phase 5 cleanup was delivered 2026-10-07 (see its delivery note). Only the
+Phase 5 release work (major version, release notes, agent migration note, one tag) remains.
 **Supersedes:** the token-flow parts of
 [write-safety hardening (2026-09-01)](2026-09-01-write-safety-hardening-design.md); Phase 3 and
 part of Phase 4 of [the JSON contract roadmap](../../roadmap/json-contract.md).
@@ -493,6 +493,23 @@ design as follows:
 - **Phase 5 deletions moved here.** The token core (`WriteSafetyService`), `WriteSafetyTooling`,
   `SafetyRead` and the legacy audit stream were deleted in this PR rather than in Phase 5.
 - **#78 and #79.** This delivery meets the Phase 4 exit criterion; the PR closes #78 and #79.
+
+**Phase 5 delivery, 2026-10-07 (cleanup, release excluded):** with the token core already gone,
+this step removed the last token-era leftovers: the FakeWorker state-drift scenario that existed
+only to invalidate a token through the whole-project state hash, token wording in FakeWorker
+comments, two read-only tests that asserted `confirm`/`safetyToken` could not bypass the policy,
+a retired `read_*_safety_snapshot` method row in the transport-guidance test, and the
+`NetworkIntrospectionSafetySnapshotTests` name (now `NetworkHardwareConfigDeterminismTests`),
+together with token wording in test names, test comments and one `WorkerRequest` doc comment.
+`ARCHITECTURE.md` §8, `README.md` write safety, the operation summaries and the guides already
+described the guarded pipeline after Phase 4; two stale `ARCHITECTURE.md` passages (the batch
+snapshot decode call sites in §7a and the read-only test list in §10) were corrected here.
+The exit criterion holds literally: no file outside `superpowers/` names `safetyToken`. Tests that
+asserted the argument was absent or rejected lost those rows. Unknown root arguments are still
+rejected generically, and the lifecycle schemas are pinned to their exact input sets. Current docs
+refer to it in prose (for example "the former safety-token argument") or cover it as an unknown
+root key. The release work (major
+version, release notes, agent migration note, tag) is left to the maintainer.
 
 ## 7. Interactions
 

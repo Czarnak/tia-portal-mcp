@@ -37,7 +37,7 @@ public class ProjectLifecycleToolTests
         if (isWrite)
         {
             Assert.Contains("dryRun", description, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain(method.GetParameters(), parameter => parameter.Name is "confirm" or "safetyToken");
+            Assert.DoesNotContain(method.GetParameters(), parameter => parameter.Name == "confirm");
         }
     }
 

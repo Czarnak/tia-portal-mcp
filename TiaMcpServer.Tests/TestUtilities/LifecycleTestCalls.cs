@@ -27,7 +27,6 @@ internal static class LifecycleTestCalls
         Assert.True(result.IsError, document.GetRawText());
         Assert.False(document.GetProperty("success").GetBoolean());
         Assert.Equal(category, document.GetProperty("error").GetProperty("category").GetString());
-        Assert.False(document.TryGetProperty("safetyToken", out _));
     }
 
     internal static void Phase(JsonElement document, string expected)

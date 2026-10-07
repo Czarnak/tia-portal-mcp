@@ -400,7 +400,7 @@ public class NetworkStructuredProtocolTests
     /// Malformed nested input has to be refused where an agent actually sends it — through
     /// <c>tools/call</c> — not merely where a test can construct the CLR type. A member that is
     /// silently dropped here would turn "connect this subnet" into "change only the IP address"
-    /// and still hand back a safety token, so the assertion is that nothing was previewed.
+    /// and still return a preview, so the assertion is that nothing was previewed.
     /// </summary>
     [Theory]
     // An unknown nested member must be refused rather than silently dropped...
@@ -430,8 +430,6 @@ public class NetworkStructuredProtocolTests
         var result = await CallWriteAsync(harness, new object[] { operation });
 
         Assert.True(result.IsError);
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.DoesNotContain("safetyToken", text, StringComparison.Ordinal);
     }
 
     private static ValueTask<CallToolResult> CallWriteAsync(

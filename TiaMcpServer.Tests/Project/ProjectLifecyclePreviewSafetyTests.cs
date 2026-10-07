@@ -92,7 +92,6 @@ public sealed class ProjectLifecyclePreviewSafetyTests
                 var document = LifecycleTestCalls.Document(call);
                 LifecycleTestCalls.Phase(document, "preview");
                 Assert.Equal(source, document.GetProperty("effects").GetProperty("sourceProjectPath").GetString());
-                Assert.False(document.TryGetProperty("safetyToken", out _));
             }
             Assert.True(LifecycleTestCalls.Document(calls[2]).GetProperty("effects").GetProperty("savesSource").GetBoolean());
             Assert.True(LifecycleTestCalls.Document(calls[3]).GetProperty("effects").GetProperty("savesSource").GetBoolean());
