@@ -122,25 +122,19 @@ public class McpToolSchemaTests
             });
     }
 
+    // Exact sets: any extra public input, including a retired confirmation argument, fails here.
     [Theory]
-    [InlineData(nameof(ProjectWriteTools.OpenProject))]
-    [InlineData(nameof(ProjectWriteTools.CreateProject))]
-    [InlineData(nameof(ProjectWriteTools.SaveProject))]
-    [InlineData(nameof(ProjectWriteTools.SaveProjectAs))]
-    [InlineData(nameof(ProjectWriteTools.ArchiveProject))]
-    [InlineData(nameof(ProjectWriteTools.CloseProject))]
-    public void LifecycleSchemas_HaveNoAcknowledge(string methodName)
+    [InlineData(nameof(ProjectWriteTools.OpenProject), "dryRun,forceRebind,projectPath")]
+    [InlineData(nameof(ProjectWriteTools.CreateProject), "author,comment,dryRun,projectDirectory,projectName")]
+    [InlineData(nameof(ProjectWriteTools.SaveProject), "dryRun,projectPath")]
+    [InlineData(nameof(ProjectWriteTools.SaveProjectAs), "dryRun,projectPath,rebind,targetDirectory,targetName")]
+    [InlineData(nameof(ProjectWriteTools.ArchiveProject), "archiveDirectory,archiveName,dryRun,mode,projectPath,saveBeforeArchive")]
+    [InlineData(nameof(ProjectWriteTools.CloseProject), "dryRun,projectPath,saveBeforeClose")]
+    public void LifecycleSchemas_ExposeExactlyModelInputs(string methodName, string expected)
     {
         var properties = SchemaPropertyNames(typeof(ProjectWriteTools), methodName);
 
-        Assert.DoesNotContain("workerClient", properties);
-        Assert.DoesNotContain("execution", properties);
-        Assert.DoesNotContain("options", properties);
-        Assert.DoesNotContain("server", properties);
-        Assert.DoesNotContain("safety", properties);
-        Assert.DoesNotContain("confirm", properties);
-        Assert.Contains("dryRun", properties);
-        Assert.DoesNotContain("acknowledge", properties);
+        Assert.Equal(expected.Split(','), properties.OrderBy(name => name, StringComparer.Ordinal).ToArray());
     }
 
     /// <summary>
