@@ -21,8 +21,12 @@ namespace Siemens.Engineering.HmiUnified.Common
     public sealed class HmiValidationResult
     {
         public string PropertyName { get; set; } = string.Empty;
-        public IEnumerable<string> Errors { get; set; } = Array.Empty<string>();
-        public IEnumerable<string> Warnings { get; set; } = Array.Empty<string>();
+        private IEnumerable<string>? errors = Array.Empty<string>();
+        private IEnumerable<string>? warnings = Array.Empty<string>();
+        public Exception? ErrorsFailure { get; set; }
+        public Exception? WarningsFailure { get; set; }
+        public IEnumerable<string>? Errors { get => ErrorsFailure is null ? errors : throw ErrorsFailure; set => errors = value; }
+        public IEnumerable<string>? Warnings { get => WarningsFailure is null ? warnings : throw WarningsFailure; set => warnings = value; }
     }
 
     public interface IValidator
@@ -35,12 +39,14 @@ namespace Siemens.Engineering.HmiUnified.Common
     {
         public List<HmiValidationResult> Results { get; } = new();
         public Exception? ValidateFailure { get; set; }
+        public bool ValidateReturnsNull { get; set; }
         public int ValidateCalls { get; private set; }
 
         public IList<HmiValidationResult> Validate()
         {
             ValidateCalls++;
-            return ValidateFailure is null ? Results.ToList() : throw ValidateFailure;
+            if (ValidateFailure is not null) throw ValidateFailure;
+            return ValidateReturnsNull ? null! : Results.ToList();
         }
     }
 }

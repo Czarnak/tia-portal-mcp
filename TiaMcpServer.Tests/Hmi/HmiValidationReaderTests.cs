@@ -155,6 +155,46 @@ public class HmiValidationReaderTests
     }
 
     [Fact]
+    public void UnreadableResultErrorsOrWarningsAreNeverCountedClean()
+    {
+        var software = Unified("Panel_RT");
+        var tag = Tag("t");
+        tag.Results.Add(new HmiValidationResult
+        {
+            PropertyName = "Address",
+            ErrorsFailure = new EngineeringTargetInvocationException("errors gone"),
+            WarningsFailure = new EngineeringTargetInvocationException("warnings gone"),
+        });
+        software.Tags.Items.AddRange(new[] { tag, Tag("u") });
+
+        var info = HmiValidationReader.Validate(software, "tags", null, 0, 100);
+
+        Assert.Equal(2, info.Scanned);
+        Assert.Equal(1, info.Clean);
+        Assert.Empty(info.Findings);
+        Assert.False(info.IsComplete);
+        Assert.Contains("errors gone", Assert.Single(info.Messages));
+    }
+
+    [Fact]
+    public void NullValidateResultOrNullErrorsAreUnvalidatedNotClean()
+    {
+        var software = Unified("Panel_RT");
+        var nullList = new HmiConnection { Name = "a", ValidateReturnsNull = true };
+        var nullErrors = new HmiConnection { Name = "b" };
+        nullErrors.Results.Add(new HmiValidationResult { PropertyName = "P", Errors = null });
+        software.Connections.Items.AddRange(new[] { nullList, nullErrors, new HmiConnection { Name = "c" } });
+
+        var info = HmiValidationReader.Validate(software, "connections", null, 0, 100);
+
+        Assert.Equal(3, info.Scanned);
+        Assert.Equal(1, info.Clean);
+        Assert.Empty(info.Findings);
+        Assert.False(info.IsComplete);
+        Assert.Equal(2, info.Messages.Count);
+    }
+
+    [Fact]
     public void ANonRecoverableValidateFailureFailsTheItem()
     {
         var software = Unified("Panel_RT");

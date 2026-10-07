@@ -64,14 +64,43 @@ public static class HmiValidationReader
         return info;
     }
 
-    /// <summary>The results with an error or a warning; null when the object could not be validated.</summary>
+    /// <summary>
+    /// The results with an error or a warning; null when the object could not be fully validated (a recoverable
+    /// failure, or a null result), so it is never reported clean.
+    /// </summary>
     private static List<HmiValidationResultInfo>? Validate(IValidator validator, string kind, string name, HmiReadLog log)
     {
         var what = $"Validation of {kind} '{name}'";
-        List<HmiValidationResult> raw;
+        var results = new List<HmiValidationResultInfo>();
         try
         {
-            raw = validator.Validate().ToList();
+            var raw = validator.Validate()?.ToList();
+            if (raw is null)
+            {
+                log.Fail($"{what} returned no result list.");
+                return null;
+            }
+
+            foreach (var result in raw)
+            {
+                var errors = result?.Errors?.ToList();
+                var warnings = result?.Warnings?.ToList();
+                if (errors is null || warnings is null)
+                {
+                    log.Fail($"{what} returned a result without errors or warnings.");
+                    return null;
+                }
+
+                if (errors.Count > 0 || warnings.Count > 0)
+                {
+                    results.Add(new HmiValidationResultInfo
+                    {
+                        PropertyName = log.Try(() => result!.PropertyName, $"The property name of a result of {what}"),
+                        Errors = errors,
+                        Warnings = warnings,
+                    });
+                }
+            }
         }
         catch (EngineeringException ex)
         {
@@ -79,25 +108,8 @@ public static class HmiValidationReader
             return null;
         }
 
-        var results = new List<HmiValidationResultInfo>();
-        foreach (var result in raw)
-        {
-            var errors = log.Try(() => result.Errors.ToList(), $"The errors of {what}") ?? new List<string>();
-            var warnings = log.Try(() => result.Warnings.ToList(), $"The warnings of {what}") ?? new List<string>();
-            if (errors.Count > 0 || warnings.Count > 0)
-            {
-                results.Add(new HmiValidationResultInfo
-                {
-                    PropertyName = log.Try(() => result.PropertyName, $"The property name of a result of {what}"),
-                    Errors = errors,
-                    Warnings = warnings,
-                });
-            }
-        }
-
         return results;
     }
-
     private static string KindOf(object item) => item.GetType().Name;
 
     private static List<(object Item, string Name)> Objects(HmiSoftware software, string category) => category switch
