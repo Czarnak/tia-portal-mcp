@@ -29,7 +29,7 @@ public static class HmiOperationCatalog
         ["list_tags"] = Op(NoFields, new[] { "hmiName", "tableName", "language" }, paged: true),
         ["get_tag"] = Op(new[] { "tagName" }, new[] { "hmiName", "language" }),
         ["list_system_tags"] = Op(NoFields, new[] { "hmiName" }, paged: true),
-        ["list_connections"] = Op(NoFields, new[] { "hmiName", "language" }),
+        ["list_connections"] = Op(NoFields, new[] { "hmiName" }),
         ["list_alarms"] = Op(NoFields, new[] { "hmiName", "alarmKind", "language" }, paged: true),
         ["get_alarm"] = Op(new[] { "alarmName", "alarmKind" }, new[] { "hmiName", "language" }),
         ["list_alarm_classes"] = Op(NoFields, new[] { "hmiName", "language" }),

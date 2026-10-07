@@ -32,7 +32,7 @@ public class HmiOperationCatalogTests
         ["list_tags"] = (new string[0], new[] { "hmiName", "tableName", "language", "offset", "limit" }),
         ["get_tag"] = (new[] { "tagName" }, new[] { "hmiName", "language" }),
         ["list_system_tags"] = (new string[0], new[] { "hmiName", "offset", "limit" }),
-        ["list_connections"] = (new string[0], new[] { "hmiName", "language" }),
+        ["list_connections"] = (new string[0], new[] { "hmiName" }),
         ["list_alarms"] = (new string[0], new[] { "hmiName", "alarmKind", "language", "offset", "limit" }),
         ["get_alarm"] = (new[] { "alarmName", "alarmKind" }, new[] { "hmiName", "language" }),
         ["list_alarm_classes"] = (new string[0], new[] { "hmiName", "language" }),
