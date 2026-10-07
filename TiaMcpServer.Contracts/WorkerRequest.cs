@@ -201,6 +201,13 @@ public class WorkerRequest
 
     #endregion
 
+    #region HMI Unified reads
+
+    /// <summary>Forwarded by: every hmi_* method. Offset and Limit are concrete for paged operations.</summary>
+    public HmiQueryInfo? HmiQuery { get; set; }
+
+    #endregion
+
     #region Network devices
 
     /// <summary>Forwarded by: add_network_device.</summary>
