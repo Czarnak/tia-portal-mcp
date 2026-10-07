@@ -27,6 +27,10 @@ public static class HmiPayloadContract
         ["get_tag"] = typeof(HmiTagDetailInfo),
         ["list_system_tags"] = typeof(HmiSystemTagListInfo),
         ["list_logging_tags"] = typeof(HmiLoggingTagListInfo),
+        ["list_connections"] = typeof(HmiConnectionListInfo),
+        ["list_alarms"] = typeof(HmiAlarmListInfo),
+        ["get_alarm"] = typeof(HmiAlarmDetailInfo),
+        ["list_alarm_classes"] = typeof(HmiAlarmClassesInfo),
     };
 
     private static readonly MethodInfo NormalizeAsMethod =

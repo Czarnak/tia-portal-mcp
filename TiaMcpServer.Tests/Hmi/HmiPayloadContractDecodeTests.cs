@@ -50,6 +50,36 @@ public class HmiPayloadContractDecodeTests
             { Page = new HmiPage(0, 100, 1, null), SystemTags = { new HmiSystemTagInfo { Name = "@s", DataType = "Int" } } } },
         { "list_logging_tags", new HmiLoggingTagListInfo
             { Page = new HmiPage(0, 100, 1, null), LoggingTags = { new HmiLoggingTagRowInfo { Name = "l", Tag = "a" } } } },
+        { "list_connections", new HmiConnectionListInfo
+            {
+                Connections =
+                {
+                    new HmiConnectionInfo
+                    {
+                        Name = "c",
+                        InitialAddress = new HmiInitialAddressInfo { Raw = "A=1;", Parsed = { ["A"] = "1" } },
+                        DriverProperties = { new HmiDriverPropertyInfo { PropertyName = "p", Value = null } },
+                    },
+                    new HmiConnectionInfo { Name = "d" },
+                },
+            } },
+        { "list_alarms", new HmiAlarmListInfo
+            {
+                Page = new HmiPage(0, 100, 2, null),
+                Alarms =
+                {
+                    new HmiAlarmRowInfo { Kind = "discrete", Name = "a", EventText = new List<HmiText> { new HmiText("en-US", "<body><p>x</p></body>") } },
+                    new HmiAlarmRowInfo { Kind = "analog", Name = "b", ConditionValue = new HmiVariant("System.Double", JsonDocument.Parse("1.5").RootElement.Clone()), EventText = null },
+                },
+            } },
+        { "get_alarm", new HmiAlarmDetailInfo
+            { Alarm = new HmiAlarmRowInfo { Kind = "discrete", Name = "a" }, EventText9 = null, AlarmParameterTags = new List<string> { "p1", "" } } },
+        { "list_alarm_classes", new HmiAlarmClassesInfo
+            {
+                AlarmClasses = { new HmiAlarmClassInfo { Name = "c", Id = 1 } },
+                AuditClasses = { new HmiAuditClassInfo { Name = "a" } },
+                OpcUaAlarmTypes = { new HmiOpcUaAlarmTypeInfo { Name = "u" } },
+            } },
     };
 
     [Theory]

@@ -22,6 +22,23 @@ internal sealed class HmiReadLog
         IsComplete = false;
     }
 
+    /// <summary>
+    /// Reads something the whole item depends on (a name or a composition); any Openness failure fails the
+    /// item as <c>worker_operation_failed</c> naming <paramref name="what"/>.
+    /// </summary>
+    public static T Guard<T>(Func<T> read, string what)
+    {
+        try
+        {
+            return read();
+        }
+        catch (EngineeringException ex)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed, $"{what} could not be read: {ex.Message}");
+        }
+    }
+
     /// <summary>Reads one property; an Openness failure becomes the default value, one message and an incomplete result.</summary>
     public T? Try<T>(Func<T> read, string what)
     {

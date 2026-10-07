@@ -28,6 +28,15 @@ public static class HmiReadDispatch
             "hmi_list_system_tags" => HmiTagReader.ListSystemTags(Software(project, query), Offset(query), Limit(query)),
             "hmi_list_logging_tags" => HmiTagReader.ListLoggingTags(
                 Software(project, query), query.DataLogName, query.TagName, Offset(query), Limit(query)),
+            "hmi_list_connections" => HmiConnectionReader.ListConnections(Software(project, query)),
+            "hmi_list_alarms" => HmiAlarmReader.ListAlarms(
+                Software(project, query), query.AlarmKind, query.Language, Offset(query), Limit(query)),
+            "hmi_get_alarm" => HmiAlarmReader.GetAlarm(
+                Software(project, query),
+                query.AlarmName ?? throw MissingField("alarmName"),
+                query.AlarmKind ?? throw MissingField("alarmKind"),
+                query.Language),
+            "hmi_list_alarm_classes" => HmiAlarmReader.ListAlarmClasses(Software(project, query)),
             _ => throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError, $"Unsupported HMI worker method '{method}'."),
         };
