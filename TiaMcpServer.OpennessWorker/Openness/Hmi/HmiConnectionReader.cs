@@ -70,7 +70,8 @@ public static class HmiConnectionReader
             return new HmiDriverPropertyInfo
             {
                 PropertyName = propertyName,
-                Value = log.Try(() => p.Value, What("Value")),
+                // Fail closed: an unreadable name cannot be shown not to be a password, so its value is not read.
+                Value = propertyName is null ? null : log.Try(() => p.Value, What("Value")),
                 Info = log.Try(() => p.Info, What("Info")),
             };
         }).OfType<HmiDriverPropertyInfo>()

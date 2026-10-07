@@ -75,6 +75,21 @@ public class HmiConnectionReaderTests
     }
 
     [Fact]
+    public void DriverPropertyValueIsNeverReadWhenItsNameIsUnreadable()
+    {
+        var connection = Connection("c", ("Protocol.Password", "s3cret", "i"));
+        connection.DriverProperties.Items[0].Failures["PropertyName"] = new EngineeringTargetInvocationException("no name");
+
+        var info = HmiConnectionReader.ListConnections(SoftwareWith(connection));
+
+        var property = Assert.Single(Assert.Single(info.Connections).DriverProperties);
+        Assert.Null(property.PropertyName);
+        Assert.Null(property.Value);
+        Assert.DoesNotContain("Value", connection.DriverProperties.Items[0].Reads);
+        Assert.False(info.IsComplete);
+    }
+
+    [Fact]
     public void DuplicateDriverPropertiesAreCollapsed()
     {
         var software = SoftwareWith(Connection("c", ("Baud", "9600", "i"), ("Baud", "9600", "i"), ("Baud", "19200", "i")));
