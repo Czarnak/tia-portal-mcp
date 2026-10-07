@@ -645,6 +645,19 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "hmi-read-roundtrip":
+            Respond(ReadMethod(line) switch
+            {
+                "hmi_list_hmi_devices" => Success(ToCamelCaseJson(new HmiDeviceListInfo
+                {
+                    Devices =
+                    {
+                        new HmiDeviceInfo { DeviceName = "HMI_1", SoftwareName = "HMI_1_RT", Kind = "unified", TypeIdentifier = null },
+                    },
+                })),
+                _ => $$"""{"success":false,"error":"unexpected hmi read method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "plc-read-roundtrip":
             Respond(ReadMethod(line) switch
             {

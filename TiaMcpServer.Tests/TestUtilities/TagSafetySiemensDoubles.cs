@@ -195,6 +195,13 @@ namespace Siemens.Engineering.HW
     public sealed class Device : NamedObject
     {
         public DeviceItemComposition DeviceItems { get; } = new();
+        public Exception? TypeIdentifierFailure { get; set; }
+        private string? typeIdentifier;
+        public string? TypeIdentifier
+        {
+            get => TypeIdentifierFailure is null ? typeIdentifier : throw TypeIdentifierFailure;
+            set => typeIdentifier = value;
+        }
     }
     public sealed class DeviceUserGroup : NamedObject
     {
@@ -217,6 +224,13 @@ namespace Siemens.Engineering.HW
         public DeviceItemComposition DeviceItems { get; } = new();
         public Features.SoftwareContainer? Container { get; set; }
         public Exception? ServiceFailure { get; set; }
+        public Exception? TypeIdentifierFailure { get; set; }
+        private string? typeIdentifier;
+        public string? TypeIdentifier
+        {
+            get => TypeIdentifierFailure is null ? typeIdentifier : throw TypeIdentifierFailure;
+            set => typeIdentifier = value;
+        }
         public override T? GetService<T>() where T : class
         {
             if (ServiceFailure is not null)

@@ -15,7 +15,14 @@ namespace TiaMcpServer.Hmi;
 public static class HmiPayloadContract
 {
     /// <summary>Operation name to its one result CLR type. Filled as each operation's reader lands.</summary>
-    internal static readonly Dictionary<string, Type> ResultTypes = new(StringComparer.Ordinal);
+    internal static readonly Dictionary<string, Type> ResultTypes = new(StringComparer.Ordinal)
+    {
+        ["list_hmi_devices"] = typeof(HmiDeviceListInfo),
+        ["get_runtime_settings"] = typeof(HmiRuntimeSettingsInfo),
+        ["list_script_modules"] = typeof(HmiScriptModuleListInfo),
+        ["list_text_and_graphic_lists"] = typeof(HmiTextAndGraphicListsInfo),
+        ["list_project_languages"] = typeof(HmiProjectLanguagesInfo),
+    };
 
     private static readonly MethodInfo NormalizeAsMethod =
         typeof(HmiPayloadContract).GetMethod(nameof(NormalizeAs), BindingFlags.NonPublic | BindingFlags.Static)!;
