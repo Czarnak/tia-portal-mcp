@@ -114,6 +114,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-07 | [`hmi_read` live spike S1–S10 — read-only probe of four Unified Comfort panels and one Unified PC station; default `limit`, depth cap, Classic type, variant encoding, and the `HmiTag.ConfirmationType` Portal crash](acceptance/reports/2026-10-07-hmi-read-spike.md) |
 | 2026-10-07 | [PLC write (PR B) — offline qualification and live acceptance in read-write and full](acceptance/reports/2026-10-07-plc-write-validation.md) |
 | 2026-10-06 | [Multiuser PR 3 — offline qualification; live acceptance passed by maintainer decision](acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md) |
 | 2026-10-06 | [Multiuser PR 3 — installed-tool live acceptance finished and passed; observations and non-blocking evidence limitations](acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) |
