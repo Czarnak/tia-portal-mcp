@@ -168,7 +168,8 @@ internal static class Program
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
                 "hmi_list_hmi_devices" or "hmi_get_runtime_settings" or "hmi_list_script_modules"
-                    or "hmi_list_text_and_graphic_lists" or "hmi_list_project_languages" => ReadHmi(request),
+                    or "hmi_list_text_and_graphic_lists" or "hmi_list_project_languages" or "hmi_list_tag_tables"
+                    or "hmi_list_tags" or "hmi_get_tag" or "hmi_list_system_tags" or "hmi_list_logging_tags" => ReadHmi(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),

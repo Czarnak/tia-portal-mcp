@@ -22,6 +22,11 @@ public static class HmiPayloadContract
         ["list_script_modules"] = typeof(HmiScriptModuleListInfo),
         ["list_text_and_graphic_lists"] = typeof(HmiTextAndGraphicListsInfo),
         ["list_project_languages"] = typeof(HmiProjectLanguagesInfo),
+        ["list_tag_tables"] = typeof(HmiTagTableTreeInfo),
+        ["list_tags"] = typeof(HmiTagListInfo),
+        ["get_tag"] = typeof(HmiTagDetailInfo),
+        ["list_system_tags"] = typeof(HmiSystemTagListInfo),
+        ["list_logging_tags"] = typeof(HmiLoggingTagListInfo),
     };
 
     private static readonly MethodInfo NormalizeAsMethod =

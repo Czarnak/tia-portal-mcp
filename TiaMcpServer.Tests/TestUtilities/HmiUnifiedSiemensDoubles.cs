@@ -97,7 +97,7 @@ namespace Siemens.Engineering.Hmi
 
 namespace Siemens.Engineering.HmiUnified
 {
-    public sealed class HmiSoftware : HW.Software
+    public sealed partial class HmiSoftware : HW.Software
     {
         public Scripts.HmiScriptModuleComposition Scripts { get; } = new();
         public TextGraphicList.HmiTextListComposition HmiTextLists { get; } = new();

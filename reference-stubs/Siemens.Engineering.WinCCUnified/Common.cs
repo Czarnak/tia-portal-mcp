@@ -2,7 +2,7 @@
 #nullable disable // V21 net48 signatures have no nullable annotations.
 namespace Siemens.Engineering.HmiUnified
 {
-    public abstract class HmiSoftware : global::Siemens.Engineering.HW.Software, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract partial class HmiSoftware : global::Siemens.Engineering.HW.Software, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
         public global::Siemens.Engineering.HmiUnified.Scripts.HmiScriptModuleComposition Scripts { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HmiUnified.TextGraphicList.HmiTextListComposition HmiTextLists { get => throw new global::System.NotSupportedException(); }

@@ -26,6 +26,30 @@ public class HmiPayloadContractDecodeTests
         { "list_script_modules", new HmiScriptModuleListInfo { Modules = { "m1" } } },
         { "list_text_and_graphic_lists", new HmiTextAndGraphicListsInfo { TextLists = { "t" }, GraphicLists = { "g" }, SystemTextLists = { "s" } } },
         { "list_project_languages", new HmiProjectLanguagesInfo { Languages = { "en-US" }, EditingLanguage = "en-US", ReferenceLanguage = null } },
+        { "list_tag_tables", new HmiTagTableTreeInfo
+            {
+                Tables = { new HmiTagTableInfo { Name = "t", TagCount = 2 } },
+                Groups = { new HmiTagTableGroupInfo { Name = "g", Groups = { new HmiTagTableGroupInfo { Name = "h" } } } },
+            } },
+        { "list_tags", new HmiTagListInfo
+            {
+                Page = new HmiPage(0, 100, 1, null),
+                Tags = { new HmiTagRowInfo { Name = "a", Comment = { new HmiText("en-US", "c") } } },
+            } },
+        { "get_tag", new HmiTagDetailInfo
+            {
+                Tag = new HmiTagRowInfo { Name = "a" },
+                Members = { new HmiTagMemberInfo { Tag = new HmiTagRowInfo { Name = "m" }, Members = { new HmiTagMemberInfo() } } },
+                UpperRange = new HmiRangeInfo { Value = new HmiVariant("System.String", JsonDocument.Parse("\"\"").RootElement.Clone()) },
+                InitialValue = new HmiVariant(null, null),
+                HmiEndValue = new HmiVariant("System.Double", JsonDocument.Parse("100").RootElement.Clone()),
+                Thresholds = { new HmiThresholdInfo { Name = "Hi" } },
+                LoggingTags = { new HmiLoggingTagRowInfo { Name = "l", Tag = "a" } },
+            } },
+        { "list_system_tags", new HmiSystemTagListInfo
+            { Page = new HmiPage(0, 100, 1, null), SystemTags = { new HmiSystemTagInfo { Name = "@s", DataType = "Int" } } } },
+        { "list_logging_tags", new HmiLoggingTagListInfo
+            { Page = new HmiPage(0, 100, 1, null), LoggingTags = { new HmiLoggingTagRowInfo { Name = "l", Tag = "a" } } } },
     };
 
     [Theory]
