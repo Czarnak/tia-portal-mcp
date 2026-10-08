@@ -92,7 +92,9 @@ have no `language` because connection comments are plain strings and alarm class
 ## Known limits
 
 - Whole-project scans take roughly 21-23 s per call on a large PC station regardless of `limit`.
-- Non-integral doubles were not exercised live on net48 (offline test pins the net10 formatting).
+- Floating-point values are written explicitly (`G15`, or `G17` when 15 digits do not round-trip;
+  `G7`/`G9` for float), so net10 and net48 produce the same text. Non-integral values were not
+  exercised live.
 - Live evidence gaps: analog alarms, non-default connection drivers, tag comments, live validation
   errors and warnings, non-default Object values.
 

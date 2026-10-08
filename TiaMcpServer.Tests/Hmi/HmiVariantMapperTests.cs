@@ -40,6 +40,10 @@ public class HmiVariantMapperTests
     [InlineData(10.0, "10")]
     [InlineData(-1.5, "-1.5")]
     [InlineData(0.1, "0.1")]
+    [InlineData(1e20, "1E+20")]
+    // 15 digits do not round-trip, so 17 are written; net10's shortest form would be 0.3333333333333333.
+    [InlineData(1.0 / 3, "0.33333333333333331")]
+    [InlineData(double.MaxValue, "1.7976931348623157E+308")]
     public void DoubleRowsAreJsonNumbersWrittenRoundTrip(double value, string expected)
     {
         var v = HmiVariantMapper.Map(value);
@@ -61,6 +65,21 @@ public class HmiVariantMapperTests
         Assert.Equal("System.Double", v.Type);
         Assert.Equal(JsonValueKind.String, v.Value!.Value.ValueKind);
         Assert.Equal(expected, v.Value.Value.GetString());
+    }
+
+    // The encoding is explicit (G7, else G9), so net10 and net48 write the same text.
+    [Theory]
+    [InlineData(1.5f, "1.5")]
+    [InlineData(0.1f, "0.1")]
+    [InlineData(1f / 3, "0.333333343")]
+    [InlineData(float.MaxValue, "3.40282347E+38")]
+    public void FloatRowsAreJsonNumbersWrittenRoundTrip(float value, string expected)
+    {
+        var v = HmiVariantMapper.Map(value);
+
+        Assert.Equal("System.Single", v.Type);
+        Assert.Equal(expected, Json(v));
+        Assert.Equal(value, v.Value!.Value.GetSingle());
     }
 
     // HmiFaceplateInterface.Value: System.Boolean.

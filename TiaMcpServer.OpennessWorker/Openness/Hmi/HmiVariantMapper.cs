@@ -52,11 +52,11 @@ public static class HmiVariantMapper
             case double d:
                 return double.IsNaN(d) || double.IsInfinity(d)
                     ? Clone(JsonSerializer.Serialize(d.ToString(CultureInfo.InvariantCulture)))
-                    : Clone(JsonSerializer.Serialize(d));
+                    : Clone(Number(d));
             case float f:
                 return float.IsNaN(f) || float.IsInfinity(f)
                     ? Clone(JsonSerializer.Serialize(f.ToString(CultureInfo.InvariantCulture)))
-                    : Clone(JsonSerializer.Serialize(f));
+                    : Clone(Number(f));
             case decimal m:
                 return Clone(m.ToString(CultureInfo.InvariantCulture));
             case sbyte or byte or short or ushort or int or uint or long or ulong:
@@ -66,6 +66,25 @@ public static class HmiVariantMapper
             default:
                 return Clone(JsonSerializer.Serialize(value.ToString() ?? string.Empty));
         }
+    }
+
+    // Explicit so net48 (where System.Text.Json writes G17/G9, 0.1 -> 0.10000000000000001) and net10 agree:
+    // G15 (G7 for float) when it parses back to the same value, otherwise the always-round-tripping G17 (G9).
+    // TryParse, not Parse: net48 throws on an overflowing G15 of double.MaxValue.
+    private static string Number(double d)
+    {
+        var shortForm = d.ToString("G15", CultureInfo.InvariantCulture);
+        return double.TryParse(shortForm, NumberStyles.Float, CultureInfo.InvariantCulture, out var back) && back == d
+            ? shortForm
+            : d.ToString("G17", CultureInfo.InvariantCulture);
+    }
+
+    private static string Number(float f)
+    {
+        var shortForm = f.ToString("G7", CultureInfo.InvariantCulture);
+        return float.TryParse(shortForm, NumberStyles.Float, CultureInfo.InvariantCulture, out var back) && back == f
+            ? shortForm
+            : f.ToString("G9", CultureInfo.InvariantCulture);
     }
 
     private static JsonElement Clone(string json)

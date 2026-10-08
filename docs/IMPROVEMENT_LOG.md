@@ -81,8 +81,8 @@ blocks it. Known limits are also listed in the
 - **Performance of whole-project scans.** About 21-23 s per call on a large PC station regardless of
   `limit`; paging is stateless, so each page re-scans (1,286 faceplates = 13 calls of about 22 s each).
   Consider cursors or caching.
-- **net48 double formatting.** Non-integral values are unverified live (the project had only integral
-  values); a unit test pins the net10 behavior.
+- **Non-integral values unverified live.** The project had only integral values. Encoding is now
+  explicit (`G15`/`G17`, `G7`/`G9`) and runtime-independent, so the offline test covers net48 too.
 - **Live evidence gaps.** Analog alarms, non-default connection drivers, tag comments, live validation
   errors and warnings (finding shape covered offline only) and non-default Object values.
 - **Unread properties.** `GmpRelevant` and `MandatoryCommenting` are never read (unknown hazard, like
