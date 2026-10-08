@@ -230,3 +230,7 @@ The sections above are the historical design. Where the implementation differs, 
   alarm types carry no texts, so the field is rejected. The live acceptance runs that passed `language`
   to it predate this change.
 - **Password omission.** Connection driver properties whose name contains "password" are never returned.
+- **Secret-name denylist** (final review I3, refines the password omission). One case-insensitive check
+  (`password`, `passwd`, `passphrase`, `pwd`, `secret`, `token`, `credential`, `privatekey`) drops
+  driver properties before their value is read and drops matching `InitialAddress` parsed keys;
+  `initialAddress.raw` is null whenever the address names one.

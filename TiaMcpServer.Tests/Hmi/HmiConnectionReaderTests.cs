@@ -75,6 +75,52 @@ public class HmiConnectionReaderTests
     }
 
     [Fact]
+    public void DriverPropertyWithAnySecretLikeNameIsNeverEmittedOrRead()
+    {
+        var connection = Connection("c",
+            ("passwd", "s3cret", "i"), ("Passphrase", "s3cret", "i"), ("UserPwd", "s3cret", "i"),
+            ("ClientSecret", "s3cret", "i"), ("AuthToken", "s3cret", "i"), ("Credential.User", "s3cret", "i"),
+            ("PRIVATEKEY", "s3cret", "i"), ("Baud", "9600", "i"));
+
+        var info = HmiConnectionReader.ListConnections(SoftwareWith(connection));
+
+        var property = Assert.Single(Assert.Single(info.Connections).DriverProperties);
+        Assert.Equal("Baud", property.PropertyName);
+        Assert.DoesNotContain("s3cret", System.Text.Json.JsonSerializer.Serialize(info));
+        Assert.Equal(1, connection.DriverProperties.Items.Sum(p => p.Reads.Count(r => r == "Value")));
+    }
+
+    [Fact]
+    public void InitialAddressSecretKeysAreDroppedAndRawIsNull()
+    {
+        var connection = Connection("c");
+        connection.InitialAddress = "HostAddress=1.2.3.4;Pwd=s3cret;AccessToken=t0k3n;";
+
+        var info = HmiConnectionReader.ListConnections(SoftwareWith(connection));
+
+        var address = Assert.Single(info.Connections).InitialAddress!;
+        Assert.Null(address.Raw);
+        Assert.Equal(new[] { "HostAddress" }, address.Parsed.Keys);
+        Assert.Equal("1.2.3.4", address.Parsed["HostAddress"]);
+        var json = System.Text.Json.JsonSerializer.Serialize(info);
+        Assert.DoesNotContain("s3cret", json);
+        Assert.DoesNotContain("t0k3n", json);
+        Assert.True(info.IsComplete);
+    }
+
+    [Fact]
+    public void UnparsableInitialAddressNamingASecretHasNullRaw()
+    {
+        var connection = Connection("c");
+        connection.InitialAddress = "Host=1.2.3.4;password s3cret";
+
+        var address = Assert.Single(HmiConnectionReader.ListConnections(SoftwareWith(connection)).Connections).InitialAddress!;
+
+        Assert.Null(address.Raw);
+        Assert.Empty(address.Parsed);
+    }
+
+    [Fact]
     public void DriverPropertyValueIsNeverReadWhenItsNameIsUnreadable()
     {
         var connection = Connection("c", ("Protocol.Password", "s3cret", "i"));

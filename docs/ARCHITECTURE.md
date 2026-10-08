@@ -525,7 +525,8 @@ readers produce the `TiaMcpServer.Contracts/Hmi` DTOs, and `HmiPager` applies th
 (case-insensitive ordinal, case-sensitive tie-break). Every result carries `isComplete` and `messages`;
 an unreadable property becomes null plus a message, an unreadable composition fails the item. `validate`
 pages over scanned objects. Properties known to be dangerous or sensitive are never read
-(`HmiTag.ConfirmationType`; connection driver properties whose name contains "password").
+(`HmiTag.ConfirmationType`; connection driver properties with a credential-like name, whose values are
+never read; matching `InitialAddress` keys are dropped and the raw address is withheld).
 
 Compile-time types come from a third generated stub, `ref/Siemens.Engineering.WinCCUnified.dll`, built
 from `reference-stubs/Siemens.Engineering.WinCCUnified/` and verified with the other two by

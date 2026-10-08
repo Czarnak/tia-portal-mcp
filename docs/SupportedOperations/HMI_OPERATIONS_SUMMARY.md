@@ -80,9 +80,12 @@ have no `language` because connection comments are plain strings and alarm class
 - **Screen items.** Geometry comes from `IHmiBoxFeature`; items without box geometry (for example
   elliptical arcs) report null geometry with no message. A screen window without a target screen
   yields no navigation edge and a message (`isComplete` stays true).
-- **Connections.** Driver properties whose name contains "password" are never returned: the worker
-  drops them before reading the value, and a property whose name cannot be read has its value left
-  unread. Duplicate (name, value) rows reported by Openness are collapsed.
+- **Connections.** Secrets never leave the worker. A driver property whose name contains a
+  credential-like word (`password`, `passwd`, `passphrase`, `pwd`, `secret`, `token`, `credential`,
+  `privatekey`, any case) is dropped before its value is read, and a property whose name cannot be
+  read has its value left unread. The same check drops matching `initialAddress.parsed` keys and sets
+  `initialAddress.raw` to null when the address names one. Duplicate (name, value) rows reported by
+  Openness are collapsed.
 - **Never read.** `HmiTag.ConfirmationType` (it crashed TIA Portal in the spike), and
   `GmpRelevant` / `MandatoryCommenting` (unknown hazard).
 

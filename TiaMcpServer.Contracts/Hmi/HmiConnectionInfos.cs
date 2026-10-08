@@ -16,7 +16,10 @@ public class HmiConnectionInfo
 
     public string? CommunicationDriver { get; set; }
 
-    /// <summary>The raw <c>InitialAddress</c> string and its parsed key/value pairs; null when the address is unset or could not be read (see messages).</summary>
+    /// <summary>
+    /// The raw <c>InitialAddress</c> string and its parsed key/value pairs; null when the address is null or could not be
+    /// read (see messages). An empty address yields <c>{raw:"", parsed:{}}</c>.
+    /// </summary>
     public HmiInitialAddressInfo? InitialAddress { get; set; }
 
     public string? Partner { get; set; }
@@ -34,7 +37,11 @@ public class HmiConnectionInfo
     public List<HmiDriverPropertyInfo> DriverProperties { get; set; } = new List<HmiDriverPropertyInfo>();
 }
 
-/// <summary>The raw address (always kept) and the key/value pairs parsed from it; empty when the raw string does not parse.</summary>
+/// <summary>
+/// The raw address and the key/value pairs parsed from it; <c>parsed</c> is empty when the raw string does not parse.
+/// Keys with a credential-like name are dropped from <c>parsed</c>, and <c>raw</c> is null whenever the address names
+/// one (a dropped key always does).
+/// </summary>
 public class HmiInitialAddressInfo
 {
     public string? Raw { get; set; }

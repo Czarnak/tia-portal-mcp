@@ -11,6 +11,14 @@ namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 /// </summary>
 public static class HmiConnectionReader
 {
+    // Inference, not observed: only S7-1200/1500 drivers were seen live, so other drivers' credential names are guessed.
+    private static readonly string[] SecretNameParts =
+        { "password", "passwd", "passphrase", "pwd", "secret", "token", "credential", "privatekey" };
+
+    /// <summary>True when <paramref name="name"/> contains a credential-like word (case-insensitive); such values never leave the worker.</summary>
+    internal static bool IsSecretName(string name)
+        => SecretNameParts.Any(part => name.IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0);
+
     public static HmiConnectionListInfo ListConnections(HmiSoftware software)
     {
         var log = new HmiReadLog();
@@ -42,8 +50,12 @@ public static class HmiConnectionReader
                 ? null
                 : new HmiInitialAddressInfo
                 {
-                    Raw = raw,
-                    Parsed = HmiInitialAddressParser.Parse(raw).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal),
+                    // A secret-named key always names a secret in the raw string too, so this also covers
+                    // an unparsable address that mentions one.
+                    Raw = IsSecretName(raw) ? null : raw,
+                    Parsed = HmiInitialAddressParser.Parse(raw)
+                        .Where(p => !IsSecretName(p.Key))
+                        .ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal),
                 },
             Partner = log.Try(() => connection.Partner, What("Partner")),
             Station = log.Try(() => connection.Station, What("Station")),
@@ -61,8 +73,8 @@ public static class HmiConnectionReader
         {
             string What(string property) => $"Property {property} of a driver property of connection '{name}'";
             var propertyName = log.Try(() => p.PropertyName, What("PropertyName"));
-            // Secrets never leave the worker: a password-named property is dropped before its value is read.
-            if (propertyName?.IndexOf("password", StringComparison.OrdinalIgnoreCase) >= 0)
+            // Secrets never leave the worker: a secret-named property is dropped before its value is read.
+            if (propertyName is not null && IsSecretName(propertyName))
             {
                 return null;
             }
@@ -70,7 +82,7 @@ public static class HmiConnectionReader
             return new HmiDriverPropertyInfo
             {
                 PropertyName = propertyName,
-                // Fail closed: an unreadable name cannot be shown not to be a password, so its value is not read.
+                // Fail closed: an unreadable name cannot be shown not to be a secret, so its value is not read.
                 Value = propertyName is null ? null : log.Try(() => p.Value, What("Value")),
                 Info = log.Try(() => p.Info, What("Info")),
             };
