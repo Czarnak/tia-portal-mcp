@@ -1,7 +1,7 @@
 # `create_block` OB creation — design (issue #75)
 
-*2026-10-08. Branch `fix/ob-create-issue-75`. Status: approved for planning; Phase 0 spike gates
-implementation.*
+*2026-10-08. Branch `fix/ob-create-issue-75`. Status: approved; Phase 0 spike done
+([report](../acceptance/reports/2026-10-08-ob-creation-spike.md)); next: implementation plan.*
 
 ## 1. Intent
 
@@ -9,39 +9,49 @@ implementation.*
 an agent can create any user-creatable OB type by naming its event class, without learning OB
 numbering rules, and without the tool description carrying those rules.
 
-**In scope:** OB creation through `create_block`; the `obEventClass` value set; a singleton guard;
-the assigned number in the result.
+**In scope:** OB creation through `create_block`; the `obEventClass` value set; server-chosen OB
+numbers; a singleton guard; the assigned number in the result; STL creation for FB/FC/OB (the
+same generator defect, found in Phase 0).
 
 **Out of scope (decided):**
 
 - Renumbering any block (`set_block_number`). Logged as a follow-up in `docs/IMPROVEMENT_LOG.md`.
-- Caller-chosen OB numbers. TIA's own auto-numbering assigns the lowest free valid number.
+- Caller-chosen OB numbers.
 - Event-specific parameters (CyclicInterrupt `CyclicTime`/`PhaseOffset`, priority, time-of-day
-  schedule). Created OBs use TIA defaults. Logged as a follow-up.
-- Motion Control (`MC_*`), redundancy (OB 70/72) and ProDiag OBs: TIA creates these itself
-  (technology objects, R/H CPUs, compiler), so they are not offered.
+  schedule, hardware-interrupt triggers). Created OBs use TIA defaults. Logged as a follow-up.
+- `SynchronousCycle`: it fails to compile on every CPU that accepts it until an isochronous IO
+  system is assigned, which no tool here can configure.
+- Motion Control (`MC_*`), redundancy (OB 70/72) and ProDiag OBs: TIA creates these itself.
+- Modelling CPU support: TIA's import refuses an unsupported class with a clear message.
 
-**Success:** every offered event class creates an OB on a live V21 S7-1500 under the maintainer's
-SimaticSD default import/export setting; a duplicate singleton is blocked in `dryRun`; an
-unsupported class on an S7-1200 fails with TIA's error text; the result reports the assigned number.
+**Success:** every offered class creates an OB with a final, non-colliding number on a live V21
+S7-1500 under the maintainer's SimaticSD default; `dryRun` shows the planned number; a duplicate
+singleton is blocked in `dryRun` and in actual runs; an unsupported class on an S7-1200 fails with
+TIA's message; STL FB/FC/OB creation works; full PLC compile of the created OBs is clean.
 
-## 2. Root cause and verified facts
+## 2. Verified facts
 
-- Openness V21 has no `CreateOB` (`PlcBlockComposition` offers `CreateFB`, `CreateInstanceDB`,
-  `CreateFrom`, `Import`, `ImportFromDocuments` only — V21 `Siemens.Engineering.Step7.xml` and DLL
-  scan). OB creation is SimaticML/SimaticSD import or nothing.
-- The OB import checks `<SecondaryType>` against `<Number>` and rejects a missing number ("The
-  'Number' attribute is missing in 'OB.ProgramCycle'"), despite the docs' general claim that a
-  missing number is auto-assigned. `GenerateObXml` (`BlockSourceGenerator.cs:81-107`) emits no
-  `<Number>`.
-- Real OBs have type-specific interfaces (ProgramCycle `Initial_Call`/`Remanence`, Startup
-  `LostRetentive`/`LostRTC`, diagnostic and hardware-interrupt event inputs). The current template
-  emits only `Temp`/`Constant` for every type, so a hand-written template is wrong by construction.
+From research and the Phase 0 spike (V21, S7-1500 F-CPU, S7-1200, S7-1200 G2):
+
+- Openness V21 has no `CreateOB`; OB creation is `PlcBlockComposition.Import` of SimaticML.
+- SimaticML import works with the SimaticSD default import/export setting (OBs and the existing
+  FB/FC/GlobalDB path).
+- `<Number>` is mandatory, and import uses it verbatim even when another OB holds it, with or
+  without `AutoNumber`. A full PLC compile later renumbers multi-instance duplicates to the lowest
+  free number from 123 upward (ignoring classic ranges); compiling one block does not.
+- A duplicate singleton imports silently; only the full compile fails ("The maximum (1) of …
+  OBs … has been exceeded").
+- An unsupported class fails at import: "Cannot create an organization block of type '<class>'."
+  (S7-1200: ProgrammingError, IOAccessError, SynchronousCycle.)
+- Real OBs have class-specific `Informative="true"` Input members. Comments on them can be
+  omitted: TIA regenerates them and the class's default title.
+- LAD/FBD OBs without a compile unit import and compile. STL blocks reject
+  `SetENOAutomatically` ("… attribute at the 'SW.Blocks.FB' object … is not supported"); this
+  breaks `create_block` FB/FC in STL today too.
 - The advertised names `TimeDelay` and `Diagnostic` (`PlcOperationRequest.cs:80`,
-  `PLC_OPERATIONS_SUMMARY.md:165`) are not SecondaryType values; nothing validates `obEventClass`
-  today.
-- The project-tree snapshot already carries each block's `Number` detail
-  (`ProjectTreeSnapshotWalker.BuildBlockNode`), so host planning can see existing OB numbers.
+  `PLC_OPERATIONS_SUMMARY.md:165`) are not SecondaryType values; nothing validates `obEventClass`.
+- The project-tree snapshot carries each block's `Number` detail
+  (`ProjectTreeSnapshotWalker.BuildBlockNode`), so host planning sees existing OB numbers.
 
 ## 3. Offered event classes
 
@@ -53,7 +63,6 @@ unsupported class on an S7-1200 fails with TIA's error text; the result reports 
 | `TimeDelayInterrupt` | 20 | multi-instance |
 | `CyclicInterrupt` | 30 | multi-instance |
 | `HardwareInterrupt` | 40 | multi-instance |
-| `SynchronousCycle` | 61 | multi-instance |
 | `Status` / `Update` / `Profile` | 55 / 56 / 57 | singleton |
 | `TimeErrorInterrupt` | 80 | singleton |
 | `DiagnosticErrorInterrupt` | 82 | singleton |
@@ -62,118 +71,94 @@ unsupported class on an S7-1200 fails with TIA's error text; the result reports 
 | `ProgrammingError` | 121 | singleton |
 | `IOAccessError` | 122 | singleton |
 
-All 16 classes were captured as V21 SimaticML exports on 2026-10-08 (§5, fixture review).
-`IOAccessError` is the exported `SecondaryType` (the UI's default block name is `IO_AccessError`).
-
-Multi-instance classes accept their classic range or any number from 123; TIA auto-numbering picks
-the lowest free valid number (maintainer-confirmed; re-checked in Phase 0). Singletons have one
-fixed number. CPU support varies (e.g. S7-1200 has no OB 121/122 and no SynchronousCycle); no
-Openness API reports it, so the server does not model it.
+**Number rule.** A singleton gets its base number. A multi-instance class gets its base number if
+no OB in the PLC holds it, otherwise the lowest number from 123 to 32767 that no OB holds. Numbers
+of non-OB blocks are ignored (OB 82 and FB 82 coexist). No multi-instance base or the 123+ range
+contains a singleton number, so a number identifies a singleton class.
 
 ## 4. Design
 
-### 4.1 Public contract
+### 4.1 Shared definition (`TiaMcpServer.Contracts`)
 
-- `obEventClass` becomes a closed set of the names in §3, advertised as a schema enum. If the MCP
-  SDK's schema generation cannot express an enum on this string field, the description lists the
-  names instead (≈16 short tokens). Numbers, singleton rules and CPU support are **not** described;
-  the server enforces them.
+One `ObEventClasses` table — name, base number, singleton flag — is the single source of §3, and
+one pure `ObNumberRules` function applies the number rule to a set of used OB numbers. Host
+planning and the worker both use them, so the previewed and executed numbers come from the same
+code. No Siemens dependency.
+
+### 4.2 Public contract
+
+- `obEventClass` is a closed set of the §3 names, advertised as a schema enum. If the MCP SDK's
+  schema generation cannot express an enum on this string field, the description lists the names
+  instead. Numbers, singleton rules and CPU support are **not** described.
 - Host validation (`PlcOperationCatalog`): an unknown value is `validation_error` whose message
-  lists the valid names; `obEventClass` with a non-OB `blockType` is `validation_error`;
-  `GRAPH` with `blockType:"OB"` is `validation_error`. Omitted with OB means `ProgramCycle`.
-- `BlockMutationResultInfo` gains `number` (int, the assigned block number, written for every
-  created block) and `obEventClass` (string, null for non-OB). Both are always-written members
-  under the worker-payload reader rules; no conditional members.
-- New block guard `plc_ob_singleton_exists` (severity `block`): creating a singleton class when the
-  PLC already has an OB with that class's fixed number, or an earlier item in the same call creates
-  one. Message names the class, the number and the existing block. It fires in `dryRun` and actual
-  runs like other block guards.
+  lists the valid names; `obEventClass` with a non-OB `blockType` is `validation_error`; `GRAPH`
+  with `blockType:"OB"` is `validation_error`. Omitted with OB means `ProgramCycle`.
+- The `create_block` effect (preview and applied) adds `obEventClass` and the planned `number` to
+  its field changes for OBs.
+- `BlockMutationResultInfo` gains `number` (int; the created block's number, for every created
+  block) and `obEventClass` (string; null for non-OB). Both are always-written members under the
+  worker-payload reader rules.
+- New block guard `plc_ob_singleton_exists` (severity `block`): the PLC already has an OB holding
+  the singleton's number, or an earlier item in the same call creates one. The message names the
+  class, the number and the existing block. It fires in `dryRun` and actual runs.
 
-### 4.2 Host planning
+### 4.3 Host planning
 
-`PlcWorkingState` records each block's `Number` from the tree detail (null when absent) and
-records the fixed number for singleton OBs it creates in the working state. Singleton detection is
-by number over every OB in the PLC (all groups and software units): an OB already holding a
-singleton's fixed number blocks the create. No multi-instance range contains a singleton number,
-so number identifies class. Non-OB blocks are ignored (OB 82 and FB 82 coexist). The preview does not predict a
-multi-instance number; the applied result carries it.
+`PlcWorkingState` keeps each block's `Number` from the tree detail and the set of OB numbers in the
+PLC (all groups and software units). Resolving an OB `create_block` fires the singleton guard or
+computes the planned number with `ObNumberRules`; applying it adds the number to the working
+state, so later items in the same call see it.
 
-### 4.3 Worker generation
+### 4.4 Worker
 
-- One embedded SimaticML fixture per offered class under
-  `TiaMcpServer.OpennessWorker/Openness/ObFixtures/`, exported from V21 and minimized to the
-  `SW.Blocks.OB` attribute list: `Interface` (the class's `Informative="true"` Input members, empty
-  `Temp`/`Constant`), `MemoryLayout`, base `Number`, `SecondaryType`, `SetENOAutomatically`, with
-  `Name` and `ProgrammingLanguage` as substitution points. The `AutoNumber` element and the member
-  comments are kept or dropped per Phase 0 items 2 and 6. Exports carry no type-specific
-  attributes (no `CyclicTime`, `PhaseOffset` or schedule at defaults), so fixtures carry none.
-- `BlockSourceGenerator` renders an OB from its fixture: substitutes the escaped name and the
-  language, and emits the object list (empty comment and title, and for SCL/STL the existing empty
-  compile unit) exactly as it does for FB/FC today. TIA's default block titles (e.g. "Main Program
-  Sweep (Cycle)", "DP:status_alarm") are not reproduced. FB/FC/GlobalDB generation is unchanged.
-- An `ObEventClasses` table (worker side, shared names with the host via `TiaMcpServer.Contracts`)
-  maps class → fixture resource and base number. It is the single source of the §3 list.
-- `BlockMutationService.CreateBlock` reads the created block's `Number` after import and returns
-  it with the class. The existing worker preconditions and postcondition verification stay.
+- **Fixtures.** One embedded resource per offered class under
+  `TiaMcpServer.OpennessWorker/Openness/ObFixtures/`: the class's interface `Sections` element as
+  exported from V21 (Input members, empty `Temp`/`Constant`), with member comments removed. Number,
+  class, name and language are not in the fixture.
+- **Generation.** `BlockSourceGenerator` builds the OB document: `Interface` from the fixture,
+  `MemoryLayout=Optimized`, `Name`, `Namespace`, `Number` (passed in), `ProgrammingLanguage`,
+  `SecondaryType`, and `SetENOAutomatically=false` except for STL; no `AutoNumber`. The object list
+  is the existing one (empty comment and title, the empty compile unit for SCL/STL only). FB/FC
+  omit `SetENOAutomatically` for STL; otherwise FB/FC/GlobalDB output is unchanged.
+- **Execution.** `BlockMutationService.CreateBlock` collects the PLC's used OB numbers, re-applies
+  `ObNumberRules`, and treats a singleton number now held as `state_changed` (the plan saw it free),
+  next to the existing absence preconditions. It imports with the chosen number, then reads back
+  the block's `Number` and returns it with the class. A multi-instance number that differs from the
+  plan is not an error; the result is authoritative.
 
-### 4.4 Errors
+### 4.5 Errors
 
-- Unsupported class on the CPU, or any other TIA import refusal: the item fails with the existing
-  operation-failure path carrying TIA's message; the batch stops per normal `plc_write` rules.
-- If Phase 0 shows TIA reports a duplicate singleton clearly by itself, the host guard still stays:
-  it is what makes `dryRun` honest.
+- Unsupported class on the CPU, or any other TIA import refusal: the item fails through the
+  existing operation-failure path carrying TIA's message; the call stops per `plc_write` rules.
+- No free number from 123 to 32767: `validation_error` from planning (and the worker re-check).
 
-## 5. Phase 0 — live spike (gate)
+## 5. Phase 0 — done
 
-No product code. A throwaway PowerShell 5.1 Openness script in the session scratchpad, plus
-`plc_read get_block_content` (`format:"xml"`) for export. Run on the maintainer's machine with the
-maintainer's SimaticSD default import/export setting.
-
-1. **SimaticML under SimaticSD default.** Import a SimaticML OB via `PlcBlockComposition.Import`
-   with the SimaticSD default set; repeat with the SimaticML default. Also confirm the existing
-   FB/FC/GlobalDB create path under SimaticSD.
-2. **Auto-numbering.** Exports carry `<Number>` and no `<AutoNumber>`. With the base number taken,
-   import base `<Number>` (a) without `<AutoNumber>`, (b) with `AutoNumber=true`: which one makes
-   TIA move to a free valid number, and is it the lowest? (The fixture capture's second
-   ProgramCycle OB received 124, not 123.) Also check (b) on a singleton fixture.
-3. **Spelling.** Settled by the fixture review: `IOAccessError`.
-4. **Duplicate singleton.** The error a second OB 82 produces.
-5. **Unsupported class.** The error ProgrammingError produces on an S7-1200.
-6. **Member comments.** Interface members are `Informative="true"` with en-US system comments.
-   Import a fixture with the `<Comment>` elements stripped: if TIA accepts it and supplies the
-   comments itself, fixtures drop them (no culture dependency); otherwise they stay as exported.
-7. **LAD/FBD body.** The UI-created LAD OB has one empty compile unit (`<NetworkSource />`); the
-   generator emits none for LAD/FBD, as for FB/FC. Confirm a LAD OB without a compile unit imports
-   and compiles.
-
-**Decision rule.** If (1) fails under SimaticSD, OB fixtures move to SimaticSD documents imported
-with `ImportFromDocuments`, the existing FB/FC/GlobalDB path is reported as a separate issue, and
-this spec is amended before planning continues. Other outcomes adjust fixture content and §3 only.
-Findings go in `docs/superpowers/acceptance/reports/2026-10-xx-ob-creation-spike.md`.
-
-**Fixture capture (done 2026-10-08).** The maintainer added one empty SCL OB of each of the 16
-classes, plus one LAD ProgramCycle OB as a reference, to the disposable project
-`DisposableProjects/OB_workspace` (`PLC_1`) and exported them as SimaticML into
-`PLC_1/Program blocks/OBs`. Review: every export is V21, `MemoryLayout=Optimized`, has `Number`
-equal to the §3 base number (the second ProgramCycle got 124), carries the §3 `SecondaryType`, and
-differs from the others only in its Input members and default title. Minimized fixtures are
-committed with the implementation.
+The [spike report](../acceptance/reports/2026-10-08-ob-creation-spike.md) records the setup,
+every case and the findings behind §2. Fixtures were captured from the maintainer's V21 exports
+(`DisposableProjects/OB_workspace/PLC_1/Program blocks/OBs`, one empty SCL OB per class plus a LAD
+ProgramCycle reference) and are minimized and committed with the implementation.
 
 ## 6. Testing
 
-- Offline: every `obEventClass` value has a fixture that parses, carries the matching
-  `SecondaryType` and base `Number`; generator output per class and language
-  passes `BlockSourceValidator`; FB/FC/GlobalDB output unchanged.
+- Contracts: `ObNumberRules` — base free, base taken, 123+ gaps, singleton, non-OB numbers
+  ignored, exhaustion.
+- Worker generation: every §3 class has a fixture that parses and has an Input section; generated
+  documents per class and language have the class's `SecondaryType`, the given `Number`, no
+  `AutoNumber`, no `SetENOAutomatically` for STL, and pass `BlockSourceValidator`; FB/FC STL omit
+  `SetENOAutomatically`; other FB/FC/GlobalDB output unchanged.
 - Catalog: unknown class, class on non-OB, GRAPH on OB rejected with the listed messages.
-- Planning: `plc_ob_singleton_exists` fires for an existing fixed number, for two singletons of
-  one class in one call, and not for multi-instance classes.
-- Contract: `number`/`obEventClass` in the payload contract and conformance probes.
-- Live acceptance on V21 with the SimaticSD default: create each class on an S7-1500, a second
-  ProgramCycle and CyclicInterrupt (numbers advance), a duplicate singleton blocked in `dryRun`,
-  ProgrammingError on an S7-1200 failing with TIA's text, `compile_check` clean on the created OBs.
+- Planning: planned numbers in effects; `plc_ob_singleton_exists` for an existing number and for
+  two singletons in one call; two multi-instance creates in one call get distinct numbers.
+- Contract: `number`/`obEventClass` in the payload contract, register tests and conformance probes.
+- Live acceptance (V21, SimaticSD default, project with S7-1500, S7-1200, S7-1200 G2): each class
+  on the S7-1500 with planned = actual number; a second ProgramCycle and CyclicInterrupt land on
+  free 123+ numbers; duplicate singleton blocked in `dryRun` and actual; ProgrammingError on the
+  S7-1200 fails with TIA's text; STL FB/FC/OB created; full PLC compile clean except the
+  HardwareInterrupt trigger warning.
 
 ## 7. Documentation (last task, after live acceptance)
 
-`PLC_OPERATIONS_SUMMARY.md` (names, guard, result fields), the `plc_write` tool description,
-`docs/IMPROVEMENT_LOG.md` follow-ups (renumbering, OB parameters), `docs/superpowers/README.md`
-status, and the live acceptance report.
+`PLC_OPERATIONS_SUMMARY.md` (names, number rule in one line, guard, result fields), the
+`plc_write` tool description, `docs/IMPROVEMENT_LOG.md` follow-ups (renumbering, OB parameters,
+SynchronousCycle), `docs/superpowers/README.md` status, and the live acceptance report.
