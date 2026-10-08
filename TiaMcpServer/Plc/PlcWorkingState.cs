@@ -1,3 +1,4 @@
+using System.Globalization;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety.Pipeline;
@@ -14,7 +15,7 @@ internal sealed class PlcWorkingState
 {
     private sealed record Table(string Folder, string Name, bool IsDefault, List<TagInfo> Tags, List<UserConstantInfo> Constants);
 
-    private sealed record Block(string Name, string Type, string? Language, bool IsSystem);
+    private sealed record Block(string Name, string Type, string? Language, bool IsSystem, int? Number);
 
     private sealed record Group(string Name, string Path, Group? Parent, IReadOnlyList<ProjectTreeSelectorSegment> Selector, bool IsSystem)
     {
@@ -179,7 +180,7 @@ internal sealed class PlcWorkingState
             case "create_block":
                 var address = BlockAddress.Parse(item.BlockPath!);
                 CreationParent(item, address).Blocks.Add(new Block(address.BlockName, BlockNodeType(item.BlockType!),
-                    item.BlockType == "GlobalDB" ? "DB" : item.Language ?? "LAD", false));
+                    item.BlockType == "GlobalDB" ? "DB" : item.Language ?? "LAD", false, IsOb(item) ? PlanObNumber(ObClass(item)) : null));
                 Touch(CpuKey(address.BlockName), item);
                 break;
             case "delete_block":
@@ -300,8 +301,16 @@ internal sealed class PlcWorkingState
                 else if (parent.Groups.Any(g => Names.Equals(g.Name, name)))
                     guards.Add(Fire(NameCollision, item, $"'{name}' is already used by block group '{parent.Path}/{name}'."));
                 else RequireCpuNameFree(item, name, null, guards);
+                var cls = IsOb(item) ? ObClass(item) : null;
+                string? number = null;
+                if (cls is not null && cls.IsSingleton && ObBlocks().FirstOrDefault(o => o.Block.Number == cls.BaseNumber) is { Block: not null } holder)
+                    guards.Add(Fire(ObSingletonExists, item, $"OB number {cls.BaseNumber} of singleton event class '{cls.Name}' is already held by '{holder.Group.Path}/{holder.Block.Name}'; only one OB of that class can exist."));
+                else if (cls is not null)
+                    number = (PlanObNumber(cls) ?? throw new ArgumentException($"no OB number from {ObNumberRules.FirstFree} to {ObNumberRules.Max} is free in PLC '{_plc}'."))
+                        .ToString(CultureInfo.InvariantCulture);
                 return Effect(item, new(PlcNameRules.Block, _plc, _device, null, null, name, $"{parent.Path}/{name}", null),
-                    Change("blockType", null, item.BlockType).Concat(Change("language", null, item.Language)).Concat(Change("obEventClass", null, item.ObEventClass)).ToArray(),
+                    Change("blockType", null, item.BlockType).Concat(Change("language", null, item.Language)).Concat(Change("obEventClass", null, cls?.Name))
+                        .Concat(Change("number", null, number)).ToArray(),
                     parent.Path);
             }
             case "delete_block":
@@ -432,6 +441,19 @@ internal sealed class PlcWorkingState
     private static IEnumerable<(Group Group, Block Block)> DescendantBlocks(Group group)
         => Descendants(group).Prepend(group).SelectMany(g => g.Blocks.Select(b => (g, b)));
 
+    /// <summary>Every OB with a readable number, in all groups (system groups included) and software units.</summary>
+    private IEnumerable<(Group Group, Block Block)> ObBlocks()
+        => _unitRoots.Values.Prepend(_root).SelectMany(DescendantBlocks).Where(b => b.Block.Type == ProjectTreeNodeTypes.Ob && b.Block.Number is not null);
+
+    private int? PlanObNumber(ObEventClass cls) => ObNumberRules.Pick(cls, ObBlocks().Select(b => b.Block.Number!.Value).ToHashSet());
+
+    private static bool IsOb(PlcOperationRequest item) => string.Equals(item.BlockType, "OB", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The catalog already rejected unknown classes; omitted means the default class.</summary>
+    private static ObEventClass ObClass(PlcOperationRequest item)
+        => ObEventClasses.TryGet(item.ObEventClass ?? ObEventClasses.Default, out var cls) ? cls
+            : throw new ArgumentException($"obEventClass '{item.ObEventClass}' is not valid. Valid values: {ObEventClasses.NamesForMessage()}.");
+
     private static IEnumerable<(Group Group, Block Block)> UserBlocks(Group group)
         => group.Blocks.Select(b => (group, b)).Concat(group.Groups.Where(g => !g.IsSystem).SelectMany(UserBlocks));
 
@@ -458,7 +480,8 @@ internal sealed class PlcWorkingState
             else if (ProjectTreeNodeTypes.BlockLeaves.Contains(child.NodeType))
             {
                 group.Blocks.Add(new Block(child.Name, child.NodeType, child.Details?.GetValueOrDefault("ProgrammingLanguage"),
-                    group.IsSystem || child.Details?.GetValueOrDefault("IsSystemBlock") == "true"));
+                    group.IsSystem || child.Details?.GetValueOrDefault("IsSystemBlock") == "true",
+                    int.TryParse(child.Details?.GetValueOrDefault("Number"), NumberStyles.None, CultureInfo.InvariantCulture, out var number) ? number : null));
             }
         }
     }
@@ -533,10 +556,10 @@ internal sealed class PlcWorkingState
 
     private static string NormalizeAddress(string? address) => string.Concat((address ?? string.Empty).Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant();
 
-    private static string BlockNodeType(string blockType) => blockType switch
+    private static string BlockNodeType(string blockType) => blockType.ToUpperInvariant() switch
     {
         "OB" => ProjectTreeNodeTypes.Ob, "FB" => ProjectTreeNodeTypes.Fb, "FC" => ProjectTreeNodeTypes.Fc,
-        "GlobalDB" => ProjectTreeNodeTypes.GlobalDb, _ => ProjectTreeNodeTypes.Block,
+        "GLOBALDB" => ProjectTreeNodeTypes.GlobalDb, _ => ProjectTreeNodeTypes.Block,
     };
 
     private static TagInfo Copy(TagInfo tag) => new()

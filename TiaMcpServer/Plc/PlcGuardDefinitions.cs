@@ -14,6 +14,7 @@ public static class PlcGuardDefinitions
     public const string DeletesGroupContents = "plc_deletes_group_contents";
     public const string DeletesTableContents = "plc_deletes_table_contents";
     public const string AddressOverlap = "plc_address_overlap";
+    public const string ObSingletonExists = "plc_ob_singleton_exists";
 
     public static IReadOnlyList<WriteGuardDefinition> Definitions { get; } = Validate(new[]
     {
@@ -22,6 +23,7 @@ public static class PlcGuardDefinitions
         new WriteGuardDefinition(BlockExists, WriteGuardSeverities.Block, "create_block targets an existing block; existing blocks are never overwritten."),
         new WriteGuardDefinition(DefaultTagTable, WriteGuardSeverities.Block, "The default tag table cannot be deleted."),
         new WriteGuardDefinition(AttributeUnreadable, WriteGuardSeverities.Block, "A requested external-access flag is unreadable on the current tag."),
+        new WriteGuardDefinition(ObSingletonExists, WriteGuardSeverities.Block, "create_block targets a singleton OB event class whose number an existing or in-call OB already holds."),
         new WriteGuardDefinition(DeletesBlock, WriteGuardSeverities.Info, "Deleting the block removes it and its content."),
         new WriteGuardDefinition(DeletesGroupContents, WriteGuardSeverities.Info, "Deleting the block group removes every block and group inside it."),
         new WriteGuardDefinition(DeletesTableContents, WriteGuardSeverities.Info, "Deleting the tag table removes its tags and user constants."),

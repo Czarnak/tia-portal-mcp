@@ -22,7 +22,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         public string Name { get; } = name;
         public bool IsSystem { get; } = isSystem;
         public List<Group> Groups { get; } = new();
-        public List<(string Name, string Type, string Language)> Blocks { get; } = new();
+        public List<(string Name, string Type, string Language, int Number)> Blocks { get; } = new();
     }
 
     private sealed class Plc(string software, string device)
@@ -100,14 +100,14 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
             Tags = { new TagInfo { Name = "Motor1", DataType = "Bool", LogicalAddress = "%Q0.0" } },
             UserConstants = { new UserConstantInfo { Name = "Unreadable", DataType = "Int", Value = null } },
         });
-        plc1.Root.Blocks.AddRange(new[] { ("Main", "OB", "LAD"), ("Empty_DB", "GlobalDB", "DB"), ("Locked", "FC", "LAD") });
+        plc1.Root.Blocks.AddRange(new[] { ("Main", "OB", "LAD", 1), ("Empty_DB", "GlobalDB", "DB", 1), ("Locked", "FC", "LAD", 1) });
         var motors = new Group("Motors");
-        motors.Blocks.Add(("FB_Motor", "FB", "SCL"));
+        motors.Blocks.Add(("FB_Motor", "FB", "SCL", 1));
         var legacy = new Group("Legacy");
-        legacy.Blocks.Add(("FC_Old", "FC", "LAD"));
+        legacy.Blocks.Add(("FC_Old", "FC", "LAD", 2));
         motors.Groups.Add(legacy);
         var system = new Group("System blocks", isSystem: true);
-        system.Blocks.Add(("TCON", "FB", "STL"));
+        system.Blocks.Add(("TCON", "FB", "STL", 65));
         plc1.Root.Groups.AddRange(new[] { motors, system });
         plc1.Types.Add("UDT_Settings");
 
@@ -117,7 +117,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
             Name = "Default tag table", FolderPath = "/", IsDefault = true,
             Tags = { new TagInfo { Name = "Start", DataType = "Bool", LogicalAddress = "%I0.0", ExternalAccessible = true, ExternalVisible = true, ExternalWritable = true } },
         });
-        plc2.Root.Blocks.Add(("Main", "OB", "LAD"));
+        plc2.Root.Blocks.Add(("Main", "OB", "LAD", 1));
         return new List<Plc> { plc1, plc2 };
     }
 
@@ -180,8 +180,8 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
             {
                 Name = b.Name, NodeType = b.Type, Children = new(),
                 Details = group.IsSystem
-                    ? new() { ["Number"] = "1", ["ProgrammingLanguage"] = b.Language, ["IsSystemBlock"] = "true" }
-                    : new() { ["Number"] = "1", ["ProgrammingLanguage"] = b.Language },
+                    ? new() { ["Number"] = b.Number.ToString(), ["ProgrammingLanguage"] = b.Language, ["IsSystemBlock"] = "true" }
+                    : new() { ["Number"] = b.Number.ToString(), ["ProgrammingLanguage"] = b.Language },
             })
             .Concat(group.Groups.Select(g => GroupNode(g, g.IsSystem ? ProjectTreeNodeTypes.SystemBlockFolder : ProjectTreeNodeTypes.BlockFolder)))
             .ToList(),
@@ -231,11 +231,14 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         var plc = FindPlc(address.PlcName);
         var group = address.IsDeterministic ? Walk(plc.Root, address.FolderPath) : plc.Root;
         string path;
+        int? number = null;
+        ObEventClass? obClass = null;
         switch (request.Method)
         {
             case "create_block":
                 if (group.Blocks.Any(b => Names.Equals(b.Name, address.BlockName))) Throw(WorkerFailureCategories.StateChanged, "The block already exists.");
-                group.Blocks.Add((address.BlockName, request.BlockType!, request.BlockType == "GlobalDB" ? "DB" : request.Language ?? "LAD"));
+                (number, obClass) = PickNumber(plc, request);
+                group.Blocks.Add((address.BlockName, request.BlockType!, request.BlockType == "GlobalDB" ? "DB" : request.Language ?? "LAD", number.Value));
                 path = BlocksPath(plc, address.FolderPath, address.BlockName);
                 break;
             case "delete_block":
@@ -259,9 +262,24 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         return Ok(new BlockMutationResultInfo
         {
             Operation = request.Method, ProjectPath = request.ProjectPath, PlcName = plc.Software, BlockPath = path,
-            BlockType = request.BlockType, Language = request.Language,
+            BlockType = request.BlockType, Language = request.Language, Number = number, ObEventClass = obClass?.Name,
         });
     }
+
+    /// <summary>Mirrors the worker: the OB number rule over every OB of the PLC; other types take their lowest free number.</summary>
+    private static (int Number, ObEventClass? Class) PickNumber(Plc plc, WorkerRequest request)
+    {
+        var sameType = AllBlocks(plc.Root).Where(b => Names.Equals(b.Type, request.BlockType)).Select(b => b.Number).ToHashSet();
+        if (!Names.Equals(request.BlockType, "OB")) return (Enumerable.Range(1, ObNumberRules.Max).First(n => !sameType.Contains(n)), null);
+        if (!ObEventClasses.TryGet(request.OBEventClass ?? ObEventClasses.Default, out var cls))
+            Throw(WorkerFailureCategories.ValidationError, $"Unknown obEventClass '{request.OBEventClass}'.");
+        var number = ObNumberRules.Pick(cls, sameType)
+            ?? Throw<int>(cls.IsSingleton ? WorkerFailureCategories.StateChanged : WorkerFailureCategories.ValidationError, $"No OB number is free for event class '{cls.Name}'.");
+        return (number, cls);
+    }
+
+    private static IEnumerable<(string Name, string Type, string Language, int Number)> AllBlocks(Group group)
+        => group.Blocks.Concat(group.Groups.SelectMany(AllBlocks));
 
     private string TagWrite(WorkerRequest request)
     {
