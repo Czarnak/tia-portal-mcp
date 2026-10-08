@@ -377,10 +377,16 @@ namespace Siemens.Engineering.SW.Blocks
     public sealed class PlcBlockComposition : Composition<PlcBlock>
     {
         public List<ImportOptions> ImportCalls { get; } = new();
+        public List<string> ImportedDocuments { get; } = new();
+        // Blocks the next import yields; they are also added to this composition, as TIA would.
+        public List<PlcBlock> ImportResult { get; } = new();
         public IList<PlcBlock> Import(FileInfo path, ImportOptions importOptions)
         {
             ImportCalls.Add(importOptions);
-            return new List<PlcBlock>();
+            if (path.Exists)
+                ImportedDocuments.Add(File.ReadAllText(path.FullName));
+            Items.AddRange(ImportResult);
+            return ImportResult.ToList();
         }
     }
     public sealed class PlcBlockUserGroupComposition : Composition<PlcBlockGroup>

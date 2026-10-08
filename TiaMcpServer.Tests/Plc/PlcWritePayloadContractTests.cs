@@ -69,6 +69,45 @@ public class PlcWritePayloadContractTests
     }
 
     [Fact]
+    public void CreateBlockCarriesNumberAndObEventClass()
+    {
+        var payload = WorkerJson.SerializePayload(new BlockMutationResultInfo
+        {
+            Operation = "create_block",
+            PlcName = "PLC_1",
+            BlockPath = "PLC_1/Blocks/Cyclic",
+            BlockType = "OB",
+            Language = "SCL",
+            Number = 123,
+            ObEventClass = "CyclicInterrupt",
+        });
+
+        var item = PlcPayloadContract.ProjectWrite(Op("create_block"), WorkerCallResult.Ok(payload));
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Equal(123, item.Result!.Value.GetProperty("number").GetInt32());
+        Assert.Equal("CyclicInterrupt", item.Result.Value.GetProperty("obEventClass").GetString());
+    }
+
+    [Fact]
+    public void DeleteBlockWithNullNumberDecodes()
+    {
+        var payload = WorkerJson.SerializePayload(new BlockMutationResultInfo
+        {
+            Operation = "delete_block",
+            PlcName = "PLC_1",
+            BlockPath = "PLC_1/Blocks/B",
+        });
+        Assert.Contains("\"number\":null", payload);
+
+        var item = PlcPayloadContract.ProjectWrite(Op("delete_block"), WorkerCallResult.Ok(payload));
+
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Equal(JsonValueKind.Null, item.Result!.Value.GetProperty("number").ValueKind);
+        Assert.Equal(JsonValueKind.Null, item.Result.Value.GetProperty("obEventClass").ValueKind);
+    }
+
+    [Fact]
     public void TypeImportDecodesTyped()
     {
         var payload = WorkerJson.SerializePayload(new PlcTypeImportResultInfo
@@ -92,6 +131,7 @@ public class PlcWritePayloadContractTests
     [InlineData("create_tag", """{"success":true,"operation":"create_tag"}""")]
     [InlineData("create_tag", "not json leak-me")]
     [InlineData("create_block", """{"success":true,"operation":"create_block"}""")]
+    [InlineData("create_block", """{"success":true,"operation":"create_block","projectPath":null,"plcName":"P","blockPath":"P/B","blockType":"OB","language":"SCL","obEventClass":"ProgramCycle"}""")]
     [InlineData("update_type_content", """{"success":true}""")]
     public void MissingMemberIsProtocolErrorWithoutEcho(string operation, string payload)
     {

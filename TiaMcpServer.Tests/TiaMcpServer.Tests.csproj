@@ -77,6 +77,8 @@
       Link="Linked\Openness\CompileReportProjection.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockTargetResolver.cs"
       Link="Linked\Openness\BlockTargetResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ObNumberScanner.cs"
+      Link="Linked\Openness\ObNumberScanner.cs" />
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj"
       ReferenceOutputAssembly="false" />
