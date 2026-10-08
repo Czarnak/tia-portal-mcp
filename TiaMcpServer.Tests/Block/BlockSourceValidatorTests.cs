@@ -58,11 +58,20 @@ public class BlockSourceValidatorTests
     public void Generate_RejectsUnsupportedTypeLanguagePair(string blockType, string language)
     {
         var exception = Assert.Throws<WorkerOperationException>(
-            () => BlockSourceGenerator.Generate("Task4Block", blockType, language, null));
+            () => BlockSourceGenerator.Generate("Task4Block", blockType, language, null, null));
 
         Assert.Equal(
             WorkerFailureCategories.ValidationError,
             exception.FailureCategory);
+    }
+
+    [Fact]
+    public void GraphIsRejectedForOb()
+    {
+        var exception = Assert.Throws<WorkerOperationException>(
+            () => BlockSourceValidator.ValidateTypeLanguage("OB", "GRAPH"));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
     }
 
     [Fact]
@@ -79,7 +88,7 @@ public class BlockSourceValidatorTests
     [Fact]
     public void Validation_accepts_an_scl_compile_unit_with_an_empty_network_source()
     {
-        var xml = BlockSourceGenerator.Generate("MyBlock", "FB", "SCL", obEventClass: null);
+        var xml = BlockSourceGenerator.Generate("MyBlock", "FB", "SCL", obEventClass: null, obNumber: null);
 
         BlockSourceValidator.Validate("FB", "SCL", xml);
     }

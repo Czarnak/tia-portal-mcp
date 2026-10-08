@@ -26,6 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Openness\ObFixtures\*.xml" LogicalName="TiaMcpServer.ObFixtures.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="Siemens.Engineering.Base">
       <HintPath>$(TiaOpennessReferenceDir)\Siemens.Engineering.Base.dll</HintPath>
       <Private>False</Private>

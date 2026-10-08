@@ -11,7 +11,8 @@ internal static class BlockSourceGenerator
       string blockName,
       string blockType,
       string language,
-      string? obEventClass)
+      string? obEventClass,
+      int? obNumber)
   {
     BlockSourceValidator.ValidateTypeLanguage(blockType, language);
 
@@ -20,7 +21,7 @@ internal static class BlockSourceGenerator
     {
       "FB" => GenerateFbXml(escapedBlockName, language),
       "FC" => GenerateFcXml(escapedBlockName, language),
-      "OB" => GenerateObXml(escapedBlockName, language, obEventClass),
+      "OB" => GenerateObXml(escapedBlockName, language, obEventClass, obNumber),
       "GLOBALDB" or "DB" => GenerateGlobalDbXml(escapedBlockName),
       _ => throw ValidationFailure($"Unsupported block type for XML generation: {blockType}")
     };
@@ -41,8 +42,7 @@ internal static class BlockSourceGenerator
       <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Input"" /><Section Name=""Output"" /><Section Name=""InOut"" /><Section Name=""Static"" /><Section Name=""Temp"" /><Section Name=""Constant"" /></Sections></Interface>
       <Name>{blockName}</Name>
       <Namespace></Namespace>
-      <ProgrammingLanguage>{language}</ProgrammingLanguage>
-      <SetENOAutomatically>false</SetENOAutomatically>
+      <ProgrammingLanguage>{language}</ProgrammingLanguage>{GenerateSetEno(language)}
     </AttributeList>
     <ObjectList>
       <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, compileUnitId: 2)}
@@ -67,8 +67,7 @@ internal static class BlockSourceGenerator
       <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Input"" /><Section Name=""Output"" /><Section Name=""InOut"" /><Section Name=""Temp"" /><Section Name=""Return""><Member Name=""Ret_Val"" Datatype=""Void"" /></Section></Sections></Interface>
       <Name>{blockName}</Name>
       <Namespace></Namespace>
-      <ProgrammingLanguage>{language}</ProgrammingLanguage>
-      <SetENOAutomatically>false</SetENOAutomatically>
+      <ProgrammingLanguage>{language}</ProgrammingLanguage>{GenerateSetEno(language)}
     </AttributeList>
     <ObjectList>
       <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, compileUnitId: 2)}
@@ -78,25 +77,27 @@ internal static class BlockSourceGenerator
 </Document>";
   }
 
-  private static string GenerateObXml(string blockName, string language, string? obEventClass)
+  private static string GenerateObXml(string blockName, string language, string? obEventClass, int? obNumber)
   {
-    var escapedEventClass = SecurityElement.Escape(obEventClass ?? "ProgramCycle") ?? "ProgramCycle";
+    if (obEventClass is null || obNumber is null)
+    {
+      throw ValidationFailure("An OB requires an OB event class and a number.");
+    }
+
+    // LoadSections rejects an unknown class; the class names need no XML escaping.
+    var sections = ObFixtureStore.LoadSections(obEventClass);
     return $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <Document>
   <Engineering version=""{EngineeringVersion}"" />
   <SW.Blocks.OB ID=""0"">
     <AttributeList>
-      <AutoNumber>true</AutoNumber>
-      <HeaderAuthor></HeaderAuthor>
-      <HeaderFamily></HeaderFamily>
-      <HeaderName></HeaderName>
-      <HeaderVersion>0.1</HeaderVersion>
-      <Interface><Sections xmlns=""http://www.siemens.com/automation/Openness/SW/Interface/v5""><Section Name=""Temp"" /><Section Name=""Constant"" /></Sections></Interface>
+      <Interface>{sections}</Interface>
+      <MemoryLayout>Optimized</MemoryLayout>
       <Name>{blockName}</Name>
       <Namespace></Namespace>
+      <Number>{obNumber.Value}</Number>
       <ProgrammingLanguage>{language}</ProgrammingLanguage>
-      <SecondaryType>{escapedEventClass}</SecondaryType>
-      <SetENOAutomatically>false</SetENOAutomatically>
+      <SecondaryType>{obEventClass}</SecondaryType>{GenerateSetEno(language)}
     </AttributeList>
     <ObjectList>
       <MultilingualText ID=""1"" CompositionName=""Comment"" />{GenerateCompileUnit(language, compileUnitId: 2)}
@@ -126,6 +127,15 @@ internal static class BlockSourceGenerator
     </ObjectList>
   </SW.Blocks.GlobalDB>
 </Document>";
+  }
+
+  /// <summary>STL blocks carry no SetENOAutomatically attribute (issue #75).</summary>
+  private static string GenerateSetEno(string language)
+  {
+    return language == "STL"
+        ? string.Empty
+        : @"
+      <SetENOAutomatically>false</SetENOAutomatically>";
   }
 
   /// <summary>

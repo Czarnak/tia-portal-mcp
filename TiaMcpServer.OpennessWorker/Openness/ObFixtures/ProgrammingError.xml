@@ -1,0 +1,15 @@
+<Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Input">
+    <Member Name="BlockNr" Datatype="UInt" Informative="true"></Member>
+    <Member Name="Reaction" Datatype="USInt" Informative="true"></Member>
+    <Member Name="Fault_ID" Datatype="Byte" Informative="true"></Member>
+    <Member Name="BlockType" Datatype="USInt" Informative="true"></Member>
+    <Member Name="Area" Datatype="USInt" Informative="true"></Member>
+    <Member Name="DBNr" Datatype="DB_ANY" Informative="true"></Member>
+    <Member Name="Csg_OBNr" Datatype="OB_ANY" Informative="true"></Member>
+    <Member Name="Csg_Prio" Datatype="USInt" Informative="true"></Member>
+    <Member Name="Width" Datatype="USInt" Informative="true"></Member>
+  </Section>
+  <Section Name="Temp" />
+  <Section Name="Constant" />
+</Sections>

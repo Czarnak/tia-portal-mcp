@@ -219,7 +219,7 @@ public static class BlockMutationService
         string language,
         string? obEventClass)
     {
-        var xml = BlockSourceGenerator.Generate(blockName, blockType, language, obEventClass);
+        var xml = BlockSourceGenerator.Generate(blockName, blockType, language, null, null); // temporary until the worker supplies the real OB class and number (Task 3)
         BlockSourceValidator.Validate(blockType, language, xml);
         var tempFile = Path.Combine(
             Path.GetTempPath(),

@@ -1,0 +1,9 @@
+<Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Input">
+    <Member Name="LADDR" Datatype="HW_IO" Informative="true"></Member>
+    <Member Name="Slot" Datatype="UInt" Informative="true"></Member>
+    <Member Name="Specifier" Datatype="Word" Informative="true"></Member>
+  </Section>
+  <Section Name="Temp" />
+  <Section Name="Constant" />
+</Sections>
