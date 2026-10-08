@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-08 | [`create_block` OB creation, issue #75 (approved for planning; Phase 0 spike pending)](specs/2026-10-08-ob-creation-design.md) |
 | 2026-10-05 | [PLC read/write tools and standalone cross-references (approved; PR A and PR B implemented and live-accepted)](specs/2026-10-05-plc-read-write-and-cross-references-design.md) |
 | 2026-10-04 | [Network discovery and interface-qualified node identity repair (implemented; full live acceptance pending)](specs/2026-10-04-network-discovery-and-interface-node-identity-repair-design.md) |
 | 2026-10-03 | [Network JSON contract and guarded writes (offline-qualified; live acceptance pending)](specs/2026-10-03-network-json-guarded-write-design.md) |
