@@ -44,7 +44,7 @@ public sealed class ProjectBindingDecisionTests
     [Fact]
     public void Decide_UnknownState_Rejects() => Assert.IsType<BindingStep.Reject>(ProjectBindingDecision.Decide(Snapshot("unknown"), null, false));
     [Fact]
-    public void ChooseFromListing_OneProjectAmongEmptyPortals_Selects() => Assert.Equal(new ListingChoice.Select(ProjectPathNormalization.Canonicalize(A)!, 42), ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProcessId = 41 }, new TiaPortalProcessInfo { ProcessId = 42, ProjectPath = A } }));
+    public void ChooseFromListing_OneProjectAmongEmptyPortals_Selects() => Assert.Equal(new ListingChoice.Select(null, 42), ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProcessId = 41 }, new TiaPortalProcessInfo { ProcessId = 42, ProjectPath = A } }));
     [Fact]
     public void ChooseFromListing_SolePortalWithoutAdvertisedPath_InspectsOwner() => Assert.Equal(new ListingChoice.Select(null, 42), ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProcessId = 42 } }));
     [Fact]

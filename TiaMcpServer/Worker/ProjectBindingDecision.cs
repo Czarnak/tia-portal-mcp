@@ -49,7 +49,8 @@ internal static class ProjectBindingDecision
         if (!same && !forceRebind)
             return new BindingStep.Reject(WorkerFailureCategories.BindingConflict, "A different project requires forceRebind=true.");
         if (same && current.IsVerified) return new BindingStep.Reverify();
-        return new BindingStep.Select(requested ?? retained, current.IsVerified && !same, portalProcessId);
+        var isSwitch = current.IsVerified && !same;
+        return new BindingStep.Select(isSwitch ? requested : requested ?? retained, isSwitch, portalProcessId);
     }
 
     internal static ListingChoice ChooseFromListing(IReadOnlyList<TiaPortalProcessInfo> portals,
@@ -61,9 +62,7 @@ internal static class ProjectBindingDecision
         if (portalProcessId is null && candidates.Length == 0 && portals.Count == 1)
             candidates = portals.ToArray();
         if (candidates.Length == 1)
-            return new ListingChoice.Select(portalProcessId is null
-                ? ProjectPathNormalization.Canonicalize(candidates[0].ProjectPath) : null,
-                candidates[0].ProcessId);
+            return new ListingChoice.Select(null, candidates[0].ProcessId);
         return candidates.Length switch
         {
             0 when portalProcessId is null && portals.Count > 1 => new ListingChoice.Ambiguous(),

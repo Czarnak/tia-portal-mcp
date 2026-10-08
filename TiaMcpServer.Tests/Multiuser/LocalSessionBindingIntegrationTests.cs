@@ -11,6 +11,45 @@ public sealed class LocalSessionBindingIntegrationTests
     private const string Amc = "C:/Projects/Local.amc21";
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task VerifiedSource_ForeignPidWithoutPathRequiresForceAndSelectsSoleOwner(bool force)
+    {
+        const string source = "C:/Projects/A.ap21";
+        using var portals = new FakeWorkerPortals(
+            new FakeWorkerPortals.Entry(41, source), new FakeWorkerPortals.Entry(42, Amc));
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(accessMode: McpAccessMode.ReadOnly);
+        var first = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = source });
+        Assert.True(first.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        var before = harness.WorkerClient.BindingSnapshot;
+        var selections = log.Methods().Count(method => method == "select_portal_project");
+
+        var result = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+        {
+            ["portalProcessId"] = 42, ["forceRebind"] = force
+        });
+        var document = result.StructuredContent!.Value;
+        Assert.Equal(force, document.GetProperty("success").GetBoolean());
+        if (force)
+        {
+            Assert.Equal("switched", document.GetProperty("result").GetProperty("value").GetProperty("transition").GetString());
+            Assert.Equal(ProjectPathNormalization.Canonicalize(Amc), harness.WorkerClient.BindingSnapshot.ProjectPath);
+            Assert.Equal(42, harness.WorkerClient.BindingSnapshot.PortalProcessId);
+            Assert.False(before.SameBinding(harness.WorkerClient.BindingSnapshot));
+        }
+        else
+        {
+            Assert.True(before.SameBinding(harness.WorkerClient.BindingSnapshot));
+            Assert.Equal(selections, log.Methods().Count(method => method == "select_portal_project"));
+        }
+        Assert.DoesNotContain("open_project", log.Methods());
+    }
+
+    [Theory]
     [InlineData(McpAccessMode.ReadOnly)]
     [InlineData(McpAccessMode.ReadWrite)]
     [InlineData(McpAccessMode.Full)]

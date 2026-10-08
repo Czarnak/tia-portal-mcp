@@ -3,6 +3,7 @@ using Siemens.Engineering.Multiuser;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker;
 using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Worker;
 using Xunit;
 using Session = TiaMcpServer.OpennessWorker.Openness.TiaPortalSession;
 using PortalProject = Siemens.Engineering.Project;
@@ -12,6 +13,79 @@ namespace TiaMcpServer.Tests.Multiuser;
 [Collection("Portal session boundary")]
 public sealed class LocalSessionSelectionWorkerTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void HostDefaultSelection_EnumeratesOwnersWithoutSyntheticPath(bool standalone, bool multiple)
+    {
+        using var f = new Fixture();
+        var path = standalone ? f.Ap : f.Amc;
+        f.A.ProjectPath = new FileInfo(path);
+        if (standalone) f.AddStandalone(f.A, path);
+        else f.AddLocal(f.A, path);
+        if (multiple) f.AddLocal(f.A, f.OtherAmc);
+        var choice = Assert.IsType<ListingChoice.Select>(ProjectBindingDecision.ChooseFromListing(
+            new[] { new TiaPortalProcessInfo { ProcessId = f.A.Id, ProjectPath = path } }));
+
+        if (multiple)
+        {
+            AssertCategory(WorkerFailureCategories.TargetAmbiguous,
+                () => f.Session.SelectPortalProject(choice.Path, choice.PortalProcessId));
+            Assert.Null(f.Session.ActiveContext);
+        }
+        else
+        {
+            f.Session.SelectPortalProject(choice.Path, choice.PortalProcessId);
+            Assert.Equal(path, f.Session.GetSessionIdentity().ProjectPath);
+        }
+        Assert.Equal(0, f.A.Portal.LocalSessions.OpenCalls + f.A.Portal.Projects.OpenCalls);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void HostForeignPidSelection_NoPathPreservesOwnerCardinality(bool force, bool multiple)
+    {
+        using var f = new Fixture();
+        f.AddLocal(f.A, f.Amc);
+        var target = f.Register(202, f.OtherAmc);
+        f.AddLocal(target, f.OtherAmc);
+        if (multiple) f.AddLocal(target, f.Amc);
+        f.Session.Connect(f.Amc);
+        var before = f.Session.GetSessionIdentity();
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(before, false, out var error), error);
+        var decision = ProjectBindingDecision.Decide(binding.CaptureSnapshot(), null, force, target.Id);
+
+        if (!force)
+            Assert.Equal(WorkerFailureCategories.BindingConflict, Assert.IsType<BindingStep.Reject>(decision).Category);
+        else
+        {
+            var select = Assert.IsType<BindingStep.Select>(decision);
+            if (multiple)
+                AssertCategory(WorkerFailureCategories.TargetAmbiguous,
+                    () => f.Session.SelectPortalProject(select.Path, select.PortalProcessId));
+            else
+            {
+                f.Session.SelectPortalProject(select.Path, select.PortalProcessId);
+                Assert.Equal(f.OtherAmc, f.Session.GetSessionIdentity().ProjectPath);
+                Assert.Equal(target.Id, f.Session.CurrentProcessId);
+            }
+        }
+        if (!force || multiple)
+        {
+            Assert.Equal(before.ProjectPath, f.Session.GetSessionIdentity().ProjectPath);
+            Assert.Equal(before.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);
+            Assert.Equal(0, f.A.Portal.DisposeCalls);
+        }
+        Assert.Equal(0, f.A.Portal.LocalSessions.OpenCalls + target.Portal.LocalSessions.OpenCalls
+            + f.A.Portal.Projects.OpenCalls + target.Portal.Projects.OpenCalls);
+    }
+
     [Fact]
     public void AmcAdoption_UsesTypedOwnerPath()
     {
