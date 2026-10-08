@@ -1,5 +1,7 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts;
+using TiaMcpServer.Safety;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Multiuser;
@@ -8,6 +10,38 @@ namespace TiaMcpServer.Tests.Multiuser;
 public sealed class LocalSessionCapabilityTests
 {
     private const string Amc = "C:/Projects/Local.amc21";
+
+    [Theory]
+    [InlineData(McpAccessMode.ReadOnly, WorkerFailureCategories.AccessDenied)]
+    [InlineData(McpAccessMode.Full, WorkerFailureCategories.UnsupportedCapability)]
+    public async Task DirectHostWorkerCall_AccessPolicyPrecedesLocalCapabilityAndTransport(
+        McpAccessMode accessMode, string expectedCategory)
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(new WorkerSessionIdentity
+        {
+            WorkerSessionId = "synthetic-worker", SessionGeneration = 1, PortalProcessId = 42,
+            ProjectPath = Amc,
+            Context = new ProjectContextInfo
+            {
+                ContainerKind = ProjectContainerKinds.LocalSession,
+                SessionMode = MultiuserSessionModes.Unknown,
+                EngineeringProjectPath = Amc,
+                Capabilities = ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession).ToList()
+            }
+        }, forceRebind: false, out var error), error);
+        using var missingWorkerDirectory = new TempAuditDirectory();
+        using var client = new OpennessWorkerClient(binding,
+            workerExecutablePath: Path.Combine(missingWorkerDirectory.Path, "missing-worker.exe"),
+            accessPolicy: new OperationAccessPolicy(accessMode));
+
+        var result = await client.SaveProjectAsync(Amc);
+
+        Assert.False(result.Success);
+        Assert.Equal(expectedCategory, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
+        Assert.True(binding.CaptureSnapshot().IsVerified);
+    }
 
     [Theory]
     [InlineData("browse_project_tree")]
