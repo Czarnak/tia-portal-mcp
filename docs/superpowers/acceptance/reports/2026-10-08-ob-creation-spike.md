@@ -55,8 +55,19 @@ for `SW.Blocks.FB`.
 3. **Spelling** — `IOAccessError` (fixture review).
 4. **Duplicate singleton** — import accepts it silently; only a full compile fails ("maximum (1)
    … exceeded"). Nothing at create time protects the caller.
-5. **Unsupported class (S7-1200)** — **not run**: the project has no S7-1200. Inference from (4):
-   import likely succeeds and the full compile reports it.
+5. **Unsupported class — import refuses it.** The maintainer added an S7-1200 (`PLC_2`) and an
+   S7-1200 G2 (`G2_PLC_1`); all 16 classes were imported at their base numbers (ProgramCycle at
+   200, comments stripped) and each PLC fully compiled:
+
+   | Class | S7-1200 | S7-1200 G2 |
+   | --- | --- | --- |
+   | ProgrammingError, IOAccessError, SynchronousCycle | import **fails**: "Cannot create an organization block of type '&lt;class&gt;'." | import ok |
+   | SynchronousCycle | — | compile error "No IO system is assigned to OB …" (as on S7-1500) |
+   | the other 13 | import ok, full compile ok | import ok, full compile ok |
+
+   HardwareInterrupt compiles with the warning "You have not yet defined triggers for the hardware
+   interrupt." on every CPU. CPU support is therefore enforced at create time with a clear
+   message; only multiplicity (finding 4) is left to the compiler.
 6. **Member comments** — stripped comments import fine and TIA regenerates them; TIA also fills
    the class's default block title. Fixtures can drop comments (no culture dependency).
 7. **LAD/FBD body** — an OB without a compile unit imports and compiles (zero networks).
@@ -65,5 +76,6 @@ for `SW.Blocks.FB`.
 
 ## Cleanup
 
-The `_Phase0` group in the disposable project holds the test blocks, including a duplicate OB82
-that makes the full PLC compile fail. The project is disposable and unsaved by the spike.
+`_Phase0` groups in `PLC_1`, `PLC_2` and `G2_PLC_1` of the disposable project hold the test
+blocks; `PLC_1`'s duplicate OB82 and the SynchronousCycle OBs make full compiles fail. The project
+is disposable and unsaved by the spike.
