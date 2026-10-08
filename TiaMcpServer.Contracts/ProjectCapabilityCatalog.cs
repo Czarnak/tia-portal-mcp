@@ -56,6 +56,12 @@ public static class ProjectCapabilityCatalog
     public static bool Supports(string containerKind, string operation)
     {
         if (string.IsNullOrWhiteSpace(operation)) return false;
+        operation = operation switch
+        {
+            "probe_network_object_attributes" => "network_read",
+            "probe_io_system_qualification" or "probe_subnet_lifecycle_mutations" => "network_write",
+            _ => operation
+        };
         if (containerKind == ProjectContainerKinds.StandaloneProject)
             return Standalone.Any(item => item.Operation == operation);
         if (containerKind == ProjectContainerKinds.LocalSession)

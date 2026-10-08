@@ -353,6 +353,26 @@ public sealed class LocalSessionContextContractTests
         Assert.Equal(ProjectCapabilityApplicabilities.NotYetDelivered, capabilities["get_block_content"].Applicability);
     }
 
+    [Theory]
+    [InlineData("probe_network_object_attributes", ProjectContainerKinds.StandaloneProject, true)]
+    [InlineData("probe_io_system_qualification", ProjectContainerKinds.StandaloneProject, true)]
+    [InlineData("probe_subnet_lifecycle_mutations", ProjectContainerKinds.StandaloneProject, true)]
+    [InlineData("probe_network_object_attributes", ProjectContainerKinds.LocalSession, false)]
+    [InlineData("probe_io_system_qualification", ProjectContainerKinds.LocalSession, false)]
+    [InlineData("probe_subnet_lifecycle_mutations", ProjectContainerKinds.LocalSession, false)]
+    public void InternalNetworkProbe_CapabilityDecisionPreservesStandaloneOnlySupport(
+        string method, string containerKind, bool supported)
+    {
+        // WithSession passes these unmapped method names to this production decision.
+        Assert.Equal(supported, ProjectCapabilityCatalog.Supports(containerKind, method));
+        Assert.DoesNotContain(ProjectCapabilityCatalog.Describe(containerKind), item => item.Operation == method);
+        Assert.Equal(method != "probe_network_object_attributes",
+            OperationPolicyCatalog.RequiresExpectedSessionIdentity(method));
+        Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.Full, method));
+        Assert.Equal(method == "probe_network_object_attributes",
+            OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, method));
+    }
+
     [Fact]
     public void RebindState_LocalOwnerNeverImpliesGenericClose()
     {
