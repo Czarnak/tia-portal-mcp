@@ -368,7 +368,7 @@ public sealed class ProjectSessionBinding
                 return false;
             }
 
-            return true;
+            return TryRefreshContext(identity!.Context, out error);
         }
     }
 

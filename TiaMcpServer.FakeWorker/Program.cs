@@ -101,6 +101,7 @@ var guardedLifecycleModified = false;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 var projectTreeV3ScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
+var localOwnerStatusReads = 0;
 // Stateful PLC write fixture: reads in the same process observe earlier writes.
 var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
 var plcWriteIncomplete = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), inventoryIncomplete: true);
@@ -290,6 +291,9 @@ while ((line = Console.In.ReadLine()) is not null)
 
     if (portalInventoryDeclared && currentMethod == "get_project_status")
     {
+        if (Path.GetFileNameWithoutExtension(fakeProjectPath) == "local-owner-replaced"
+            && ++localOwnerStatusReads == 2)
+            fakeSessionGeneration++;
         var attached = AttachedPortal();
         var statusPayload = DirectStatusPayload(new ProjectStatusInfo
         {

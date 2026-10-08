@@ -157,6 +157,8 @@ public sealed class LocalSessionBindingIntegrationTests
         var first = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>());
         Assert.True(first.StructuredContent!.Value.GetProperty("success").GetBoolean(), first.StructuredContent.Value.GetRawText());
         var before = harness.WorkerClient.BindingSnapshot;
+        var observedBefore = before.Context!.ConnectionObservation!.ObservedAt;
+        await Task.Delay(20);
         var second = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
         {
             ["projectPath"] = path, ["portalProcessId"] = 42
@@ -165,8 +167,38 @@ public sealed class LocalSessionBindingIntegrationTests
         var after = harness.WorkerClient.BindingSnapshot;
         Assert.Equal(before.BindingId, after.BindingId);
         Assert.Equal(before.Revision, after.Revision);
+        Assert.True(after.Context!.ConnectionObservation!.ObservedAt > observedBefore);
         Assert.False(after.Context!.OpenedByWorker);
         Assert.Null(after.Context.SessionContainerPath);
+        Assert.DoesNotContain("open_project", log.Methods());
+    }
+
+    [Fact]
+    public async Task SameAmcReplacementDuringStatus_InvalidatesVerifiedBindingWithoutOpening()
+    {
+        const string path = "C:/Projects/local-owner-replaced.amc21";
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, path));
+        using var ui = new FakeWorkerUiOpenProject(path);
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(
+            accessMode: McpAccessMode.ReadOnly);
+        var bound = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = path
+        });
+        Assert.True(bound.StructuredContent!.Value.GetProperty("success").GetBoolean(), bound.StructuredContent.Value.GetRawText());
+        var before = harness.WorkerClient.BindingSnapshot;
+
+        var replaced = await harness.WorkerClient.GetProjectStatusAsync(path);
+
+        Assert.False(replaced.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, replaced.FailureCategory);
+        var after = harness.WorkerClient.BindingSnapshot;
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, after.State);
+        Assert.NotEqual(before.BindingId, after.BindingId);
+        Assert.Equal(ProjectPathNormalization.Canonicalize(path), before.ProjectPath);
         Assert.DoesNotContain("open_project", log.Methods());
     }
 
