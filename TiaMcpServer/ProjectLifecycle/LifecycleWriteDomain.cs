@@ -265,12 +265,22 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         try
         {
             var status = LifecyclePayloadContract.DecodeStatus(result, "get_project_status", expected, !closed);
+            if (!closed)
+            {
+                ProjectContextPayloadContract.ValidateStableOwner(_mutation.Value!.Project?.Context, status.Context);
+                ProjectContextPayloadContract.ValidateStableOwner(workerClient.BindingSnapshot.Context, status.Context);
+            }
             if (item.Operation == "save_project" && status.IsModified != false)
                 return new(OperationBatchStatus.Failed, status,
                     new(WorkerFailureCategories.PostconditionFailed, "The project was not verified as saved."), null);
             return new(OperationBatchStatus.Succeeded, status, null, null);
         }
-        catch (JsonException) { return LifecyclePayloadContract.ProtocolFailure<ProjectStatusInfo>(); }
+        catch (JsonException)
+        {
+            if (_mutation.Value?.Project?.Context?.ContainerKind == ProjectContainerKinds.LocalSession)
+                workerClient.InvalidateRejectedLifecycleContext();
+            return LifecyclePayloadContract.ProtocolFailure<ProjectStatusInfo>();
+        }
     }
 
     public bool VerificationSucceeded(StandaloneToolOutcome<ProjectStatusInfo>? verification)

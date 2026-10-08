@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Diagnostics;
+using TiaMcpServer.ProjectLifecycle;
 
 namespace TiaMcpServer.Worker;
 
@@ -1540,6 +1541,27 @@ public class OpennessWorkerClient : IDisposable
             return result;
         }
 
+        if (string.Equals(Path.GetExtension(projectPath), ".als21", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var opened = LifecyclePayloadContract.Decode(result, "open_project", null);
+                if (opened.Project?.Context?.OpenedByWorker != true
+                    || !LifecyclePayloadContract.SamePath(opened.Project.Context.SessionContainerPath, projectPath))
+                    throw new JsonException(LifecyclePayloadContract.ProtocolFailureMessage);
+            }
+            catch (JsonException)
+            {
+                InvalidateVerifiedBinding("the ALS opener returned contradictory owner evidence");
+                return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                    LifecyclePayloadContract.ProtocolFailureMessage, result.Warnings) with
+                {
+                    IsPostOperationFailure = true,
+                    DispatchState = result.DispatchState
+                };
+            }
+        }
+
         // Bind to the project the worker actually opened, never the caller's projectPath argument.
         result = ApplyBindingTransition(
             BindingTransition.BindResolvedPath,
@@ -2279,6 +2301,9 @@ public class OpennessWorkerClient : IDisposable
             _projectSessionBinding.Invalidate(reason);
         }
     }
+
+    internal void InvalidateRejectedLifecycleContext()
+        => InvalidateVerifiedBinding("the lifecycle verification returned contradictory owner evidence");
 
     private PersistentWorkerTransport GetOrCreateTransport()
     {

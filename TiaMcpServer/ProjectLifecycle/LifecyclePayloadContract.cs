@@ -31,6 +31,7 @@ public static class LifecyclePayloadContract
             throw new JsonException(ProtocolFailureMessage);
         if (status.Metadata is not null) throw new JsonException(ProtocolFailureMessage);
         ProjectContextPayloadContract.Validate(status.Context, status.Path!);
+        ProjectContextPayloadContract.ValidateStableOwner(status.Context, result.SessionIdentity?.Context);
         return payload;
     }
 
@@ -49,7 +50,11 @@ public static class LifecyclePayloadContract
             || (!expectOpen && (status.Path is not null || result.ResolvedProjectPath is not null
                 || result.SessionIdentity?.ProjectPath is not null)))
             throw new JsonException(ProtocolFailureMessage);
-        if (expectOpen) ProjectContextPayloadContract.Validate(status.Context, status.Path!);
+        if (expectOpen)
+        {
+            ProjectContextPayloadContract.Validate(status.Context, status.Path!);
+            ProjectContextPayloadContract.ValidateStableOwner(status.Context, result.SessionIdentity?.Context);
+        }
         else if (status.Context is not null) throw new JsonException(ProtocolFailureMessage);
         return status;
     }

@@ -55,6 +55,45 @@ internal static class ProjectContextPayloadContract
             throw new JsonException("A scoped remote identity is required for this observation.");
     }
 
+    // Lifecycle result, envelope identity and post-write status may carry newer passive
+    // observations. Only facts identifying the owner and exact opener must agree.
+    internal static void ValidateStableOwner(ProjectContextInfo? first, ProjectContextInfo? second)
+    {
+        if (first is null && second is null) return;
+        if (first is null || second is null
+            || !string.Equals(first.ContainerKind, second.ContainerKind, StringComparison.Ordinal)
+            || !SamePath(first.EngineeringProjectPath, second.EngineeringProjectPath)
+            || first.OpenedByWorker != second.OpenedByWorker
+            || !SamePath(first.SessionContainerPath, second.SessionContainerPath)
+            || first.SessionMode != MultiuserSessionModes.Unknown
+                && second.SessionMode != MultiuserSessionModes.Unknown
+                && !string.Equals(first.SessionMode, second.SessionMode, StringComparison.Ordinal)
+            || RemoteConflicts(first.RemoteIdentity, second.RemoteIdentity))
+            throw new JsonException("The lifecycle context does not match the returned owner identity.");
+    }
+
+    private static bool SamePath(string? first, string? second)
+        => string.Equals(ProjectPathNormalization.Canonicalize(first),
+            ProjectPathNormalization.Canonicalize(second), StringComparison.OrdinalIgnoreCase);
+
+    private static bool RemoteConflicts(MultiuserRemoteIdentity? first, MultiuserRemoteIdentity? second)
+        => first is not null && second is not null
+            && (DifferentKnown(first.ServerAlias, second.ServerAlias)
+                || DifferentKnown(first.Host, second.Host)
+                || first.Port is not null && second.Port is not null && first.Port != second.Port
+                || DifferentKnown(first.Protocol, second.Protocol)
+                || DifferentKnown(first.ServerProjectName, second.ServerProjectName)
+                || first.LocalSessionId is not null && second.LocalSessionId is not null
+                    && first.LocalSessionId != second.LocalSessionId
+                || DifferentKnown(first.LocalSessionPath, second.LocalSessionPath)
+                || first.Group is not null && second.Group is not null
+                    && (first.Group.IsRoot != second.Group.IsRoot
+                        || DifferentKnown(first.Group.Name, second.Group.Name)));
+
+    private static bool DifferentKnown(string? first, string? second)
+        => !string.IsNullOrEmpty(first) && !string.IsNullOrEmpty(second)
+            && !string.Equals(first, second, StringComparison.Ordinal);
+
     internal static void ValidateEnvelopeIdentity(string responseLine, WorkerResponse response)
     {
         var identity = response.SessionIdentity;

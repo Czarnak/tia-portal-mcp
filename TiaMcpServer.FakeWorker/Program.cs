@@ -340,7 +340,9 @@ while ((line = Console.In.ReadLine()) is not null)
         var status = new ProjectStatusInfo
         {
             IsOpen = true, Path = fakeProjectPath, IsModified = AttachedPortal()?.Modified,
-            Context = LocalContext(fakeProjectPath, AttachedPortal()?.WorkerOpened == true)
+            Context = LocalContext(fakeProjectPath, AttachedPortal()?.WorkerOpened == true,
+                Path.GetFileNameWithoutExtension(fakeSessionContainerPath) == "local-session-open-verification-mismatch"
+                    ? "C:/Private/PRIVATE_VERIFICATION_OWNER.als21" : null)
         };
         Respond(SuccessWithResolvedPath(WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
         {
@@ -353,6 +355,8 @@ while ((line = Console.In.ReadLine()) is not null)
 
     if (portalInventoryDeclared && currentMethod == "open_project"
         && (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open" or "local-session-open-bad-result"
+            or "local-session-open-context-mismatch" or "local-session-open-verification-mismatch"
+            or "local-session-open-passive-observation"
             or "local-session-open-eof" or "local-session-open-timeout")
         && string.Equals(Path.GetExtension(currentProjectPath), ".als21", StringComparison.OrdinalIgnoreCase))
     {
@@ -1698,6 +1702,12 @@ void Respond(string json, bool includeSessionIdentity = true)
             }, WorkerJson.Envelope);
             if (response["sessionIdentity"]?["context"] is JsonObject context)
             {
+                if (currentMethod == "open_project"
+                    && Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-context-mismatch")
+                    context["sessionContainerPath"] = "C:/Private/PRIVATE_ENVELOPE_OWNER.als21";
+                if (currentMethod == "open_project"
+                    && Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-passive-observation")
+                    context["connectionObservation"]!["observedAt"] = "2026-01-01T00:00:00+00:00";
                 if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-secret")
                     context["PRIVATE_IDENTITY_CONTEXT_MEMBER"] = "PRIVATE_IDENTITY_CONTEXT_VALUE";
                 if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-missing-null")
