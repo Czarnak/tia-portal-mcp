@@ -2258,7 +2258,15 @@ ProjectContextInfo? LocalContext(string? path, bool openedByWorker, string? sess
         ContainerKind = ProjectContainerKinds.LocalSession,
         SessionMode = MultiuserSessionModes.Unknown,
         Capabilities = ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession).ToList(),
-        RemoteIdentity = null,
+        RemoteIdentity = Path.GetFileNameWithoutExtension(path) == "local-context-oversized"
+            ? new MultiuserRemoteIdentity
+            {
+                ServerAlias = new string('x', 61_000), Host = "server", Port = 1234,
+                Protocol = "https", Group = new ProjectServerGroupIdentity { IsRoot = false, Name = "Group A" },
+                ServerProjectName = "Project A", LocalSessionId = 0,
+                LocalSessionPath = "C:/Sessions/A.als21"
+            }
+            : null,
         ConnectionObservation = new ProjectServerConnectionObservation
         {
             State = ProjectServerConnectionStates.Unknown,
