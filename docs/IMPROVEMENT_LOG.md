@@ -26,6 +26,23 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: create_block OB follow-ups (issue #75, 2026-10-09)
+
+Left out of [OB creation](superpowers/specs/2026-10-08-ob-creation-design.md) by design; none blocks
+the shipped behavior.
+
+- **Renumbering.** No `set_block_number` operation exists: a created OB keeps the number the server
+  picked, and a wrong or unwanted number needs TIA Portal. Add it when a workflow needs caller-chosen
+  or changed OB numbers.
+- **OB event parameters.** Created OBs use TIA defaults. `CyclicInterrupt` cyclic time and phase
+  offset, priority, the `TimeOfDay` schedule and `HardwareInterrupt` triggers cannot be set (the
+  live compile of a new hardware-interrupt OB reports the "no triggers defined" warning).
+- **`SynchronousCycle`.** Not offered: it does not compile on any CPU that accepts it until an
+  isochronous IO system is assigned, which no tool here can configure.
+- **Live evidence limits.** The S7-1200 G2 PLC was not exercised in the 2026-10-09
+  [live acceptance](superpowers/acceptance/reports/2026-10-09-ob-creation-live-acceptance.md); the
+  Phase 0 spike covered it by import only.
+
 ## Open: Multiuser successor operations
 
 PR 2 implements the internal active project context and typed lifecycle owners on the merged
@@ -1178,3 +1195,17 @@ wording, two `confirm`/token read-only bypass tests, a retired snapshot method r
 renamed `NetworkIntrospectionSafetySnapshotTests` to `NetworkHardwareConfigDeterminismTests`. No
 file outside `docs/superpowers/` names the retired token argument any more. Major version, release notes, agent migration note and tag stay open for the maintainer
 ([redesign spec](superpowers/specs/2026-09-29-write-safety-redesign-design.md)).
+
+
+## OB creation for `create_block` (issue #75) — live-accepted 2026-10-09
+
+`create_block` with `blockType:"OB"` failed for every event class. It now creates any of 15
+event classes named by `obEventClass` (a closed enum; the earlier advertised names that were not real
+event classes are gone). The server picks the OB number from a shared table and rule in
+`TiaMcpServer.Contracts`, so the previewed and executed numbers agree; `plc_ob_singleton_exists`
+(block) stops a duplicate singleton in `dryRun` and in actual runs; results carry `number` and
+`obEventClass`. STL FB/FC/OB creation was fixed in the same generator (STL rejects
+`SetENOAutomatically`). Commits `a05cfc5`..`33058d8`; live acceptance passed with no defects, see the
+[report](superpowers/acceptance/reports/2026-10-09-ob-creation-live-acceptance.md) and the
+[spec](superpowers/specs/2026-10-08-ob-creation-design.md). Deferred items are under "Open:
+create_block OB follow-ups" above.

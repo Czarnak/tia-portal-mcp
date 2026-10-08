@@ -876,6 +876,7 @@ fires guards:
 | `plc_state_unverifiable` | block | Evidence relevant to the target is incomplete or unreadable (including an incomplete root inventory, which fires for every item) |
 | `plc_name_collision` | block | A new or renamed object collides with an existing or in-call object in the CPU namespace |
 | `plc_block_exists` | block | `create_block` targets an existing block |
+| `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class whose number an OB already holds, or an earlier item in the call creates |
 | `plc_default_tag_table` | block | `delete_tag_table` targets the default tag table |
 | `plc_attribute_unreadable` | block | A requested external-access flag is unreadable on the current tag |
 | `plc_deletes_block` | info | `delete_block` removes the block and its content |

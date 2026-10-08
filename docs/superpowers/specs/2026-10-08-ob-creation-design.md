@@ -1,7 +1,8 @@
 # `create_block` OB creation — design (issue #75)
 
-*2026-10-08. Branch `fix/ob-create-issue-75`. Status: approved; Phase 0 spike done
-([report](../acceptance/reports/2026-10-08-ob-creation-spike.md)); next: implementation plan.*
+*2026-10-08. Branch `fix/ob-create-issue-75`. Status: implemented; live-accepted 2026-10-09
+([spike](../acceptance/reports/2026-10-08-ob-creation-spike.md),
+[live acceptance](../acceptance/reports/2026-10-09-ob-creation-live-acceptance.md)).*
 
 ## 1. Intent
 
