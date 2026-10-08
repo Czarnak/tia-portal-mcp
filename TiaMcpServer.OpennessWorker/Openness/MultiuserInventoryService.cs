@@ -7,8 +7,7 @@ namespace TiaMcpServer.OpennessWorker.Openness;
 internal sealed class MultiuserInventoryService
 {
     private readonly TiaPortalSession _session;
-    private readonly Dictionary<string, (string Host, int Port, string State)> _observations = new(StringComparer.Ordinal);
-    private long _attachmentRevision = -1;
+    private readonly ProjectServerObservationTracker _observations = new();
 
     public MultiuserInventoryService(TiaPortalSession session) => _session = session;
 
@@ -100,11 +99,6 @@ internal sealed class MultiuserInventoryService
     private void Connect(int? pid)
     {
         _session.EnsurePortalConnected(pid);
-        if (_attachmentRevision != _session.PortalAttachmentRevision)
-        {
-            _observations.Clear();
-            _attachmentRevision = _session.PortalAttachmentRevision;
-        }
     }
 
     private List<(ProjectServer Server, MultiuserRemoteIdentity Identity)> Connections()
@@ -121,13 +115,7 @@ internal sealed class MultiuserInventoryService
                 if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(host) || port <= 0 || port > 65535) throw Incomplete();
                 rows.Add((server, new MultiuserRemoteIdentity { ServerAlias = alias, Host = host, Port = port }));
             }
-            // Drop history for removed or reconfigured endpoints, including a change back later.
-            foreach (var alias in _observations.Keys.ToArray())
-            {
-                var old = _observations[alias];
-                if (!rows.Any(row => row.Identity.ServerAlias == alias && row.Identity.Host == old.Host && row.Identity.Port == old.Port))
-                    _observations.Remove(alias);
-            }
+            _observations.RetainConfiguredEndpoints(rows.Select(row => row.Identity), _session.PortalAttachmentRevision);
             return rows;
         }
         catch (WorkerOperationException) { throw; }
@@ -180,15 +168,8 @@ internal sealed class MultiuserInventoryService
     }
 
     private ProjectServerConnectionObservation Observe(MultiuserRemoteIdentity identity, string state)
-    {
-        string? previous = null;
-        if (_observations.TryGetValue(identity.ServerAlias, out var old) && old.Host == identity.Host && old.Port == identity.Port)
-            previous = old.State;
-        _observations[identity.ServerAlias] = (identity.Host!, identity.Port!.Value, state);
-        return new ProjectServerConnectionObservation { State = state, PreviousState = previous,
-            Transition = previous is not null && previous != state, ObservedAt = DateTimeOffset.UtcNow,
-            ObservationSource = ProjectServerConnectionObservationSources.ExplicitRead };
-    }
+        => _observations.Observe(identity, _session.PortalAttachmentRevision, state,
+            ProjectServerConnectionObservationSources.ExplicitRead);
 
     private static void Validate(string alias, ProjectServerGroupIdentity? group)
     {

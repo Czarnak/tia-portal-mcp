@@ -43,6 +43,16 @@ lifecycle operations remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
 
+## Open: Reliable local-session distinction for one server project (2026-10-07)
+
+The PR 4 prerequisite probes distinguished two observed local owners by their different typed
+`LocalSession.Project.Path` engineering `.amc21` paths. This does not establish a durable local
+session ID or a supported join to Project Server inventory. Qualify a supported owner/session
+identity for different local sessions associated with the same server project before relaxing
+PR 4's fail-closed handling of same/ambiguous paths, owner replacement, or unknown remote identity.
+An explicit `.als21` opener remains provenance; filenames and directory hierarchy establish
+neither cold-adoption identity nor engineering/exclusive mode.
+
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach

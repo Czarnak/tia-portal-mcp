@@ -43,6 +43,13 @@ public sealed class ConditionalMemberRegisterTests
         "StructuredOperationFailure.BlockImportOutcome",
         // Only explicit bind_project inspection actions add this host value; default binding omits it.
         "ProjectBindingResult.Inspection",
+        // Local-session owners carry typed context; standalone and unbound values omit it.
+        "WorkerSessionIdentity.Context",
+        "ProjectStatusInfo.Context",
+        "ProjectBindingSnapshot.Context",
+        "ProjectBindingInfo.Context",
+        // A local-session open/rebind probe carries its source context; standalone probes omit it.
+        "ProjectRebindStateInfo.SourceContext",
     };
 
     [Fact]
@@ -52,6 +59,7 @@ public sealed class ConditionalMemberRegisterTests
         var actual = typeof(WorkerJson).Assembly.GetTypes()
             .Append(typeof(TiaMcpServer.OperationBatches.StructuredOperationFailure))
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingResult))
+            .Append(typeof(TiaMcpServer.Tools.ProjectBindingInfo))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(IsWhenWritingNullConditional)

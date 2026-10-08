@@ -219,7 +219,7 @@ public sealed class ProjectSessionBinding
             if (_state == ProjectBindingSnapshot.VerifiedState && _verifiedIdentity is not null &&
                 SameIdentity(_verifiedIdentity, identity!, canonicalPath!))
             {
-                return true;
+                return TryRefreshContext(identity!.Context, out error);
             }
 
             if (!expected.SameBinding(SnapshotNoLock()))
@@ -274,7 +274,7 @@ public sealed class ProjectSessionBinding
                     // Two concurrent status probes may both have observed the same configured
                     // revision. Accept the second identical response instead of invalidating the
                     // binding that the first probe has just verified.
-                    return true;
+                    return TryRefreshContext(identity!.Context, out error);
                 }
 
                 error = "The configured project was already verified against a different worker session identity.";
@@ -435,7 +435,8 @@ public sealed class ProjectSessionBinding
             WorkerSessionId = identity.WorkerSessionId,
             SessionGeneration = identity.SessionGeneration,
             PortalProcessId = identity.PortalProcessId,
-            ProjectPath = canonicalPath
+            ProjectPath = canonicalPath,
+            Context = identity.Context?.DeepCopy()
         };
         TransitionTo(ProjectBindingSnapshot.VerifiedState, invalidatedReason: null);
     }
@@ -457,7 +458,8 @@ public sealed class ProjectSessionBinding
             _verifiedIdentity?.WorkerSessionId,
             _verifiedIdentity is null ? null : _verifiedIdentity.SessionGeneration,
             _verifiedIdentity?.PortalProcessId,
-            _invalidatedReason);
+            _invalidatedReason,
+            _verifiedIdentity?.Context);
 
     private static bool TryValidateCompleteIdentity(
         WorkerSessionIdentity? identity,
@@ -483,6 +485,47 @@ public sealed class ProjectSessionBinding
             return false;
         }
 
+        var localEngineeringPath = identity.Context?.EngineeringProjectPath;
+        var isLocalPath = string.Equals(Path.GetExtension(canonicalPath), ".amc21", StringComparison.OrdinalIgnoreCase);
+        if (isLocalPath || identity.Context is not null)
+        {
+            if (!isLocalPath
+                || identity.Context is null
+                || !string.Equals(identity.Context.ContainerKind, ProjectContainerKinds.LocalSession, StringComparison.Ordinal)
+                || !IsSameProject(canonicalPath, localEngineeringPath ?? string.Empty)
+                || identity.Context.Capabilities is null
+                || identity.Context.Capabilities.Any(capability => capability is null)
+                || !MultiuserSessionModes.All.Contains(identity.Context.SessionMode))
+            {
+                error = "The local-session identity did not include a matching typed engineering context.";
+                return false;
+            }
+
+            var observation = identity.Context.ConnectionObservation;
+            var unassociatedInitialUnknown = identity.Context.RemoteIdentity is null
+                && observation?.State == ProjectServerConnectionStates.Unknown
+                && observation.ObservationSource is ProjectServerConnectionObservationSources.SessionBind
+                    or ProjectServerConnectionObservationSources.SessionOpen
+                && observation.PreviousState is null
+                && !observation.Transition;
+            if (observation is not null
+                && !unassociatedInitialUnknown
+                && !HasScopedRemoteSessionIdentity(identity.Context.RemoteIdentity))
+            {
+                error = "A local-session connection observation requires an exact scoped remote session identity.";
+                return false;
+            }
+
+            var provenance = identity.Context.SessionContainerPath;
+            if ((identity.Context.OpenedByWorker && (provenance is null
+                    || !string.Equals(Path.GetExtension(provenance), ".als21", StringComparison.OrdinalIgnoreCase)))
+                || (!identity.Context.OpenedByWorker && provenance is not null))
+            {
+                error = "The local-session identity has inconsistent exact opener provenance.";
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -493,7 +536,105 @@ public sealed class ProjectSessionBinding
         => string.Equals(expected.WorkerSessionId, actual.WorkerSessionId, StringComparison.Ordinal)
            && expected.SessionGeneration == actual.SessionGeneration
            && expected.PortalProcessId == actual.PortalProcessId
-           && IsSameProject(expected.ProjectPath!, canonicalActualPath);
+           && IsSameProject(expected.ProjectPath!, canonicalActualPath)
+           && string.Equals(expected.Context?.ContainerKind, actual.Context?.ContainerKind, StringComparison.Ordinal);
+
+    /// <summary>Update passive facts without changing the verified binding epoch.</summary>
+    private bool TryRefreshContext(ProjectContextInfo? observed, out string? error)
+    {
+        error = null;
+        if (_verifiedIdentity?.Context is null || observed is null)
+            return true;
+
+        var current = _verifiedIdentity.Context;
+        if (Conflicts(current.RemoteIdentity, observed.RemoteIdentity)
+            || (current.SessionMode != MultiuserSessionModes.Unknown
+                && observed.SessionMode != MultiuserSessionModes.Unknown
+                && !string.Equals(current.SessionMode, observed.SessionMode, StringComparison.Ordinal))
+            || (current.SessionContainerPath is not null && observed.SessionContainerPath is not null
+                && !IsSameProject(current.SessionContainerPath, observed.SessionContainerPath)))
+        {
+            // The owner tuple is still pinned, but endpoint observations cannot be trusted after
+            // conflicting identity evidence. Leave prior identity facts for explicit resolution.
+            current.ConnectionObservation = null;
+            error = "The local-session context conflicts with previously verified identity evidence.";
+            return false;
+        }
+
+        var merged = current.DeepCopy();
+        if (merged.SessionMode == MultiuserSessionModes.Unknown)
+            merged.SessionMode = observed.SessionMode;
+        merged.Capabilities = observed.DeepCopy().Capabilities;
+        if (merged.SessionContainerPath is null && observed.SessionContainerPath is not null)
+            merged.SessionContainerPath = observed.SessionContainerPath;
+        merged.OpenedByWorker |= observed.OpenedByWorker;
+
+        if (observed.RemoteIdentity is not null)
+        {
+            if (merged.RemoteIdentity is null)
+            {
+                merged.RemoteIdentity = observed.DeepCopy().RemoteIdentity;
+                merged.ConnectionObservation = null;
+            }
+            else
+            {
+                MergeRemoteIdentity(merged.RemoteIdentity, observed.RemoteIdentity);
+            }
+        }
+
+        if (observed.ConnectionObservation is not null
+            && (merged.ConnectionObservation is null
+                || observed.ConnectionObservation.ObservedAt >= merged.ConnectionObservation.ObservedAt))
+            merged.ConnectionObservation = observed.DeepCopy().ConnectionObservation;
+
+        _verifiedIdentity.Context = merged;
+        return true;
+    }
+
+    private static bool HasScopedRemoteSessionIdentity(MultiuserRemoteIdentity? remote)
+        => remote is not null
+           && !string.IsNullOrWhiteSpace(remote.ServerAlias)
+           && !string.IsNullOrWhiteSpace(remote.Host)
+           && remote.Port is > 0 and <= 65535
+           && remote.Group is not null
+           && (remote.Group.IsRoot
+               ? remote.Group.Name is null
+               : !string.IsNullOrWhiteSpace(remote.Group.Name))
+           && !string.IsNullOrWhiteSpace(remote.ServerProjectName)
+           && remote.LocalSessionId is >= 0;
+
+    private static bool Conflicts(MultiuserRemoteIdentity? current, MultiuserRemoteIdentity? observed)
+        => current is not null && observed is not null
+           && (DifferentKnown(current.ServerAlias, observed.ServerAlias)
+               || DifferentKnown(current.Host, observed.Host)
+               || (current.Port is not null && observed.Port is not null && current.Port != observed.Port)
+               || DifferentKnown(current.Protocol, observed.Protocol)
+               || DifferentKnown(current.ServerProjectName, observed.ServerProjectName)
+               || (current.LocalSessionId is not null && observed.LocalSessionId is not null
+                   && current.LocalSessionId != observed.LocalSessionId)
+               || DifferentKnown(current.LocalSessionPath, observed.LocalSessionPath)
+               || (current.Group is not null && observed.Group is not null
+                   && (current.Group.IsRoot != observed.Group.IsRoot
+                       || DifferentKnown(current.Group.Name, observed.Group.Name))));
+
+    private static bool DifferentKnown(string? current, string? observed)
+        => !string.IsNullOrEmpty(current) && !string.IsNullOrEmpty(observed)
+           && !string.Equals(current, observed, StringComparison.Ordinal);
+
+    private static void MergeRemoteIdentity(MultiuserRemoteIdentity current, MultiuserRemoteIdentity observed)
+    {
+        if (string.IsNullOrEmpty(current.ServerAlias)) current.ServerAlias = observed.ServerAlias;
+        current.Host ??= observed.Host;
+        current.Port ??= observed.Port;
+        current.Protocol ??= observed.Protocol;
+        current.ServerProjectName ??= observed.ServerProjectName;
+        current.LocalSessionId ??= observed.LocalSessionId;
+        current.LocalSessionPath ??= observed.LocalSessionPath;
+        if (current.Group is null && observed.Group is not null)
+            current.Group = new ProjectServerGroupIdentity { IsRoot = observed.Group.IsRoot, Name = observed.Group.Name };
+        else if (current.Group is not null && observed.Group is not null)
+            current.Group.Name ??= observed.Group.Name;
+    }
 
     private static bool IsSameProject(string boundProjectPath, string requestedProjectPath)
         => string.Equals(

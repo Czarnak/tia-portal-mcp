@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>A passive connection observation; an unknown state must never be treated as healthy.</summary>
@@ -9,6 +11,7 @@ public sealed class ProjectServerConnectionObservation
 
     public string ObservationSource { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? PreviousState { get; set; }
 
     public bool Transition { get; set; }

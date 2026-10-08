@@ -21,10 +21,12 @@ namespace Siemens.Engineering.Multiuser
         public bool IsUptoDate() => throw new global::System.NotSupportedException();
     }
 
-    public abstract class LocalSessionComposition
+    public abstract class LocalSessionComposition : global::System.Collections.Generic.IEnumerable<LocalSession>
     {
         public LocalSession Open(global::System.IO.FileInfo path) => throw new global::System.NotSupportedException();
         public LocalSession OpenServerProject(global::System.IO.FileInfo path) => throw new global::System.NotSupportedException();
+        public global::System.Collections.Generic.IEnumerator<LocalSession> GetEnumerator() => throw new global::System.NotSupportedException();
+        global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     public abstract class LocalSessionInfo

@@ -84,6 +84,7 @@ namespace Siemens.Engineering
         public Exception? CurrentProcessFailure { get; set; }
         public TiaPortalProcess GetCurrentProcess() => CurrentProcessFailure is null ? Process : throw CurrentProcessFailure;
         public ProjectComposition Projects { get; } = new();
+        public Siemens.Engineering.Multiuser.LocalSessionComposition LocalSessions { get; } = new();
         public event EventHandler<NotificationEventArgs>? Notification;
         public event EventHandler<ConfirmationEventArgs>? Confirmation;
         public event EventHandler? Disposed;
@@ -110,10 +111,45 @@ namespace Siemens.Engineering
 
 namespace Siemens.Engineering.Multiuser
 {
-    public sealed class MultiuserProject : ProjectBase { }
+    public sealed class MultiuserProject : ProjectBase
+    {
+        public string? EqualityToken { get; set; }
+        public override bool Equals(object? other) => ReferenceEquals(this, other)
+            || EqualityToken is not null && other is MultiuserProject project && EqualityToken == project.EqualityToken;
+        public override int GetHashCode() => EqualityToken?.GetHashCode() ?? base.GetHashCode();
+    }
+    public sealed class LocalSessionComposition : IEnumerable<LocalSession>
+    {
+        public List<LocalSession> Items { get; } = new();
+        public int OpenCalls { get; private set; }
+        public FileInfo? LastOpenedFile { get; private set; }
+        public FileInfo? NextProjectPath { get; set; }
+        public Exception? OpenFailure { get; set; }
+        public Action<int>? OnEnumerate { get; set; }
+        public int EnumerationCount { get; private set; }
+        public LocalSession Open(FileInfo file)
+        {
+            OpenCalls++;
+            LastOpenedFile = file;
+            if (OpenFailure is not null) throw OpenFailure;
+            var owner = new LocalSession { Project = new MultiuserProject { Path = NextProjectPath } };
+            Items.Add(owner);
+            return owner;
+        }
+        public IEnumerator<LocalSession> GetEnumerator()
+        {
+            OnEnumerate?.Invoke(++EnumerationCount);
+            return Items.GetEnumerator();
+        }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
     public sealed class LocalSession
     {
         public MultiuserProject Project { get; set; } = new();
+        public string? EqualityToken { get; set; }
+        public override bool Equals(object? other) => ReferenceEquals(this, other)
+            || EqualityToken is not null && other is LocalSession session && EqualityToken == session.EqualityToken;
+        public override int GetHashCode() => EqualityToken?.GetHashCode() ?? base.GetHashCode();
         public int SaveCalls { get; private set; }
         public int CloseCalls { get; private set; }
         public int CommitCalls { get; private set; }
