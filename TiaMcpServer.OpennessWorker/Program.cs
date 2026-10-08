@@ -2,6 +2,7 @@ using System.Text.Json;
 using Siemens.Engineering;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Hmi;
 using WorkerTiaPortalSession = TiaMcpServer.OpennessWorker.Openness.TiaPortalSession;
 
 namespace TiaMcpServer.OpennessWorker;
@@ -166,6 +167,12 @@ internal static class Program
                 "get_type_content"    => GetTypeContent(request),
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
+                "hmi_list_hmi_devices" or "hmi_get_runtime_settings" or "hmi_list_script_modules"
+                    or "hmi_list_text_and_graphic_lists" or "hmi_list_project_languages" or "hmi_list_tag_tables"
+                    or "hmi_list_tags" or "hmi_get_tag" or "hmi_list_system_tags" or "hmi_list_logging_tags"
+                    or "hmi_list_connections" or "hmi_list_alarms" or "hmi_get_alarm" or "hmi_list_alarm_classes"
+                    or "hmi_list_logs" or "hmi_list_screens" or "hmi_list_screen_items" or "hmi_list_faceplate_instances"
+                    or "hmi_get_screen_navigation" or "hmi_validate" => ReadHmi(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -974,6 +981,12 @@ internal static class Program
     {
         return WithProject(request, project => Success(TagTableReader.ReadInventory(
             project, request.PlcName, request.TableName, request.FolderPath)));
+    }
+
+    private static WorkerResponse ReadHmi(WorkerRequest request)
+    {
+        return WithProject(request, project => Success(
+            HmiReadDispatch.Read(project, request.Method, request.HmiQuery ?? new HmiQueryInfo())));
     }
 
     private static WorkerResponse CompileCheck(WorkerRequest request)

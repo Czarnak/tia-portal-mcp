@@ -1186,6 +1186,16 @@ public class OpennessWorkerClient : IDisposable
             "[]");
     }
 
+    /// <summary>Runs one hmi_read operation; <paramref name="method"/> is the hmi_-prefixed worker method.</summary>
+    public Task<WorkerCallResult> ReadHmiAsync(string method, HmiQueryInfo query, string? projectPath)
+    {
+        return SendBoundProjectRequestAsync(
+            method,
+            projectPath,
+            request => request.HmiQuery = query,
+            "{}");
+    }
+
     public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(

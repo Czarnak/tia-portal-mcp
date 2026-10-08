@@ -9,7 +9,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 
 | Document | What you will find |
 | --- | --- |
-| [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 6/15/15 modes, and mode-derived lifecycle confirmation |
+| [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 7/16/16 modes, and mode-derived lifecycle confirmation |
 | [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, guarded Network and `plc_write` migration, and block paths |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
@@ -19,6 +19,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Architecture](ARCHITECTURE.md) | Two-process topology, tier enforcement, explicit binding/cursor invalidation, transport, canonical JSON, mode-derived confirmation/audit v2, and testing |
+| [HMI operations (`hmi_read`)](SupportedOperations/HMI_OPERATIONS_SUMMARY.md) | The 20 read-only WinCC Unified operations, paging and completeness rules, `validate` scope, redaction, known limits and out-of-scope areas |
 | [Multiuser local sessions, inventory and acceptance boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) | Exact AMC adoption, ALS opening/basic status, persistent inventory, preservation guards and remaining session limits |
 | [PR4 live definition](superpowers/acceptance/2026-10-07-multiuser-pr4-live-definition.md) | Original L01–L19 expectations, installed-public-tool protocol and scoped acceptance rules |
 | [PR4 scoped live acceptance](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md) | Frozen candidate/provenance, online recovery, offline Siemens-dialog failures, maintainer ruling, audits, restoration and unexecuted cases |
@@ -60,7 +61,9 @@ records implemented/offline-qualified `.amc21` adoption and `.als21` opening, wi
 maintainer acceptance on October 8. The report retains failed noninteractive offline opening
 and unexecuted matrix rows; Issue #65 and successor session operations remain open.
 
-Latest process entries: the [PLC read/write and cross-references design](superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md),
+Latest process entry: the [hmi_read design](superpowers/specs/2026-10-07-hmi-read-design.md) (with its dated post-implementation corrections), its [spike report](superpowers/acceptance/reports/2026-10-07-hmi-read-spike.md) and its [installed-tool live acceptance report](superpowers/acceptance/reports/2026-10-08-hmi-read-live-acceptance.md).
+
+Previous process entries: the [PLC read/write and cross-references design](superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md),
 its [PR A `plc_read` and `read_cross_references` plan](superpowers/plans/2026-10-05-plc-read-and-cross-references.md)
 with its [validation report (offline and live-accepted)](superpowers/acceptance/reports/2026-10-05-plc-read-and-cross-references-validation.md),
 and its [PR B `plc_write` plan](superpowers/plans/2026-10-06-plc-write.md), which retires the batch

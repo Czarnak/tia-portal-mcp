@@ -64,7 +64,7 @@ PR4's observed AMC paths and successful opens do not close this follow-up or Iss
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
-6/15/15 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`;
+6/15/15 tool counts (at the time; now 7/16/16 with `hmi_read`) (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`;
 `plc_write` replaces `preview_write_batch`/`apply_write_batch`, with `content` plus
 `expectedContentHash` instead of `yamlContent`/`sourceContent` and no safety token; full adds no
 tools and PLC run/stop is gone), `bind_project` for already-open projects, no implicit opens, per-call
@@ -78,7 +78,7 @@ plugin cache or user configuration.
 Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-references.md); none blocks it.
 
 - Network: `PlcSoftwareLocator.FindAll` (used by Network) never sees PLCs in device groups; `FindEveryPlc` does.
-- `totally-integrated-claude` skill: tracked in the skill-migration entry above (now 6/15/15 and `plc_write`).
+- `totally-integrated-claude` skill: tracked in the skill-migration entry above (at the time 6/15/15 and `plc_write`; now 7/16/16 with `hmi_read`).
 - `list_tag_tables`: when `tableName`/`folderPath` match nothing but part of the tree was unreadable, the incomplete inventory is returned without an explicit "not found among readable tables" message.
 - `read_cross_references` budget: the trim never recurses inside a kept child; a bare source over budget (pathological names or messages) is still withheld by the renderer; the standalone fallback guidance omits `filter`.
 - `read_cross_references`: a `maxResults` cut does not count into `omittedSourceCount`; the shared incomplete message mentions "unused-object audit" for every filter.
@@ -86,6 +86,48 @@ Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-ref
 - The Plc protocol diagnostic duplicates Network's private `TryWriteProtocolDiagnostic` (missing `validators` field, 512 cap); share one helper.
 - `CrossReferenceTargetResolver.MatchOne` duplicates `ProjectTreeFilter.ResolveOne`'s predicate (drift is pinned by a round-trip test).
 - Unverified cross-reference owner kinds (spec Appendix B): technology objects and Unified `HmiTag` are verified but not shipped; TO instance DBs and Classic HMI tags were not present in the spike project.
+
+## Open: hmi_read follow-ups (2026-10-08)
+
+Found while building and live-accepting [`hmi_read`](superpowers/specs/2026-10-07-hmi-read-design.md)
+([live acceptance report](superpowers/acceptance/reports/2026-10-08-hmi-read-live-acceptance.md)); none
+blocks it. Known limits are also listed in the
+[HMI operations summary](SupportedOperations/HMI_OPERATIONS_SUMMARY.md#known-limits).
+
+- **PR B: Unified `HmiTag` owner kind in `read_cross_references`.** Needs an HMI selector;
+  `browse_project_tree` has no HMI nodes.
+- **Performance of whole-project scans.** About 21-23 s per call on a large PC station regardless of
+  `limit`; paging is stateless, so each page re-scans (1,286 faceplates = 13 calls of about 22 s each).
+  Consider cursors or caching.
+- **Non-integral values unverified live.** The project had only integral values. Encoding is now
+  explicit (`G15`/`G17`, `G7`/`G9`) and runtime-independent, so the offline test covers net48 too.
+- **Live evidence gaps.** Analog alarms, non-default connection drivers, tag comments, live validation
+  errors and warnings (finding shape covered offline only) and non-default Object values.
+- **Unread properties.** `GmpRelevant` and `MandatoryCommenting` are never read (unknown hazard, like
+  `ConfirmationType`, which crashed TIA Portal in the spike).
+- **`validate` scope.** Narrower than the spike's validatable set: member tags, logging tags and screen
+  items are excluded.
+- **Redaction coverage for unseen drivers.** The secret-name denylist (`password`, `passwd`,
+  `passphrase`, `pwd`, `secret`, `token`, `credential`, `privatekey`) is inference, not observed: only
+  S7-1200/1500 drivers were seen live. Check OPC UA and third-party drivers' property names and
+  `InitialAddress` forms (for example credentials embedded in a URL) when such a project is available.
+- **Portal exit after detach.** In spike run 2, TIA Portal exited about 4 s after the worker detached.
+  The cause (a user close, or an exit on detach) was not determined and it was not reproduced; a
+  possible crash-on-detach hazard to watch for.
+- **Duplicate reader helpers (final review M3).** `HmiTagReader` keeps its own `Guard` (identical to
+  `HmiReadLog.Guard`), `Variant` and `ReadComment`, duplicating `HmiAlarmReader.ReadVariant`/`ReadText`,
+  which `HmiScreenReader` borrows. Move `ReadText`/`ReadVariant` onto `HmiReadLog` and delete the copies.
+- **Two completeness idioms (final review M4).** The tag reader sets `isComplete` from
+  `Messages.Count == 0` while the other readers use `HmiReadLog.IsComplete`, and `HmiTextMapper.Map`
+  writes messages without flipping completeness. Route text reads through one `ReadText` that calls
+  `Fail` and use `HmiReadLog.IsComplete` everywhere.
+- **System tags fill the first `validate` tag pages (final review M8).** `@`-prefixed system tags sort
+  first and are counted in `scanned` as `notValidatable`. Order user tags first, or leave system tags out
+  of `scanned`.
+- **Comfort `get_runtime_settings` always incomplete (final review M9).** `GMPEnabled` and
+  `GeneralESIGCommentsStrategy` are documented as unsupported on Comfort panels yet mark every result
+  incomplete, hiding transient failures. Consider `HmiReadLog.Note` for spike-documented unsupported
+  properties.
 
 ## Open: plc_write follow-ups (PR B, 2026-10-07)
 

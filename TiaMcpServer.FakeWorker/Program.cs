@@ -781,6 +781,36 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "hmi-read-roundtrip":
+            Respond(ReadMethod(line) switch
+            {
+                "hmi_list_hmi_devices" => Success(ToCamelCaseJson(new HmiDeviceListInfo
+                {
+                    Devices =
+                    {
+                        new HmiDeviceInfo { DeviceName = "HMI_1", SoftwareName = "HMI_1_RT", Kind = "unified", TypeIdentifier = null },
+                    },
+                })),
+                // Echoes the forwarded query so the host test can see the prefixed method and parameters arrive.
+                "hmi_list_tags" => Success(ToCamelCaseJson(new HmiTagListInfo
+                {
+                    Page = new HmiPage(ReadHmiQueryInt(line, "offset") ?? 0, ReadHmiQueryInt(line, "limit") ?? 0, 1, null),
+                    Tags =
+                    {
+                        new HmiTagRowInfo
+                        {
+                            Name = $"{ReadHmiQueryField(line, "hmiName")}|{ReadHmiQueryField(line, "tableName")}|{ReadHmiQueryInt(line, "offset")}|{ReadHmiQueryInt(line, "limit")}",
+                        },
+                    },
+                })),
+                "hmi_get_tag" when ReadHmiQueryField(line, "tagName") == "Missing"
+                    => """{"success":false,"failureCategory":"target_not_found","error":"tag not found"}""",
+                "hmi_get_tag" => Success(ToCamelCaseJson(new HmiTagDetailInfo { Tag = new HmiTagRowInfo { Name = ReadHmiQueryField(line, "tagName") ?? string.Empty } })),
+                // Deliberately does not decode as HmiSystemTagListInfo: must surface as protocol_error.
+                "hmi_list_system_tags" => Success("""{"secret":"SENTINEL-PAYLOAD"}"""),
+                _ => $$"""{"success":false,"error":"unexpected hmi read method '{{ReadMethod(line)}}'"}"""
+            });
+            break;
         case "plc-read-roundtrip":
             Respond(ReadMethod(line) switch
             {
@@ -2252,6 +2282,20 @@ string SuccessWithResolvedPath(string payload, string resolvedProjectPath)
 string HardwareConfigPayload() => ToCamelCaseJson(RoundTripHardwareConfig());
 
 string? ReadMethod(string requestLine) => ReadField(requestLine, "method");
+
+string? ReadHmiQueryField(string requestLine, string name)
+{
+    using var doc = JsonDocument.Parse(requestLine);
+    return doc.RootElement.TryGetProperty("hmiQuery", out var q) && q.TryGetProperty(name, out var v)
+        && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+}
+
+int? ReadHmiQueryInt(string requestLine, string name)
+{
+    using var doc = JsonDocument.Parse(requestLine);
+    return doc.RootElement.TryGetProperty("hmiQuery", out var q) && q.TryGetProperty(name, out var v)
+        && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
+}
 
 string? LastXrefSegmentName(string requestLine)
 {

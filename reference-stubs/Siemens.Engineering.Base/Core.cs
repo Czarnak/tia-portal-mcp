@@ -35,6 +35,9 @@ namespace Siemens.Engineering
     public abstract class EngineeringException : global::System.Exception
     {
     }
+    public abstract class EngineeringTargetInvocationException : global::Siemens.Engineering.EngineeringException
+    {
+    }
     public abstract class EngineeringNotSupportedException : global::Siemens.Engineering.EngineeringException
     {
     }

@@ -14,7 +14,7 @@ public static class McpToolRegistration
     public static IMcpServerBuilder WithAccessModeTools(this IMcpServerBuilder builder, McpAccessMode mode)
     {
         _ = McpAccessModeNames.ToName(mode); // Reject an invalid configuration before registration.
-        builder.WithProjectReadTools().WithProjectBindingTools().WithTools<NetworkReadTools>().WithTools<Plc.PlcReadTools>().WithTools<CrossReferences.CrossReferenceReadTools>();
+        builder.WithProjectReadTools().WithProjectBindingTools().WithTools<NetworkReadTools>().WithTools<Plc.PlcReadTools>().WithTools<Hmi.HmiReadTools>().WithTools<CrossReferences.CrossReferenceReadTools>();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.Compile))
             builder.WithTools<ProjectEngineeringTools>();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectMutation))

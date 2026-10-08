@@ -185,12 +185,12 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-only** - six tools: five observation tools plus `bind_project`; no compile, edits, or
+- **read-only** - seven tools: six observation tools plus `bind_project`; no compile, edits, or
   lifecycle.
-- **read-write** (server startup default) - fifteen tools: the read-only surface plus
+- **read-write** (server startup default) - sixteen tools: the read-only surface plus
   `compile_check`, `network_write`, `plc_write`, and all six lifecycle tools. Every actual lifecycle
   call requires one confirmation form; `plc_write` and `network_write` never prompt.
-- **full** - the same fifteen tools and operations; lifecycle runs without server elicitation.
+- **full** - the same sixteen tools and operations; lifecycle runs without server elicitation.
   Unknown operations remain denied.
 
 **Migration:** read-write clients can save, close, and use all lifecycle tools with confirmation.
@@ -220,7 +220,7 @@ Configuration precedence: CLI argument > environment variable > default (read-wr
 
 The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
 
-In read-only mode, the server exposes exactly six MCP tools:
+In read-only mode, the server exposes exactly seven MCP tools:
 
 - `bind_project` — adopt or switch to an already-open project without project mutation.
 - `get_project_status` — read active project metadata without opening or switching projects.
@@ -228,6 +228,7 @@ In read-only mode, the server exposes exactly six MCP tools:
 - `plc_read` — run PLC block, type and tag-table reads in a batch.
 - `read_cross_references` — read the cross-references of one project-tree target.
 - `network_read` — run dedicated network reads in a batch.
+- `hmi_read` — run read-only WinCC Unified HMI reads in a batch.
 
 The following operations are **not available** in read-only mode:
 

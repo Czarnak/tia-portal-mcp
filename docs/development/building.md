@@ -30,12 +30,12 @@ includes the host runtime.
 
 ### Generated Openness references
 
-`reference-stubs/Siemens.Engineering.Base/` and `reference-stubs/Siemens.Engineering.Step7/`
+`reference-stubs/Siemens.Engineering.Base/`, `reference-stubs/Siemens.Engineering.Step7/` and `reference-stubs/Siemens.Engineering.WinCCUnified/`
 contain the minimal C# declarations used by the current worker and the locked compile-only
 `reference-stubs/TiaMcpServer.OpennessReferenceProbe/`. The dedicated solution is
 `reference-stubs/TiaMcpServer.ReferenceStubs.sln`. The old tracked references already contained
 Multiuser types, but were opaque and much broader than necessary. The reviewed source now
-owns the generated `ref/Siemens.Engineering.Base.dll` and `ref/Siemens.Engineering.Step7.dll`.
+owns the generated `ref/Siemens.Engineering.Base.dll`, `ref/Siemens.Engineering.Step7.dll` and `ref/Siemens.Engineering.WinCCUnified.dll` (the WinCC Unified stub backs `hmi_read`; all three share one source hash).
 
 Restore both solutions and run the default read-only verifier:
 
@@ -55,7 +55,7 @@ pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Configuration Release 
 pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Configuration Release -NoRestore
 ```
 
-`-Update` replaces only the two known reference DLLs after validation. Both retain their Siemens
+`-Update` replaces only the three known reference DLLs after validation. Both retain their Siemens
 assembly simple names, version `21.0.0.0`, and public-key token `29bfe5fdf4ba5d3b` through
 `reference-stubs/Siemens.Engineering.PublicKey.snk`, a public-only key used for delay signing.
 No private Siemens key or proprietary implementation is present; these compile aids must never
