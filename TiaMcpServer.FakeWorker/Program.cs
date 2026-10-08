@@ -356,7 +356,7 @@ while ((line = Console.In.ReadLine()) is not null)
     if (portalInventoryDeclared && currentMethod == "open_project"
         && (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open" or "local-session-open-bad-result"
             or "local-session-open-context-mismatch" or "local-session-open-verification-mismatch"
-            or "local-session-open-passive-observation"
+            or "local-session-open-passive-observation" or "local-session-open-malformed-identity"
             or "local-session-open-eof" or "local-session-open-timeout")
         && string.Equals(Path.GetExtension(currentProjectPath), ".als21", StringComparison.OrdinalIgnoreCase))
     {
@@ -1702,6 +1702,12 @@ void Respond(string json, bool includeSessionIdentity = true)
             }, WorkerJson.Envelope);
             if (response["sessionIdentity"]?["context"] is JsonObject context)
             {
+                if (currentMethod == "open_project"
+                    && Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-malformed-identity")
+                {
+                    context.Remove("remoteIdentity");
+                    response["payload"] = "PRIVATE_MALFORMED_IDENTITY_PAYLOAD";
+                }
                 if (currentMethod == "open_project"
                     && Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-context-mismatch")
                     context["sessionContainerPath"] = "C:/Private/PRIVATE_ENVELOPE_OWNER.als21";

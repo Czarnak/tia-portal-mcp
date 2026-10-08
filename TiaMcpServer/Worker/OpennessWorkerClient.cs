@@ -1538,6 +1538,10 @@ public class OpennessWorkerClient : IDisposable
 
         if (!result.Success)
         {
+            if (result.DispatchState == WorkerDispatchState.Sent
+                && result.FailureCategory == WorkerFailureCategories.ProtocolError
+                && string.Equals(Path.GetExtension(projectPath), ".als21", StringComparison.OrdinalIgnoreCase))
+                InvalidateVerifiedBinding("the sent ALS opener returned invalid worker identity");
             return result;
         }
 
