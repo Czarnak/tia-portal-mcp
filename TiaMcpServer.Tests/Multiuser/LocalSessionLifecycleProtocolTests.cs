@@ -211,6 +211,53 @@ public sealed class LocalSessionLifecycleProtocolTests
     }
 
     [Fact]
+    public async Task ReadWriteKnownSameAlsReuse_PromptsAndAuditsEachActualCallWithoutOwnerChurn()
+    {
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, null));
+        using var ui = new FakeWorkerUiOpenProject(null);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = Path.Combine(audit.Path, "local-session-open.als21");
+        File.WriteAllText(input, "offline fixture");
+        var prompts = 0;
+        var options = new McpClientOptions
+        {
+            Capabilities = new ClientCapabilities { Elicitation = new ElicitationCapability { Form = new FormElicitationCapability() } },
+            Handlers = new McpClientHandlers
+            {
+                ElicitationHandler = (_, _) =>
+                {
+                    prompts++;
+                    return ValueTask.FromResult(new ElicitResult
+                    {
+                        Action = "accept",
+                        Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
+                    });
+                }
+            }
+        };
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.ReadWrite, audit.Path, clientOptions: options);
+        var arguments = new Dictionary<string, object?> { ["projectPath"] = input };
+        var first = await harness.Client.CallToolAsync("open_project", arguments);
+        Assert.True(first.StructuredContent!.Value.GetProperty("success").GetBoolean(), first.StructuredContent.Value.GetRawText());
+        var before = harness.WorkerClient.BindingSnapshot;
+
+        var second = await harness.Client.CallToolAsync("open_project", arguments);
+        Assert.True(second.StructuredContent!.Value.GetProperty("success").GetBoolean(), second.StructuredContent.Value.GetRawText());
+        var after = harness.WorkerClient.BindingSnapshot;
+        Assert.Equal(2, prompts);
+        Assert.Equal(2, log.Methods().Count(method => method == "open_project"));
+        Assert.Equal(2, File.ReadAllLines(Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl", SearchOption.AllDirectories))).Length);
+        Assert.Equal(before.BindingId, after.BindingId);
+        Assert.Equal(before.Revision, after.Revision);
+        Assert.Equal(before.SessionGeneration, after.SessionGeneration);
+        Assert.True(after.Context!.OpenedByWorker);
+        Assert.Equal(ProjectPathNormalization.Canonicalize(input), after.Context.SessionContainerPath);
+    }
+
+    [Fact]
     public async Task MalformedPostOpenResult_ReportsPossibleMutationWithoutReplay()
     {
         using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, null));
