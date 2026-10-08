@@ -61,7 +61,8 @@ internal static class ProjectBindingDecision
         if (portalProcessId is null && candidates.Length == 0 && portals.Count == 1)
             candidates = portals.ToArray();
         if (candidates.Length == 1)
-            return new ListingChoice.Select(ProjectPathNormalization.Canonicalize(candidates[0].ProjectPath),
+            return new ListingChoice.Select(portalProcessId is null
+                ? ProjectPathNormalization.Canonicalize(candidates[0].ProjectPath) : null,
                 candidates[0].ProcessId);
         return candidates.Length switch
         {

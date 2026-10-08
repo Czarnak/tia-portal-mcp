@@ -40,6 +40,18 @@ public sealed class LocalSessionSelectionWorkerTests
     }
 
     [Fact]
+    public void PidOnlySelection_AmbiguousOwnersInAdvertisedPortalDoNotAdopt()
+    {
+        using var f = new Fixture();
+        f.AddLocal(f.A, f.Amc);
+        f.AddStandalone(f.A, f.Ap);
+        AssertCategory(WorkerFailureCategories.TargetAmbiguous,
+            () => f.Session.SelectPortalProject(null, f.A.Id));
+        Assert.Null(f.Session.ActiveContext);
+        Assert.Equal(0, f.A.Portal.LocalSessions.OpenCalls);
+    }
+
+    [Fact]
     public void MissingAndDuplicateExactEngineeringPath_NeverPickFirst()
     {
         using var f = new Fixture();

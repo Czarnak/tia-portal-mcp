@@ -48,6 +48,10 @@ public sealed class ProjectBindingDecisionTests
     [Fact]
     public void ChooseFromListing_SolePortalWithoutAdvertisedPath_InspectsOwner() => Assert.Equal(new ListingChoice.Select(null, 42), ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProcessId = 42 } }));
     [Fact]
+    public void ChooseFromListing_ExplicitPidWithoutOwnerPath_InspectsAllOwners()
+        => Assert.Equal(new ListingChoice.Select(null, 42), ProjectBindingDecision.ChooseFromListing(
+            new[] { new TiaPortalProcessInfo { ProcessId = 42, ProjectPath = A } }, 42));
+    [Fact]
     public void ChooseFromListing_NoPortals_NotFound() => Assert.IsType<ListingChoice.NotFound>(ProjectBindingDecision.ChooseFromListing(Array.Empty<TiaPortalProcessInfo>()));
     [Fact]
     public void ChooseFromListing_TwoProjects_Ambiguous() => Assert.IsType<ListingChoice.Ambiguous>(ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProjectPath = A }, new TiaPortalProcessInfo { ProjectPath = B } }));
