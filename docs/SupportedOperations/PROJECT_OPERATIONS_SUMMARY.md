@@ -414,10 +414,10 @@ completing the separate human observation. The report preserves runtime/client/a
 
 ### MCP client hints
 
-`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, and
-`close_project` are advertised with conservative mutating MCP hints: `readOnlyHint: false`,
-`destructiveHint: true`, and `openWorldHint: false`. These are client-facing metadata only; they
-do not bypass the safety model. A client may still show its own permission prompt for a destructive
+All six lifecycle tools advertise mutating MCP hints: `readOnlyHint: false` and
+`destructiveHint: true`. `open_project` advertises `openWorldHint: true` because opening a local
+session can contact its Project Server; the other five advertise `openWorldHint: false`.
+These client-facing hints do not bypass the safety model. A client may still show its own permission prompt for a destructive
 tool, including a dry run. Server elicitation asks once per actual read-write lifecycle call.
 
 ## Safety and session binding
