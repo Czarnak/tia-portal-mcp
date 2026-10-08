@@ -12,6 +12,42 @@ public sealed class LocalSessionLifecycleProtocolTests
     private const string Amc = "C:/Projects/Local.amc21";
 
     [Theory]
+    [InlineData("relative")]
+    [InlineData("directory")]
+    [InlineData("unknown-extension")]
+    [InlineData("missing-file")]
+    [InlineData("amc-owner")]
+    public async Task AlsOpen_RejectsNonFileOrNonOpenerInputsBeforeDispatch(string kind)
+    {
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, null));
+        using var ui = new FakeWorkerUiOpenProject(null);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = kind switch
+        {
+            "relative" => "relative.als21",
+            "directory" => audit.Path,
+            "unknown-extension" => Path.Combine(audit.Path, "Unknown.txt"),
+            "missing-file" => Path.Combine(audit.Path, "Missing.als21"),
+            _ => Path.Combine(audit.Path, "Owner.amc21")
+        };
+        if (kind is "unknown-extension" or "amc-owner") File.WriteAllText(input, "offline fixture");
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+
+        var result = await harness.Client.CallToolAsync("open_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = input
+        });
+        var document = result.StructuredContent!.Value;
+        Assert.False(document.GetProperty("success").GetBoolean(), document.GetRawText());
+        Assert.Equal(WorkerFailureCategories.ValidationError,
+            document.GetProperty("error").GetProperty("category").GetString());
+        Assert.DoesNotContain("open_project", log.Methods());
+        Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
+    }
+
+    [Theory]
     [InlineData(".ap21")]
     [InlineData(".als21")]
     public async Task BorrowedLocalSource_DifferentDestinationBlocksBeforeOpen(string extension)
