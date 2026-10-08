@@ -174,7 +174,7 @@ internal static class BlockTargetResolver
     /// The PLC itself, then each of its software units — every scope that owns both a block tree
     /// and its own external source group.
     /// </summary>
-    private static IEnumerable<ResolvedBlockOwner> EnumerateOwners(PlcSoftware plcSoftware)
+    internal static IEnumerable<ResolvedBlockOwner> EnumerateOwners(PlcSoftware plcSoftware)
     {
         yield return new ResolvedBlockOwner(
             "Plc",

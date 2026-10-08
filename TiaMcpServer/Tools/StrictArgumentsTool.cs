@@ -1,8 +1,10 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using TiaMcpServer.Contracts;
 using TiaMcpServer.Plc;
 
 namespace TiaMcpServer.Tools;
@@ -27,11 +29,27 @@ internal static class PlcWriteToolRegistration
                     Services = services,
                     SchemaCreateOptions = new AIJsonSchemaCreateOptions
                     {
+                        TransformSchemaNode = AddObEventClassEnum,
                         TransformOptions = new AIJsonSchemaTransformOptions { DisallowAdditionalProperties = true }
                     }
                 }),
             "plc_write", AllowedKeys, BooleanKeys, RetiredItemMembers));
         return builder;
+    }
+
+    private static JsonNode AddObEventClassEnum(AIJsonSchemaCreateContext context, JsonNode schema)
+    {
+        if (context.PropertyInfo is { Name: "obEventClass" } property
+            && property.DeclaringType == typeof(PlcOperationRequest)
+            && schema is JsonObject node)
+        {
+            var values = new JsonArray();
+            foreach (var cls in ObEventClasses.All) values.Add(cls.Name);
+            values.Add(null);
+            node["enum"] = values;
+        }
+
+        return schema;
     }
 }
 

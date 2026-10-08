@@ -22,15 +22,17 @@ public static class BlockMutationService
         var blockName = address.BlockName;
         var normalizedType = preflight.BlockType;
         var normalizedLang = preflight.Language;
+        var obClass = normalizedType == "OB" ? ResolveObEventClass(obEventClass) : null;
 
         // The plan saw no occupant, so anything found now means the project changed since.
         PlcWritePreconditions.RequireBlockAbsent(group, blockName);
         PlcWritePreconditions.RequireCpuNameFree(plcSoftware, blockName, currentName: null);
+        var obNumber = obClass is null ? (int?)null : PickObNumber(plcSoftware, obClass);
 
         return BlockCreationCoordinator.Execute(
             () =>
             {
-                ImportBlockFromXml(group, blockName, normalizedType, normalizedLang, obEventClass);
+                var block = ImportBlockFromXml(group, blockName, normalizedType, normalizedLang, obClass?.Name, obNumber);
 
                 return new BlockMutationResultInfo
                 {
@@ -39,7 +41,9 @@ public static class BlockMutationService
                     PlcName = address.PlcName ?? plcSoftware.Name,
                     BlockPath = blockPath,
                     BlockType = normalizedType,
-                    Language = (normalizedType is "GLOBALDB" or "DB") ? null : normalizedLang
+                    Language = (normalizedType is "GLOBALDB" or "DB") ? null : normalizedLang,
+                    Number = block.Number,
+                    ObEventClass = obClass?.Name
                 };
             },
             () => VerifyCreatedBlockPostconditions(project, address, blockPath));
@@ -212,14 +216,48 @@ public static class BlockMutationService
         return result;
     }
 
-    private static void ImportBlockFromXml(
+    private static ObEventClass ResolveObEventClass(string? name)
+    {
+        if (ObEventClasses.TryGet(name ?? ObEventClasses.Default, out var cls))
+        {
+            return cls;
+        }
+
+        throw new WorkerOperationException(
+            WorkerFailureCategories.ValidationError,
+            $"Unknown obEventClass '{name}'. Valid values: {ObEventClasses.NamesForMessage()}.");
+    }
+
+    // Re-applies the number rule against the project as it is now, not as it was planned.
+    private static int PickObNumber(PlcSoftware plcSoftware, ObEventClass cls)
+    {
+        var used = ObNumberScanner.Collect(plcSoftware);
+        if (ObNumberRules.Pick(cls, used) is { } number)
+        {
+            return number;
+        }
+
+        if (cls.IsSingleton)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.StateChanged,
+                $"An OB already holds number {cls.BaseNumber}, the only number of event class '{cls.Name}' in PLC '{plcSoftware.Name}'. The project changed after the write was planned.");
+        }
+
+        throw new WorkerOperationException(
+            WorkerFailureCategories.ValidationError,
+            $"No OB number from {ObNumberRules.FirstFree} to {ObNumberRules.Max} is free in PLC '{plcSoftware.Name}'.");
+    }
+
+    private static PlcBlock ImportBlockFromXml(
         PlcBlockGroup group,
         string blockName,
         string blockType,
         string language,
-        string? obEventClass)
+        string? obEventClass,
+        int? obNumber)
     {
-        var xml = BlockSourceGenerator.Generate(blockName, blockType, language, obEventClass);
+        var xml = BlockSourceGenerator.Generate(blockName, blockType, language, obEventClass, obNumber);
         BlockSourceValidator.Validate(blockType, language, xml);
         var tempFile = Path.Combine(
             Path.GetTempPath(),
@@ -228,7 +266,14 @@ public static class BlockMutationService
         try
         {
             File.WriteAllText(tempFile, xml, System.Text.Encoding.UTF8);
-            group.Blocks.Import(new FileInfo(tempFile), ImportOptions.None);
+            foreach (PlcBlock block in group.Blocks.Import(new FileInfo(tempFile), ImportOptions.None))
+            {
+                return block;
+            }
+
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed,
+                $"Importing block '{blockName}' returned no block.");
         }
         finally
         {

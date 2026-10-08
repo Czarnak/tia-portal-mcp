@@ -162,7 +162,24 @@ saves, downloads, or controls a PLC.
 | `update_user_constant` | `tableName`, `name` | `plcName`, `folderPath`, `dataType`, `value` |
 | `delete_user_constant` | `tableName`, `name` | `plcName`, `folderPath` |
 
-`create_block` accepts `FB`, `FC`, `OB`, or `GlobalDB`. Applicable block types support `LAD`, `FBD`, `STL`, `SCL`, and `GRAPH`. OB creation also accepts event classes such as `ProgramCycle`, `Startup`, `TimeDelay`, `CyclicInterrupt`, `HardwareInterrupt`, `Diagnostic`, and `TimeOfDay`.
+`create_block` accepts `FB`, `FC`, `OB`, or `GlobalDB`. Applicable block types support `LAD`, `FBD`, `STL`, `SCL`, and `GRAPH`. `GRAPH` is not supported for `OB`. `STL` FB, FC and OB creation works.
+
+OB creation takes `obEventClass`, a closed set of 15 names, omitted meaning `ProgramCycle`:
+`ProgramCycle`, `Startup`, `TimeOfDay`, `TimeDelayInterrupt`, `CyclicInterrupt`,
+`HardwareInterrupt`, `Status`, `Update`, `Profile`, `TimeErrorInterrupt`, `DiagnosticErrorInterrupt`,
+`PullOrPlugOfModules`, `RackOrStationFailure`, `ProgrammingError` and `IOAccessError`. The server
+picks the OB number: a singleton class gets its base number; a multi-instance class gets its base
+number if no OB in the PLC holds it, otherwise the lowest free number from 123 to 32767 (only OB
+numbers count, including OBs in software units and system groups). `dryRun` shows the planned
+`number` and `obEventClass` in the effect. Each applied `create_block` result carries `number` (the
+created block's number; null for other block operations) and `obEventClass` (null for non-OB), both
+always written. An unknown `obEventClass` is `validation_error` listing the valid names; so is
+`obEventClass` with a non-OB `blockType`. A class the CPU does not support fails the item with TIA
+Portal's own message (for example "Cannot create an organization block of type
+'ProgrammingError'." on an S7-1200). The 2026-10-09
+[live acceptance report](../superpowers/acceptance/reports/2026-10-09-ob-creation-live-acceptance.md)
+records the V21 run.
+
 `create_block`, `create_block_group` and `delete_block_group` take a deterministic group path or the
 two-segment `PLC/Name` (the PLC root group); a one-segment path is `validation_error`.
 `update_block_logic` and `delete_block` resolve the block uniquely across the PLC, so a missing block
@@ -195,6 +212,7 @@ mode (a dry run lists them and still returns `preview`); info guards become warn
 | `plc_state_unverifiable` | block | Evidence relevant to the target is incomplete or unreadable. An incomplete root inventory fires it for every item, and so does updating or deleting a constant whose value is unreadable. Unreadable evidence is never treated as empty. |
 | `plc_name_collision` | block | A new or renamed tag, constant, block, group or table collides with an existing or in-call object. Tag and constant names are compared case-insensitively across tags, user constants and blocks in the PLC's CPU namespace; table names across the PLC's whole tag-table hierarchy. |
 | `plc_block_exists` | block | `create_block` targets an existing block; existing blocks are never overwritten. |
+| `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class and the PLC already holds that class's OB number, or an earlier item in the same call creates it. The message names the class, the number and the existing block. |
 | `plc_default_tag_table` | block | `delete_tag_table` targets the default tag table. |
 | `plc_attribute_unreadable` | block | `update_tag` requests an external-access flag that is unreadable on the current tag. |
 | `plc_deletes_block` | info | `delete_block` removes the block and its content. |
@@ -227,6 +245,13 @@ whole values are omitted, never cut. Every entered call appends one audit v2 rec
   unit block is blocked as `plc_name_collision`. This fails closed; see the
   [improvement log](../IMPROVEMENT_LOG.md).
 - `isSafety` is not verified after the write.
+- Created OBs use TIA Portal defaults: no event parameters (cyclic time, phase offset, priority,
+  time-of-day schedule, hardware-interrupt triggers) and no renumbering of existing blocks. See the
+  [improvement log](../IMPROVEMENT_LOG.md).
+- `SynchronousCycle` is not offered: it does not compile until an isochronous IO system is assigned,
+  which no tool here configures. Motion Control, redundancy and ProDiag OBs are created by TIA Portal.
+- A multi-instance OB number can differ from the plan if another OB takes it in between; the result
+  `number` is authoritative. A singleton number taken in between fails the item with `state_changed`.
 
 ## Tag safety acceptance boundary
 

@@ -64,6 +64,11 @@ internal static class BlockSourceValidator
         {
             throw ValidationFailure($"Unsupported programming language '{language}'.");
         }
+
+        if (blockType == "OB" && language == "GRAPH")
+        {
+            throw ValidationFailure("GRAPH is not supported for organization blocks.");
+        }
     }
 
     private static bool HasCompileUnitFor(XDocument document, string language)

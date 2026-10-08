@@ -77,6 +77,8 @@
       Link="Linked\Openness\CompileReportProjection.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockTargetResolver.cs"
       Link="Linked\Openness\BlockTargetResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ObNumberScanner.cs"
+      Link="Linked\Openness\ObNumberScanner.cs" />
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj"
       ReferenceOutputAssembly="false" />
@@ -275,6 +277,10 @@
       Link="Linked\Openness\BlockCreationCoordinator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceGenerator.cs"
       Link="Linked\Openness\BlockSourceGenerator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ObFixtureStore.cs"
+      Link="Linked\Openness\ObFixtureStore.cs" />
+    <EmbeddedResource Include="..\TiaMcpServer.OpennessWorker\Openness\ObFixtures\*.xml"
+      LogicalName="TiaMcpServer.ObFixtures.%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceValidator.cs"
       Link="Linked\Openness\BlockSourceValidator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockWritePreflight.cs"

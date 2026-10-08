@@ -253,6 +253,86 @@ public sealed class PlcWritePreconditionsTests
             WorkerFailureCategories.ValidationError);
     }
 
+    private sealed class SuccessCompiler : Siemens.Engineering.Compiler.ICompilable
+    {
+        public Siemens.Engineering.Compiler.CompilerResult Compile()
+            => new() { State = Siemens.Engineering.Compiler.CompilerResultState.Success };
+    }
+
+    private static T Imported<T>(PlcSoftware plc, T block) where T : PlcBlock
+    {
+        block.CompilerService = new SuccessCompiler();
+        plc.BlockGroup.Blocks.ImportResult.Add(block);
+        return block;
+    }
+
+    [Fact]
+    public void CreateOb_DefaultsToProgramCycleAndUsesFreeNumber()
+    {
+        var (project, plc, _) = Single();
+        plc.BlockGroup.Blocks.Items.Add(new OB { Name = "Main", Number = 1 });
+        // TIA's number is authoritative: the result reports what the imported block holds.
+        Imported(plc, new OB { Name = "NewOb", Number = 124 });
+
+        var result = BlockMutationService.CreateBlock(project, "PLC_1/NewOb", "OB", "SCL", null);
+
+        Assert.Contains("<Number>123</Number>", Assert.Single(plc.BlockGroup.Blocks.ImportedDocuments));
+        Assert.Contains("<SecondaryType>ProgramCycle</SecondaryType>", plc.BlockGroup.Blocks.ImportedDocuments[0]);
+        Assert.Equal(124, result.Number);
+        Assert.Equal("ProgramCycle", result.ObEventClass);
+    }
+
+    [Fact]
+    public void CreateOb_SingletonTakenSincePlanIsStateChanged()
+    {
+        var (project, plc, _) = Single();
+        plc.BlockGroup.Blocks.Items.Add(new OB { Name = "Diag", Number = 82 });
+
+        var ex = Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/NewOb", "OB", "SCL", "DiagnosticErrorInterrupt"),
+            WorkerFailureCategories.StateChanged);
+
+        Assert.Contains("DiagnosticErrorInterrupt", ex.Message);
+        Assert.Contains("82", ex.Message);
+        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
+    }
+
+    [Fact]
+    public void CreateOb_MultiInstanceRepicksWhenPlannedNumberTaken()
+    {
+        var (project, plc, _) = Single();
+        plc.BlockGroup.Blocks.Items.Add(new OB { Name = "Cyclic", Number = 30 });
+        Imported(plc, new OB { Name = "NewOb", Number = 123 });
+
+        var result = BlockMutationService.CreateBlock(project, "PLC_1/NewOb", "OB", "SCL", "CyclicInterrupt");
+
+        Assert.Contains("<Number>123</Number>", Assert.Single(plc.BlockGroup.Blocks.ImportedDocuments));
+        Assert.Equal(123, result.Number);
+        Assert.Equal("CyclicInterrupt", result.ObEventClass);
+    }
+
+    [Fact]
+    public void CreateOb_UnknownClassIsValidationError()
+    {
+        var (project, plc, _) = Single();
+
+        Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/NewOb", "OB", "SCL", "programcycle"),
+            WorkerFailureCategories.ValidationError);
+
+        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
+    }
+
+    [Fact]
+    public void CreateFb_ResultHasNumberAndNullObEventClass()
+    {
+        var (project, plc, _) = Single();
+        Imported(plc, new FB { Name = "NewFb", Number = 7 });
+
+        var result = BlockMutationService.CreateBlock(project, "PLC_1/NewFb", "FB", "SCL", null);
+
+        Assert.Equal(7, result.Number);
+        Assert.Null(result.ObEventClass);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

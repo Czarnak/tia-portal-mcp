@@ -77,6 +77,6 @@ public sealed class PlcOperationRequest : IOperationBatchItem
     [Description("Programming language for create_block (FB/FC/OB only). Valid values: LAD, FBD, STL, SCL, GRAPH. Defaults to LAD. Omit for blockType=GlobalDB, which always uses DB.")]
     public string? Language { get; set; }
 
-    [Description("OB event class for create_block when blockType=OB. Valid values: ProgramCycle, Startup, TimeDelay, CyclicInterrupt, HardwareInterrupt, Diagnostic, TimeOfDay. Defaults to ProgramCycle.")]
+    [Description("OB event class for create_block when blockType=OB; defaults to ProgramCycle. The server assigns the OB number.")]
     public string? ObEventClass { get; set; }
 }

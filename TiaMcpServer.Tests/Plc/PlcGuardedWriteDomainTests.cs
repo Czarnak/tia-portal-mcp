@@ -151,6 +151,50 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.DoesNotContain("create_block", requests.Methods());
     }
 
+    private static PlcOperationRequest CreateOb(string id, string blockPath, string? obEventClass = null)
+        => new() { OperationId = id, Operation = "create_block", BlockPath = blockPath, BlockType = "OB", ObEventClass = obEventClass };
+
+    [Fact]
+    public async Task DryRunListsSingletonGuardThenActualCallBlocks()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var items = new[] { CreateOb("first", "PLC_2/ProgErr1", "ProgrammingError"), CreateOb("second", "PLC_2/ProgErr2", "ProgrammingError") };
+
+        var preview = await fixture.RunAsync(true, items);
+        var actual = await fixture.RunRawAsync(false, items);
+        var blocked = Document(actual);
+
+        Assert.Equal("preview", preview.Phase);
+        var guard = Assert.Single(preview.Guards, g => g.Id == PlcGuardDefinitions.ObSingletonExists);
+        Assert.Equal(("second", "block"), (guard.OperationId, guard.Severity));
+        Assert.True(actual.IsError);
+        Assert.Equal("blocked", blocked.Phase);
+        Assert.Contains(blocked.Guards, g => g.Id == PlcGuardDefinitions.ObSingletonExists);
+        Assert.Null(blocked.Batch);
+        Assert.DoesNotContain("create_block", requests.Methods());
+    }
+
+    [Fact]
+    public async Task ObCreatePreviewNumberMatchesAppliedResult()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var items = new[] { CreateOb("cycle", "PLC_2/Cycle2"), CreateOb("cyclic", "PLC_2/Cyclic1", "CyclicInterrupt"), CreateBlock("fc", "PLC_2/FC_New") };
+
+        var preview = await fixture.RunAsync(true, items);
+        var applied = await fixture.RunAsync(false, items);
+
+        Assert.True(applied.Success, JsonSerializer.Serialize(applied));
+        var planned = preview.Effects.Select(e => e.Effect!.Changes.SingleOrDefault(c => c.Field == "number")?.Requested).ToArray();
+        Assert.Equal(new[] { "123", "30", null }, planned);
+        var results = applied.Batch!.Operations.Select(o => o.Result!.Value).ToArray();
+        Assert.Equal(new[] { "123", "30" }, results.Take(2).Select(r => r.GetProperty("number").GetInt32().ToString()));
+        Assert.Equal(new[] { "ProgramCycle", "CyclicInterrupt", null }, results.Select(r => r.GetProperty("obEventClass").GetString()));
+        Assert.Equal(JsonValueKind.Number, results[2].GetProperty("number").ValueKind);
+    }
+
     [Fact]
     public async Task CollisionBlocksWholeCall_NothingRuns()
     {

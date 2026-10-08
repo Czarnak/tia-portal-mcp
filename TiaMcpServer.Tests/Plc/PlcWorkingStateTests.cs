@@ -34,12 +34,12 @@ public class PlcWorkingStateTests
     private static ProjectTreeNode Node(string type, string name, params ProjectTreeNode[] children)
         => new() { NodeType = type, Name = name, Children = children.ToList() };
 
-    private static ProjectTreeNode Block(string type, string name, string language, bool system = false) => new()
+    private static ProjectTreeNode Block(string type, string name, string language, int number = 1, bool system = false) => new()
     {
         NodeType = type, Name = name, Children = new(),
         Details = system
-            ? new() { ["Number"] = "1", ["ProgrammingLanguage"] = language, ["IsSystemBlock"] = "true" }
-            : new() { ["Number"] = "1", ["ProgrammingLanguage"] = language },
+            ? new() { ["Number"] = number.ToString(), ["ProgrammingLanguage"] = language, ["IsSystemBlock"] = "true" }
+            : new() { ["Number"] = number.ToString(), ["ProgrammingLanguage"] = language },
     };
 
     private static ProjectTreeObservation Tree(params ProjectTreeSkippedNodeInfo[] skipped) => new(
@@ -51,10 +51,15 @@ public class PlcWorkingStateTests
             Node(ProjectTreeNodeTypes.PlcSoftware, Plc,
                 Node(ProjectTreeNodeTypes.BlockFolder, "Program blocks",
                     Block(ProjectTreeNodeTypes.Ob, "Main", "LAD"),
+                    Block(ProjectTreeNodeTypes.Ob, "OB_ProgErr", "SCL", 121),
                     Node(ProjectTreeNodeTypes.BlockFolder, "Motors",
                         Block(ProjectTreeNodeTypes.Fb, "FB_Motor", "SCL"),
                         Node(ProjectTreeNodeTypes.BlockFolder, "Legacy", Block(ProjectTreeNodeTypes.Fc, "FC_Old", "LAD"))),
-                    Node(ProjectTreeNodeTypes.SystemBlockFolder, "System blocks", Block(ProjectTreeNodeTypes.Fb, "TCON", "STL", system: true))),
+                    Node(ProjectTreeNodeTypes.SystemBlockFolder, "System blocks",
+                        Block(ProjectTreeNodeTypes.Fb, "TCON", "STL", 65, system: true),
+                        Block(ProjectTreeNodeTypes.Ob, "SysTimeErr", "SCL", 80, system: true))),
+                Node(ProjectTreeNodeTypes.SoftwareUnit, "Unit_A",
+                    Node(ProjectTreeNodeTypes.BlockFolder, "Program blocks", Block(ProjectTreeNodeTypes.Ob, "UnitDiag", "SCL", 82))),
                 Node(ProjectTreeNodeTypes.TagTableFolder, "PLC tags",
                     Node(ProjectTreeNodeTypes.TagTableFolder, "Line", Node(ProjectTreeNodeTypes.TagTable, "Motors")),
                     Node(ProjectTreeNodeTypes.TagTable, "Default tag table")),
@@ -94,6 +99,110 @@ public class PlcWorkingStateTests
     }
 
     private static IEnumerable<string> GuardIds(PlcResolution resolution) => resolution.Guards.Select(guard => guard.Id);
+
+    private static PlcOperationRequest Ob(string id, string path, string? obEventClass = null, string blockType = "OB")
+        => new() { OperationId = id, Operation = "create_block", BlockPath = path, BlockType = blockType, ObEventClass = obEventClass };
+
+    private static string? Planned(PlcResolution resolution, string field)
+        => resolution.Effect!.Changes.SingleOrDefault(change => change.Field == field)?.Requested;
+
+    [Fact]
+    public void ObCreatePlansNumberInEffect()
+    {
+        var resolution = State().Resolve(Ob("ob", "PLC_1/Cycle2"));
+
+        Assert.Null(resolution.Error);
+        Assert.Empty(resolution.Guards);
+        Assert.Contains(new PlcFieldChange("number", null, "123"), resolution.Effect!.Changes);
+    }
+
+    [Fact]
+    public void ObCreateDefaultsObEventClassInEffect()
+    {
+        Assert.Equal("ProgramCycle", Planned(State().Resolve(Ob("ob", "PLC_1/Cycle2")), "obEventClass"));
+        Assert.Equal("Startup", Planned(State().Resolve(Ob("ob", "PLC_1/Boot", "Startup")), "obEventClass"));
+    }
+
+    [Fact]
+    public void SingletonHeldFiresGuardNamingExistingBlock()
+    {
+        var resolution = State().Resolve(Ob("ob", "PLC_1/ProgErr2", "ProgrammingError"));
+
+        var guard = Assert.Single(resolution.Guards);
+        Assert.Equal(PlcGuardDefinitions.ObSingletonExists, guard.Id);
+        Assert.Contains("ProgrammingError", guard.Message);
+        Assert.Contains("121", guard.Message);
+        Assert.Contains("PLC_1/Blocks/OB_ProgErr", guard.Message);
+        Assert.Null(Planned(resolution, "number"));
+    }
+
+    [Fact]
+    public void TwoSingletonsInOneCallSecondIsGuarded()
+    {
+        var results = Run(State(), Ob("first", "PLC_1/RackErr1", "RackOrStationFailure"), Ob("second", "PLC_1/RackErr2", "RackOrStationFailure"));
+
+        Assert.Empty(results[0].Resolution.Guards);
+        Assert.Equal("86", Planned(results[0].Resolution, "number"));
+        var guard = Assert.Single(results[1].Resolution.Guards);
+        Assert.Equal(PlcGuardDefinitions.ObSingletonExists, guard.Id);
+        Assert.Contains("PLC_1/Blocks/RackErr1", guard.Message);
+    }
+
+    [Fact]
+    public void SystemGroupObHoldsSingletonNumber()
+    {
+        var guard = Assert.Single(State().Resolve(Ob("ob", "PLC_1/TimeErr", "TimeErrorInterrupt")).Guards);
+
+        Assert.Equal(PlcGuardDefinitions.ObSingletonExists, guard.Id);
+        Assert.Contains("SysTimeErr", guard.Message);
+        Assert.Contains("System blocks", guard.Message);
+    }
+
+    [Fact]
+    public void TwoCyclicCreatesGetDistinctNumbers()
+    {
+        var results = Run(State(), Ob("a", "PLC_1/Cyc1", "CyclicInterrupt"), Ob("b", "PLC_1/Cyc2", "CyclicInterrupt"));
+
+        Assert.Equal("30", Planned(results[0].Resolution, "number"));
+        Assert.Equal("123", Planned(results[1].Resolution, "number"));
+    }
+
+    [Fact]
+    public void UnitObHoldsSingletonNumber()
+    {
+        var guard = Assert.Single(State().Resolve(Ob("ob", "PLC_1/Diag", "DiagnosticErrorInterrupt")).Guards);
+
+        Assert.Equal(PlcGuardDefinitions.ObSingletonExists, guard.Id);
+        Assert.Contains("PLC_1/Units/Unit_A/Blocks/UnitDiag", guard.Message);
+    }
+
+    [Fact]
+    public void LowerCaseObTypePlansNumberAndGuards()
+    {
+        var state = State();
+
+        Assert.Contains(PlcGuardDefinitions.ObSingletonExists, GuardIds(state.Resolve(Ob("a", "PLC_1/ProgErr2", "ProgrammingError", "ob"))));
+        var results = Run(state, Ob("b", "PLC_1/Cycle2", blockType: "ob"), Ob("c", "PLC_1/Cycle3", blockType: "Ob"));
+        Assert.Equal("123", Planned(results[0].Resolution, "number"));
+        Assert.Equal("124", Planned(results[1].Resolution, "number"));
+    }
+
+    [Fact]
+    public void DeletedObFreesItsNumberForLaterItems()
+    {
+        var results = Run(State(), Blocks("d", "delete_block", "PLC_1/OB_ProgErr"), Ob("c", "PLC_1/ProgErr2", "ProgrammingError"));
+
+        Assert.DoesNotContain(PlcGuardDefinitions.ObSingletonExists, GuardIds(results[1].Resolution));
+        Assert.Equal("121", Planned(results[1].Resolution, "number"));
+    }
+
+    [Fact]
+    public void FbCreateHasNoNumberChange()
+    {
+        var effect = State().Resolve(Blocks("fb", "create_block", "PLC_1/FB_New", "FB")).Effect!;
+
+        Assert.DoesNotContain(effect.Changes, change => change.Field is "number" or "obEventClass");
+    }
 
     [Fact]
     public void CreateTableThenTagDependsOnTable()
