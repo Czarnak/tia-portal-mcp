@@ -71,6 +71,8 @@ public sealed class LocalSessionCapabilityTests
     [InlineData("compile_check")]
     [InlineData("plc_read")]
     [InlineData("network_read")]
+    [InlineData("plc_write")]
+    [InlineData("network_write")]
     public async Task LocalUnsupportedOperation_DeniesBeforeWorkerDispatch(string operation)
     {
         using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, Amc));
@@ -91,6 +93,8 @@ public sealed class LocalSessionCapabilityTests
             "close_project" => new Dictionary<string, object?> { ["dryRun"] = true },
             "plc_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_tag_tables" } } },
             "network_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "read_hardware_config" } } },
+            "plc_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "create_block_group", blockPath = "PLC_1/Blocks/New" } }, ["dryRun"] = true },
+            "network_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "create_subnet", subnet = new { name = "New", networkType = "Ethernet" } } }, ["dryRun"] = true },
             _ => new Dictionary<string, object?>()
         };
         var response = await harness.Client.CallToolAsync(operation, arguments);
