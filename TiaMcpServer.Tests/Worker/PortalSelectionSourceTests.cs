@@ -27,7 +27,7 @@ public sealed class PortalSelectionSourceTests
     }
 
     private static string Selection => Method(Read("Openness/TiaPortalSession.cs"),
-        "public PortalProjectSelectionInfo SelectPortalProject(string projectPath, int? requestedProcessId)");
+        "public PortalProjectSelectionInfo SelectPortalProject(string? projectPath, int? requestedProcessId)");
 
     [Fact]
     public void ListingRequestMatchesCatalogAndBothWorkerDispatches()

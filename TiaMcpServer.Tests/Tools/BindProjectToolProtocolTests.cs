@@ -283,7 +283,7 @@ public sealed class BindProjectToolProtocolTests
     [InlineData("{\"action\":\"list_server_projects\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true,\"name\":null,\"extra\":false}}")]
     [InlineData("{\"action\":\"list_local_sessions\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true,\"name\":null}}")]
     [InlineData("{\"action\":\"get_lock_state\",\"serverAlias\":\"Fixture\",\"group\":{\"isRoot\":true,\"name\":null},\"serverProjectName\":\"\"}")]
-    [InlineData("{\"action\":\"bind\",\"portalProcessId\":42}")]
+    [InlineData("{\"action\":\"bind\",\"portalProcessId\":0}")]
     [InlineData("{\"action\":\"BIND\"}")]
     [InlineData("{\"action\":true}")]
     [InlineData("{\"action\":\"get_session_state\"}")]
