@@ -266,6 +266,39 @@ public class HmiTagReaderTests
     }
 
     [Fact]
+    public void MembersStopAtRowCapAcrossAllLevelsWithTruncatedFlagAndOneMessage()
+    {
+        // 60 members with one child each: 120 rows in all, so the 100-row cap is hit at the second level.
+        HmiTag Wide(int children)
+        {
+            var top = Tag("top");
+            for (var i = 0; i < children; i++)
+            {
+                var member = Tag($"m{i:D3}");
+                member.Members.Items.Add(Tag($"m{i:D3}.c"));
+                top.Members.Items.Add(member);
+            }
+
+            return top;
+        }
+
+        int Rows(IReadOnlyList<HmiTagMemberInfo> members) => members.Sum(m => 1 + Rows(m.Members));
+
+        var exact = HmiTagReader.GetTag(SoftwareWith(Table("T1", Wide(50))), "top", null);
+        var capped = HmiTagReader.GetTag(SoftwareWith(Table("T1", Wide(60))), "top", null);
+
+        Assert.Equal(100, HmiTagReader.MaxMemberRows);
+        Assert.Equal(100, Rows(exact.Members));
+        Assert.False(exact.MembersTruncated);
+        Assert.Empty(exact.Messages);
+        Assert.Equal(100, Rows(capped.Members));
+        Assert.True(capped.MembersTruncated);
+        Assert.True(capped.IsComplete);
+        var message = Assert.Single(capped.Messages);
+        Assert.Contains("100", message);
+    }
+
+    [Fact]
     public void GetTagObjectValuesAreVariants()
     {
         var tag = Tag("a");

@@ -85,7 +85,10 @@ public class HmiTagDetailInfo
 
     public List<HmiTagMemberInfo> Members { get; set; } = new List<HmiTagMemberInfo>();
 
-    /// <summary>True when a member at the depth cap has members that were not read.</summary>
+    /// <summary>
+    /// True when members were not read: a member at the depth cap (8) has members, or the row cap (100 member rows,
+    /// all levels combined) was hit, which also adds one message. Neither cap makes the result incomplete.
+    /// </summary>
     public bool MembersTruncated { get; set; }
 
     public List<HmiThresholdInfo> Thresholds { get; set; } = new List<HmiThresholdInfo>();

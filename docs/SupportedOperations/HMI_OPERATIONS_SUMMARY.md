@@ -66,6 +66,9 @@ connection comments are plain strings.
 
 ## Operation notes
 
+- **`get_tag` members.** Members are read recursively to depth 8 and at most 100 member rows in
+  all (every level combined). Hitting either cap sets `membersTruncated:true`; the row cap also adds
+  one message. Neither cap makes the result incomplete.
 - **`validate`.** Pages over *scanned* objects so the cost of one call is bounded; `total` is the
   number of objects in the category. Clean objects are counted, not listed. Scope excludes member
   tags, logging tags and screen items. System tags are counted but listed as `notValidatable`. An

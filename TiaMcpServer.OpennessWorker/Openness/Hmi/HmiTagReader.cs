@@ -17,6 +17,19 @@ public static class HmiTagReader
     /// <summary>Spike S9: the deepest observed member nesting is 4, so 8 leaves twice the headroom.</summary>
     public const int MaxMemberDepth = 8;
 
+    /// <summary>
+    /// Total member rows read for one tag, all levels combined. Live E6 measured about 397 characters per row,
+    /// so 100 rows stay well under the 60,000-character value budget.
+    /// </summary>
+    public const int MaxMemberRows = 100;
+
+    private sealed class MemberWalk
+    {
+        public int Rows;
+        public bool Truncated;
+        public bool RowCapHit;
+    }
+
     public static HmiTagTableTreeInfo ListTagTables(HmiSoftware software, string? groupPath)
     {
         IEnumerable<HmiTagTable> tables;
@@ -73,12 +86,12 @@ public static class HmiTagReader
         var tag = FindUniqueTag(software, tagName);
         var log = new HmiReadLog();
         var name = TagName(tag);
-        var truncated = false;
+        var walk = new MemberWalk();
         var detail = new HmiTagDetailInfo
         {
             Tag = ReadRow(tag, language, log),
-            Members = ReadMembers(tag, name, language, 0, log, ref truncated),
-            MembersTruncated = truncated,
+            Members = ReadMembers(tag, name, language, 0, log, walk),
+            MembersTruncated = walk.Truncated,
             Thresholds = ReadThresholds(tag, name, log),
             LoggingTags = ReadLoggingTags(tag, name, log),
             UpperRange = ReadRange(log, name, "InitialMaxValue", () => tag.InitialMaxValue),
@@ -92,6 +105,13 @@ public static class HmiTagReader
         };
         detail.Messages = log.Messages;
         detail.IsComplete = log.Messages.Count == 0;
+
+        // Like the depth cap, the row cap is a deliberate bound, not a failed read, so it leaves completeness alone.
+        if (walk.RowCapHit)
+        {
+            detail.Messages.Add($"Members of tag '{name}' stopped at the {MaxMemberRows}-row cap; the remaining members were not read.");
+        }
+
         return detail;
     }
 
@@ -193,7 +213,7 @@ public static class HmiTagReader
     }
 
     private static List<HmiTagMemberInfo> ReadMembers(
-        HmiTag parent, string parentName, string? language, int depth, HmiReadLog log, ref bool truncated)
+        HmiTag parent, string parentName, string? language, int depth, HmiReadLog log, MemberWalk walk)
     {
         var members = Guard(() => parent.Members.ToList(), $"The members of tag '{parentName}'");
         if (members.Count == 0)
@@ -203,18 +223,26 @@ public static class HmiTagReader
 
         if (depth >= MaxMemberDepth)
         {
-            truncated = true;
+            walk.Truncated = true;
             return new List<HmiTagMemberInfo>();
         }
 
         var result = new List<HmiTagMemberInfo>();
         foreach (var member in members)
         {
+            if (walk.Rows >= MaxMemberRows)
+            {
+                walk.Truncated = true;
+                walk.RowCapHit = true;
+                break;
+            }
+
+            walk.Rows++;
             var row = ReadRow(member, language, log);
             result.Add(new HmiTagMemberInfo
             {
                 Tag = row,
-                Members = ReadMembers(member, row.Name, language, depth + 1, log, ref truncated),
+                Members = ReadMembers(member, row.Name, language, depth + 1, log, walk),
             });
         }
 
