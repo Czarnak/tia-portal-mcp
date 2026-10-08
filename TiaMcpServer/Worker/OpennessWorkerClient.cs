@@ -57,6 +57,7 @@ public class OpennessWorkerClient : IDisposable
     private readonly SemaphoreSlim _bindingOperationGate = new(1, 1);
     private readonly AsyncLocal<BindingOperationContext?> _bindingOperationContext = new();
     private PersistentWorkerTransport? _transport;
+    private (ProjectBindingSnapshot Binding, WorkerSessionIdentity Identity)? _emptyPortalRecovery;
 
     public OpennessWorkerClient(
         ProjectSessionBinding projectSessionBinding,
@@ -126,7 +127,26 @@ public class OpennessWorkerClient : IDisposable
                         var validated = ValidateOrPromoteSessionIdentity(listing, before);
                         if (!validated.Success) result = validated;
                     }
-                    try { portals = ProjectBindingPayloadContract.DecodeProcessList(listing.Payload).Processes; }
+                    try
+                    {
+                        var inventory = ProjectBindingPayloadContract.DecodeProcessList(listing.Payload);
+                        portals = inventory.Processes;
+                        var invalidated = BindingSnapshot;
+                        if (before.IsVerified && invalidated.State == ProjectBindingSnapshot.InvalidatedState
+                            && invalidated.Revision == before.Revision + 1
+                            && listing.ResolvedProjectPath is null
+                            && listing.SessionIdentity is { ProjectPath: null, Context: null } empty
+                            && empty.WorkerSessionId == before.WorkerSessionId
+                            && empty.PortalProcessId == before.PortalProcessId
+                            && empty.SessionGeneration > before.SessionGeneration
+                            && listing.PortalProcessId == empty.PortalProcessId
+                            && inventory.AttachedProcessId == empty.PortalProcessId)
+                            _emptyPortalRecovery = (invalidated, new WorkerSessionIdentity
+                            {
+                                WorkerSessionId = empty.WorkerSessionId, PortalProcessId = empty.PortalProcessId,
+                                SessionGeneration = empty.SessionGeneration
+                            });
+                    }
                     catch (JsonException)
                     {
                         result = WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
@@ -402,6 +422,18 @@ public class OpennessWorkerClient : IDisposable
                     "The invalidated binding has no retained source project to verify."));
             }
 
+            if (_emptyPortalRecovery is { } recovery && recovery.Binding.SameBinding(invalidated))
+            {
+                var empty = await RevalidateRecoveredEmptyPortalAsync(invalidated).ConfigureAwait(false);
+                if (!empty.Success) return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(empty);
+                if (!invalidated.SameBinding(BindingSnapshot) || !_projectSessionBinding.Clear(source, out _))
+                    return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                        WorkerFailureCategories.BindingConflict, "The source binding changed during empty-Portal recovery."));
+                var unbound = BindingSnapshot;
+                _emptyPortalRecovery = (unbound, recovery.Identity);
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(unbound);
+            }
+
             // Reasserting retained A creates a fresh configured revision. The only request that
             // follows is the existing read-only status route; it must promote a complete,
             // matching worker/Portal/project identity before any rebind probe can be sent.
@@ -451,6 +483,45 @@ public class OpennessWorkerClient : IDisposable
             }
 
             return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(promoted);
+        });
+
+    /// <summary>
+    /// Rechecks only a previously observed empty attachment; ordinary unbound sessions stay unchanged.
+    /// </summary>
+    internal Task<WorkerCallResult> RevalidateRecoveredEmptyPortalAsync(ProjectBindingSnapshot expected)
+        => ExecuteSerializedBindingOperationAsync(async () =>
+        {
+            if (!expected.SameBinding(BindingSnapshot))
+                return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                    "The binding changed before empty-Portal verification.");
+            if (_emptyPortalRecovery is not { } recovery || !recovery.Binding.SameBinding(expected))
+                return WorkerCallResult.Ok("{}");
+
+            var result = await InvokeWorkerAsync(new WorkerRequest
+            {
+                Method = "get_project_status", ExpectedSessionIdentity = recovery.Identity
+            }).ConfigureAwait(false);
+            if (!expected.SameBinding(BindingSnapshot))
+                return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                    "The binding changed during empty-Portal verification.");
+            if (result.Success)
+            {
+                var decoded = Tools.StandalonePayloadContract.DecodeStatus(result);
+                if (decoded.Failure is { } failure)
+                    result = WorkerCallResult.Fail(failure.Category, failure.Message, result.Warnings);
+                else if (decoded.Value is not { IsOpen: false, Path: null, Context: null }
+                    || result.ResolvedProjectPath is not null
+                    || result.SessionIdentity is not { ProjectPath: null, Context: null } identity
+                    || identity.WorkerSessionId != recovery.Identity.WorkerSessionId
+                    || identity.PortalProcessId != recovery.Identity.PortalProcessId
+                    || identity.SessionGeneration != recovery.Identity.SessionGeneration
+                    || result.PortalProcessId != recovery.Identity.PortalProcessId)
+                    result = WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                        "The worker did not prove the same attached Portal remains empty.", result.Warnings);
+            }
+            if (!result.Success && expected.State == ProjectBindingSnapshot.UnboundState)
+                _projectSessionBinding.TryInvalidate(expected, "The recovered empty Portal is no longer verified.");
+            return result;
         });
 
     /// <summary>
@@ -1525,12 +1596,19 @@ public class OpennessWorkerClient : IDisposable
                 WorkerFailureCategories.BindingConflict,
                 "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.");
         }
+        WorkerSessionIdentity? emptyIdentity = null;
+        if (_emptyPortalRecovery is { } recovery && recovery.Binding.SameBinding(bindingBeforeCall))
+        {
+            var empty = await RevalidateRecoveredEmptyPortalAsync(bindingBeforeCall).ConfigureAwait(false);
+            if (!empty.Success) return empty with { DispatchState = WorkerDispatchState.NotSent };
+            emptyIdentity = recovery.Identity;
+        }
         var result = await InvokeWorkerAsync(
             new WorkerRequest
             {
                 Method = "open_project",
                 ProjectPath = projectPath,
-                ExpectedSessionIdentity = bindingBeforeCall.ToWorkerIdentity(),
+                ExpectedSessionIdentity = emptyIdentity ?? bindingBeforeCall.ToWorkerIdentity(),
                 Confirm = true,
                 ForceRebind = forceRebind,
                 AllowTiaConfirmations = true
@@ -1538,11 +1616,25 @@ public class OpennessWorkerClient : IDisposable
 
         if (!result.Success)
         {
-            if (result.DispatchState == WorkerDispatchState.Sent
+            if (result.DispatchState == WorkerDispatchState.Sent && emptyIdentity is not null)
+                _projectSessionBinding.TryInvalidate(bindingBeforeCall,
+                    "The sent opener failed without proving the recovered empty Portal remained unchanged.");
+            else if (result.DispatchState == WorkerDispatchState.Sent
                 && string.Equals(Path.GetExtension(projectPath), ".als21", StringComparison.OrdinalIgnoreCase))
                 // A failed response does not prove that the source survived the attempted replacement.
                 InvalidateVerifiedBinding("the sent ALS opener failed without proving source continuity");
             return result;
+        }
+
+        if (emptyIdentity is not null && (result.SessionIdentity is not { } openedIdentity
+            || openedIdentity.WorkerSessionId != emptyIdentity.WorkerSessionId
+            || openedIdentity.PortalProcessId != emptyIdentity.PortalProcessId
+            || openedIdentity.SessionGeneration <= emptyIdentity.SessionGeneration))
+        {
+            _projectSessionBinding.TryInvalidate(bindingBeforeCall, "The opener did not preserve the recovered Portal identity.");
+            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                "The opener did not preserve the recovered Portal identity. Inspect the possible mutation before retrying.", result.Warnings)
+                with { DispatchState = result.DispatchState, IsPostOperationFailure = true };
         }
 
         if (string.Equals(Path.GetExtension(projectPath), ".als21", StringComparison.OrdinalIgnoreCase))

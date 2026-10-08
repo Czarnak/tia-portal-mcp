@@ -12,6 +12,145 @@ public sealed class LocalSessionLifecycleProtocolTests
     private const string Amc = "C:/Projects/Local.amc21";
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExternallyClosedLocalSource_ForcedOpenRecoversOnlyAttachedEmptyPortal(bool dryRun)
+    {
+        const string source = "C:/Projects/discovery-project-closed.amc21";
+        using var portals = new FakeWorkerPortals(
+            new FakeWorkerPortals.Entry(42, source), new FakeWorkerPortals.Entry(43, "C:/Projects/Other.amc21"));
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = Path.Combine(audit.Path, "local-session-open.als21");
+        File.WriteAllText(input, "offline fixture");
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var adopted = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = source });
+        Assert.True(adopted.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        var verified = harness.WorkerClient.BindingSnapshot;
+        await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["action"] = "list_portals" });
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, harness.WorkerClient.BindingSnapshot.State);
+
+        var opened = await harness.Client.CallToolAsync("open_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = input, ["forceRebind"] = true, ["dryRun"] = dryRun
+        });
+
+        var document = opened.StructuredContent!.Value;
+        Assert.True(document.GetProperty("success").GetBoolean(), document.GetRawText());
+        Assert.Equal(dryRun ? "preview" : "applied", document.GetProperty("phase").GetString());
+        Assert.False(verified.SameBinding(harness.WorkerClient.BindingSnapshot));
+        Assert.Equal(dryRun ? 0 : 1, log.Methods().Count(method => method == "open_project"));
+        Assert.Equal(1, log.Methods().Count(method => method == "select_portal_project"));
+        Assert.DoesNotContain(log.Methods(), method => method is "close_project" or "save_project");
+        if (dryRun) Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
+        else Assert.Equal(42, harness.WorkerClient.BindingSnapshot.PortalProcessId);
+        Assert.Single(File.ReadAllLines(Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl", SearchOption.AllDirectories))));
+    }
+
+    [Theory]
+    [InlineData("owner", false)]
+    [InlineData("missing", false)]
+    [InlineData("worker", false)]
+    [InlineData("portal", false)]
+    [InlineData("generation", false)]
+    [InlineData("malformed", false)]
+    [InlineData("context", false)]
+    [InlineData("owner", true)]
+    [InlineData("generation", true)]
+    public async Task EmptyPortalRecovery_UnprovedOrChangedStatusCannotOpen(string fault, bool afterPreview)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        var source = Path.Combine(audit.Path, "discovery-project-closed.amc21");
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, source),
+            new FakeWorkerPortals.Entry(43, "C:/Projects/Other.amc21"));
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = Path.Combine(audit.Path, "local-session-open.als21");
+        File.WriteAllText(input, "offline fixture");
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var adopted = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = source });
+        Assert.True(adopted.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["action"] = "list_portals" });
+        var arguments = new Dictionary<string, object?> { ["projectPath"] = input, ["forceRebind"] = true, ["dryRun"] = true };
+        if (afterPreview)
+        {
+            var preview = await harness.Client.CallToolAsync("open_project", arguments);
+            Assert.True(preview.StructuredContent!.Value.GetProperty("success").GetBoolean(), preview.StructuredContent.Value.GetRawText());
+        }
+        File.WriteAllText(source + ".recovery", fault);
+        arguments["dryRun"] = !afterPreview;
+
+        var result = await harness.Client.CallToolAsync("open_project", arguments);
+
+        Assert.False(result.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
+        Assert.DoesNotContain("open_project", log.Methods());
+        Assert.Equal(1, log.Methods().Count(method => method == "select_portal_project"));
+    }
+
+    [Fact]
+    public async Task ExternallyClosedLocalSource_NoForcePreservesInvalidatedBindingWithoutStatusOrOpener()
+    {
+        const string source = "C:/Projects/discovery-project-closed.amc21";
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, source));
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = Path.Combine(audit.Path, "local-session-open.als21");
+        File.WriteAllText(input, "offline fixture");
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = source });
+        await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["action"] = "list_portals" });
+        var before = harness.WorkerClient.BindingSnapshot;
+        var requests = log.Methods().Length;
+        var result = await harness.Client.CallToolAsync("open_project", new Dictionary<string, object?> { ["projectPath"] = input, ["dryRun"] = true });
+        Assert.False(result.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        Assert.True(before.SameBinding(harness.WorkerClient.BindingSnapshot));
+        Assert.Equal(requests, log.Methods().Length);
+    }
+
+    [Theory]
+    [InlineData("open-worker")]
+    [InlineData("open-portal")]
+    [InlineData("open-generation")]
+    [InlineData("open-missing")]
+    public async Task EmptyPortalRecovery_CompletedOpenerMustPreserveProvedAttachment(string fault)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        var source = Path.Combine(audit.Path, "discovery-project-closed.amc21");
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, source));
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = Path.Combine(audit.Path, "local-session-open.als21");
+        File.WriteAllText(input, "offline fixture");
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = source });
+        await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["action"] = "list_portals" });
+        File.WriteAllText(source + ".recovery", fault);
+
+        var result = await harness.Client.CallToolAsync("open_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = input, ["forceRebind"] = true
+        });
+
+        var document = result.StructuredContent!.Value;
+        Assert.False(document.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("error").ValueKind);
+        Assert.Equal(JsonValueKind.Object, document.GetProperty("result").ValueKind);
+        Assert.False(result.IsError == true);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, harness.WorkerClient.BindingSnapshot.State);
+        Assert.Equal(1, log.Methods().Count(method => method == "open_project"));
+        Assert.Equal(1, log.Methods().Count(method => method == "select_portal_project"));
+        Assert.DoesNotContain(log.Methods(), method => method is "close_project" or "save_project");
+        Assert.Single(File.ReadAllLines(Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl", SearchOption.AllDirectories))));
+    }
+
+    [Theory]
     [InlineData("relative")]
     [InlineData("directory")]
     [InlineData("unknown-extension")]

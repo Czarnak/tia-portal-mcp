@@ -105,6 +105,23 @@ public class TiaPortalSession : IDisposable
             + "Refresh project status and obtain a new explicitly verified binding before retrying.");
     }
 
+    internal void ValidateEmptyPortal(WorkerSessionIdentity expected)
+    {
+        ThrowIfDisposed();
+        if (!IsConnected || expected.ProjectPath is not null || expected.Context is not null
+            || string.IsNullOrWhiteSpace(expected.WorkerSessionId) || expected.PortalProcessId is null or <= 0
+            || expected.SessionGeneration < 0)
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                "Empty-Portal verification requires the complete already-attached Portal identity.");
+        ValidateExpectedSessionIdentity(expected, false);
+        ValidatePortalProcess();
+        if (ReadOpenContexts().Count != 0)
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                "The attached Portal contains an open owner. No project was selected or opened.");
+        ValidatePortalProcess();
+        ValidateExpectedSessionIdentity(expected, false);
+    }
+
     public void Connect(string? requestedProjectPath, int? requestedProcessId = null)
     {
         ThrowIfDisposed();

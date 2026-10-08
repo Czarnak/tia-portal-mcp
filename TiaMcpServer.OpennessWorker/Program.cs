@@ -1158,6 +1158,16 @@ internal static class Program
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)
     {
+        if (request.ProjectPath is null && request.ExpectedSessionIdentity is { ProjectPath: null } empty)
+            return Execute(() =>
+            {
+                // Recovery must prove zero owners without EnsureConnected adopting a retained path.
+                _sharedSession.ValidateEmptyPortal(empty);
+                return Success(new ProjectStatusResultInfo
+                {
+                    Operation = "get_project_status", Project = new ProjectStatusInfo { IsOpen = false }
+                });
+            });
         return WithSession(request, session =>
         {
             var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath, _accessMode);

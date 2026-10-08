@@ -32,7 +32,11 @@ public sealed class LifecycleBindingStrategy(OpennessWorkerClient workerClient) 
                 return WriteBindingPreparation.Prepared(recovery.Value!);
             }
             if (binding.State == ProjectBindingSnapshot.UnboundState)
+            {
+                var empty = await workerClient.RevalidateRecoveredEmptyPortalAsync(binding).ConfigureAwait(false);
+                if (!empty.Success) return Reject(empty);
                 return WriteBindingPreparation.Prepared(binding);
+            }
             return await PrepareVerifiedSourceAsync(binding, binding.ProjectPath, cancellationToken).ConfigureAwait(false);
         }
 

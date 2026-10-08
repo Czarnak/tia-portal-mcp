@@ -9,6 +9,126 @@ namespace TiaMcpServer.Tests.Multiuser;
 [Collection("Portal session boundary")]
 public sealed class LocalSessionOpenWorkerTests
 {
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("standalone")]
+    [InlineData("local")]
+    [InlineData("mixed")]
+    [InlineData("multiple")]
+    [InlineData("unreadable")]
+    public void EmptyPortalValidation_RequiresZeroOwnersWithoutSelecting(string owners)
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(f.A.Id);
+        var empty = f.Session.GetSessionIdentity();
+        if (owners is "standalone" or "mixed") f.AddStandalone(f.A, f.Ap);
+        if (owners is "local" or "mixed" or "multiple" or "unreadable") f.AddLocal(f.A, f.Amc);
+        if (owners == "multiple") f.AddLocal(f.A, f.OtherAmc);
+        if (owners == "unreadable") f.A.Portal.LocalSessions.Items[0].Project.PathFailure = new EngineeringException("unreadable owner");
+
+        if (owners == "empty") f.Session.ValidateEmptyPortal(empty);
+        else LocalSessionSelectionWorkerTests.AssertCategory(owners == "unreadable"
+            ? WorkerFailureCategories.PostconditionFailed : WorkerFailureCategories.BindingConflict,
+            () => f.Session.ValidateEmptyPortal(empty));
+
+        Assert.Null(f.Session.ActiveContext);
+        Assert.Equal(empty.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);
+        Assert.Equal(1, f.A.AttachCalls);
+        Assert.Equal(0, f.A.Portal.DisposeCalls);
+        Assert.Equal(0, f.A.Portal.Projects.OpenCalls + f.A.Portal.LocalSessions.OpenCalls);
+        Assert.All(f.A.Portal.Projects.Items, project => Assert.Equal(0, project.SaveCalls + project.CloseCalls));
+        Assert.All(f.A.Portal.LocalSessions.Items, owner => Assert.Equal(0, owner.SaveCalls + owner.CloseCalls + owner.CommitCalls));
+    }
+
+    [Theory]
+    [InlineData("worker")]
+    [InlineData("portal")]
+    [InlineData("generation")]
+    [InlineData("context")]
+    [InlineData("path")]
+    [InlineData("disconnected")]
+    public void EmptyPortalValidation_RejectsIncompleteOrChangedAttachment(string fault)
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(f.A.Id);
+        var expected = f.Session.GetSessionIdentity();
+        switch (fault)
+        {
+            case "worker": expected.WorkerSessionId = "different-worker"; break;
+            case "portal": expected.PortalProcessId = 999; break;
+            case "generation": expected.SessionGeneration++; break;
+            case "context": expected.Context = new ProjectContextInfo(); break;
+            case "path": expected.ProjectPath = f.Amc; break;
+            case "disconnected": f.Session.Disconnect(); break;
+        }
+
+        LocalSessionSelectionWorkerTests.AssertCategory(WorkerFailureCategories.BindingConflict,
+            () => f.Session.ValidateEmptyPortal(expected));
+        Assert.Null(f.Session.ActiveContext);
+        Assert.Equal(1, f.A.AttachCalls);
+        Assert.Equal(0, f.A.Portal.Projects.OpenCalls + f.A.Portal.LocalSessions.OpenCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EmptyPortalValidation_AttachmentDriftDuringEnumerationIsRejected(bool disposed)
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(f.A.Id);
+        var empty = f.Session.GetSessionIdentity();
+        f.A.Portal.LocalSessions.OnEnumerate = _ =>
+        {
+            if (disposed) f.A.Portal.RaiseDisposed();
+            else f.A.Id = 999;
+        };
+
+        LocalSessionSelectionWorkerTests.AssertCategory(WorkerFailureCategories.BindingConflict,
+            () => f.Session.ValidateEmptyPortal(empty));
+        Assert.Null(f.Session.ActiveContext);
+        Assert.Equal(1, f.A.AttachCalls);
+        Assert.Equal(0, f.A.Portal.Projects.OpenCalls + f.A.Portal.LocalSessions.OpenCalls);
+    }
+
+    [Fact]
+    public void EmptyPortalValidation_UnreadableEnumerationIsNotTreatedAsEmpty()
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(f.A.Id);
+        var empty = f.Session.GetSessionIdentity();
+        f.A.Portal.LocalSessions.OnEnumerate = _ => throw new EngineeringException("unreadable collection");
+
+        Assert.Throws<EngineeringException>(() => f.Session.ValidateEmptyPortal(empty));
+        Assert.Null(f.Session.ActiveContext);
+        Assert.Equal(1, f.A.AttachCalls);
+        Assert.Equal(0, f.A.Portal.Projects.OpenCalls + f.A.Portal.LocalSessions.OpenCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EmptyPortalValidation_OwnerAfterProofCannotReachAlsOpener(bool local)
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(f.A.Id);
+        var empty = f.Session.GetSessionIdentity();
+        f.Session.ValidateEmptyPortal(empty);
+        if (local) f.AddLocal(f.A, f.OtherAmc);
+        else f.AddStandalone(f.A, f.Ap);
+        // An unselected owner does not change the selected identity; the opener must enumerate it.
+        f.Session.ValidateExpectedSessionIdentity(empty, false);
+
+        LocalSessionSelectionWorkerTests.AssertCategory(WorkerFailureCategories.GuardBlocked,
+            () => f.Session.OpenProject(f.Als));
+
+        Assert.Null(f.Session.ActiveContext);
+        Assert.Equal(1, f.A.AttachCalls);
+        Assert.Equal(0, f.A.Portal.DisposeCalls);
+        Assert.Equal(0, f.A.Portal.Projects.OpenCalls + f.A.Portal.LocalSessions.OpenCalls);
+        Assert.All(f.A.Portal.Projects.Items, project => Assert.Equal(0, project.SaveCalls + project.CloseCalls));
+        Assert.All(f.A.Portal.LocalSessions.Items, owner => Assert.Equal(0, owner.SaveCalls + owner.CloseCalls + owner.CommitCalls));
+    }
+
     [Fact]
     public void AlsOpen_UsesOnlyLocalSessionsOpen()
     {
