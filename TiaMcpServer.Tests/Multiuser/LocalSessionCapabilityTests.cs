@@ -43,6 +43,52 @@ public sealed class LocalSessionCapabilityTests
         Assert.True(binding.CaptureSnapshot().IsVerified);
     }
 
+    [Fact]
+    public async Task OldStandaloneTreeCursor_AfterLocalSwitchFailsBeforeCapabilityGate()
+    {
+        const string standalone = "C:/Projects/project-tree-v3-small.ap21";
+        using var portals = new FakeWorkerPortals(
+            new FakeWorkerPortals.Entry(42, standalone), new FakeWorkerPortals.Entry(43, Amc));
+        using var ui = new FakeWorkerUiOpenProject(standalone);
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadOnly);
+        var firstBinding = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = standalone, ["portalProcessId"] = 42
+        });
+        Assert.True(firstBinding.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        var first = await harness.Client.CallToolAsync("browse_project_tree", new Dictionary<string, object?>
+        {
+            ["pageSize"] = 1
+        });
+        var cursor = first.StructuredContent!.Value.GetProperty("result")
+            .GetProperty("pagination").GetProperty("nextCursor").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(cursor));
+        var before = log.Methods().Count(method => method == "browse_project_tree_v3_snapshot");
+        Assert.Equal(1, before);
+
+        var local = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = Amc, ["portalProcessId"] = 43, ["forceRebind"] = true
+        });
+        Assert.True(local.StructuredContent!.Value.GetProperty("success").GetBoolean(), local.StructuredContent.Value.GetRawText());
+        Assert.Equal(ProjectContainerKinds.LocalSession, harness.WorkerClient.BindingSnapshot.Context!.ContainerKind);
+        var continuation = await harness.Client.CallToolAsync("browse_project_tree", new Dictionary<string, object?>
+        {
+            ["cursor"] = cursor
+        });
+        Assert.Equal(WorkerFailureCategories.CursorBindingMismatch,
+            continuation.StructuredContent!.Value.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(before, log.Methods().Count(method => method == "browse_project_tree_v3_snapshot"));
+
+        var fresh = await harness.Client.CallToolAsync("browse_project_tree", new Dictionary<string, object?>());
+        Assert.Equal(WorkerFailureCategories.UnsupportedCapability,
+            fresh.StructuredContent!.Value.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(before, log.Methods().Count(method => method == "browse_project_tree_v3_snapshot"));
+    }
+
     [Theory]
     [InlineData("browse_project_tree")]
     [InlineData("save_project")]

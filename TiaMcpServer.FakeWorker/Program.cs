@@ -1876,6 +1876,7 @@ string? ScenarioKey(string? path)
     if (path is not null && path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
     {
         var name = Path.GetFileNameWithoutExtension(path);
+        if (name == "project-tree-v3-small") return name;
         if (name is "portal-switch-fails-after-detach" or "portal-switch-hang" or "portal-switch-crash"
             or "portal-selection-malformed" or "portal-selection-other-path") return name;
         if (name.StartsWith("lifecycle-rebind-probe", StringComparison.Ordinal)) return @"C:\FakeWorker\" + name + ".ap21";
