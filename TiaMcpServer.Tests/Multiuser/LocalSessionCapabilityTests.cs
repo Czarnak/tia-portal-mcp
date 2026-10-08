@@ -62,4 +62,40 @@ public sealed class LocalSessionCapabilityTests
         Assert.True(inventory.StructuredContent!.Value.GetProperty("success").GetBoolean(),
             inventory.StructuredContent!.Value.GetRawText());
     }
+
+    [Theory]
+    [InlineData("create_project")]
+    [InlineData("save_project_as")]
+    [InlineData("archive_project")]
+    [InlineData("close_project")]
+    [InlineData("compile_check")]
+    [InlineData("plc_read")]
+    [InlineData("network_read")]
+    public async Task LocalUnsupportedOperation_DeniesBeforeWorkerDispatch(string operation)
+    {
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, Amc));
+        using var ui = new FakeWorkerUiOpenProject(Amc);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var bound = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = Amc });
+        Assert.True(bound.StructuredContent!.Value.GetProperty("success").GetBoolean(), bound.StructuredContent.Value.GetRawText());
+
+        var before = log.Methods().Length;
+        var arguments = operation switch
+        {
+            "create_project" => new Dictionary<string, object?> { ["projectDirectory"] = audit.Path, ["projectName"] = "New", ["dryRun"] = true },
+            "save_project_as" => new Dictionary<string, object?> { ["targetDirectory"] = audit.Path, ["targetName"] = "Copy", ["dryRun"] = true },
+            "archive_project" => new Dictionary<string, object?> { ["archiveDirectory"] = audit.Path, ["archiveName"] = "Copy", ["dryRun"] = true },
+            "close_project" => new Dictionary<string, object?> { ["dryRun"] = true },
+            "plc_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_tag_tables" } } },
+            "network_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "read_hardware_config" } } },
+            _ => new Dictionary<string, object?>()
+        };
+        var response = await harness.Client.CallToolAsync(operation, arguments);
+        Assert.Contains(WorkerFailureCategories.UnsupportedCapability, response.StructuredContent!.Value.GetRawText());
+        Assert.DoesNotContain(operation, log.Methods().Skip(before));
+        Assert.DoesNotContain("probe_project_status_for_lifecycle", log.Methods().Skip(before));
+    }
 }
