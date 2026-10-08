@@ -66,7 +66,7 @@ internal static class ProjectBindingDecision
                 candidates[0].ProcessId);
         return candidates.Length switch
         {
-            0 when portals.Count > 1 => new ListingChoice.Ambiguous(),
+            0 when portalProcessId is null && portals.Count > 1 => new ListingChoice.Ambiguous(),
             0 => new ListingChoice.NotFound(),
             _ => new ListingChoice.Ambiguous()
         };

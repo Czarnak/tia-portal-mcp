@@ -84,6 +84,31 @@ public sealed class LocalSessionBindingIntegrationTests
         Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
     }
 
+    [Fact]
+    public async Task MissingExplicitPid_TwoOtherPortalsReturnNotFoundBeforeSelection()
+    {
+        using var portals = new FakeWorkerPortals(
+            new FakeWorkerPortals.Entry(41, null), new FakeWorkerPortals.Entry(42, null));
+        using var ui = new FakeWorkerUiOpenProject(null);
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(
+            accessMode: McpAccessMode.ReadOnly);
+
+        var response = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+        {
+            ["portalProcessId"] = 999
+        });
+        var document = response.StructuredContent!.Value;
+        Assert.False(document.GetProperty("success").GetBoolean(), document.GetRawText());
+        Assert.Equal(WorkerFailureCategories.TargetNotFound,
+            document.GetProperty("result").GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(1, log.Methods().Count(method => method == "list_tia_portal_processes"));
+        Assert.DoesNotContain("select_portal_project", log.Methods());
+        Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
+    }
+
     [Theory]
     [InlineData(false, WorkerFailureCategories.TargetNotFound)]
     [InlineData(true, WorkerFailureCategories.TargetAmbiguous)]

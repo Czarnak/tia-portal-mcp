@@ -60,6 +60,12 @@ public sealed class ProjectBindingDecisionTests
             new TiaPortalProcessInfo { ProcessId = 41 }, new TiaPortalProcessInfo { ProcessId = 42 }
         }));
     [Fact]
+    public void ChooseFromListing_MissingExplicitPidAmongTwoPortals_NotFound()
+        => Assert.IsType<ListingChoice.NotFound>(ProjectBindingDecision.ChooseFromListing(new[]
+        {
+            new TiaPortalProcessInfo { ProcessId = 41 }, new TiaPortalProcessInfo { ProcessId = 42 }
+        }, portalProcessId: 999));
+    [Fact]
     public void ChooseFromListing_TwoProjects_Ambiguous() => Assert.IsType<ListingChoice.Ambiguous>(ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProjectPath = A }, new TiaPortalProcessInfo { ProjectPath = B } }));
     [Fact]
     public void ChooseFromListing_SamePathTwoPortals_Ambiguous() => Assert.IsType<ListingChoice.Ambiguous>(ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProjectPath = A }, new TiaPortalProcessInfo { ProjectPath = A } }));
