@@ -77,13 +77,15 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
     public static Task<McpProtocolTestHarness> StartAsync<TTools>(
         string? auditDirectory = null,
         string? startupProjectPath = null,
-        McpAccessMode accessMode = McpAccessMode.ReadWrite)
+        McpAccessMode accessMode = McpAccessMode.ReadWrite,
+        bool skipHardwarePreverification = false)
         where TTools : class
         => StartAsync(
             accessMode,
             builder => RegisterToolType<TTools>(builder),
             auditDirectory,
-            startupProjectPath);
+            startupProjectPath,
+            skipHardwarePreverification);
 
     /// <summary>
     /// Starts a server exposing BOTH <typeparamref name="TTools1"/> and <typeparamref name="TTools2"/>
@@ -107,8 +109,10 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         McpAccessMode accessMode,
         Action<IMcpServerBuilder> registerTools,
         string? auditDirectory = null,
-        string? startupProjectPath = null)
-        => StartCoreAsync(accessMode, registerTools, auditDirectory, startupProjectPath);
+        string? startupProjectPath = null,
+        bool skipHardwarePreverification = false)
+        => StartCoreAsync(accessMode, registerTools, auditDirectory, startupProjectPath,
+            skipHardwarePreverification: skipHardwarePreverification);
 
     public static Task<McpProtocolTestHarness> StartProductionSurfaceAsync(
         McpAccessMode accessMode,
@@ -139,7 +143,8 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         Action<IMcpServerBuilder> registerTools,
         string? auditDirectory,
         string? startupProjectPath,
-        McpClientOptions? clientOptions = null)
+        McpClientOptions? clientOptions = null,
+        bool skipHardwarePreverification = false)
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
         var serverReads = new AnonymousPipeClientStream(
@@ -148,7 +153,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         var clientReads = new AnonymousPipeClientStream(
             PipeDirection.In, serverWrites.ClientSafePipeHandle);
 
-        var binding = new ProjectSessionBinding(null);
+        var binding = new ProjectSessionBinding(skipHardwarePreverification ? startupProjectPath : null);
         var accessPolicy = new OperationAccessPolicy(accessMode);
         var workerClient = new OpennessWorkerClient(
             binding,
@@ -191,7 +196,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         var client = await McpClient.CreateAsync(
             new StreamClientTransport(serverInput: clientWrites, serverOutput: clientReads), clientOptions);
 
-        if (!string.IsNullOrWhiteSpace(startupProjectPath))
+        if (!skipHardwarePreverification && !string.IsNullOrWhiteSpace(startupProjectPath))
         {
             await NetworkVerifiedWriteFixture.VerifyAsync(workerClient, binding, startupProjectPath)
                 .ConfigureAwait(false);

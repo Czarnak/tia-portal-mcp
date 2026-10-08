@@ -15,12 +15,12 @@ public class ProjectWriteTools
         + "Read-write asks the user to confirm each call; full runs it directly. "
         + "Block guards stop the call in every mode.";
 
-    [McpServerTool(Name = "open_project", ReadOnly = false, Destructive = true, OpenWorld = false,
+    [McpServerTool(Name = "open_project", ReadOnly = false, Destructive = true, OpenWorld = true,
         UseStructuredContent = true, OutputSchemaType = typeof(LifecycleWriteResponse))]
     [Description("Open a TIA Portal project and bind this MCP session to it." + Flow)]
     public static Task<CallToolResult> OpenProject(
         OpennessWorkerClient workerClient, WriteExecution execution,
-        [Description("Absolute path to the existing .ap21 project file.")] string projectPath,
+        [Description("Absolute path to an existing .ap21 project file or .als21 local-session file.")] string projectPath,
         [Description("Allow rebinding from the currently bound project.")] bool forceRebind = false,
         [Description("Inspect effects and guards without mutation or confirmation.")] bool dryRun = false,
         McpServer? server = null, CancellationToken cancellationToken = default)

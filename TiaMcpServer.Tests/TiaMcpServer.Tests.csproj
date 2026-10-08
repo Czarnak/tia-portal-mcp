@@ -112,6 +112,8 @@
       Link="Host\ProjectBindingDecision.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectBindingPayloadContract.cs"
       Link="Host\ProjectBindingPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\ProjectContextPayloadContract.cs"
+      Link="Host\ProjectContextPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
     <Compile Include="..\TiaMcpServer\Json\CanonicalJson.cs" Link="Host\Json\CanonicalJson.cs" />
     <Compile Include="..\TiaMcpServer\Cursors\*.cs" Link="Host\Cursors\%(Filename)%(Extension)" />

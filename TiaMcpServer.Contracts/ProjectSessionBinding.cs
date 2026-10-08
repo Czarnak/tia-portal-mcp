@@ -248,6 +248,10 @@ public sealed class ProjectSessionBinding
                 return false;
             }
 
+            if (_state == ProjectBindingSnapshot.VerifiedState && _verifiedIdentity is not null
+                && SameIdentity(_verifiedIdentity, identity!, canonicalPath!))
+                return TryRefreshContext(identity!.Context, out error);
+
             SetVerified(identity!, canonicalPath!);
             return true;
         }

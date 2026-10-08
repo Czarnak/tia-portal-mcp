@@ -44,9 +44,11 @@ public sealed class ProjectBindingDecisionTests
     [Fact]
     public void Decide_UnknownState_Rejects() => Assert.IsType<BindingStep.Reject>(ProjectBindingDecision.Decide(Snapshot("unknown"), null, false));
     [Fact]
-    public void ChooseFromListing_OneProjectAmongEmptyPortals_Selects() => Assert.Equal(new ListingChoice.Select(ProjectPathNormalization.Canonicalize(A)!), ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo(), new TiaPortalProcessInfo { ProjectPath = A } }));
+    public void ChooseFromListing_OneProjectAmongEmptyPortals_Selects() => Assert.Equal(new ListingChoice.Select(ProjectPathNormalization.Canonicalize(A)!, 42), ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProcessId = 41 }, new TiaPortalProcessInfo { ProcessId = 42, ProjectPath = A } }));
     [Fact]
-    public void ChooseFromListing_NoProjects_NotFound() => Assert.IsType<ListingChoice.NotFound>(ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo() }));
+    public void ChooseFromListing_SolePortalWithoutAdvertisedPath_InspectsOwner() => Assert.Equal(new ListingChoice.Select(null, 42), ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProcessId = 42 } }));
+    [Fact]
+    public void ChooseFromListing_NoPortals_NotFound() => Assert.IsType<ListingChoice.NotFound>(ProjectBindingDecision.ChooseFromListing(Array.Empty<TiaPortalProcessInfo>()));
     [Fact]
     public void ChooseFromListing_TwoProjects_Ambiguous() => Assert.IsType<ListingChoice.Ambiguous>(ProjectBindingDecision.ChooseFromListing(new[] { new TiaPortalProcessInfo { ProjectPath = A }, new TiaPortalProcessInfo { ProjectPath = B } }));
     [Fact]

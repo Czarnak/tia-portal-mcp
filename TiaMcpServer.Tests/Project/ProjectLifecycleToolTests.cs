@@ -60,7 +60,7 @@ public class ProjectLifecycleToolTests
         Assert.Equal(expectedToolName, toolAttribute!.Name);
         Assert.False(toolAttribute.ReadOnly);
         Assert.True(toolAttribute.Destructive);
-        Assert.False(toolAttribute.OpenWorld);
+        Assert.Equal(expectedToolName == "open_project", toolAttribute.OpenWorld);
     }
 
     [Fact]

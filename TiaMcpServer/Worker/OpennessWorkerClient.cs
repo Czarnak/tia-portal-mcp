@@ -140,12 +140,13 @@ public class OpennessWorkerClient : IDisposable
 
     /// <summary>Selects an already-open project under the serialized session binding gate.</summary>
     public Task<ProjectBindingOutcome> BindOpenProjectAsync(
-        string? projectPath, bool forceRebind, CancellationToken cancellationToken = default)
+        string? projectPath, bool forceRebind, CancellationToken cancellationToken = default,
+        int? portalProcessId = null)
         => ExecuteSerializedBindingOperationAsync(
-            () => BindOpenProjectCoreAsync(projectPath, forceRebind, cancellationToken), cancellationToken);
+            () => BindOpenProjectCoreAsync(projectPath, forceRebind, cancellationToken, portalProcessId), cancellationToken);
 
     private async Task<ProjectBindingOutcome> BindOpenProjectCoreAsync(
-        string? projectPath, bool forceRebind, CancellationToken cancellationToken)
+        string? projectPath, bool forceRebind, CancellationToken cancellationToken, int? portalProcessId)
     {
         var before = BindingSnapshot;
         var invalidationTarget = before;
@@ -196,10 +197,17 @@ public class OpennessWorkerClient : IDisposable
             return new(transition, before, BindingSnapshot, project, portals, CapWarnings(warnings), null, false);
         }
 
-        if (projectPath is not null && (string.IsNullOrWhiteSpace(projectPath)
-            || !Path.IsPathFullyQualified(projectPath) || !projectPath.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase)))
-            return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "projectPath must be an absolute .ap21 file path."), true);
-        var step = ProjectBindingDecision.Decide(before, projectPath, forceRebind);
+        if (portalProcessId is <= 0)
+            return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "portalProcessId must be positive."), true);
+        var assertedPath = projectPath ?? (before.State == ProjectBindingSnapshot.ConfiguredUnverifiedState
+            ? before.ProjectPath : null);
+        if (assertedPath is not null && (string.IsNullOrWhiteSpace(assertedPath)
+            || !Path.IsPathFullyQualified(assertedPath)
+            || !(string.Equals(Path.GetExtension(assertedPath), ".ap21", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Path.GetExtension(assertedPath), ".amc21", StringComparison.OrdinalIgnoreCase))))
+            return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError,
+                "projectPath must be an absolute .ap21 or .amc21 engineering path."), true);
+        var step = ProjectBindingDecision.Decide(before, projectPath, forceRebind, portalProcessId);
         if (step is BindingStep.Reject reject)
             return Fail(WorkerCallResult.Fail(reject.Category, reject.Message), true);
         if (step is BindingStep.Reverify)
@@ -208,17 +216,18 @@ public class OpennessWorkerClient : IDisposable
         {
             var failure = await List().ConfigureAwait(false);
             if (failure is not null) return Fail(failure);
-            var choice = ProjectBindingDecision.ChooseFromListing(portals);
+            var choice = ProjectBindingDecision.ChooseFromListing(portals, portalProcessId);
             if (choice is not ListingChoice.Select selected)
                 return Fail(WorkerCallResult.Fail(choice is ListingChoice.NotFound
                     ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous,
                     "Select an open project from the reported Portal inventory."));
-            step = new BindingStep.Select(selected.Path, false);
+            step = new BindingStep.Select(selected.Path, false, selected.PortalProcessId);
         }
         var select = (BindingStep.Select)step;
         var result = await SendSelection(new WorkerRequest
         {
             Method = "select_portal_project", ProjectPath = select.Path,
+            PortalProcessId = select.PortalProcessId,
             ExpectedSessionIdentity = before.IsVerified ? before.ToWorkerIdentity() : null
         }).ConfigureAwait(false);
         if (!result.Success)
@@ -237,7 +246,8 @@ public class OpennessWorkerClient : IDisposable
         try { selection = ProjectBindingPayloadContract.DecodeSelection(result.Payload, before); }
         catch (JsonException) { return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError, "The worker Portal selection did not match its declared contract.")); }
         if (!TryValidateCompleteSessionIdentity(result.SessionIdentity, out var identityPath)
-            || !string.Equals(identityPath, select.Path, StringComparison.OrdinalIgnoreCase))
+            || (select.Path is not null && !string.Equals(identityPath, select.Path, StringComparison.OrdinalIgnoreCase))
+            || (select.PortalProcessId is not null && result.SessionIdentity!.PortalProcessId != select.PortalProcessId))
             return Fail(WorkerCallResult.Fail(WorkerFailureCategories.PostconditionFailed, "The worker did not stamp the complete selected project identity."));
         if (!_projectSessionBinding.TryAdoptVerified(before, result.SessionIdentity, out var error))
             return Fail(WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, error!));
@@ -247,7 +257,7 @@ public class OpennessWorkerClient : IDisposable
             warnings.Add("TIA Portal may have shown the Openness dialog. Answering Yes to all stops it for this worker binary.");
         if (selection.PreviousProjectWasWorkerOpened && selection.PreviousProjectIsModified == true)
             warnings.Add("The previous project opened by the worker remains open with unsaved changes. Save or discard them in TIA Portal.");
-        return await Verify(select.IsSwitch ? ProjectBindingTransitions.Switched : ProjectBindingTransitions.Bound, select.Path).ConfigureAwait(false);
+        return await Verify(select.IsSwitch ? ProjectBindingTransitions.Switched : ProjectBindingTransitions.Bound, identityPath!).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1484,6 +1494,12 @@ public class OpennessWorkerClient : IDisposable
             return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "Project path is required.");
         }
 
+        var current = BindingSnapshot;
+        if (current.IsVerified && current.Context is { OpenedByWorker: true } local
+            && string.Equals(ProjectPathNormalization.Canonicalize(local.SessionContainerPath),
+                ProjectPathNormalization.Canonicalize(projectPath), StringComparison.OrdinalIgnoreCase))
+            return WorkerCallResult.Ok("{}");
+
         // Upfront gate: the generic helper's TryResolve has no forceRebind concept, so open keeps
         // its own binding-policy check against the CALLER's requested path before doing any work.
         if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
@@ -2143,6 +2159,23 @@ public class OpennessWorkerClient : IDisposable
                 return denial with { DispatchState = WorkerDispatchState.NotSent };
             }
         }
+
+        var capabilityOperation = request.Method switch
+        {
+            "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
+            "get_basic_project_status" => "get_project_status",
+            "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
+            "hello" or "select_portal_project" or "list_tia_portal_processes"
+                or "list_server_connections" or "list_server_groups" or "list_server_projects"
+                or "list_local_sessions" or "get_lock_state" or "search_equipment_catalog" => null,
+            _ => request.Method
+        };
+        var verified = BindingSnapshot;
+        if (capabilityOperation is not null && verified.IsVerified && verified.Context is { } projectContext
+            && !ProjectCapabilityCatalog.Supports(projectContext.ContainerKind, capabilityOperation))
+            return WorkerCallResult.Fail(WorkerFailureCategories.UnsupportedCapability,
+                $"{capabilityOperation} is unavailable for this project container.")
+                with { DispatchState = WorkerDispatchState.NotSent };
 
         try
         {

@@ -50,6 +50,8 @@ public sealed class ConditionalMemberRegisterTests
         "ProjectBindingInfo.Context",
         // A local-session open/rebind probe carries its source context; standalone probes omit it.
         "ProjectRebindStateInfo.SourceContext",
+        // Lifecycle effects include typed source context only for an active local owner.
+        "LifecycleEffects.SourceContext",
     };
 
     [Fact]
@@ -60,6 +62,7 @@ public sealed class ConditionalMemberRegisterTests
             .Append(typeof(TiaMcpServer.OperationBatches.StructuredOperationFailure))
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingResult))
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingInfo))
+            .Append(typeof(TiaMcpServer.ProjectLifecycle.LifecycleEffects))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(IsWhenWritingNullConditional)

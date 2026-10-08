@@ -235,7 +235,7 @@ public class TiaPortalSession : IDisposable
     public PortalProjectSelectionInfo SelectPortalProject(string projectPath)
         => SelectPortalProject(projectPath, null);
 
-    public PortalProjectSelectionInfo SelectPortalProject(string projectPath, int? requestedProcessId)
+    public PortalProjectSelectionInfo SelectPortalProject(string? projectPath, int? requestedProcessId)
     {
         ThrowIfDisposed();
         ReleaseTemporaryTargetIfSafe();
@@ -246,8 +246,11 @@ public class TiaPortalSession : IDisposable
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
                 "PortalProcessId must be positive.");
         var selectedProcessId = requestedProcessId
-            ?? TiaPortalTargetSelector.SelectExactProcessId(
-                inventory.Select(entry => entry.Candidate).ToList(), projectPath);
+            ?? (projectPath is null
+                ? throw new WorkerOperationException(WorkerFailureCategories.TargetAmbiguous,
+                    "An exact PortalProcessId is required when no projectPath identifies a Portal.")
+                : TiaPortalTargetSelector.SelectExactProcessId(
+                    inventory.Select(entry => entry.Candidate).ToList(), projectPath));
         if (!inventory.Any(entry => entry.Candidate.Id == selectedProcessId))
             throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
                 "No running TIA Portal instance has the requested PortalProcessId.");

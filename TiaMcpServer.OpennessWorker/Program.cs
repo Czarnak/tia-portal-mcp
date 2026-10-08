@@ -233,15 +233,15 @@ internal static class Program
     {
         return Execute(() =>
         {
-            if (string.IsNullOrWhiteSpace(request.ProjectPath))
+            if (request.ProjectPath is not null && string.IsNullOrWhiteSpace(request.ProjectPath))
             {
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
-                    "select_portal_project requires projectPath.");
+                    "select_portal_project requires an exact projectPath when supplied.");
             }
 
             ValidateExpectedSessionIdentityForRequest(_sharedSession, request,
                 allowMissingExpectedIdentity: true, useCachedIdentity: true);
-            return Success(_sharedSession.SelectPortalProject(request.ProjectPath!));
+            return Success(_sharedSession.SelectPortalProject(request.ProjectPath, request.PortalProcessId));
         });
     }
 
@@ -1455,6 +1455,19 @@ internal static class Program
                 _sharedSession,
                 request,
                 allowMissingExpectedIdentity);
+
+            var capabilityOperation = request.Method switch
+            {
+                "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
+                "get_basic_project_status" => "get_project_status",
+                "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
+                "search_equipment_catalog" => null,
+                _ => request.Method
+            };
+            if (capabilityOperation is not null && _sharedSession.ActiveContext is { } activeContext
+                && !ProjectCapabilityCatalog.Supports(activeContext.ContainerKind, capabilityOperation))
+                return Failure(WorkerFailureCategories.UnsupportedCapability,
+                    $"{capabilityOperation} is unavailable for this project container.");
 
             return body(_sharedSession);
         });

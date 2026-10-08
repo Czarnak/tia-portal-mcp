@@ -14,13 +14,13 @@ internal abstract record BindingStep
 {
     public sealed record Reverify : BindingStep;
     public sealed record ListThenSelect : BindingStep;
-    public sealed record Select(string Path, bool IsSwitch) : BindingStep;
+    public sealed record Select(string? Path, bool IsSwitch, int? PortalProcessId = null) : BindingStep;
     public sealed record Reject(string Category, string Message) : BindingStep;
 }
 
 internal abstract record ListingChoice
 {
-    public sealed record Select(string Path) : ListingChoice;
+    public sealed record Select(string? Path, int PortalProcessId) : ListingChoice;
     public sealed record NotFound : ListingChoice;
     public sealed record Ambiguous : ListingChoice;
 }
@@ -34,30 +34,38 @@ internal static class ProjectBindingDecision
             WorkerFailureCategories.GuardBlocked
         }, StringComparer.Ordinal);
 
-    internal static BindingStep Decide(ProjectBindingSnapshot current, string? requestedPath, bool forceRebind)
+    internal static BindingStep Decide(ProjectBindingSnapshot current, string? requestedPath, bool forceRebind,
+        int? portalProcessId = null)
     {
         var requested = ProjectPathNormalization.Canonicalize(requestedPath);
         var retained = ProjectPathNormalization.Canonicalize(current.ProjectPath);
         if (current.State == ProjectBindingSnapshot.UnboundState)
-            return requested is null ? new BindingStep.ListThenSelect() : new BindingStep.Select(requested, false);
+            return requested is null ? new BindingStep.ListThenSelect() : new BindingStep.Select(requested, false, portalProcessId);
         if (current.State is not (ProjectBindingSnapshot.ConfiguredUnverifiedState
             or ProjectBindingSnapshot.InvalidatedState or ProjectBindingSnapshot.VerifiedState) || retained is null)
             return new BindingStep.Reject(WorkerFailureCategories.BindingConflict, "The session binding state cannot select an open project.");
-        var same = requested is null || string.Equals(requested, retained, StringComparison.OrdinalIgnoreCase);
+        var same = (requested is null || string.Equals(requested, retained, StringComparison.OrdinalIgnoreCase))
+            && (!current.IsVerified || portalProcessId is null || portalProcessId == current.PortalProcessId);
         if (!same && !forceRebind)
             return new BindingStep.Reject(WorkerFailureCategories.BindingConflict, "A different project requires forceRebind=true.");
         if (same && current.IsVerified) return new BindingStep.Reverify();
-        return new BindingStep.Select(requested ?? retained, current.IsVerified && !same);
+        return new BindingStep.Select(requested ?? retained, current.IsVerified && !same, portalProcessId);
     }
 
-    internal static ListingChoice ChooseFromListing(IReadOnlyList<TiaPortalProcessInfo> portals)
+    internal static ListingChoice ChooseFromListing(IReadOnlyList<TiaPortalProcessInfo> portals,
+        int? portalProcessId = null)
     {
-        var projects = portals.Select(p => ProjectPathNormalization.Canonicalize(p.ProjectPath))
-            .Where(p => p is not null).ToArray();
-        return projects.Length switch
+        var candidates = portals.Where(p => portalProcessId is null
+            ? ProjectPathNormalization.Canonicalize(p.ProjectPath) is not null
+            : p.ProcessId == portalProcessId).ToArray();
+        if (portalProcessId is null && candidates.Length == 0 && portals.Count == 1)
+            candidates = portals.ToArray();
+        if (candidates.Length == 1)
+            return new ListingChoice.Select(ProjectPathNormalization.Canonicalize(candidates[0].ProjectPath),
+                candidates[0].ProcessId);
+        return candidates.Length switch
         {
             0 => new ListingChoice.NotFound(),
-            1 => new ListingChoice.Select(projects[0]!),
             _ => new ListingChoice.Ambiguous()
         };
     }
