@@ -231,6 +231,10 @@ public class PlcOperationCatalogTests
     }
 
     [Fact]
+    public void CreateBlockAcceptsLowerCaseObWithValidClass()
+        => Assert.True(PlcOperationCatalog.ValidateWrite(new[] { CreateTyped("ob", "SCL", "Startup") }).IsValid);
+
+    [Fact]
     public void RejectsReadOperationInWrite()
     {
         var result = PlcOperationCatalog.ValidateWrite(new[] { Block() });

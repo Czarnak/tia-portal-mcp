@@ -55,7 +55,9 @@ public class PlcWorkingStateTests
                     Node(ProjectTreeNodeTypes.BlockFolder, "Motors",
                         Block(ProjectTreeNodeTypes.Fb, "FB_Motor", "SCL"),
                         Node(ProjectTreeNodeTypes.BlockFolder, "Legacy", Block(ProjectTreeNodeTypes.Fc, "FC_Old", "LAD"))),
-                    Node(ProjectTreeNodeTypes.SystemBlockFolder, "System blocks", Block(ProjectTreeNodeTypes.Fb, "TCON", "STL", 65, system: true))),
+                    Node(ProjectTreeNodeTypes.SystemBlockFolder, "System blocks",
+                        Block(ProjectTreeNodeTypes.Fb, "TCON", "STL", 65, system: true),
+                        Block(ProjectTreeNodeTypes.Ob, "SysTimeErr", "SCL", 80, system: true))),
                 Node(ProjectTreeNodeTypes.SoftwareUnit, "Unit_A",
                     Node(ProjectTreeNodeTypes.BlockFolder, "Program blocks", Block(ProjectTreeNodeTypes.Ob, "UnitDiag", "SCL", 82))),
                 Node(ProjectTreeNodeTypes.TagTableFolder, "PLC tags",
@@ -137,13 +139,23 @@ public class PlcWorkingStateTests
     [Fact]
     public void TwoSingletonsInOneCallSecondIsGuarded()
     {
-        var results = Run(State(), Ob("first", "PLC_1/TimeErr1", "TimeErrorInterrupt"), Ob("second", "PLC_1/TimeErr2", "TimeErrorInterrupt"));
+        var results = Run(State(), Ob("first", "PLC_1/RackErr1", "RackOrStationFailure"), Ob("second", "PLC_1/RackErr2", "RackOrStationFailure"));
 
         Assert.Empty(results[0].Resolution.Guards);
-        Assert.Equal("80", Planned(results[0].Resolution, "number"));
+        Assert.Equal("86", Planned(results[0].Resolution, "number"));
         var guard = Assert.Single(results[1].Resolution.Guards);
         Assert.Equal(PlcGuardDefinitions.ObSingletonExists, guard.Id);
-        Assert.Contains("PLC_1/Blocks/TimeErr1", guard.Message);
+        Assert.Contains("PLC_1/Blocks/RackErr1", guard.Message);
+    }
+
+    [Fact]
+    public void SystemGroupObHoldsSingletonNumber()
+    {
+        var guard = Assert.Single(State().Resolve(Ob("ob", "PLC_1/TimeErr", "TimeErrorInterrupt")).Guards);
+
+        Assert.Equal(PlcGuardDefinitions.ObSingletonExists, guard.Id);
+        Assert.Contains("SysTimeErr", guard.Message);
+        Assert.Contains("System blocks", guard.Message);
     }
 
     [Fact]

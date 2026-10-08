@@ -106,6 +106,7 @@ public class BlockSourceGeneratorTests
     {
         var xml = BlockSourceGenerator.Generate("MyOb", "OB", language, obEventClass, 200);
 
+        BlockSourceValidator.Validate("OB", language, xml);
         var attributes = XDocument.Parse(xml).Descendants("SW.Blocks.OB").Single().Element("AttributeList")!;
         Assert.Equal(obEventClass, attributes.Element("SecondaryType")?.Value);
         Assert.Equal("200", attributes.Element("Number")?.Value);
