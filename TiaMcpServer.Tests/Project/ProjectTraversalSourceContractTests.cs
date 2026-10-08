@@ -8,7 +8,7 @@ public class ProjectTraversalSourceContractTests
     public void ProjectDeviceEnumerator_KeepsStructuralLocatorsInternalToTheWorkerTraversal()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectDeviceEnumerator.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectDeviceEnumerator.cs");
 
         Assert.Contains("internal sealed class LocatedProjectDevice", source, StringComparison.Ordinal);
         Assert.Contains("StructuralLocator", source, StringComparison.Ordinal);
@@ -20,9 +20,9 @@ public class ProjectTraversalSourceContractTests
     public void HardwareAndTreeReaders_UseTheSameProjectDeviceEnumerator()
     {
         var hardware = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
         var tree = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("capture.Traverse(() => ProjectDeviceEnumerator.Enumerate(project), device =>", hardware, StringComparison.Ordinal);
         Assert.Contains("candidates.Add((device, nameEvidence));", hardware, StringComparison.Ordinal);
@@ -38,7 +38,7 @@ public class ProjectTraversalSourceContractTests
     public void ProjectTreeSnapshotWalker_TraversesEverySystemBlockGroupWithItsOwnTypedWalker()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("group is PlcBlockSystemGroup systemGroup", source, StringComparison.Ordinal);
         Assert.Contains("foreach (PlcSystemBlockGroup childGroup in systemGroup.SystemBlockGroups)", source, StringComparison.Ordinal);
@@ -51,7 +51,7 @@ public class ProjectTraversalSourceContractTests
     public void ProjectTreeSnapshotWalker_MarksSystemMembershipWithoutChangingFunctionalBlockTypes()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("NodeType = ProjectTreeNodeTypes.SystemBlockFolder", source, StringComparison.Ordinal);
         Assert.Contains("details[\"IsSystemBlock\"] = \"true\";", source, StringComparison.Ordinal);
@@ -69,7 +69,7 @@ public class ProjectTraversalSourceContractTests
     public void SelectedDevice_IsResolvedBeforeAnyPlcSoftwareDiscovery()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectTreeSnapshotWalker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
         var enumerate = source.IndexOf("ProjectDeviceEnumerator.Enumerate(project)", StringComparison.Ordinal);
         var select = source.IndexOf("ProjectTreeDeviceSelector.Select", StringComparison.Ordinal);
         var walk = source.IndexOf("WalkDevice(selectedDevice, skipped)", StringComparison.Ordinal);

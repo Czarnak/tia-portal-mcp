@@ -17,6 +17,7 @@ public sealed class LifecycleSecondIdentityValidationContractTests
         FindRepositoryFile(
             "TiaMcpServer.OpennessWorker",
             "Openness",
+            "Project",
             "ProjectLifecycleService.cs"));
 
     [Theory]

@@ -276,8 +276,8 @@ Start later-phase implementation planning from these existing seams:
 - `TiaMcpServer/Worker/OpennessWorkerClient.cs`
 - `TiaMcpServer.Contracts/Worker/WorkerRequest.cs`
 - `TiaMcpServer.OpennessWorker/Program.cs`
-- `TiaMcpServer.OpennessWorker/Openness/HardwareConfigReader.cs`
-- `TiaMcpServer.OpennessWorker/Openness/NetworkDeviceConfigurator.cs`
+- `TiaMcpServer.OpennessWorker/Openness/Network/HardwareConfigReader.cs`
+- `TiaMcpServer.OpennessWorker/Openness/Network/NetworkDeviceConfigurator.cs`
 - network DTOs under `TiaMcpServer.Contracts/`
 
 ## Deferred Scope

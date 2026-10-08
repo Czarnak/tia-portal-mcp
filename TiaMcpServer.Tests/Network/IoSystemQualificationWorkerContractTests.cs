@@ -7,7 +7,7 @@ namespace TiaMcpServer.Tests.Network;
 
 public class IoSystemQualificationWorkerContractTests
 {
-    private static string Source => File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/IoSystemQualificationProbeService.cs"));
+    private static string Source => File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/Network/IoSystemQualificationProbeService.cs"));
 
     [Fact]
     public void MasterPlcSelection_RequiresUniqueDeviceSoftwareAndFreshAncestorIdentity()
@@ -957,12 +957,12 @@ public class IoSystemQualificationWorkerContractTests
         Ordered(body, "NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector)",
             "VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)",
             "owner = new Owner(verified, selector, candidate.Device, candidate.Ancestors)");
-        var proof = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/IoSystemQualificationEvidence.cs"));
+        var proof = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/Network/IoSystemQualificationEvidence.cs"));
         var proofBody = ExtractMethodBody(proof, "VerifyResolvedOwner");
         Assert.Contains("object.Equals(verified, candidate)", proofBody);
         Assert.Contains("object.Equals(system, target)", proofBody);
         Assert.Contains("matchingLinks == 1", proofBody);
-        var resolver = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/NetworkObjectSelectorResolver.cs"));
+        var resolver = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/Network/NetworkObjectSelectorResolver.cs"));
         var qualification = ExtractMethodBody(resolver, "ResolveQualificationDeviceItem");
         Assert.Contains("MatchDeviceItem(project, target)", qualification);
         Assert.DoesNotContain("NetworkSelectorFactory", qualification);

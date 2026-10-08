@@ -10,7 +10,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         // Source guard for user guidance, alongside source-linked session behavior tests.
         var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var source = File.ReadAllText(Path.Combine(repositoryRoot,
-            "TiaMcpServer.OpennessWorker", "Openness", "TiaPortalSession.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Project", "TiaPortalSession.cs"));
         var methodStart = source.IndexOf("public void ValidateExpectedSessionIdentity(", StringComparison.Ordinal);
         Assert.True(methodStart >= 0, "ValidateExpectedSessionIdentity method was not found.");
         var missingIdentityEnd = source.IndexOf("var current =", methodStart, StringComparison.Ordinal);
@@ -35,7 +35,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         }
 
         var lifecycle = File.ReadAllText(Path.Combine(repositoryRoot,
-            "TiaMcpServer.OpennessWorker", "Openness", "ProjectLifecycleService.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectLifecycleService.cs"));
         Assert.DoesNotContain("Provide a projectPath argument or open a project in TIA Portal.", lifecycle);
         Assert.Contains("session.RequireStandaloneOwner().Project", lifecycle);
         Assert.Contains("ProjectOpenPolicy.NoProjectOpenMessage(", source, StringComparison.Ordinal);

@@ -9,7 +9,7 @@ public class BlockImporterRouteSourceTests
     public void AllThreeTargetCallsAreBracketedInOrderAndUseOneOutcomeRunner()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "BlockImporter.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "BlockImporter.cs");
 
         AssertBracketed(source,
             "target.Group.Blocks.Import(new FileInfo(xmlPath), ImportOptions.Override);",
@@ -27,7 +27,7 @@ public class BlockImporterRouteSourceTests
         Assert.Contains("BlockImportCoordinator.Execute(", source, StringComparison.Ordinal);
         Assert.Contains("BlockImportCoordinator.ExecuteSource(", source, StringComparison.Ordinal);
         var coordinator = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "BlockImportCoordinator.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "BlockImportCoordinator.cs");
         Assert.Equal(1, Count(coordinator, "private static BlockImportResult RunOutcome"));
         Assert.Equal(3, Count(source, "boundary.BeforeSiemensCall();"));
         Assert.Equal(3, Count(source, "boundary.AfterSiemensCallReturned();"));
@@ -37,7 +37,7 @@ public class BlockImporterRouteSourceTests
     public void ExternalSourceLifecycleCallbacksBracketCreationAndRecordDeletion()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "ExternalSourceScope.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Plc", "ExternalSourceScope.cs");
 
         AssertBefore(source, "observer?.BeforeCreateFromFile();", "ExternalSources.CreateFromFile(");
         AssertBefore(source, "ExternalSources.CreateFromFile(", "observer?.AfterCreateFromFileReturned();");
@@ -49,7 +49,7 @@ public class BlockImporterRouteSourceTests
     public void CompileObservedPreservesBlockNamedAndAllPlcSelectionWithoutProseParsing()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "CompileChecker.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "CompileChecker.cs");
 
         Assert.Contains("CompileObserved(", source, StringComparison.Ordinal);
         Assert.Contains("Project project,", source, StringComparison.Ordinal);
@@ -66,7 +66,7 @@ public class BlockImporterRouteSourceTests
     public void XmlAndSourceRoutesUseTheCommonFreshFinalReader()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "BlockImporter.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "BlockImporter.cs");
 
         Assert.Equal(2, Count(source, "compileAllowed => ObservePostconditions("));
         Assert.Equal(1, Count(source, "return ObserveFinalState("));
@@ -81,7 +81,7 @@ public class BlockImporterRouteSourceTests
     public void XmlAndSourcePreflightDecorationEndsBeforeCoordinatorEntry()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "BlockImporter.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "BlockImporter.cs");
 
         Assert.Equal(2, Count(source, "BlockImportCoordinator.ExecuteWithPreTargetOutcome("));
 
@@ -114,7 +114,7 @@ public class BlockImporterRouteSourceTests
     public void OutcomeProjectionBudgetIncludesNullsLikeTheHostValidator()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "BlockImportOutcomeProjection.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "BlockImportOutcomeProjection.cs");
 
         Assert.Contains("PropertyNamingPolicy = JsonNamingPolicy.CamelCase", source,
             StringComparison.Ordinal);

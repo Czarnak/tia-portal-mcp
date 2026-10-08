@@ -17,11 +17,11 @@ public sealed class PlcWriteServicesSourceContractTests
     }
 
     [Theory]
-    [InlineData("TagMutationService.cs")]
-    [InlineData("TagTargetResolver.cs")]
-    [InlineData("BlockMutationService.cs")]
-    [InlineData("BlockTargetResolver.cs")]
-    [InlineData("PlcTypeTargetResolver.cs")]
+    [InlineData("Plc/TagMutationService.cs")]
+    [InlineData("Plc/TagTargetResolver.cs")]
+    [InlineData("Block/BlockMutationService.cs")]
+    [InlineData("Block/BlockTargetResolver.cs")]
+    [InlineData("Plc/PlcTypeTargetResolver.cs")]
     public void WriteServicesNeverCallFirstMatchFind(string file)
     {
         var source = ReadOpenness(file);
@@ -30,9 +30,9 @@ public sealed class PlcWriteServicesSourceContractTests
     }
 
     [Theory]
-    [InlineData("BlockTargetResolver.cs")]
-    [InlineData("PlcTypeTargetResolver.cs")]
-    [InlineData("BlockMutationService.cs")]
+    [InlineData("Block/BlockTargetResolver.cs")]
+    [InlineData("Plc/PlcTypeTargetResolver.cs")]
+    [InlineData("Block/BlockMutationService.cs")]
     public void TargetResolutionNeverThrowsUncategorizedMisses(string file)
     {
         Assert.DoesNotContain("InvalidOperationException", ReadOpenness(file), StringComparison.Ordinal);
@@ -41,7 +41,7 @@ public sealed class PlcWriteServicesSourceContractTests
     [Fact]
     public void UpdateBlockLogic_ChecksHashBeforeImport()
     {
-        var source = ReadOpenness("BlockImporter.cs");
+        var source = ReadOpenness("Block/BlockImporter.cs");
         var xmlCheck = source.IndexOf("RequireContentHash", StringComparison.Ordinal);
         var sourceCheck = source.IndexOf("RequireContentHash", xmlCheck + 1, StringComparison.Ordinal);
         var firstImport = source.IndexOf("boundary.BeforeSiemensCall()", StringComparison.Ordinal);
@@ -54,7 +54,7 @@ public sealed class PlcWriteServicesSourceContractTests
     [Fact]
     public void UpdateTypeContent_ChecksHashBeforeImport()
     {
-        var source = ReadOpenness("PlcTypeImporter.cs");
+        var source = ReadOpenness("Plc/PlcTypeImporter.cs");
         var check = source.IndexOf("RequireContentHash", StringComparison.Ordinal);
         Assert.True(check >= 0);
         Assert.True(check < source.IndexOf("var outcome =", StringComparison.Ordinal));
@@ -63,7 +63,7 @@ public sealed class PlcWriteServicesSourceContractTests
     [Fact]
     public void CreateBlock_NeverImportsWithOverride()
     {
-        var source = ReadOpenness("BlockMutationService.cs");
+        var source = ReadOpenness("Block/BlockMutationService.cs");
         Assert.DoesNotContain("ImportOptions.Override", source, StringComparison.Ordinal);
         Assert.Contains("ImportOptions.None", source, StringComparison.Ordinal);
     }

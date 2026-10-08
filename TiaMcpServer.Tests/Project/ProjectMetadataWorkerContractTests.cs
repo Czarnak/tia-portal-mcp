@@ -13,10 +13,10 @@ namespace TiaMcpServer.Tests.Project;
 public class ProjectMetadataWorkerContractTests
 {
     private static string ReaderSource => File.ReadAllText(
-        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "ProjectMetadataReader.cs"));
+        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectMetadataReader.cs"));
 
     private static string LifecycleServiceSource => File.ReadAllText(
-        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "ProjectLifecycleService.cs"));
+        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectLifecycleService.cs"));
 
     [Fact]
     public void Reader_IsAReadOnlyServiceThatNeverMutatesProjectState()

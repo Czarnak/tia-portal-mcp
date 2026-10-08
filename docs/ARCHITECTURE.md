@@ -683,7 +683,7 @@ this is defense-in-depth, the same pattern used for read-only access enforcement
   subnet, and IO-system identity from a `HardwareConfigInfo` snapshot the host itself just read.
   This resolution produces the `NetworkWriteTargetEvidence` retained in guarded effects and
   preview responses — it never touches Siemens Openness.
-- **Worker side** (`TiaMcpServer.OpennessWorker/Openness/NetworkDeviceConfigurator.cs`):
+- **Worker side** (`TiaMcpServer.OpennessWorker/Openness/Network/NetworkDeviceConfigurator.cs`):
   independently matches the same `deviceName`/`nodeId` selector against live Openness objects at
   the moment of the actual write, walking every nested device item and network interface.
 
@@ -774,7 +774,7 @@ network_write request
   fields reserved for the internal mutation-probe evidence fixture; production calls never populate
   a `Probe*` member.
 - **`SubnetLifecycleService` transaction**
-  (`TiaMcpServer.OpennessWorker/Openness/SubnetLifecycleService.cs`): each of `Create`, `Update`,
+  (`TiaMcpServer.OpennessWorker/Openness/Network/SubnetLifecycleService.cs`): each of `Create`, `Update`,
   and `Delete` opens exactly one `ExclusiveAccess`/`Transaction`, performs every requested setter,
   and calls `CommitOnDispose()` only after every setter succeeds. Subnet lookup is ordinal, exact-one
   `SubnetId` matching with no fallback to `Name`, index, or connected device. Late zero or multiple

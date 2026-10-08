@@ -48,9 +48,9 @@ public class HardwarePaginationWorkerSourceContractTests
     public void SiemensWiring_EnumeratesDescriptorsAndUsesNarrowCandidateMaterializers()
     {
         var factorySource = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwarePageCandidateSourceFactory.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwarePageCandidateSourceFactory.cs");
         var readerSource = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         Assert.Contains("ProjectDeviceEnumerator", factorySource, StringComparison.Ordinal);
         Assert.Contains("EnumerateWithLocations(project)", factorySource, StringComparison.Ordinal);

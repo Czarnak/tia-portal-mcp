@@ -33,7 +33,7 @@ public class HardwareDeviceSelectionTests
     public void HardwareConfigReader_SelectDevices_ReadsNameOnceIntoEvidence()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         // Name evidence is read once in SelectDevices using ReadTypedIdentityString
         Assert.Contains("var nameEvidence = ReadTypedIdentityString(() => device.Name, \"Device name\");", source, StringComparison.Ordinal);
@@ -48,7 +48,7 @@ public class HardwareDeviceSelectionTests
     public void HardwareConfigReader_SelectDevices_UnfilteredReadTraversesAllDevicesEvenWhenNameIsUnreadable()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         // When deviceName is null, SelectDevices returns all candidates
         Assert.Contains("if (deviceName is null)\n        {\n            return candidates;\n        }", source, StringComparison.Ordinal);
@@ -62,7 +62,7 @@ public class HardwareDeviceSelectionTests
     public void HardwareConfigReader_SelectDevices_FilteredReadMatchesOrdinalIgnoreCaseOnUsableNames()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         // Matches only usable names with OrdinalIgnoreCase, never unreadable evidence
         Assert.Contains("candidate.NameEvidence.IsUsable", source, StringComparison.Ordinal);
@@ -77,7 +77,7 @@ public class HardwareDeviceSelectionTests
     public void HardwareConfigReader_DelegatesIoMapAndTagIndexToFocusedComponents()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         Assert.Contains("HardwareIoMapReader.Read(item, itemDescription, messages, tagIndex)", source, StringComparison.Ordinal);
         Assert.Contains("return HardwareTagIndexResolver.Resolve(project, plcName, messages);", source, StringComparison.Ordinal);
@@ -92,9 +92,9 @@ public class HardwareDeviceSelectionTests
     public void HardwareIoMapReader_And_HardwareTagIndexResolver_RemainFocusedUnderSizeThresholds()
     {
         var ioMapSource = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareIoMapReader.cs");
         var tagIndexSource = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareTagIndexResolver.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareTagIndexResolver.cs");
 
         var ioMapLines = ioMapSource.Split('\n').Length;
         var tagIndexLines = tagIndexSource.Split('\n').Length;
@@ -107,7 +107,7 @@ public class HardwareDeviceSelectionTests
     public void HardwareConfigReader_TagIndexFailureIsNonFatalOptionalEnrichment()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         Assert.Contains("private static IoTagIndex? ResolveTagIndex(", source, StringComparison.Ordinal);
         Assert.Contains("catch (EngineeringException exception)", source, StringComparison.Ordinal);
@@ -119,7 +119,7 @@ public class HardwareDeviceSelectionTests
     public void HardwareIoMapReader_EnumerationFailuresStayInsideOptionalIoDetails()
     {
         var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs");
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareIoMapReader.cs");
 
         Assert.Contains("try\n        {\n            foreach (Address address in item.Addresses)", source, StringComparison.Ordinal);
         Assert.Contains("Could not enumerate addresses while reading device item", source, StringComparison.Ordinal);

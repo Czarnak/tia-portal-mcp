@@ -14,12 +14,12 @@ using Xunit;
 public class NetworkSubnetLifecycleWorkerServiceContractTests
 {
     private static string ServiceSource => File.ReadAllText(
-        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "SubnetLifecycleService.cs"));
+        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "SubnetLifecycleService.cs"));
 
     [Fact]
     public void Service_IsADistinctFileFromTheMutationProbe()
     {
-        var path = FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "SubnetLifecycleService.cs");
+        var path = FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "SubnetLifecycleService.cs");
         Assert.True(File.Exists(path), $"Expected a distinct production service file at {path}.");
 
         var source = ServiceSource;
@@ -196,7 +196,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
             Assert.Contains("NetworkMutationVerifier.VerifySubnet(", body);
             Assert.Contains("result, deviceCountBefore,", body);
         }
-        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs"));
+        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkMutationVerifier.cs"));
         Assert.Contains("result.NetworkDeviceCount = project.Devices.Count;", verifier);
         Assert.Contains("\"networkDeviceCountUnchanged\", Number(rootCountBefore)", verifier);
     }
@@ -232,7 +232,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         var body = ExtractPublicMethodBody(ServiceSource, "Delete");
         Assert.True(body.IndexOf("NetworkMutationVerifier.CaptureAffectedNodes(subnet)", StringComparison.Ordinal)
             < body.IndexOf("subnet.Delete();", StringComparison.Ordinal));
-        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs"));
+        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkMutationVerifier.cs"));
         Assert.Contains("if (!evidence.Complete)", verifier);
         Assert.Contains("ProjectDeviceNameMatcher.FindMatches(project, name", verifier);
         Assert.Contains("HardwareConfigReader.ReadConnectedNodeIdentity", verifier);
@@ -287,7 +287,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         var deleteBody = ExtractPublicMethodBody(ServiceSource, "Delete");
 
         Assert.Contains("NetworkMutationVerifier.VerifySubnet(", deleteBody);
-        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs"));
+        var verifier = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkMutationVerifier.cs"));
         Assert.Contains("HardwareConfigReader.RequireSubnetIdentity(candidate)", verifier);
         Assert.Contains("if (deleting) return Boolean(matches.Count == 0);", verifier);
         Assert.Contains("NetworkPostconditionChecks.Compare(name, expected, null, false)", verifier);
