@@ -35,6 +35,16 @@ public class HmiPagerTests
     }
 
     [Fact]
+    public void OffsetNearIntMaxValueDoesNotOverflowIntoANegativeNextOffset()
+    {
+        var (items, page) = HmiPager.Page(new[] { "a", "b", "c" }, n => n, offset: int.MaxValue - 1, limit: 2000);
+
+        Assert.Empty(items);
+        Assert.Equal(int.MaxValue - 1, page.Offset);
+        Assert.Null(page.NextOffset);
+    }
+
+    [Fact]
     public void LastPageHasNullNextOffset()
     {
         var names = new[] { "a", "b", "c" };

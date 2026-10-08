@@ -14,7 +14,8 @@ public static class HmiPager
     {
         var ordered = InNameOrder(source, name).ToList();
         var items = ordered.Skip(offset).Take(limit).ToList();
-        var next = offset + limit < ordered.Count ? offset + limit : (int?)null;
+        var end = (long)offset + limit; // long: offset is not bounded above, so int addition could wrap negative
+        var next = end < ordered.Count ? (int)end : (int?)null;
         return (items, new HmiPage(offset, limit, ordered.Count, next));
     }
 }
