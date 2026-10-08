@@ -63,6 +63,84 @@ public sealed class LocalSessionBindingIntegrationTests
     }
 
     [Theory]
+    [InlineData(false, WorkerFailureCategories.TargetNotFound)]
+    [InlineData(true, WorkerFailureCategories.TargetAmbiguous)]
+    public async Task ExactAmcSelector_RejectsMissingOrAmbiguousOwnerWithoutAdoption(
+        bool duplicateOwner, string expectedCategory)
+    {
+        var advertised = duplicateOwner ? Amc : "C:/Projects/Other.amc21";
+        using var portals = new FakeWorkerPortals(
+            new FakeWorkerPortals.Entry(42, advertised),
+            new FakeWorkerPortals.Entry(43, duplicateOwner ? Amc : "C:/Projects/Third.amc21"));
+        using var ui = new FakeWorkerUiOpenProject(advertised);
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectBindingTools>(
+            accessMode: McpAccessMode.ReadOnly);
+
+        var result = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = Amc
+        });
+
+        var document = result.StructuredContent!.Value;
+        Assert.False(document.GetProperty("success").GetBoolean(), document.GetRawText());
+        Assert.Equal(expectedCategory,
+            document.GetProperty("result").GetProperty("failure").GetProperty("category").GetString());
+        Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
+        Assert.DoesNotContain("open_project", log.Methods());
+    }
+
+    [Theory]
+    [InlineData("worker")]
+    [InlineData("portal")]
+    [InlineData("generation")]
+    public void TypedLocalOwner_RefreshPreservesEpochButReplacementRotates(string replacement)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var first = LocalIdentity("worker-a", 42, 1, "plc_read");
+        Assert.True(binding.BindVerified(first, forceRebind: false, out var error), error);
+        var before = binding.CaptureSnapshot();
+        var refreshed = LocalIdentity("worker-a", 42, 1, "browse_project_tree");
+
+        Assert.True(binding.BindVerified(refreshed, forceRebind: false, out error), error);
+        var afterRefresh = binding.CaptureSnapshot();
+        Assert.Equal(before.BindingId, afterRefresh.BindingId);
+        Assert.Equal(before.Revision, afterRefresh.Revision);
+        Assert.Equal("browse_project_tree", Assert.Single(afterRefresh.Context!.Capabilities).Operation);
+
+        var changed = LocalIdentity(
+            replacement == "worker" ? "worker-b" : "worker-a",
+            replacement == "portal" ? 43 : 42,
+            replacement == "generation" ? 2 : 1,
+            "browse_project_tree");
+        Assert.True(binding.BindVerified(changed, forceRebind: true, out error), error);
+        var afterReplacement = binding.CaptureSnapshot();
+        Assert.NotEqual(before.BindingId, afterReplacement.BindingId);
+        Assert.True(afterReplacement.Revision > before.Revision);
+        Assert.Equal(changed.WorkerSessionId, afterReplacement.WorkerSessionId);
+        Assert.Equal(changed.PortalProcessId, afterReplacement.PortalProcessId);
+        Assert.Equal(changed.SessionGeneration, afterReplacement.SessionGeneration);
+    }
+
+    private static WorkerSessionIdentity LocalIdentity(string worker, int portal, long generation, string capability)
+        => new()
+        {
+            WorkerSessionId = worker,
+            PortalProcessId = portal,
+            SessionGeneration = generation,
+            ProjectPath = Amc,
+            Context = new ProjectContextInfo
+            {
+                ContainerKind = ProjectContainerKinds.LocalSession,
+                SessionMode = MultiuserSessionModes.Unknown,
+                EngineeringProjectPath = Amc,
+                Capabilities = [new ProjectCapabilityInfo { Operation = capability, Applicability = "supported" }]
+            }
+        };
+
+    [Theory]
     [InlineData("C:/Projects/Próba Line.AMC21")]
     [InlineData("C:/Projects/Local.amc21")]
     public async Task ConfiguredAmcAssertion_ReverifyPreservesBindingAndNeverOpens(string path)
