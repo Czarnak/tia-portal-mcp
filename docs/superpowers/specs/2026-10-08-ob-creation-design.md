@@ -53,14 +53,17 @@ unsupported class on an S7-1200 fails with TIA's error text; the result reports 
 | `TimeDelayInterrupt` | 20 | multi-instance |
 | `CyclicInterrupt` | 30 | multi-instance |
 | `HardwareInterrupt` | 40 | multi-instance |
-| `SynchronousCycle` | 61 | multi-instance (only if Phase 0 can capture a fixture) |
+| `SynchronousCycle` | 61 | multi-instance |
 | `Status` / `Update` / `Profile` | 55 / 56 / 57 | singleton |
 | `TimeErrorInterrupt` | 80 | singleton |
 | `DiagnosticErrorInterrupt` | 82 | singleton |
 | `PullOrPlugOfModules` | 83 | singleton |
 | `RackOrStationFailure` | 86 | singleton |
 | `ProgrammingError` | 121 | singleton |
-| `IOAccessError` (spelling confirmed in Phase 0) | 122 | singleton |
+| `IOAccessError` | 122 | singleton |
+
+All 16 classes were captured as V21 SimaticML exports on 2026-10-08 (§5, fixture review).
+`IOAccessError` is the exported `SecondaryType` (the UI's default block name is `IO_AccessError`).
 
 Multi-instance classes accept their classic range or any number from 123; TIA auto-numbering picks
 the lowest free valid number (maintainer-confirmed; re-checked in Phase 0). Singletons have one
@@ -98,13 +101,16 @@ multi-instance number; the applied result carries it.
 ### 4.3 Worker generation
 
 - One embedded SimaticML fixture per offered class under
-  `TiaMcpServer.OpennessWorker/Openness/ObFixtures/`, exported from V21 and minimized: the
-  `SW.Blocks.OB` attribute list (interface sections, `SecondaryType`, base `Number`,
-  `AutoNumber=true`, type-specific defaults as exported) with name and language as substitution
-  points.
+  `TiaMcpServer.OpennessWorker/Openness/ObFixtures/`, exported from V21 and minimized to the
+  `SW.Blocks.OB` attribute list: `Interface` (the class's `Informative="true"` Input members, empty
+  `Temp`/`Constant`), `MemoryLayout`, base `Number`, `SecondaryType`, `SetENOAutomatically`, with
+  `Name` and `ProgrammingLanguage` as substitution points. The `AutoNumber` element and the member
+  comments are kept or dropped per Phase 0 items 2 and 6. Exports carry no type-specific
+  attributes (no `CyclicTime`, `PhaseOffset` or schedule at defaults), so fixtures carry none.
 - `BlockSourceGenerator` renders an OB from its fixture: substitutes the escaped name and the
-  language, and emits the object list (comment, title, and for SCL/STL the existing empty compile
-  unit) exactly as it does for FB/FC today. FB/FC/GlobalDB generation is unchanged.
+  language, and emits the object list (empty comment and title, and for SCL/STL the existing empty
+  compile unit) exactly as it does for FB/FC today. TIA's default block titles (e.g. "Main Program
+  Sweep (Cycle)", "DP:status_alarm") are not reproduced. FB/FC/GlobalDB generation is unchanged.
 - An `ObEventClasses` table (worker side, shared names with the host via `TiaMcpServer.Contracts`)
   maps class → fixture resource and base number. It is the single source of the §3 list.
 - `BlockMutationService.CreateBlock` reads the created block's `Number` after import and returns
@@ -126,26 +132,37 @@ maintainer's SimaticSD default import/export setting.
 1. **SimaticML under SimaticSD default.** Import a SimaticML OB via `PlcBlockComposition.Import`
    with the SimaticSD default set; repeat with the SimaticML default. Also confirm the existing
    FB/FC/GlobalDB create path under SimaticSD.
-2. **Auto-numbering.** Base `<Number>` with `AutoNumber=true` when the base is taken: does TIA
-   move to the lowest free valid number?
-3. **Spelling.** Export of OB 122 settles `IOAccessError` vs `IO_AccessError`.
+2. **Auto-numbering.** Exports carry `<Number>` and no `<AutoNumber>`. With the base number taken,
+   import base `<Number>` (a) without `<AutoNumber>`, (b) with `AutoNumber=true`: which one makes
+   TIA move to a free valid number, and is it the lowest? (The fixture capture's second
+   ProgramCycle OB received 124, not 123.) Also check (b) on a singleton fixture.
+3. **Spelling.** Settled by the fixture review: `IOAccessError`.
 4. **Duplicate singleton.** The error a second OB 82 produces.
 5. **Unsupported class.** The error ProgrammingError produces on an S7-1200.
-6. **AutoNumber on fixed types.** Whether `AutoNumber=true` is accepted for singleton fixtures.
+6. **Member comments.** Interface members are `Informative="true"` with en-US system comments.
+   Import a fixture with the `<Comment>` elements stripped: if TIA accepts it and supplies the
+   comments itself, fixtures drop them (no culture dependency); otherwise they stay as exported.
+7. **LAD/FBD body.** The UI-created LAD OB has one empty compile unit (`<NetworkSource />`); the
+   generator emits none for LAD/FBD, as for FB/FC. Confirm a LAD OB without a compile unit imports
+   and compiles.
 
 **Decision rule.** If (1) fails under SimaticSD, OB fixtures move to SimaticSD documents imported
 with `ImportFromDocuments`, the existing FB/FC/GlobalDB path is reported as a separate issue, and
 this spec is amended before planning continues. Other outcomes adjust fixture content and §3 only.
 Findings go in `docs/superpowers/acceptance/reports/2026-10-xx-ob-creation-spike.md`.
 
-**Fixture capture.** The maintainer adds one empty OB of each class from "Add new block" to a
-scratch S7-1500 project (SynchronousCycle only if the hardware allows it). They are exported with
-`plc_read` in `xml` (and SimaticSD if the decision rule requires it), minimized and committed.
+**Fixture capture (done 2026-10-08).** The maintainer added one empty SCL OB of each of the 16
+classes, plus one LAD ProgramCycle OB as a reference, to the disposable project
+`DisposableProjects/OB_workspace` (`PLC_1`) and exported them as SimaticML into
+`PLC_1/Program blocks/OBs`. Review: every export is V21, `MemoryLayout=Optimized`, has `Number`
+equal to the §3 base number (the second ProgramCycle got 124), carries the §3 `SecondaryType`, and
+differs from the others only in its Input members and default title. Minimized fixtures are
+committed with the implementation.
 
 ## 6. Testing
 
 - Offline: every `obEventClass` value has a fixture that parses, carries the matching
-  `SecondaryType` and base `Number`, and `AutoNumber=true`; generator output per class and language
+  `SecondaryType` and base `Number`; generator output per class and language
   passes `BlockSourceValidator`; FB/FC/GlobalDB output unchanged.
 - Catalog: unknown class, class on non-OB, GRAPH on OB rejected with the listed messages.
 - Planning: `plc_ob_singleton_exists` fires for an existing fixed number, for two singletons of
