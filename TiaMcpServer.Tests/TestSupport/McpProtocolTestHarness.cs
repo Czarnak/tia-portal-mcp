@@ -118,13 +118,15 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         McpAccessMode accessMode,
         string? auditDirectory = null,
         string? startupProjectPath = null,
-        McpClientOptions? clientOptions = null)
+        McpClientOptions? clientOptions = null,
+        TimeSpan? requestTimeout = null)
         => StartCoreAsync(
             accessMode,
             builder => builder.WithAccessModeTools(accessMode),
             auditDirectory,
             startupProjectPath,
-            clientOptions);
+            clientOptions,
+            requestTimeout: requestTimeout);
 
     private static IMcpServerBuilder RegisterToolType<TTools>(IMcpServerBuilder builder)
         where TTools : class
@@ -144,7 +146,8 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         string? auditDirectory,
         string? startupProjectPath,
         McpClientOptions? clientOptions = null,
-        bool skipHardwarePreverification = false)
+        bool skipHardwarePreverification = false,
+        TimeSpan? requestTimeout = null)
     {
         var clientWrites = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.None);
         var serverReads = new AnonymousPipeClientStream(
@@ -159,6 +162,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
+            requestTimeout: requestTimeout,
             accessPolicy: accessPolicy);
 
         var collection = new ServiceCollection();

@@ -364,4 +364,32 @@ public sealed class LocalSessionLifecycleProtocolTests
         Assert.Equal(1, log.Methods().Count(method => method == "open_project"));
         Assert.Single(File.ReadAllLines(Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl", SearchOption.AllDirectories))));
     }
+
+    [Theory]
+    [InlineData("eof", WorkerFailureCategories.WorkerCrashed)]
+    [InlineData("timeout", WorkerFailureCategories.WorkerTimeout)]
+    public async Task SentAlsOpener_TransportLossReportsPossibleMutationWithoutReplay(string loss, string category)
+    {
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, null));
+        using var ui = new FakeWorkerUiOpenProject(null);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = Path.Combine(audit.Path, "local-session-open-" + loss + ".als21");
+        File.WriteAllText(input, "offline fixture");
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.Full, audit.Path, requestTimeout: TimeSpan.FromSeconds(5));
+
+        var result = await harness.Client.CallToolAsync("open_project", new Dictionary<string, object?> { ["projectPath"] = input });
+        var document = result.StructuredContent!.Value;
+        Assert.False(document.GetProperty("success").GetBoolean());
+        Assert.Equal("applied", document.GetProperty("phase").GetString());
+        Assert.Equal(category, document.GetProperty("result").GetProperty("failure").GetProperty("category").GetString());
+        Assert.Contains(document.GetProperty("warnings").EnumerateArray(), warning =>
+            warning.GetString()!.Contains("Inspect", StringComparison.OrdinalIgnoreCase));
+        Assert.True(File.Exists(input + ".attempted"));
+        Assert.Equal(1, log.Methods().Count(method => method == "open_project"));
+        Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
+        Assert.Single(File.ReadAllLines(Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl", SearchOption.AllDirectories))));
+    }
 }

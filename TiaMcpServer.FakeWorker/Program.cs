@@ -352,9 +352,16 @@ while ((line = Console.In.ReadLine()) is not null)
     }
 
     if (portalInventoryDeclared && currentMethod == "open_project"
-        && (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open" or "local-session-open-bad-result")
+        && (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open" or "local-session-open-bad-result"
+            or "local-session-open-eof" or "local-session-open-timeout")
         && string.Equals(Path.GetExtension(currentProjectPath), ".als21", StringComparison.OrdinalIgnoreCase))
     {
+        if (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open-eof" or "local-session-open-timeout")
+        {
+            File.WriteAllText(currentProjectPath + ".attempted", "opener reached");
+            if (Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-eof") Environment.Exit(17);
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+        }
         var openedPath = ProjectPathNormalization.Canonicalize("C:/Projects/Local.amc21")!;
         var context = LocalContext(openedPath, true, currentProjectPath);
         var status = new ProjectStatusInfo
