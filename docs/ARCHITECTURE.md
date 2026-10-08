@@ -364,7 +364,7 @@ sends a `hello` request and requires an exact protocol version and capability
 set. A missing or incompatible handshake terminates that worker and returns
 `protocol_error`; the original engineering request is never forwarded to it.
 
-`TiaMcpServer.Contracts/WorkerJson.cs` is the single definition of the wire
+`TiaMcpServer.Contracts/Json/WorkerJson.cs` is the single definition of the wire
 format, used by the worker, `PersistentWorkerTransport`, and the FakeWorker.
 `WorkerJson.Envelope` reads `WorkerRequest` and `WorkerResponse` (camelCase,
 case-insensitive) and writes responses with null members omitted;
@@ -765,7 +765,7 @@ network_write request
 - **Current subnet planning** (`NetworkIdentityResolver`, `NetworkWritePlanner`): creation
   identity is request-derived; update/delete use exact ordinal subnet IDs with no name/index
   fallback. Guarded effects retain resolved identities and complete affected-node evidence.
-- **Worker request** (`TiaMcpServer.Contracts/WorkerRequest.cs`,
+- **Worker request** (`TiaMcpServer.Contracts/Worker/WorkerRequest.cs`,
   `TiaMcpServer/Worker/OpennessWorkerClient.cs`, `TiaMcpServer/Network/NetworkWorkerInvoker.cs`):
   production fields `SubnetName`, `SubnetNetworkType`, `SubnetHighestAddress`,
   `SubnetTransmissionSpeed` (plus the existing `SubnetId` for update/delete) are forwarded through
