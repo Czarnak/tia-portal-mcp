@@ -89,6 +89,27 @@ blocks it. Known limits are also listed in the
   `ConfirmationType`, which crashed TIA Portal in the spike).
 - **`validate` scope.** Narrower than the spike's validatable set: member tags, logging tags and screen
   items are excluded.
+- **Redaction coverage for unseen drivers.** The secret-name denylist (`password`, `passwd`,
+  `passphrase`, `pwd`, `secret`, `token`, `credential`, `privatekey`) is inference, not observed: only
+  S7-1200/1500 drivers were seen live. Check OPC UA and third-party drivers' property names and
+  `InitialAddress` forms (for example credentials embedded in a URL) when such a project is available.
+- **Portal exit after detach.** In spike run 2, TIA Portal exited about 4 s after the worker detached.
+  The cause (a user close, or an exit on detach) was not determined and it was not reproduced; a
+  possible crash-on-detach hazard to watch for.
+- **Duplicate reader helpers (final review M3).** `HmiTagReader` keeps its own `Guard` (identical to
+  `HmiReadLog.Guard`), `Variant` and `ReadComment`, duplicating `HmiAlarmReader.ReadVariant`/`ReadText`,
+  which `HmiScreenReader` borrows. Move `ReadText`/`ReadVariant` onto `HmiReadLog` and delete the copies.
+- **Two completeness idioms (final review M4).** The tag reader sets `isComplete` from
+  `Messages.Count == 0` while the other readers use `HmiReadLog.IsComplete`, and `HmiTextMapper.Map`
+  writes messages without flipping completeness. Route text reads through one `ReadText` that calls
+  `Fail` and use `HmiReadLog.IsComplete` everywhere.
+- **System tags fill the first `validate` tag pages (final review M8).** `@`-prefixed system tags sort
+  first and are counted in `scanned` as `notValidatable`. Order user tags first, or leave system tags out
+  of `scanned`.
+- **Comfort `get_runtime_settings` always incomplete (final review M9).** `GMPEnabled` and
+  `GeneralESIGCommentsStrategy` are documented as unsupported on Comfort panels yet mark every result
+  incomplete, hiding transient failures. Consider `HmiReadLog.Note` for spike-documented unsupported
+  properties.
 
 ## Open: plc_write follow-ups (PR B, 2026-10-07)
 
