@@ -66,6 +66,12 @@ Large hardware reads can opt into cursor pagination with `pageSize` (`1..200`) o
 - `compile_check` — compile a PLC or selected block and return compiler messages; available in read-write and full modes.
 - `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - guarded single-call lifecycle writes in read-write and full. Read-write asks once per actual call; full proceeds without server elicitation. Set `dryRun:true` to inspect effects and guards without mutation or elicitation. These tools advertise structured outputs and accept no public confirmation list or safety token; they remain single-tool only.
 
+Local sessions use the observed typed `.amc21` path for adoption, basic status and already-open
+startup assertions; writable `open_project` accepts an exact existing `.als21` file. Local content,
+compile, save and terminal operations remain deferred. Scoped PR4 acceptance includes online
+retained-Portal recovery and UI-assisted offline read-write opening; the tested offline opens
+required Siemens dialog dismissal. See [local-session support and limits](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
+
 `get_project_status` and `compile_check` advertise structured output schemas with contract version `1.0`. Their text and `structuredContent` contain the same canonical document; read the typed payload at `result.value`. Compiler errors set `success:false` while retaining diagnostics, with MCP `isError:false`. Oversized values are omitted whole with retry guidance. See the [standalone response contract](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#standalone-status-and-compilation-contract) for migration details.
 
 Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and bare nested-array response were removed rather than retained as aliases. See the [project operations reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#browse_project_tree-v3) for the migration request, complete response envelope, selector reconstruction, continuation, limits, and recovery behavior.

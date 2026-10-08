@@ -19,7 +19,10 @@ Read-only never opens, creates, saves or closes, but explicit binding can switch
 
 With an unbound session, omit the path to adopt the sole open project or receive typed
 `target_not_found`/`target_ambiguous` plus candidates. Supply an advertised absolute `.ap21` path
-to select exactly that project. A different configured, verified, or last-bound path requires
+for a standalone project or the observed typed owner's `.amc21` engineering path for a local
+session. An optional exact `portalProcessId` disambiguates the Portal; PID/path mismatch fails
+closed. `.als21` files and inventory directories are not adoption/status/startup selectors.
+A different configured, verified, or last-bound path requires
 `forceRebind:true`. A verified same-path/no-path call rechecks status without switching.
 Reattachment may show TIA's Openness access dialog, which a human must answer. Worker ownership
 does not survive detach; a reattached project is treated as UI-owned. Binding leaves UI projects
@@ -49,7 +52,31 @@ cursors, cannot switch an existing attachment, and rejects binding selectors eve
 Results add conditional `result.value.inspection`, with observed PID and typed nullable slots;
 `transition:"none"` and `project:null`. Whole-value omission includes the inventory. See the
 [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md) for selectors, examples, current-user scope,
-lock/error/omission limits and pending live qualification. Tool discovery is 6/15/15.
+lock/error/omission limits and scoped live evidence. Tool discovery is 6/15/15.
+
+### Local-session identity and basic status
+
+PR4 selects an already-open typed `LocalSession` by its exact `.amc21` engineering path in
+every access mode. `get_project_status` and `--project`/`TIA_MCP_PROJECT_PATH` use that same
+already-open identity; ordinary reads and startup assertions never open or select another owner.
+Local status contains `isOpen`, `path`, nullable `isModified`, `metadata:null`, and conditional
+`context`. Standalone and closed status omit `context`; standalone extended metadata remains
+available. Local fields other than basic status remain null rather than fabricated metadata.
+
+Local `context` describes `containerKind:"localSession"`, `engineeringProjectPath`, nullable
+`sessionContainerPath`, `openedByWorker`, `sessionMode`, capabilities, remote identity and
+connection observation. Cold adoption has `openedByWorker:false` and `sessionContainerPath:null`.
+Only a verified successful exact `.als21` open records that opener provenance; detach loses
+ownership/provenance. No reverse ALS/inventory join is available: mode remains `unknown`, remote
+identity remains null, and active connection observation remains `unknown`. Descriptive capability
+entries grant no access-mode permission. Local content reads/writes, compilation, save, create,
+save-as, archive and generic close reject with `unsupported_capability`, including previews.
+
+The [PR4 live report](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
+records scoped maintainer acceptance. Two retained UI Portals recovered local sessions online in
+read-write/full; offline read-write previews passed, while actual opening required operator
+dismissal of Siemens dialogs. Noninteractive offline opening failed in both tested fixtures.
+Full-mode offline, startup/read-only, headless and race cases were not executed on this candidate.
 
 ### `browse_project_tree` v3
 
@@ -213,7 +240,7 @@ Strict decoding precedes budgeting: malformed or inconsistent worker success pay
 
 ### `get_project_status` metadata surface
 
-When a project is open, `get_project_status` reports the status fields plus a nested `metadata`
+When a standalone project is open, `get_project_status` reports the status fields plus a nested `metadata`
 object carrying the extended read-only project metadata:
 
 | Field | Description |
@@ -243,7 +270,7 @@ switch or open; use `bind_project` for already-open projects and open/create for
 
 | Tool | Behavior | Main inputs |
 |---|---|---|
-| `open_project` | Opens a project and binds the session to it. | Absolute `.ap21` `projectPath`; optional `forceRebind`. |
+| `open_project` | Opens a standalone project or existing local session and binds its verified engineering identity. | Absolute `.ap21` or existing file-only `.als21` `projectPath`; optional `forceRebind`. |
 | `create_project` | Creates a project and binds the session to it. | Absolute `projectDirectory`, `projectName`; optional `author`, `comment`. |
 | `save_project` | Saves the active project. | Optional `projectPath`. |
 | `save_project_as` | Saves a copy and rebinds the session to the copy. | `targetDirectory`, `targetName`; optional source `projectPath`; `rebind` must remain `true`. |
@@ -269,10 +296,21 @@ For example, inspect opening a disposable project with:
 
 Apply with the same operation inputs and `dryRun:false` (or omit `dryRun`). Effects name the exact
 source and destination and report whether the source will close, be saved, or stay open. Same-path
-open is idempotent; an unbound open has no source to close. Force-rebinding preserves a UI-owned
+standalone open is idempotent; an unbound open has no source to close. Same-ALS reuse requires
+continuous verification of the same owner and recorded exact opener provenance; it does not
+reopen or acquire cold provenance, and actual reuse still follows confirmation/audit rules.
+Force-rebinding preserves a UI-owned
 source. A worker-owned modified source that would close is always blocked: save or close it explicitly
 first. Create and save-as refuse an existing destination directory. Archive requires an existing
 output directory outside the source project's folder and descendants.
+
+A worker-owned local session blocks a different open even when clean: only a future explicit
+terminal-session operation can relinquish it. A borrowed local source can coexist with an opener
+only when exact source/destination preservation is proved; cold/ambiguous ALS provenance blocks
+before opening. `forceRebind:true` never overrides these blocks. Recovering a retained empty UI
+Portal requires fresh discovery/identity checks; a preview does not adopt/open or close a source.
+Generic `close_project` is not a local-session cleanup operation. After an uncertain opener,
+inspect exact AMC status and Portal inventory before another intentional request; never replay.
 
 Installed V21 acceptance observed that `create_project` requires no project open in that TIA
 process; close the current project explicitly before creating another. Siemens also rejects archive
@@ -291,6 +329,8 @@ attempted-operation failures, so inspect state before a new call.
 | `archive_discards_restorable_data` | Archive mode is `DiscardRestorableData` or `DiscardRestorableDataAndCompressed`. | `info` |
 | `archive_inside_project_folder` | Archive destination is the project folder or a descendant. | `block` |
 | `target_exists` | Create or save-as destination directory exists. | `block` |
+| `local_session_requires_terminal_operation` | A different open would replace a worker-owned local session, including a clean one. | `block` |
+| `local_session_source_preservation_unproved` | A borrowed local source or duplicate destination cannot be proved preserved. | `block` |
 
 Info guards appear in warnings; block guards cannot be overridden in any mode. Every actual
 read-write lifecycle call asks once, including info-only calls and calls with no guards. The reply
@@ -304,6 +344,9 @@ The former agent confirmation array is removed. Dry runs report acknowledge guar
 `acknowledged:false` in read-write and `true` in full, with null guard audit satisfaction and
 `confirmation:none/not_requested`. Applied satisfaction is `user` or `policy`.
 Client-returned acceptance does not prove that a human saw a dialog.
+Read-write refusal after an elicitation response retains `confirmation:user/declined`; previews
+and pre-prompt guard denials use `none/not_requested`. Siemens dialogs are separate from MCP
+elicitation; full policy confirmation does not establish absence of vendor UI.
 
 ### Structured lifecycle response
 
@@ -396,4 +439,6 @@ The current project surface does not provide:
 - UMAC delegates, authentication events, or explicit primary/secondary `ProjectOpenMode` selection.
 - Portal settings, diagnostics settings, or search-index administration.
 - VCI workspace, version-control, compare, synchronize, or mapped-object operations.
-- Multiuser server projects and local sessions; see [MULTIUSER_OPERATIONS_SUMMARY.md](MULTIUSER_OPERATIONS_SUMMARY.md).
+- Multiuser server mutation, session content/compile/local save, markings, discard and commit.
+  Delivered local selection/open/basic status and evidence limits are in the
+  [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md).

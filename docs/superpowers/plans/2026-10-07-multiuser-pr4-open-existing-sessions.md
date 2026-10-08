@@ -10,7 +10,19 @@
 
 **Spec:** [Multiuser Engineering design](../specs/2026-09-28-multiuser-engineering-design.md), especially Active project context, Binding and remote identity, Open and execution flow, Connection observation model, and PR 4. Read the spec together with this plan.
 
-**Status:** Revised on 2026-10-07 after user approval of `.amc21` typed-owner binding identity and `.als21` opener provenance. Throwaway prerequisite probes verified online opening for disposable fixtures A/B; they did not implement PR 4 or qualify its full live matrix. The approved revision replaces the reverse owner-to-ALS prerequisite below. Product implementation, offline qualification and full live acceptance remain outstanding. Current worktree `feature/multiuser-pr4` starts at `9e27677c74e54ae3b15cd8fd73d4dcd76154b006`.
+**Final status, 2026-10-08:** Tasks 1–5 implemented/offline-qualified frozen candidate
+`3772edad0ce9e90390bc36deb71dbd8140511424` (`3.0.1-local.406.g3772eda`). Task6 is accepted
+**within scope by maintainer decision**, not aggregate L01–L19 PASS: online retained-Portal
+recovery passed in full/read-write; both read-write noninteractive offline opens failed because
+Siemens dialogs required dismissal, although UI-assisted completion/verification passed.
+Full-offline/headless/race and other original rows remain unexecuted. The maintainer explicitly
+excluded read-only/general lifecycle baseline retesting and answered “Accept scoped results;
+document limits”, authorizing Task7. Maintained docs and the indexed
+[definition](../acceptance/2026-10-07-multiuser-pr4-live-definition.md) and
+[report](../acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md) record the delivered
+scope and limits. Task7 is completed by the verified documentation-only commit after controller
+diff/checks; no live or expensive offline rerun is warranted. Prerequisite adapter probes remain
+historical evidence.
 
 **Baseline:** GitHub `main` and local HEAD were verified equal at `b11cbf230f8fa3a96f0c84c49a202a9e25b57d78` on 2026-10-07 through the read-only GitHub commit API. The executor's Git fetch failed to reach its proxy; the already-present object was used to refresh the stale local `origin/main` ref. PR 3 is merged and its live gate was accepted by the maintainer on October 6. PR #112 has since retired batch tokens and PLC run/stop; current tool counts are **6/15/15**, superseding historical 6/16/16 statements in the spec. This is historical baseline evidence. Continue only on the existing `feature/multiuser-pr4` branch; the user owns merging and excludes upstream integration from this scope.
 
@@ -214,7 +226,7 @@ For a successful session open, assert `phase:"applied"`, root `success:true`, `e
 | L06 | Fresh hosts with each selector source `--project S`, `--project=S`, or env `TIA_MCP_PROJECT_PATH=S`; exercise one online and one offline already-open session. Also a closed valid session and conflicting CLI/env paths. `get_project_status`, then explicit `bind_project`. | Startup remains `configured_unverified` until worker identity verifies matching already-open context; no implicit opener or different selection. Closed configured target stays unverified/not open. CLI wins over env; duplicate CLI rejects before worker activity. Exact configured assertion promotes once and read-only works. |
 | L07 | One already-open session, fresh unconfigured host. `bind_project({})`, `bind_project({action:null})`, `bind_project({action:"bind"})`, same `.amc21` path bind and status. Separately prepare no-open-context case. | Sole typed-owner adoption succeeds with its observed `.amc21` binding path. Repeated same-owner verification preserves generation, binding ID/revision and current ownership; no-path zero-context returns `target_not_found`. No explicit action adds mutation or reconstructs ALS provenance. |
 | L08 | Multiple open standalone/session owners or multiple Portals, no configured selector. `bind_project({})`; then exact `bind_project({projectPath:S})` and `bind_project({projectPath:S,portalProcessId:P})`; submit PID/path mismatch, a missing `.amc21` path, `.als21` and directory assertions. Exercise different session paths for one server project, plus same-path ambiguity where safely available. | Unqualified selection returns `target_ambiguous` and fresh candidates; exact typed engineering path/PID resolves deterministically or reports proved ambiguity, never first-owner/PID or arbitrary attach/search. Different engineering paths distinguish only the observed owners, not remote session IDs. Missing exact owner returns `target_not_found`; ALS/directory adoption assertions are rejected. Same/ambiguous paths inside one Portal fail closed; existing binding survives pre-detach refusals. If V21 cannot expose duplicate-identical-path owners, cover ambiguity offline and record that live platform limit. |
-| L09 | `MU_ON`/`EX_OFF` closed, read-write host. Actual open with client response decline, cancel, accept lacking boolean `confirm:true`, and client without form capability, using fresh prepared targets as needed. | `access_denied`, blocked canonical outcome, no opener or target-open change, prior binding preserved. Prompt count one when a response is offered, zero with no capability. One entered lifecycle audit, confirmation `none`; do not silently approve Siemens dialogs. |
+| L09 | `MU_ON`/`EX_OFF` closed, read-write host. Actual open with client response decline, cancel, accept lacking boolean `confirm:true`, and client without form capability, using fresh prepared targets as needed. | `access_denied`, blocked canonical outcome, no opener or target-open change, prior binding preserved. Prompt count one when a response is offered, zero with no capability. One entered lifecycle audit; human decline records `user/declined`, previews/pre-prompt guard denials `none/not_requested`; other unexecuted refusal variants retain the shared contract. This corrects historical blanket `none` wording; do not silently approve Siemens dialogs. |
 | L10 | Verified `AP_A` and open UI-owned session S. Bind S without force (deny), then with `forceRebind:true`; bind AP_A back with force; repeat across `P2` where supported. | Source conflict denies without closing/opening. Authorized selection switches preserve both owners, modified state and UI presence; adopting S never acquires ownership. Reattach loses previous worker ownership. Matching exact PID/path evidence and explicit transition are returned. |
 | L11 | UI-owned S open, destination AP_B or another exact ALS input closed. Preview then `open_project({projectPath:D,forceRebind:true})`; include a cold owner whose ALS provenance is unknown. | Preview reports source/destination with `willCloseSource:false`, no save/discard/commit consequence. Actual may open only if supported coexistence and exact duplicate-destination evidence preserve S; independent before/after inventory and unsaved state prove preservation. Unknown duplicate/preservation evidence blocks before opener, including cold ALS ownership ambiguity; document any narrowed supported case. No opener exception or silent source close substitutes for preflight proof. |
 | L12 | S was opened by this worker with known `A(S)` provenance, first clean then operator-modified. Attempt different `open_project` in read-write/full, preview and actual; submit `close_project`, save/save-as/archive/create with exact binding paths. | Different open has block guard `local_session_requires_terminal_operation` regardless of clean/modified/full. No discard/commit or destination open. Undelivered/standalone-only operations return `unsupported_capability` before mutation, including previews; generic close never calls `LocalSession.Close`. Same `A(S)` actual open reuses only its continuously verified owner/provenance, without closing/reopening, and follows lifecycle confirmation/audit rules. |
@@ -226,7 +238,12 @@ For a successful session open, assert `phase:"applied"`, root `success:true`, `e
 | L18 | Bound UI/retaining-client S with known unchanged fixture. Separately authorized external same-path close/reopen, then one worker-loss injection and explicit recovery. | Changed owner generation/worker identity invalidates affected binding/evidence; an old AP cursor remains invalid. Remote loss alone in L16 did not invalidate. No automatic opener on recovery; explicit bind adopts an already-open owner with `openedByWorker:false`. Worker-loss cleanup uses inspected actual state; no replay. |
 | L19 | Bound S, known valid PLC/network selectors from fixture preparation, writable host. Send one representative PLC read, Network read, compile and PLC/Network write dry run; inspect all six PR 3 inventory actions on the same frozen candidate. | Session content/compile/save support is not advertised and unsupported dispatch never executes; reads do not promote/open another target. Independent Portal/server inspections still follow PR 3 preservation semantics. Every new/changed result is canonical, strict typed and budgeted; terminal/content calls do not mutate. Exact negative requests and their expected rejection/preservation evidence are recorded for this candidate. |
 
-The live gate is the aggregate of these cases, including every fixture/mode row explicitly stated inside L01–L06. A UI-only demonstration is insufficient for non-interactive offline opening. Automated elicitation acceptance proves client/protocol behavior; record a human-observed read-write prompt for at least one actual ALS opener separately, without claiming that every client acceptance was human consent.
+The original live gate is the aggregate of these cases, including every fixture/mode row
+explicitly stated inside L01–L06. A UI-assisted demonstration is insufficient for noninteractive
+offline opening. October 8's maintainer scope ruling accepts the recorded results for delivery
+with the noninteractive failures and unexecuted rows retained; it does not make that original
+aggregate gate PASS. Automated acceptance proves client/protocol behavior; record human MCP
+and Siemens dialog observations separately, without claiming every acceptance was human consent.
 
 ### Example installed-tool public calls
 
@@ -248,7 +265,13 @@ Each case retains candidate SHA and binary hashes, actual host command/access mo
 
 The operator, under separate exact authorization, closes/discards/commits disposable sessions using supported external actions; PR 4 adds no terminal session tool or automatic cleanup. Installed-tool testing never uses generic `close_project` for ALS cleanup. Keep an inspected UI/retaining client during teardown. Intentional offline-state transitions are allowed only in their designated case; unexpected timeout, crash, broken transport or uncertain mutation halts the run for inspection and fresh scope where needed.
 
-Implementation readiness requires the installed API checkpoint, contract/worker/FakeWorker checks, serial builds/coverage and whole-candidate code review before live testing. Live qualification additionally requires the stated cases on the frozen candidate, restoration evidence and maintainer confirmation. Same-path owner replacement, ambiguity, duplicate handling and source/headless preservation remain required gates. Neither prerequisite probes, PR 3 acceptance nor historical standalone evidence fills a missing PR 4 case. No merging is part of this plan's execution.
+Implementation readiness originally required installed API, contract/worker/FakeWorker checks,
+serial builds/coverage and whole-candidate review. For the final recovery patch the maintainer
+explicitly waived independent review; implementer/controller self-inspection and fresh offline
+qualification preceded live testing. The final report records restoration and the scoped
+maintainer ruling while retaining unexecuted owner-replacement/ambiguity/headless and other
+rows. Neither prerequisite probes, PR3 nor historical standalone evidence fills a missing PR4
+case. No merging is part of this plan's execution.
 
 ## Task 7: Update documentation after confirmed live results
 
@@ -256,8 +279,20 @@ Implementation readiness requires the installed API checkpoint, contract/worker/
 
 **Interfaces:** Consume Task 6's confirmed final candidate, case verdicts, limitations and restoration record. Publish observed behavior and explicit remaining limits; no claim is inferred from prerequisite probes or offline checks.
 
-- [ ] **Step 1: Check the live-confirmation gate**. If required cases remain failed/blocked or the maintainer has not confirmed qualification, return to Task 6; do not start delivered-scope documentation.
-- [ ] **Step 2: Update maintained docs** to the confirmed `.amc21` adoption/status/startup and `.als21` explicit-opening scope, nullable provenance, descriptive capabilities, source preservation and connection-observation limits. Keep the same-project distinct-session identification follow-up and Issue #65 open.
-- [ ] **Step 3: Publish the acceptance definition and sanitized report** with exact candidate/binary provenance, actual case/mode outcomes, prompt/audit counts, preservation/restoration and unexecuted limits. Keep real project/server names, credentials and proprietary binaries out of tracked docs; use synthetic A/B/H roles.
-- [ ] **Step 4: Index and validate the documentation** in both `docs/README.md` and `docs/superpowers/README.md`; root README cross-document links stay absolute GitHub URLs. Check owned links, source/evidence agreement, diff and whitespace. Documentation-only changes do not justify repeating unchanged expensive build/test/package/live suites.
-- [ ] **Step 5: Commit each verified documentation/fix step** using a conventional message. Preserve the worktree/evidence; push, PR, merge and unrelated work remain outside the authorized scope.
+- [x] **Step 1: Check the live-confirmation gate**. The October 8 direct maintainer answer
+  “Accept scoped results; document limits” authorizes documentation after disclosure of the
+  offline noninteractive failures and unexecuted rows. This supersedes an aggregate-PASS-only
+  gate; the original case verdicts remain factual limits.
+- [x] **Step 2: Update maintained docs** for AMC adoption/status/startup and explicit ALS opening,
+  nullable provenance, descriptive capabilities, preservation and connection limits. Same-project
+  session distinction and Issue #65 remain open.
+- [x] **Step 3: Prepare indexed definition/report** with exact tested provenance, case/mode
+  outcomes, prompt/audit evidence, preservation/restoration and unexecuted limits; synthetic
+  fixture roles replace private names/paths.
+- [x] **Step 4: Validate final documentation**: 15 owned documents, 318 local links/anchors,
+  README absolute URLs, source/evidence totals and private-selector scans passed; Git whitespace
+  and diff-scope checks passed. Fresh results are in the ignored Task7 report; no unchanged
+  expensive build/test/package/live rerun.
+- [x] **Step 5: Commit the verified documentation step** after controller diff/checks, using
+  a conventional message. The execution ledger records the resulting commit. Preserve the
+  worktree/evidence; push, PR, merge and unrelated work remain outside scope.

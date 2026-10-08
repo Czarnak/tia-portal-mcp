@@ -39,9 +39,10 @@ assemblies and retain version `21.0.0.0` and public-key token `29bfe5fdf4ba5d3b`
 public-only delay-signing key. Only the net48 worker and compile-only probe reference Siemens;
 the host and shared contracts remain Siemens-free. Generated stubs are never runtime inputs,
 and all Siemens binaries are excluded from packages; the worker loads installed real DLLs.
-The passive Multiuser contracts add no public operation or binding behavior. The worker's
-internal active project context supplies typed ownership; public `.als21` selection/open
-remains deferred. See [the Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) and
+The worker's active project context supplies typed standalone/local ownership. PR4 selects
+already-open local owners by exact `.amc21` engineering identity and opens existing `.als21`
+files explicitly through the existing guarded lifecycle pipeline. Content/compile/local-save
+and terminal-session operations remain deferred. See [the Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) and
 [build boundary and qualification](development/building.md#generated-openness-references).
 
 ## 2. Host startup and access modes
@@ -271,7 +272,11 @@ handles and immediately before the operation body. In read-only mode it reuses
 only the uniquely identified project discovered during attachment.
 
 Only `open_project` and `create_project` open projects; no request implicitly opens one.
-Default/null/explicit `action:"bind"` on `bind_project(projectPath?, forceRebind=false)` selects an exact advertised open `.ap21` path.
+Default/null/explicit `action:"bind"` on `bind_project(projectPath?, forceRebind=false, portalProcessId?)`
+selects an exact advertised open `.ap21` standalone or typed `.amc21` local owner. An explicit
+Portal PID must match that engineering owner; `.als21` and inventory directories are never
+adoption/status/startup identities. `--project` and `TIA_MCP_PROJECT_PATH` remain already-open
+assertions, now also for `.amc21`; they never call an opener.
 Without a path an unbound session lists Portals, adopts the sole open project, or reports typed
 `target_not_found`/`target_ambiguous`. Verified same-path/no-path calls reverify through Observe
 `get_project_status`; binding result status has `metadata:null`. A different configured or last-bound
@@ -312,28 +317,37 @@ omission guidance uses applicable exact inventory selectors. See the
 
 `TiaPortalSession` stores one `ActiveProjectContext`. Its `ProjectBase` engineering root is
 derived from a typed lifecycle owner, so the root and owner cannot disagree. A
-`StandaloneProjectOwner` retains a concrete `Project`; a passive `LocalSessionOwner` retains
+`StandaloneProjectOwner` retains a concrete `Project`; `LocalSessionOwner` retains
 a `LocalSession` and its `MultiuserProject`, with no save, close, discard, or commit methods.
-No production route activates a local/server context in PR 2. Existing content services keep
-the read-only standalone `Project` compatibility accessor. Status, lifecycle, and worker
-dispatch explicitly resolve `RequireStandaloneOwner`; a synthetic local/server context is
-rejected with `target_kind_unsupported` before generic lifecycle replacement or content work.
+Production local selection resolves that typed owner and requires its absolute `.amc21`
+engineering path. Basic status/open verification use the local context; existing content
+services keep the standalone `Project` compatibility accessor. Host and worker capability
+checks reject local content/compile/save and standalone-only lifecycle operations with
+`unsupported_capability`, including previews, before mutation dispatch.
 
 The session remains the authority for worker ID, Portal PID, generation, and live path; the
 context stores no duplicate wire identity. Rewrapping the same engineering handle preserves
 generation. A different handle at the same path or an accepted SaveAs path change advances it.
 An unreadable or blank live path clears the context and ownership without selecting another
-project. Adoption and reattachment confer no worker-open ownership. Only explicit standalone
-open/create routes obtain worker-owned handles; a clean worker-owned source may close before
-replacement, while a dirty or unreadable source blocks it. Disconnect/dispose remove event
+project. Adoption and reattachment confer no worker-open ownership. Explicit open/create
+routes obtain worker-owned handles; a verified exact ALS open additionally records nullable
+`sessionContainerPath` provenance. Cold adoption leaves that path null; no reverse ALS or
+server-inventory join is invented. Same-owner descriptive refresh preserves generation and
+binding revision. A clean standalone worker-owned source may close before replacement;
+a local worker-owned source blocks a different open even when clean. Disconnect/dispose remove event
 handlers and release the Portal without calling project or local-session lifecycle methods.
 
-The internal capability collection is empty, and remote identity/connection observation are
-null. These fields describe unpopulated preparation and grant no permission or advertised
-compatibility. Host binding epochs, public schemas, protocol version, confirmation, audit,
-and discovery counts remain unchanged by that internal migration. Current counts are 6/15/15;
-PR3 inventory live acceptance remains separate from historical standalone acceptance. `.als21`
-adoption/content/session/markings/mutations remain undelivered; see the
+Local `ProjectStatusInfo.context` is conditional and omitted for standalone/closed status.
+It includes copied capability descriptions, engineering identity, opener provenance and
+ownership; local `metadata` remains null. `sessionMode` remains `unknown`, `remoteIdentity`
+null and active connection observation `unknown` without a supported owner/endpoint join.
+Explicit endpoint inventory has separate attachment/endpoint-scoped history; refresh timestamps
+do not create identity churn or prove an active-session reconnection. Capability descriptions
+grant no permission. Strict required-member/coherence decoding precedes existing 60,000-value
+and 180,000-document budgets. Current counts remain 6/15/15.
+PR4's [scoped live report](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
+retains both failed noninteractive offline opens, UI-assisted success, restoration and
+unexecuted rows. Content/session/markings/mutations remain undelivered; see the
 [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
 
 ## 6. Worker transport and execution
@@ -461,6 +475,10 @@ Compile authorization precedes the existing verified-binding gate and pinned lea
 migration leaves compiler inputs and session transitions unchanged. See the [project operations reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#standalone-status-and-compilation-contract)
 for the public migration contract.
 
+PR4 local `get_project_status` returns basic `isOpen`/engineering `path`/nullable `isModified`
+with typed conditional context and `metadata:null`; standalone extended metadata stays unchanged.
+Local compilation rejects `unsupported_capability` rather than projecting a standalone owner.
+
 ### Guarded lifecycle contract
 
 `TiaMcpServer/ProjectLifecycle/` supplies a single-operation adapter to `WriteExecution`. Public
@@ -473,6 +491,15 @@ policy. Verification reads basic status only, including no-project status after 
 Observe `get_project_status`, which also works in read-only. Observing no project
 after close does not require an expected identity; a supplied expected identity is still checked.
 This does not weaken ordinary project-write binding or make a status read reopen a project.
+
+Existing file-only ALS inputs route to typed `LocalSessions.Open`; opening verification grounds
+the returned AMC owner, exact attached Portal and generation before acquiring ownership.
+Known same-ALS reuse requires the continuously verified owner/provenance and performs no second
+opener. `local_session_requires_terminal_operation` blocks a different open from a worker-owned
+local source; `local_session_source_preservation_unproved` blocks unproved borrowed-source or
+duplicate-destination preservation. Force never overrides these guards. A retained empty Portal
+can recover from invalidation without adopting/opening during preview; post-open evidence still
+must match that exact Portal. Uncertain mutation/payload failure retains attempted evidence.
 
 `LifecycleWriteResponse` advertises version `1.0` with the shared envelope plus `phase`, `guards`,
 `effects`, typed `result`, and typed `verification`. The single outcomes reuse
@@ -801,6 +828,12 @@ and the response must keep the same worker id and Portal PID. A restart, PID
 change, same-path close/reopen, or malformed close result is rejected rather
 than adopted as a new binding. Read-only mode is categorically stronger than any
 write path: the access policy refuses write operations before binding.
+
+Local continuity includes the typed owner/root, not path alone. Same-owner observation refresh
+retains binding revision and known provenance; replacement at the same AMC path invalidates it.
+Different observed AMC paths do not establish durable remote identities for sessions of one
+server project. Safe local detach still needs a UI/retaining owner; generic session terminal
+cleanup and automatic opener replay remain absent.
 
 ### PLC writes (`plc_write`)
 

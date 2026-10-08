@@ -239,6 +239,32 @@ and restoration separately. Any code/base change invalidates that frozen accepta
 Offline tests, a successful reference build, and a rendered prompt cannot establish the entire live
 matrix. No automatic replay follows timeout, crash, disconnect, or possible mutation.
 
+## PR4 installed-public-tool local-session acceptance
+
+The [definition](../superpowers/acceptance/2026-10-07-multiuser-pr4-live-definition.md) and
+[October 8 report](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
+record the installed-public-MCP protocol and scoped maintainer acceptance. Freeze the exact
+implementation commit/package, hash the actual installed host DLL and adjacent worker, and
+record launch mode/startup assertions before serialized calls. Do not use a new PR4 harness
+or direct-worker substitute; offline doubles and historical Inspector/Network runs cannot pass
+PR4 live cases.
+
+Use synthetic A (Exclusive), B (Multiuser), H (headless) and E (endpoint) roles in tracked reports;
+keep their exact private mapping only in ignored evidence. Discover with
+`bind_project({action:"list_portals"})`, adopt an exact observed AMC owner/PID, then read basic
+status. For an authorized closed target in a retained empty Portal, preview
+`open_project({projectPath:A_ALS,forceRebind:true,dryRun:true})`, inspect unchanged inventory,
+then make one authorized actual call. Record exact requests/canonical text and structured
+responses, owner/generation/PID and binding, independent before/after UI/source preservation,
+human MCP/vendor prompt observations, exact audit record/document hashes and restoration.
+
+The recorded online recovery used two UI Portals, not the whole sole-Portal matrix. Both offline
+read-write actual opens needed Siemens dialog dismissal; retain noninteractive FAIL separately
+from UI-assisted completion. Operator-owned endpoint stop/start and project-only closure require
+their exact authorization. Never save/commit/generic-close a local session, auto-clean up, or
+replay an uncertain opener. Full-offline/headless/race rows remain unexecuted; baseline read-only
+and general lifecycle retesting were expressly excluded for this run.
+
 ## Project-tree v3 read-only live acceptance
 
 The maintained [project-tree v3 harness](../../scripts/live-test-project-tree-v3.ps1) is a separately authorized live check, not part of the offline test suite. It never opens, switches, saves, compiles, confirms, or mutates a project. Before running it, build the Release server and manually open an approved read-only fixture in TIA Portal V21. Then provide that exact path explicitly or through `TIA_MCP_LIVE_PROJECT_PATH`:

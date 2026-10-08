@@ -52,7 +52,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-07 | [Multiuser PR 4 — open existing sessions (planning only; implementation and live matrix)](plans/2026-10-07-multiuser-pr4-open-existing-sessions.md) |
+| 2026-10-07 | [Multiuser PR4 — open existing sessions (implemented/offline-qualified; scoped maintainer live acceptance)](plans/2026-10-07-multiuser-pr4-open-existing-sessions.md) |
 | 2026-10-05 | [Multiuser PR 3 — inventory through bind_project (offline-qualified; live acceptance passed)](plans/2026-10-05-multiuser-pr3-read-only-inventory.md) |
 | 2026-10-05 | [Multiuser PR 2 — active project context](plans/2026-10-05-multiuser-pr2-active-project-context.md) |
 | 2026-10-06 | [PLC write, PR B — `plc_write`, batch-tool and token-core retirement (implemented; live-accepted)](plans/2026-10-06-plc-write.md) |
@@ -94,6 +94,12 @@ Task-level implementation plans derived from the specs above.
 | 2026-07-27 | [SCL external-source support](plans/2026-07-27-scl-external-source.md) |
 | 2026-07-26 | [UDT and DB external-source support](plans/2026-07-26-udt-db-external-source.md) |
 
+## Acceptance definitions
+
+| Date | Document |
+| --- | --- |
+| 2026-10-07 | [Multiuser PR4 — installed-public-tool live definition and original L01–L19 expectations](acceptance/2026-10-07-multiuser-pr4-live-definition.md) |
+
 ## Acceptance reports
 
 PR 5 and PR 6 qualified token-bound safety snapshots that `plc_write` has since replaced; their
@@ -115,6 +121,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-08 | [Multiuser PR4 — scoped maintainer acceptance, offline dialog failures, audits and restoration](acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md) |
 | 2026-10-07 | [PLC write (PR B) — offline qualification and live acceptance in read-write and full](acceptance/reports/2026-10-07-plc-write-validation.md) |
 | 2026-10-06 | [Multiuser PR 3 — offline qualification; live acceptance passed by maintainer decision](acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md) |
 | 2026-10-06 | [Multiuser PR 3 — installed-tool live acceptance finished and passed; observations and non-blocking evidence limitations](acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) |

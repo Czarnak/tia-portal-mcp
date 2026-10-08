@@ -57,6 +57,26 @@ worker-reported copied project path; verify it with a subsequent status or read 
 
 ## Guarded lifecycle failures
 
+- Local `unsupported_capability`: PR4 delivers adoption/open/basic status; content, compile,
+  local save and standalone-only create/save-as/archive/close remain unavailable, even in full
+  or a dry run. Do not use generic `close_project` to clean up a local session.
+- Invalid local selector: use the observed typed `.amc21` owner path for bind/status/startup;
+  an existing file-only `.als21` path belongs to `open_project`. Inventory directories and
+  guessed filename relationships cannot resolve an owner or its opener provenance.
+- `local_session_requires_terminal_operation`: a different open would replace a worker-owned
+  local source. It blocks even when clean and with force/full. Preserve it until a separately
+  authorized supported terminal operation is available.
+- `local_session_source_preservation_unproved` or ambiguous owner/headless refusal: preservation
+  or exact duplicate identity is unproved. Inspect exact Portal/AMC state and retain a UI/client;
+  do not override, dispose a sole headless owner or reconstruct ALS provenance.
+- Offline ALS opening can show a Siemens/TIA connection dialog. Both scoped read-write opens
+  completed after operator dismissal; the original noninteractive checks failed. The MCP
+  confirmation prompt is separate. Inspect the target before another request after a timeout
+  or unresolved dialog; full policy confirmation does not guarantee no vendor dialog.
+- Generic Project Server inventory failure is not typed proof of unavailability/authentication
+  failure. A healthy local status does not prove remote connectivity or session mode; explicit
+  endpoint observations cannot populate the currently unjoined active remote identity.
+
 - `access_denied` naming elicitation: every actual lifecycle call in read-write requires one form
   acceptance with boolean `confirm:true`, even with no guards or only info guards. Decline, cancel,
   timeout, unsupported capability, or transport failure blocks mutation. Use a supporting client;

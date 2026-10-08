@@ -19,7 +19,9 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Architecture](ARCHITECTURE.md) | Two-process topology, tier enforcement, explicit binding/cursor invalidation, transport, canonical JSON, mode-derived confirmation/audit v2, and testing |
-| [Multiuser inventory and acceptance boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) | Exact bind_project inspection actions, persistent attachment, current-user/lock limits and undelivered ALS21/session mutations |
+| [Multiuser local sessions, inventory and acceptance boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) | Exact AMC adoption, ALS opening/basic status, persistent inventory, preservation guards and remaining session limits |
+| [PR4 live definition](superpowers/acceptance/2026-10-07-multiuser-pr4-live-definition.md) | Original L01–L19 expectations, installed-public-tool protocol and scoped acceptance rules |
+| [PR4 scoped live acceptance](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md) | Frozen candidate/provenance, online recovery, offline Siemens-dialog failures, maintainer ruling, audits, restoration and unexecuted cases |
 | [PR 3 offline qualification](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-offline-validation.md) | Combined candidate, serial suite/coverage, installed-reference compilation and local package checks; live acceptance passed by maintainer decision |
 | [PR 3 installed-tool live acceptance](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) | Finished and passed by maintainer decision on October 6; all six inspection actions, zero-project/standalone prerequisites, binding/cursors, worker-loss recovery and recorded evidence limitations |
 | [PR 2 standalone live acceptance](superpowers/acceptance/reports/2026-10-05-multiuser-pr2-active-project-context-live.md) | Offline qualification, frozen live candidate, selection/lifecycle/headless evidence and restored fixtures |
@@ -53,9 +55,10 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
-Latest planning entry: [Multiuser PR 4 — open existing sessions](superpowers/plans/2026-10-07-multiuser-pr4-open-existing-sessions.md)
-defines the implementation tasks and frozen-candidate live matrix for `.als21` opening/adoption;
-implementation and live verification have not started.
+Latest implementation entry: [Multiuser PR4 — open existing sessions](superpowers/plans/2026-10-07-multiuser-pr4-open-existing-sessions.md)
+records implemented/offline-qualified `.amc21` adoption and `.als21` opening, with scoped
+maintainer acceptance on October 8. The report retains failed noninteractive offline opening
+and unexecuted matrix rows; Issue #65 and successor session operations remain open.
 
 Latest process entries: the [PLC read/write and cross-references design](superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md),
 its [PR A `plc_read` and `read_cross_references` plan](superpowers/plans/2026-10-05-plc-read-and-cross-references.md)

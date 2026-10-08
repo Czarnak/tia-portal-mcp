@@ -1,9 +1,10 @@
-# Multiuser inventory and acceptance boundary
+# Multiuser local sessions, inventory and acceptance boundary
 
 `bind_project` exposes explicit Portal discovery and five Project Server inventory actions in
-all modes. Omitted/null `action` or `action:"bind"` retains standalone `.ap21` binding behavior
-and its response shape. Discovery is **6/15/15** tools in read-only/read-write/full.
-PR 1 contracts and PR 2 passive context remain the foundation; Issue #65 is incomplete.
+all modes. Omitted/null `action` or `action:"bind"` selects already-open standalone `.ap21`
+or typed local-session `.amc21` owners. Discovery remains **6/15/15** tools in
+read-only/read-write/full. PR4 adds explicit existing `.als21` opening in writable modes and
+basic local status. PR1/PR2 ownership contracts remain the foundation; Issue #65 is incomplete.
 PR 3 has [installed-tool live acceptance](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
 for all six inspection actions against authorized session copies and a standalone `.ap21`,
 including remote reads with zero open projects. The maintainer accepted live testing as finished
@@ -29,7 +30,7 @@ is `{"isRoot":true,"name":null}`; named group is `{"isRoot":false,"name":"Exact 
 Both group members are required, including explicit root `name:null`. Unknown members, blank
 names, missing selectors and cross-action keys reject before worker activity. Inspections reject
 supplied `projectPath`/`forceRebind` keys even when null/false. `list_portals` accepts only `action`;
-`bind` rejects inspection selectors.
+`bind` rejects server inventory selectors; an optional exact Portal PID is allowed for binding.
 
 ```json
 { "action": "list_portals" }
@@ -117,6 +118,8 @@ Each session's `projectPath` is the normalized `LocalSessionInfo.ProjectFileInfo
 returned by Siemens. The authorized live fixture returned session directories, rather than
 `.als21` file paths. Treat this field as inventory evidence; it is not a guaranteed opening or
 binding selector, and PR 3 does not enable `.als21` opening or adoption.
+PR4 accepts an independently known exact existing `.als21` file for `open_project`; it never
+derives that filename from this inventory field.
 
 Standalone budgets are 60,000 characters per whole value and 180,000 per complete document.
 Oversized inventory is omitted whole, including `inspection`, with omission metadata and guidance
@@ -126,12 +129,12 @@ truncated; repeating the same oversized request may still exceed the limit.
 ## Internal context
 
 `TiaPortalSession` stores an `ActiveProjectContext` whose `ProjectBase` root comes from its
-typed owner. `StandaloneProjectOwner` retains a `Project`; `LocalSessionOwner` passively
-retains a `LocalSession` and its `MultiuserProject`. A local/server owner exposes no save,
-close, discard, or commit abstraction, and no production caller activates one in this PR.
-Current content services use a standalone `Project` compatibility projection. Status,
-lifecycle, and worker dispatch resolve the standalone owner explicitly; local/server owners
-are refused with `target_kind_unsupported` at these boundaries.
+typed owner. `StandaloneProjectOwner` retains a `Project`; `LocalSessionOwner` retains a
+`LocalSession` and its `MultiuserProject`. Production selection resolves the exact typed owner
+and its absolute `.amc21` engineering path. Local basic status and explicit `.als21` opening
+use that owner; content services retain the standalone compatibility projection. Local content,
+compile, save and standalone-only lifecycle calls reject with `unsupported_capability` before
+mutation, including previews. The local owner exposes no save, close, discard or commit method.
 
 Identity remains a projection of the authoritative session. Rewrapping the same root does
 not advance generation; a replacement root or accepted path change does. Detach releases
@@ -139,19 +142,51 @@ ownership, and adoption never restores it. Shutdown releases Portal resources wi
 claiming project save, session discard, or revision commit. See
 [architecture](../ARCHITECTURE.md#internal-active-project-context).
 
-Capabilities are internal, read-only, and empty; remote identity and connection observation
-are null. They are not an advertised compatibility matrix and grant no authorization.
+Local status adds conditional `context`; standalone/closed status omits it. Its basic status
+has `metadata:null`. Context includes descriptive capabilities, exact `engineeringProjectPath`,
+nullable `sessionContainerPath` and `openedByWorker`. Cold adoption records no ALS provenance
+and no worker ownership. A successful exact ALS opener records provenance only after typed
+owner/root verification; known same-ALS reuse needs continuous owner identity. Same-owner
+observation refresh preserves generation/binding revision; owner replacement at the same path
+invalidates identity. Detach relinquishes ownership and known opener provenance.
+
+The product reports `sessionMode:"unknown"`, `remoteIdentity:null`, and an active connection
+observation of `unknown`. Fixture creation modes and endpoint mapping are independent operator
+evidence; filenames, directories and inventory IDs cannot populate an unsupported reverse join.
+Explicit endpoint inventory observations have their own attachment/endpoint history and do not
+prove active-session connectivity, freshness, markings or remote session identity. Capabilities
+describe applicability; access modes and guarded execution still decide authorization.
+
+Worker-owned local sources block a different open with
+`local_session_requires_terminal_operation` even when clean. Borrowed sources require proved
+coexistence/duplicate preservation; uncertainty blocks with
+`local_session_source_preservation_unproved`. Force cannot override either guard. Generic
+`close_project` is not a local-session terminal operation; shutdown releases Portal resources
+without session save, discard or commit. See the [project reference](PROJECT_OPERATIONS_SUMMARY.md#local-session-identity-and-basic-status).
 
 ## Public Multiuser work still pending
 
-`.als21` bind/open or startup selection, local-session content compatibility, `get_session_state`,
-`get_markings`, local save, discard, commit and server mutation remain undelivered. Inventory
+Local-session content compatibility, compilation, `get_session_state`, `get_markings`, local
+save, discard, commit and server mutation remain undelivered. `.als21` remains an opening input,
+never a bind/status/startup assertion; those use observed `.amc21` identity. Inventory
 does not open/bind implicitly to satisfy an open-project prerequisite; current-PR live evidence
 must establish the prerequisite and scope. Generic standalone lifecycle cannot replace a synthetic
 local/server source. Later PRs must individually establish capability, typed contracts,
 guarded execution, and operation-specific live evidence before enabling their public paths.
 
 ## Acceptance boundary
+
+PR4 implementation candidate `3772edad0ce9e90390bc36deb71dbd8140511424` was offline qualified
+and accepted by the maintainer on October 8 **within the documented scope**. The
+[definition](../superpowers/acceptance/2026-10-07-multiuser-pr4-live-definition.md) retains the
+original matrix; the [live report](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
+records 73 installed public calls with canonical equality and 21 exact lifecycle audit matches.
+Online recovery/opening passed in two retained UI Portals in full/read-write. Offline read-write
+previews passed; both actual opens completed only after operator-dismissed Siemens dialogs, so
+the original noninteractive offline expectation failed. Full-mode offline, headless/race and
+other matrix gaps remain unexecuted. This is scoped maintainer acceptance, not all L01–L19 PASS.
+Read-only and general standalone lifecycle retesting were expressly excluded by the maintainer.
+No save, commit, generic local close, automatic cleanup or replay formed part of this run.
 
 Source-linked in-memory Siemens doubles exercise the actual context/session source offline;
 FakeWorker tests establish host protocol, binding, confirmation, and audit behavior. These
