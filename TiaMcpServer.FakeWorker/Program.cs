@@ -102,6 +102,7 @@ var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer
 var hardwarePaginationIdentityDrift = false;
 var projectTreeV3ScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var localOwnerStatusReads = 0;
+var localConfirmationDriftApplied = false;
 // Stateful PLC write fixture: reads in the same process observe earlier writes.
 var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
 var plcWriteIncomplete = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), inventoryIncomplete: true);
@@ -316,6 +317,16 @@ while ((line = Console.In.ReadLine()) is not null)
     if (portalInventoryDeclared && IsLocalPath(fakeProjectPath)
         && currentMethod == "probe_open_project_rebind")
     {
+        var driftFile = fakeSessionContainerPath is null ? null : fakeSessionContainerPath + ".drift";
+        if (!localConfirmationDriftApplied && driftFile is not null && File.Exists(driftFile))
+        {
+            switch (File.ReadAllText(driftFile))
+            {
+                case "owner": fakeSessionGeneration++; break;
+                case "consequence": AttachedPortal()!.Modified = true; break;
+            }
+            localConfirmationDriftApplied = true;
+        }
         var destination = ReadField(line, "rebindDestinationProjectPath")!;
         Respond(Success(WorkerJson.SerializePayload(ProjectRebindStateInfo.Create(
             fakeProjectPath, destination, AttachedPortal()?.Modified ?? false,
