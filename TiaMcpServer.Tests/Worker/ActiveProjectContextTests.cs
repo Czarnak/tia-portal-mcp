@@ -99,9 +99,19 @@ public class ActiveProjectContextTests
 
     private static void AssertPassive(ActiveProjectContext context)
     {
-        Assert.Empty(context.CapabilitySet);
+        Assert.Equal(ProjectCapabilityCatalog.Describe(context.ContainerKind)
+                .Select(capability => (capability.Operation, capability.Applicability)),
+            context.CapabilitySet.Select(capability => (capability.Operation, capability.Applicability)));
         Assert.Null(context.RemoteIdentity);
-        Assert.Null(context.ConnectionObservation);
+        if (context.Owner is LocalSessionOwner)
+        {
+            var observation = Assert.IsType<ProjectServerConnectionObservation>(context.ConnectionObservation);
+            Assert.Equal(ProjectServerConnectionStates.Unknown, observation.State);
+            Assert.Equal(context.Owner.OpenedByWorker
+                ? ProjectServerConnectionObservationSources.SessionOpen
+                : ProjectServerConnectionObservationSources.SessionBind, observation.ObservationSource);
+        }
+        else Assert.Null(context.ConnectionObservation);
     }
 
     private static void AssertNoMutation(LocalSession session)

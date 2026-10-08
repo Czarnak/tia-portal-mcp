@@ -38,6 +38,8 @@ internal static class StandalonePayloadContract
                 || status.Size < 0)
                 throw new JsonException();
             ValidateMetadata(status.Metadata);
+            if (status.IsOpen) ProjectContextPayloadContract.Validate(status.Context, status.Path!);
+            else if (status.Context is not null) throw new JsonException();
             return new(OperationBatchStatus.Succeeded, status, null, null);
         }
         catch (JsonException)

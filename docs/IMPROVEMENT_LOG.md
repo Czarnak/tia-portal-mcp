@@ -38,10 +38,28 @@ PR 3 live acceptance was subsequently finished and passed by maintainer decision
 the [live report](superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
 preserves executed observations and non-blocking unexecuted cases. Successor Multiuser operations remain open.
 The [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) distinguishes
-this partial delivery from Issue #65 completion. Public `.als21` selection/open and local-session
-lifecycle operations remain later work. Preserve
+this partial delivery from Issue #65 completion. PR4 now delivers exact `.amc21` adoption,
+basic local status/startup assertions and explicit `.als21` opening. Its
+[October 8 report](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
+records offline qualification and scoped maintainer live acceptance; both noninteractive
+offline read-write opens failed because Siemens dialogs required dismissal. Full offline,
+headless/race and other matrix rows remain unexecuted. Content, compile, local save, markings,
+terminal actions and server mutation remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
+
+## Open: Reliable local-session distinction for one server project (2026-10-07)
+
+The PR 4 prerequisite probes distinguished two observed local owners by their different typed
+`LocalSession.Project.Path` engineering `.amc21` paths. This does not establish a durable local
+session ID or a supported join to Project Server inventory. Qualify a supported owner/session
+identity for different local sessions associated with the same server project before relaxing
+PR 4's fail-closed handling of same/ambiguous paths, owner replacement, or unknown remote identity.
+An explicit `.als21` opener remains provenance; filenames and directory hierarchy establish
+neither cold-adoption identity nor engineering/exclusive mode.
+
+Distinguishing multiple sessions bound to the same server project remains future work;
+PR4's observed AMC paths and successful opens do not close this follow-up or Issue #65.
 
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 

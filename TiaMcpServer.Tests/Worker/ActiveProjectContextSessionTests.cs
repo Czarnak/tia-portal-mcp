@@ -211,14 +211,16 @@ public sealed class ActiveProjectContextSessionTests
         AssertCategory(WorkerFailureCategories.GuardBlocked, () => f.Session.SelectPortalProject(f.PathB));
         Assert.Equal(before.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);
         Assert.Equal(0, f.A.Portal.DisposeCalls);
-        Assert.Equal(0, f.B.AttachCalls);
+        Assert.Equal(1, f.B.AttachCalls);
+        Assert.Equal(1, f.B.Portal.DisposeCalls);
         f.AssertNoLifecycle();
+        f.A.Mode = TiaPortalMode.WithUserInterface;
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void AttachFailureAfterDetach_CannotReturnFormerIdentity(bool disposeFailure)
+    public void CrossPidFailure_PreservesSourceUntilDetachActuallyStarts(bool disposeFailure)
     {
         using var f = new Fixture();
         f.Session.Connect(f.PathA);
@@ -226,10 +228,20 @@ public sealed class ActiveProjectContextSessionTests
         if (disposeFailure) f.A.Portal.DisposeFailure = new InvalidOperationException("dispose");
         else f.B.AttachFailure = new EngineeringException("attach");
         AssertCategory(WorkerFailureCategories.WorkerOperationFailed, () => f.Session.SelectPortalProject(f.PathB));
-        Assert.Null(f.Session.ActiveContext);
-        Assert.Null(f.Session.GetSessionIdentity().ProjectPath);
-        Assert.Null(f.Session.CurrentProcessId);
-        Assert.True(f.Session.GetSessionIdentity().SessionGeneration > before.SessionGeneration);
+        if (disposeFailure)
+        {
+            Assert.Null(f.Session.ActiveContext);
+            Assert.Null(f.Session.GetSessionIdentity().ProjectPath);
+            Assert.Null(f.Session.CurrentProcessId);
+            Assert.True(f.Session.GetSessionIdentity().SessionGeneration > before.SessionGeneration);
+        }
+        else
+        {
+            Assert.Equal(before.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);
+            Assert.Equal(before.ProjectPath, f.Session.GetSessionIdentity().ProjectPath);
+            Assert.Equal(before.PortalProcessId, f.Session.CurrentProcessId);
+            Assert.Equal(0, f.A.Portal.DisposeCalls);
+        }
         f.AssertNoLifecycle();
     }
 
@@ -291,16 +303,29 @@ public sealed class ActiveProjectContextSessionTests
     {
         using var f = new Fixture();
         f.Session.Connect(f.PathA);
-        var local = new LocalSession { Project = new MultiuserProject { Path = new FileInfo(f.PathA) } };
+        var localPath = f.File("session.amc21");
+        var local = new LocalSession { Project = new MultiuserProject { Path = new FileInfo(localPath) } };
+        f.A.Portal.LocalSessions.Items.Add(local);
         var context = ActiveProjectContext.ForLocalSession(local, owned, kind, MultiuserSessionModes.Unknown);
-        f.Session.AdoptContext(context, f.PathA);
+        f.Session.AdoptContext(context, localPath);
         var before = f.Session.GetSessionIdentity();
         Assert.Null(f.Session.Project);
         AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.RequireStandaloneOwner());
         foreach (var path in new[] { f.PathA, f.PathB })
         {
-            AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.ReadProjectRebindState(path));
-            AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.OpenProject(path));
+            if (kind == ProjectContainerKinds.LocalSession)
+            {
+                var rebind = f.Session.ReadProjectRebindState(path);
+                Assert.Equal(localPath, rebind.SourceProjectPath);
+                Assert.NotNull(rebind.SourceContext);
+                Assert.False(rebind.WillCloseSource);
+                AssertCategory(WorkerFailureCategories.GuardBlocked, () => f.Session.OpenProject(path));
+            }
+            else
+            {
+                AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.ReadProjectRebindState(path));
+                AssertCategory(WorkerFailureCategories.TargetKindUnsupported, () => f.Session.OpenProject(path));
+            }
         }
         Assert.Same(context, f.Session.ActiveContext);
         Assert.Equal(before.SessionGeneration, f.Session.GetSessionIdentity().SessionGeneration);

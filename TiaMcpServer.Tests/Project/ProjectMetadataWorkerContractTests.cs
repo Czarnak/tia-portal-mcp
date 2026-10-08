@@ -169,7 +169,7 @@ public class ProjectMetadataWorkerContractTests
         // The basic-status read must return plain ReadStatus, never the metadata-bearing variant.
         var basicStatusBody = source.Substring(
             source.IndexOf("public static ProjectStatusInfo GetBasicStatusReadOnly", StringComparison.Ordinal),
-            source.IndexOf("private static Project? ResolveProjectForRead", StringComparison.Ordinal)
+            source.IndexOf("private static ActiveProjectContext? ResolveProjectForRead", StringComparison.Ordinal)
                 - source.IndexOf("public static ProjectStatusInfo GetBasicStatusReadOnly", StringComparison.Ordinal));
         Assert.DoesNotContain("ProjectMetadataReader", basicStatusBody, StringComparison.Ordinal);
     }

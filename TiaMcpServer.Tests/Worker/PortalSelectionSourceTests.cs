@@ -26,7 +26,8 @@ public sealed class PortalSelectionSourceTests
         throw new InvalidOperationException("Missing closing brace.");
     }
 
-    private static string Selection => Method(Read("Openness/TiaPortalSession.cs"), "public PortalProjectSelectionInfo SelectPortalProject(");
+    private static string Selection => Method(Read("Openness/TiaPortalSession.cs"),
+        "public PortalProjectSelectionInfo SelectPortalProject(string? projectPath, int? requestedProcessId)");
 
     [Fact]
     public void ListingRequestMatchesCatalogAndBothWorkerDispatches()
@@ -93,7 +94,7 @@ public sealed class PortalSelectionSourceTests
     {
         Assert.DoesNotContain("SelectOpenProject(", Selection);
         Assert.Contains("SelectProjectIndex(", Selection);
-        Assert.Contains("AdoptProject(", Selection);
+        Assert.Contains("AdoptContext(", Selection);
     }
 
     [Fact]
@@ -109,22 +110,21 @@ public sealed class PortalSelectionSourceTests
     [Fact]
     public void GuardRunsBeforeDisconnect()
     {
-        var guardIndex = Selection.IndexOf("PortalDetachGuard.EvaluateProjects(", StringComparison.Ordinal);
-        var detachIndex = Selection.IndexOf("Disconnect()", StringComparison.Ordinal);
-        Assert.True(guardIndex >= 0 && detachIndex > guardIndex);
-        var before = Selection.Substring(0, Selection.IndexOf("Disconnect()", StringComparison.Ordinal));
-        Assert.DoesNotContain("CurrentProjectPath", before);
-        Assert.DoesNotContain("SetPortalHandle(", before);
-        Assert.DoesNotContain("Project =", before);
+        var disconnect = Method(Read("Openness/TiaPortalSession.cs"), "public void Disconnect(");
+        var guardIndex = disconnect.IndexOf("EvaluatePortalDetach(_tiaPortal)", StringComparison.Ordinal);
+        var clearIndex = disconnect.IndexOf("SetActiveContext(null)", StringComparison.Ordinal);
+        Assert.True(guardIndex >= 0 && clearIndex > guardIndex);
     }
 
     [Fact]
     public void DetachGuardInspectsAttachedProjectsWithoutChangingSelectedHandle()
     {
-        Assert.Contains("ReadAttachedProjectModifiedStates()", Selection);
-        Assert.Contains("PortalDetachGuard.EvaluateProjects(", Selection);
-        var read = Method(Read("Openness/TiaPortalSession.cs"), "private IReadOnlyList<bool?>? ReadAttachedProjectModifiedStates(");
-        Assert.Contains("_tiaPortal!.Projects", read);
+        var guard = Method(Read("Openness/TiaPortalSession.cs"), "private static string? EvaluatePortalDetach(");
+        Assert.Contains("ReadAttachedProjectModifiedStates(portal)", guard);
+        Assert.Contains("ReadAttachedLocalSessionPresence(portal)", guard);
+        Assert.Contains("PortalDetachGuard.EvaluateProjects(", guard);
+        var read = Method(Read("Openness/TiaPortalSession.cs"), "private static IReadOnlyList<bool?>? ReadAttachedProjectModifiedStates(");
+        Assert.Contains("portal.Projects", read);
         Assert.Contains("catch (Exception", read);
         Assert.Contains("return null", read);
         Assert.DoesNotContain("AdoptProject(", read);
@@ -132,14 +132,13 @@ public sealed class PortalSelectionSourceTests
     }
 
     [Fact]
-    public void NoPreDetachCategoryAfterDisconnect()
+    public void TargetOwnerSelectionPrecedesSourceDisconnect()
     {
-        var after = Selection.Substring(Selection.IndexOf("Disconnect()", StringComparison.Ordinal));
-        Assert.DoesNotContain("WorkerFailureCategories.TargetNotFound", after);
-        Assert.DoesNotContain("WorkerFailureCategories.TargetAmbiguous", after);
-        Assert.DoesNotContain("WorkerFailureCategories.GuardBlocked", after);
-        Assert.Contains("catch (Exception", after);
-        Assert.Contains("WorkerFailureCategories.WorkerOperationFailed", after);
+        var readIndex = Selection.IndexOf("ReadOpenContexts(target)", StringComparison.Ordinal);
+        var selectIndex = Selection.IndexOf("SelectProjectIndex(", readIndex, StringComparison.Ordinal);
+        var detachIndex = Selection.IndexOf("Disconnect()", StringComparison.Ordinal);
+        Assert.True(readIndex >= 0 && selectIndex > readIndex && detachIndex > selectIndex);
+        Assert.Contains("WorkerFailureCategories.TargetNotFound", Selection.Substring(selectIndex, detachIndex - selectIndex));
     }
 
     [Fact]

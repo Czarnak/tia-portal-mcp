@@ -22,7 +22,7 @@ public class ProjectReadTools
     [Description("Get status and metadata for the active TIA Portal project.")]
     public static async Task<CallToolResult> GetProjectStatus(
         OpennessWorkerClient workerClient,
-        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
+        [Description("Optional .ap21 project or .amc21 local-session engineering path already open in TIA Portal. If omitted, uses the current project.")] string? projectPath = null)
     {
         var result = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
         var rejection = StandalonePayloadContract.Rejection(result);

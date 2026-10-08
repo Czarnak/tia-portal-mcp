@@ -33,11 +33,14 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalSession.cs" Link="Linked\Openness\TiaPortalSession.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\MultiuserPortalReadDispatch.cs" Link="Linked\Openness\MultiuserPortalReadDispatch.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\MultiuserInventoryService.cs" Link="Linked\Openness\MultiuserInventoryService.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectServerObservationTracker.cs" Link="Linked\Openness\ProjectServerObservationTracker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalProcessInventory.cs" Link="Linked\Openness\TiaPortalProcessInventory.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectLifecycleOwner.cs" Link="Linked\Openness\ProjectLifecycleOwner.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\StandaloneProjectOwner.cs" Link="Linked\Openness\StandaloneProjectOwner.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\LocalSessionOwner.cs" Link="Linked\Openness\LocalSessionOwner.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ActiveProjectContext.cs" Link="Linked\Openness\ActiveProjectContext.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\OpenProjectContextCandidate.cs" Link="Linked\Openness\OpenProjectContextCandidate.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\LocalSessionContextResolver.cs" Link="Linked\Openness\LocalSessionContextResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\IoSystemQualificationEvidence.cs"
       Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkConnectionEvidenceCapture.cs"
@@ -111,6 +114,8 @@
       Link="Host\ProjectBindingDecision.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectBindingPayloadContract.cs"
       Link="Host\ProjectBindingPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\ProjectContextPayloadContract.cs"
+      Link="Host\ProjectContextPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Json\TiaJson.cs" Link="Host\Json\TiaJson.cs" />
     <Compile Include="..\TiaMcpServer\Json\CanonicalJson.cs" Link="Host\Json\CanonicalJson.cs" />
     <Compile Include="..\TiaMcpServer\Cursors\*.cs" Link="Host\Cursors\%(Filename)%(Extension)" />

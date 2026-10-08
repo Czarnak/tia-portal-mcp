@@ -6,6 +6,19 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class PortalDetachGuardTests
 {
     [Theory]
+    [InlineData(false, 0, true)]
+    [InlineData(true, 0, false)]
+    [InlineData(false, 1, false)]
+    public void LastHeadlessLocalClient_CannotDetachUnprovenPreservation(
+        bool hasUserInterface, int otherClientCount, bool refuses)
+    {
+        var method = typeof(PortalDetachGuard).GetMethod("EvaluateProjects",
+            [typeof(bool), typeof(int), typeof(IReadOnlyList<bool?>), typeof(bool)]);
+        Assert.NotNull(method);
+        Assert.Equal(refuses, method.Invoke(null, [hasUserInterface, otherClientCount, Array.Empty<bool?>(), true]) is not null);
+    }
+
+    [Theory]
     [InlineData("unselected-modified", false, 0, true)]
     [InlineData("unselected-unknown", false, 0, true)]
     [InlineData("unreadable-collection", false, 0, true)]

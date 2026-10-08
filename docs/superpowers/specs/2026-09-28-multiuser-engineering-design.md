@@ -4,6 +4,8 @@
 
 **Revised:** 2026-10-03 for lifecycle alignment; 2026-10-05 for the user-selected `bind_project` read surface, against `main` at `ea269c222e7415af347f2929cbc82a366aa2ee0f`
 
+**PR 4 identity revision:** 2026-10-07, user-approved typed `.amc21` owner binding with nullable `.als21` opener provenance, as detailed in the [revised PR 4 plan](../plans/2026-10-07-multiuser-pr4-open-existing-sessions.md). This replaces the earlier ALS adoption/configured-selector assumption; all unaffected successor scope and evidence gates remain.
+
 **Status:** Core design approved; read routing through `bind_project` selected by the user on 2026-10-05. PR 3 is implemented and offline-qualified; the maintainer accepted its live testing as finished and passed on October 6. The [installed-tool live report](../acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md) preserves executed observations and non-blocking unexecuted cases. Successor PR gates remain unchanged.
 
 **Source:** Issue [#65](https://github.com/Czarnak/tia-portal-mcp/issues/65), repository
@@ -29,7 +31,7 @@ Success means:
 
 - `open_project` explicitly opens an existing `.als21` local or exclusive session as well as a
   standalone `.ap21` project;
-- `--project` and `TIA_MCP_PROJECT_PATH` accept `.als21` as a configured selection assertion, and
+- `--project` and `TIA_MCP_PROJECT_PATH` accept the typed local owner's `.amc21` path as a configured selection assertion, and
   `bind_project` adopts an already-open session without opening, saving, closing, discarding, or
   committing it;
 - project-content operations use one typed worker implementation wherever Siemens exposes a common
@@ -84,7 +86,7 @@ The October 3 revision preserves the delivered standalone behavior described in
   are absent. `--confirm-with-user` is removed. Read-write requires one form elicitation for every
   actual lifecycle call, including calls without acknowledge guards; full uses policy satisfaction.
 - `bind_project` is `SessionSelection`, permitted in every mode. It selects an already-open `.ap21`
-  project today. Extending it to `.als21` is future Multiuser work, not delivered behavior.
+  project today. Extending it to typed local owners selected by `.amc21` is planned PR 4 work, not delivered behavior.
 - `--project` and `TIA_MCP_PROJECT_PATH` configure an assertion; they never open a project. Ordinary
   reads and writes never adopt or switch an unbound selection. Only an explicit opener creates an
   open engineering context.
@@ -214,6 +216,15 @@ with `containerKind`, `sessionMode`, and capabilities. Retain the host binding I
 Multiuser binding state machine. Project-tree cursors continue to reject ID/revision changes as
 `cursor_binding_mismatch`.
 
+For local sessions, the canonical binding/status path is the typed `LocalSession.Project.Path`
+`.amc21` engineering path. Include exact Portal PID, owner kind and live owner/generation continuity;
+path equality alone does not establish continuity after close/reopen. `sessionContainerPath` is null
+for cold adoption and may contain an exact `.als21` input only as provenance after its opener returned
+a verified typed owner/root. It is not a reverse identity getter or a cold-adoption selector.
+Different engineering paths distinguished the observed October 7 fixtures; same/ambiguous paths,
+owner replacement and unproved remote-session association fail closed. Filenames, parent directories,
+private ALS data and hierarchy establish neither mode nor a remote identity join.
+
 When known, `RemoteIdentity` contains:
 
 - exact Project Server alias;
@@ -231,7 +242,11 @@ returns `target_ambiguous`. The worker never selects `.First()`, index zero, the
 or the first running TIA Portal process as a target-resolution fallback.
 
 `bind_project(projectPath?, forceRebind=false)` retains its exact-one selection and source-conflict
-rules when `.als21` support is added. A different configured or last-bound path requires
+rules for typed local owners selected by `.amc21`. The existing positive `portalProcessId` argument
+becomes valid for `bind`, selecting one exact Portal before typed owner enumeration; it adds no
+argument or action. Without deterministic advertised metadata or an explicit exact PID, ambiguity
+is returned before attachment rather than attaching arbitrary Portals to search. A different PID
+or configured/last-bound path requires
 `forceRebind`; that flag permits selection, not saving, closing, discard, or commit. Same-context
 calls reverify worker identity. Results retain non-null before/after binding state and candidate
 inventory obtained during the call. A status read may verify the matching configured assertion,
@@ -275,8 +290,10 @@ The public surface is hybrid.
   tool, preserving `forceRebind`, `dryRun`, and mode-derived confirmation. An `.als21` path means a
   local or exclusive session open through `LocalSessions.Open`; it does not mean direct
   server-project editing.
-- Planned `bind_project` and startup-selector support accepts `.als21` only for selection of an
-  already-open session. No read, write, or configured startup path implicitly opens it.
+- Planned `bind_project` and startup-selector support accepts the typed owner's exact `.amc21`
+  engineering path for selection of an already-open session. `.als21` remains an explicit opener
+  input and nullable provenance, not an adoption/configured assertion. No read, write, or configured
+  startup path implicitly opens it.
 - `save_project` dispatches to `Project.Save()` for a standalone project and
   `LocalSession.Save()` for a local or exclusive session when PR 6 enables it, with the same lifecycle
   guards, dry-run, confirmation, verification, and audit seam.
@@ -423,8 +440,10 @@ MCP client
 5. Only an actual permitted call dispatches the opener by extension:
    - `.ap21` → `TiaPortal.Projects.Open`
    - `.als21` → `TiaPortal.LocalSessions.Open`
-6. Verify the opened context using worker-reported identity and operation-specific postconditions,
-   then adopt its binding and return the typed result with capabilities and connection observation.
+6. Verify the returned typed owner/root and worker identity, then adopt its `.amc21` local binding
+   and return the typed result with exact `.als21` input as separate nullable opener provenance,
+   capabilities and connection observation. Unknown duplicate-destination or source-preservation
+   evidence blocks before dispatch; a cold owner cannot be reused by ALS path heuristics.
 7. Append one audit v2 record, including dry runs and blocked calls. A pre-dispatch refusal preserves
    the prior binding where continuity is verified. Failure after dispatch may have changed state;
    report actual binding state or invalidation and inspect before retrying.
@@ -496,6 +515,12 @@ transition
 Observation sources are `sessionOpen`, `sessionBind`, `explicitRead`, `operationPreflight`, and
 `postFailure`. `sessionBind` identifies an observation made while adopting an already-open session;
 binding alone never establishes Project Server connectivity.
+
+PR 4 inventory observations remain independently scoped to their exact endpoint. They are associated
+with the active local owner only after a supported exact owner/session join; October 7 prerequisite
+probes did not establish such a join. Cold adoption does not require remote inventory and reports
+unknown remote identity/observation when association is unavailable. Operator fixture mappings,
+ALS opener provenance, engineering paths, names and hierarchy cannot manufacture that association.
 
 The state is observed:
 
@@ -656,8 +681,11 @@ mutations must resolve their binding/lease strategy before implementation.
 
 - Extend explicit `open_project`, already-open `bind_project`, and configured `--project` /
   `TIA_MCP_PROJECT_PATH` selectors; no implicit opening.
+- Open exact `.als21` files; bind/configure/status use typed `.amc21` owner paths. Cold adoption
+  carries null ALS provenance; successful opening records its exact input separately. Retain exact
+  PID/owner/generation continuity, fail-closed same-path/duplicate handling and source/headless guards.
 - Add binding, capability, active-session state, initial connection observation, and reconnection
-  reporting.
+  reporting. Remote inventory remains independent unless a supported exact owner/session join exists.
 - Gate: live Multiuser and Exclusive opening online and offline, read-only adoption of already-open
   sessions, exact/ambiguous selection, switching and ownership preservation, dry runs, read-write
   confirmation/full policy, binding/cursor evidence, and observed reconnection behavior. Generic
@@ -819,3 +847,11 @@ all PR 3 live testing as finished and passed on October 6, with unexecuted cases
 non-blocking evidence limitations. Authorized save/close/reopen and one worker-loss injection
 were performed; no installed configuration change or remote write was performed. Successor mutation surfaces remain separately
 planned; this PR 3 routing decision adds no mutation action to `bind_project`.
+
+The October 7 PR 4 identity revision follows user approval after separate throwaway online-opener
+prerequisite probes on disposable fixtures A/B. Those probes observed distinct typed `.amc21`
+owner paths and successful exact ALS/directory opening, but no authoritative reverse ALS identity
+or owner-specific remote join. The revised plan retains `.als21` as the public opener input and
+uses `.amc21` for owner binding with nullable opener provenance. This documentation revision adds
+no production code or live action and claims no complete PR 4 acceptance; offline/reconnect,
+same-path owner replacement, ambiguity, duplicates and preservation still need their own evidence.

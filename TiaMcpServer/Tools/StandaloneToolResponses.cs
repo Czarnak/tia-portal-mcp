@@ -67,6 +67,10 @@ public sealed record ProjectBindingInspectionInfo(
     MultiuserLocalSessionsInfo? LocalSessions,
     MultiuserLockStateInfo? LockState);
 
-public sealed record ProjectBindingInfo(string State, string? ProjectPath, int? PortalProcessId);
+public sealed record ProjectBindingInfo(
+    string State,
+    string? ProjectPath,
+    int? PortalProcessId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ProjectContextInfo? Context = null);
 
 public sealed record PortalProcessInfo(int ProcessId, string? ProjectPath, bool HasUserInterface, bool IsBound);

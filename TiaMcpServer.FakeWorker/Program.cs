@@ -23,6 +23,7 @@ var fakeSessionGeneration = 1L;
 // starts. Ordinary requests never establish this mutable session state.
 string? fakeProjectPath = ProjectPathNormalization.Canonicalize(
     Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_UI_OPEN_PROJECT"));
+string? fakeSessionContainerPath = null;
 var portalInventoryDeclaration = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_PORTALS");
 var portalInventoryDeclared = portalInventoryDeclaration is not null;
 var fakePortals = portalInventoryDeclared
@@ -33,6 +34,11 @@ int? fakePortalProcessId = portalInventoryDeclared
     ? fakePortals.FirstOrDefault(portal => fakeProjectPath is not null &&
         string.Equals(portal.ProjectPath, fakeProjectPath, StringComparison.OrdinalIgnoreCase))?.ProcessId
     : 4242;
+// Process metadata can omit the engineering path of a typed local-session owner. A sole
+// declared Portal still hosts the UI-open fixture; selection must inspect its typed owner.
+if (fakePortalProcessId is null && fakePortals.Count == 1
+    && string.Equals(Path.GetExtension(fakeProjectPath), ".amc21", StringComparison.OrdinalIgnoreCase))
+    fakePortalProcessId = fakePortals[0].ProcessId;
 if (fakePortalProcessId is null) fakeProjectPath = null;
 string? currentProjectPath = null;
 string? currentMethod = null;
@@ -95,6 +101,9 @@ var guardedLifecycleModified = false;
 var hardwarePaginationScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
 var hardwarePaginationIdentityDrift = false;
 var projectTreeV3ScenarioCalls = new Dictionary<string, int>(StringComparer.Ordinal);
+var localOwnerStatusReads = 0;
+var localConfirmationDriftApplied = false;
+string? recoveryClosedSource = null;
 // Stateful PLC write fixture: reads in the same process observe earlier writes.
 var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
 var plcWriteIncomplete = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), inventoryIncomplete: true);
@@ -188,6 +197,7 @@ while ((line = Console.In.ReadLine()) is not null)
             .FirstOrDefault(key => key is "discovery-project-closed" or "discovery-portal-lost" or "discovery-missing-identity");
         if (observation is "discovery-project-closed" or "discovery-portal-lost")
         {
+            recoveryClosedSource = fakeProjectPath;
             var portal = AttachedPortal();
             if (portal is not null) portal.ProjectPath = null;
             fakeProjectPath = null;
@@ -198,7 +208,8 @@ while ((line = Console.In.ReadLine()) is not null)
                 fakePortalProcessId = null;
             }
         }
-        Respond(Success(WorkerJson.SerializePayload(new TiaPortalProcessListInfo
+        Respond(JsonSerializer.Serialize(new WorkerResponse { Success = true, PortalProcessId = fakePortalProcessId,
+            Payload = WorkerJson.SerializePayload(new TiaPortalProcessListInfo
         {
             AttachedProcessId = fakePortalProcessId,
             Processes = fakePortals.OrderBy(portal => portal.ProcessId).Select(portal => new TiaPortalProcessInfo
@@ -207,13 +218,13 @@ while ((line = Console.In.ReadLine()) is not null)
                 HasUserInterface = portal.HasUserInterface,
                 AttachedByThisWorker = portal.ProcessId == fakePortalProcessId
             }).ToList()
-        })), includeSessionIdentity: observation != "discovery-missing-identity");
+        }) }, WorkerJson.Envelope), includeSessionIdentity: observation != "discovery-missing-identity");
         continue;
     }
 
     if (currentMethod == "select_portal_project")
     {
-        SelectPortalProject(currentProjectPath);
+        SelectPortalProject(JsonSerializer.Deserialize<WorkerRequest>(line, WorkerJson.Envelope)!);
         continue;
     }
 
@@ -253,6 +264,34 @@ while ((line = Console.In.ReadLine()) is not null)
 
         if (fakeProjectPath is null && statusRead)
         {
+            var recoveryFault = recoveryClosedSource is not null && File.Exists(recoveryClosedSource + ".recovery")
+                ? File.ReadAllText(recoveryClosedSource + ".recovery") : null;
+            if (currentMethod == "get_project_status" && recoveryClosedSource is not null)
+            {
+                var identity = new WorkerSessionIdentity
+                {
+                    WorkerSessionId = recoveryFault == "worker" ? "changed-worker" : workerSessionId,
+                    PortalProcessId = recoveryFault == "portal" ? 999 : fakePortalProcessId,
+                    SessionGeneration = fakeSessionGeneration + (recoveryFault == "generation" ? 1 : 0),
+                    Context = recoveryFault == "context" ? LocalContext(recoveryClosedSource, false) : null
+                };
+                Respond(JsonSerializer.Serialize(new WorkerResponse
+                {
+                    Success = true, SessionIdentity = recoveryFault == "missing" ? null : identity,
+                    PortalProcessId = fakePortalProcessId,
+                    Payload = recoveryFault == "malformed" ? "{}" : WorkerJson.SerializePayload(new ProjectStatusResultInfo
+                    {
+                        Operation = "get_project_status",
+                        ProjectPath = recoveryFault == "owner" ? "C:/Projects/Other.amc21" : null,
+                        Project = new ProjectStatusInfo
+                        {
+                            IsOpen = recoveryFault == "owner",
+                            Path = recoveryFault == "owner" ? "C:/Projects/Other.amc21" : null
+                        }
+                    })
+                }, WorkerJson.Envelope), includeSessionIdentity: false);
+                continue;
+            }
             var closed = new ProjectStatusInfo { IsOpen = false };
             Respond(Success(currentMethod == "get_project_status"
                 ? WorkerJson.SerializePayload(new ProjectStatusResultInfo
@@ -284,14 +323,111 @@ while ((line = Console.In.ReadLine()) is not null)
 
     if (portalInventoryDeclared && currentMethod == "get_project_status")
     {
+        if (Path.GetFileNameWithoutExtension(fakeProjectPath) == "local-owner-replaced"
+            && ++localOwnerStatusReads == 2)
+            fakeSessionGeneration++;
         var attached = AttachedPortal();
-        Respond(Success(DirectStatusPayload(new ProjectStatusInfo
+        var statusPayload = DirectStatusPayload(new ProjectStatusInfo
         {
             IsOpen = fakeProjectPath is not null, Path = fakeProjectPath,
             Name = fakeProjectPath is null ? null : Path.GetFileNameWithoutExtension(fakeProjectPath),
             IsModified = fakeProjectPath is null ? null : attached?.Modified,
-            Version = fakeProjectPath is null ? null : "V21"
-        })));
+            Version = fakeProjectPath is null || IsLocalPath(fakeProjectPath) ? null : "V21",
+            Context = LocalContext(fakeProjectPath, attached?.WorkerOpened == true)
+        });
+        if (Path.GetFileNameWithoutExtension(fakeProjectPath) == "local-status-secret")
+        {
+            var corrupt = JsonNode.Parse(statusPayload)!.AsObject();
+            corrupt["project"]!["context"]!["PRIVATE_STATUS_CONTEXT_MEMBER"] = "PRIVATE_STATUS_CONTEXT_VALUE";
+            statusPayload = corrupt.ToJsonString();
+        }
+        Respond(Success(statusPayload));
+        continue;
+    }
+
+    if (portalInventoryDeclared && IsLocalPath(fakeProjectPath)
+        && currentMethod == "probe_open_project_rebind")
+    {
+        var driftFile = fakeSessionContainerPath is null ? null : fakeSessionContainerPath + ".drift";
+        if (!localConfirmationDriftApplied && driftFile is not null && File.Exists(driftFile))
+        {
+            switch (File.ReadAllText(driftFile))
+            {
+                case "owner": fakeSessionGeneration++; break;
+                case "consequence": AttachedPortal()!.Modified = true; break;
+            }
+            localConfirmationDriftApplied = true;
+        }
+        var destination = ReadField(line, "rebindDestinationProjectPath")!;
+        Respond(Success(WorkerJson.SerializePayload(ProjectRebindStateInfo.Create(
+            fakeProjectPath, destination, AttachedPortal()?.Modified ?? false,
+            AttachedPortal()?.WorkerOpened == true,
+            LocalContext(fakeProjectPath, AttachedPortal()?.WorkerOpened == true)))));
+        continue;
+    }
+    if (portalInventoryDeclared && IsLocalPath(fakeProjectPath)
+        && currentMethod is "get_basic_project_status" or "probe_project_status_for_lifecycle")
+    {
+        var status = new ProjectStatusInfo
+        {
+            IsOpen = true, Path = fakeProjectPath, IsModified = AttachedPortal()?.Modified,
+            Context = LocalContext(fakeProjectPath, AttachedPortal()?.WorkerOpened == true,
+                Path.GetFileNameWithoutExtension(fakeSessionContainerPath) == "local-session-open-verification-mismatch"
+                    ? "C:/Private/PRIVATE_VERIFICATION_OWNER.als21" : null)
+        };
+        Respond(SuccessWithResolvedPath(WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+        {
+            Operation = currentMethod == "get_basic_project_status"
+                ? "get_project_status" : currentMethod!,
+            ProjectPath = fakeProjectPath, Project = status
+        }), fakeProjectPath!));
+        continue;
+    }
+
+    if (portalInventoryDeclared && currentMethod == "open_project"
+        && Path.GetFileNameWithoutExtension(currentProjectPath)?.StartsWith("local-session-open-failed-", StringComparison.Ordinal) == true)
+    {
+        fakeProjectPath = null;
+        fakeSessionGeneration++;
+        Respond(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = false,
+            FailureCategory = Path.GetFileNameWithoutExtension(currentProjectPath)!["local-session-open-failed-".Length..],
+            Error = "The ALS replacement failed after source close; inspect before retrying."
+        }, WorkerJson.Envelope), includeSessionIdentity: false);
+        continue;
+    }
+
+    if (portalInventoryDeclared && currentMethod == "open_project"
+        && (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open" or "local-session-open-bad-result"
+            or "local-session-open-context-mismatch" or "local-session-open-verification-mismatch"
+            or "local-session-open-passive-observation" or "local-session-open-malformed-identity"
+            or "local-session-open-eof" or "local-session-open-timeout")
+        && string.Equals(Path.GetExtension(currentProjectPath), ".als21", StringComparison.OrdinalIgnoreCase))
+    {
+        if (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open-eof" or "local-session-open-timeout")
+        {
+            File.WriteAllText(currentProjectPath + ".attempted", "opener reached");
+            if (Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-eof") Environment.Exit(17);
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+        }
+        var openedPath = ProjectPathNormalization.Canonicalize("C:/Projects/Local.amc21")!;
+        var context = LocalContext(openedPath, true, currentProjectPath);
+        var status = new ProjectStatusInfo
+        {
+            IsOpen = true, Path = openedPath, IsModified = false, Context = context
+        };
+        var payload = WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+        {
+            Operation = "open_project", ProjectPath = openedPath, Project = status
+        });
+        if (Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-bad-result")
+        {
+            var badResult = JsonNode.Parse(payload)!.AsObject();
+            badResult["project"]!["context"]!["PRIVATE_MUTATION_RESULT_MEMBER"] = "PRIVATE_MUTATION_RESULT_VALUE";
+            payload = badResult.ToJsonString();
+        }
+        Respond(SuccessWithResolvedPath(payload, openedPath));
         continue;
     }
 
@@ -1402,11 +1538,15 @@ while ((line = Console.In.ReadLine()) is not null)
 FakePortalState? AttachedPortal()
     => fakePortals.FirstOrDefault(portal => portal.ProcessId == fakePortalProcessId);
 
-void SelectPortalProject(string? requestedPath)
+void SelectPortalProject(WorkerRequest request)
 {
-    var targetPath = ProjectPathNormalization.Canonicalize(requestedPath);
-    var advertisers = fakePortals.Where(portal => targetPath is not null &&
-        string.Equals(portal.ProjectPath, targetPath, StringComparison.OrdinalIgnoreCase)).ToList();
+    var targetPath = ProjectPathNormalization.Canonicalize(request.ProjectPath);
+    var advertisers = fakePortals.Where(portal => request.PortalProcessId is { } pid
+        ? portal.ProcessId == pid
+        : targetPath is not null && string.Equals(portal.ProjectPath, targetPath, StringComparison.OrdinalIgnoreCase)).ToList();
+    if (advertisers.Count == 0 && request.PortalProcessId is null && IsLocalPath(targetPath)
+        && fakePortals.Count == 1)
+        advertisers.Add(fakePortals[0]);
     // These three refusals precede every session mutation, matching the real worker's E2 boundary.
     if (advertisers.Count != 1)
     {
@@ -1419,6 +1559,18 @@ void SelectPortalProject(string? requestedPath)
         return;
     }
     var target = advertisers[0];
+    var selectedOwnerPath = target.ProcessId == fakePortalProcessId
+        ? fakeProjectPath : target.ProjectPath;
+    if (selectedOwnerPath is null || targetPath is not null
+        && !string.Equals(selectedOwnerPath, targetPath, StringComparison.OrdinalIgnoreCase))
+    {
+        Respond(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = false, FailureCategory = WorkerFailureCategories.TargetNotFound,
+            Error = "The selected Portal does not contain the exact requested open owner."
+        }, WorkerJson.Envelope));
+        return;
+    }
     var previous = AttachedPortal();
     var reattached = fakePortalProcessId != target.ProcessId;
     if (reattached && previous is { HasUserInterface: false, OtherClients: 0, Modified: not false })
@@ -1444,7 +1596,7 @@ void SelectPortalProject(string? requestedPath)
         fakeProjectPath = null;
         fakeSessionGeneration++;
     }
-    switch (ScenarioKey(targetPath))
+    switch (ScenarioKey(targetPath ?? selectedOwnerPath))
     {
         case "portal-switch-fails-after-detach":
             Respond(JsonSerializer.Serialize(new WorkerResponse
@@ -1461,11 +1613,12 @@ void SelectPortalProject(string? requestedPath)
             return;
     }
     fakePortalProcessId = target.ProcessId;
-    fakeProjectPath = target.ProjectPath;
-    // Adoption, including a same-Portal selection, does not inherit worker ownership.
-    target.WorkerOpened = false;
-    fakeSessionGeneration++;
-    Respond(Success(ScenarioKey(targetPath) == "portal-selection-malformed"
+    var sameOwner = !reattached && string.Equals(fakeProjectPath, selectedOwnerPath, StringComparison.OrdinalIgnoreCase);
+    fakeProjectPath = selectedOwnerPath;
+    // Cold adoption never claims ownership; re-verifying the same owner preserves it.
+    if (!sameOwner) target.WorkerOpened = false;
+    if (!sameOwner) fakeSessionGeneration++;
+    Respond(Success(ScenarioKey(targetPath ?? selectedOwnerPath) == "portal-selection-malformed"
         ? "{\"untrustedMarker\":true}"
         : WorkerJson.SerializePayload(result)));
 }
@@ -1562,6 +1715,7 @@ void Respond(string json, bool includeSessionIdentity = true)
                 }
 
                 fakeProjectPath = null;
+                fakeSessionContainerPath = null;
                 var closedPortal = AttachedPortal();
                 if (closedPortal is not null)
                 {
@@ -1581,6 +1735,10 @@ void Respond(string json, bool includeSessionIdentity = true)
 
                 if (isAuthorizedPathTransition)
                 {
+                    fakeSessionContainerPath = currentMethod == "open_project"
+                        && string.Equals(Path.GetExtension(currentProjectPath), ".als21", StringComparison.OrdinalIgnoreCase)
+                        && IsLocalPath(projectPath)
+                        ? ProjectPathNormalization.Canonicalize(currentProjectPath) : null;
                     if (fakePortalProcessId is null)
                     {
                         fakePortalProcessId = fakePortals.FirstOrDefault()?.ProcessId ?? 4242;
@@ -1614,8 +1772,45 @@ void Respond(string json, bool includeSessionIdentity = true)
                 PortalProcessId = fakePortalProcessId,
                 ProjectPath = successful && currentMethod == "select_portal_project"
                     && ScenarioKey(currentProjectPath) == "portal-selection-other-path"
-                    ? ProjectPathNormalization.Canonicalize("C:/Projects/Wrong.ap21") : projectPath
-            });
+                    ? ProjectPathNormalization.Canonicalize("C:/Projects/Wrong.ap21") : projectPath,
+                Context = LocalContext(projectPath, AttachedPortal()?.WorkerOpened == true)
+            }, WorkerJson.Envelope);
+            if (currentMethod == "open_project" && recoveryClosedSource is not null
+                && File.Exists(recoveryClosedSource + ".recovery"))
+            {
+                switch (File.ReadAllText(recoveryClosedSource + ".recovery"))
+                {
+                    case "open-worker": response["sessionIdentity"]!["workerSessionId"] = "changed-worker"; break;
+                    case "open-portal": response["sessionIdentity"]!["portalProcessId"] = 999; break;
+                    case "open-generation": response["sessionIdentity"]!["sessionGeneration"] = fakeSessionGeneration - 1; break;
+                    case "open-missing": response["sessionIdentity"] = null; break;
+                }
+            }
+            if (response["sessionIdentity"]?["context"] is JsonObject context)
+            {
+                if (currentMethod == "open_project"
+                    && Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-malformed-identity")
+                {
+                    context.Remove("remoteIdentity");
+                    response["payload"] = "PRIVATE_MALFORMED_IDENTITY_PAYLOAD";
+                }
+                if (currentMethod == "open_project"
+                    && Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-context-mismatch")
+                    context["sessionContainerPath"] = "C:/Private/PRIVATE_ENVELOPE_OWNER.als21";
+                if (currentMethod == "open_project"
+                    && Path.GetFileNameWithoutExtension(currentProjectPath) == "local-session-open-passive-observation")
+                    context["connectionObservation"]!["observedAt"] = "2026-01-01T00:00:00+00:00";
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-secret")
+                    context["PRIVATE_IDENTITY_CONTEXT_MEMBER"] = "PRIVATE_IDENTITY_CONTEXT_VALUE";
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-missing-null")
+                    context.Remove("sessionContainerPath");
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-invalid-mode")
+                    context["sessionMode"] = "invalid_session_mode";
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-mismatched-path")
+                    context["engineeringProjectPath"] = "C:/Projects/PRIVATE_OTHER_ENGINEERING_PATH.amc21";
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-forged-remote")
+                    context["remoteIdentity"] = new JsonObject { ["serverAlias"] = "PRIVATE_FORGED_SERVER_ALIAS" };
+            }
             json = response.ToJsonString();
         }
     }
@@ -1805,6 +2000,7 @@ string? ScenarioKey(string? path)
     if (path is not null && path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
     {
         var name = Path.GetFileNameWithoutExtension(path);
+        if (name == "project-tree-v3-small") return name;
         if (name is "portal-switch-fails-after-detach" or "portal-switch-hang" or "portal-switch-crash"
             or "portal-selection-malformed" or "portal-selection-other-path") return name;
         if (name.StartsWith("lifecycle-rebind-probe", StringComparison.Ordinal)) return @"C:\FakeWorker\" + name + ".ap21";
@@ -2191,6 +2387,37 @@ string DirectStatusPayload(ProjectStatusInfo status) => ToCamelCaseJson(new Proj
 {
     Operation = "get_project_status", ProjectPath = status.Path, Project = status
 });
+
+bool IsLocalPath(string? path)
+    => string.Equals(Path.GetExtension(path), ".amc21", StringComparison.OrdinalIgnoreCase);
+
+ProjectContextInfo? LocalContext(string? path, bool openedByWorker, string? sessionContainerPath = null)
+    => !IsLocalPath(path) ? null : new ProjectContextInfo
+    {
+        ContainerKind = ProjectContainerKinds.LocalSession,
+        SessionMode = MultiuserSessionModes.Unknown,
+        Capabilities = ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession).ToList(),
+        RemoteIdentity = Path.GetFileNameWithoutExtension(path) == "local-context-oversized"
+            ? new MultiuserRemoteIdentity
+            {
+                ServerAlias = new string('x', 61_000), Host = "server", Port = 1234,
+                Protocol = "https", Group = new ProjectServerGroupIdentity { IsRoot = false, Name = "Group A" },
+                ServerProjectName = "Project A", LocalSessionId = 0,
+                LocalSessionPath = "C:/Sessions/A.als21"
+            }
+            : null,
+        ConnectionObservation = new ProjectServerConnectionObservation
+        {
+            State = ProjectServerConnectionStates.Unknown,
+            ObservedAt = DateTimeOffset.UtcNow,
+            ObservationSource = openedByWorker
+                ? ProjectServerConnectionObservationSources.SessionOpen
+                : ProjectServerConnectionObservationSources.SessionBind
+        },
+        EngineeringProjectPath = path,
+        SessionContainerPath = openedByWorker ? sessionContainerPath ?? fakeSessionContainerPath : null,
+        OpenedByWorker = openedByWorker
+    };
 
 string StandaloneCompileResponse(string scenarioName, string requestLine)
 {

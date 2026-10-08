@@ -123,6 +123,22 @@ public sealed class PersistentWorkerTransport : IDisposable
             throw new InvalidOperationException("TIA Openness worker returned an empty response.");
         }
 
+        try
+        {
+            ProjectContextPayloadContract.ValidateEnvelopeIdentity(responseLine, response);
+        }
+        catch (JsonException)
+        {
+            // A completed response with malformed local identity is a post-send protocol
+            // failure. Keep the worker available for explicit state inspection; never replay.
+            return new WorkerResponse
+            {
+                Success = false,
+                FailureCategory = WorkerFailureCategories.ProtocolError,
+                Error = "The worker local-session identity did not match its declared contract. Inspect current state before retrying."
+            };
+        }
+
         return response;
     }
 

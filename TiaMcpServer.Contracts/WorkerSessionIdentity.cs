@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
@@ -20,4 +22,8 @@ public sealed class WorkerSessionIdentity
 
     /// <summary>Canonical project path, or null when the session currently has no project.</summary>
     public string? ProjectPath { get; set; }
+
+    /// <summary>Typed local-session evidence; absent for standalone and unbound sessions.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProjectContextInfo? Context { get; set; }
 }

@@ -39,6 +39,8 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
     {
         new WriteGuardDefinition("closes_source_project", WriteGuardSeverities.Info, "A saved worker-owned source will close."),
         new WriteGuardDefinition("discards_unsaved_source_changes", WriteGuardSeverities.Block, "A modified worker-owned source must be saved or closed explicitly."),
+        new WriteGuardDefinition("local_session_requires_terminal_operation", WriteGuardSeverities.Block, "A worker-opened local session requires an explicit terminal operation before another container opens."),
+        new WriteGuardDefinition("local_session_source_preservation_unproved", WriteGuardSeverities.Block, "Preservation of the already-open local session during another open is unproved."),
         new WriteGuardDefinition("discards_unsaved_changes", WriteGuardSeverities.Acknowledge, "Closing without saving discards unsaved changes."),
         new WriteGuardDefinition("archive_without_save", WriteGuardSeverities.Info, "The modified project will be archived without saving."),
         new WriteGuardDefinition("archive_discards_restorable_data", WriteGuardSeverities.Info, "The archive omits restorable data."),
@@ -67,6 +69,10 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             {
                 case "open_project":
                     if (string.IsNullOrWhiteSpace(item.ProjectPath)) return Invalid("Project path is required.");
+                    if (Path.GetExtension(item.ProjectPath) is { } extension
+                        && !string.Equals(extension, ".ap21", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(extension, ".als21", StringComparison.OrdinalIgnoreCase))
+                        return Invalid("Only an existing .ap21 or .als21 file can be opened.");
                     if (!File.Exists(item.ProjectPath))
                         return Invalid("The destination project file must exist.");
                     break;
@@ -105,6 +111,7 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         ProjectStatusInfo? sourceStatus = null;
         bool? sourceOwned = null;
         var closesSource = false;
+        ProjectContextInfo? sourceContext = binding.Context;
         string? destinationPath = item.Operation == "open_project" ? ProjectPathNormalization.Canonicalize(item.ProjectPath) : null;
         string? destinationDirectory = item.Operation switch
         {
@@ -122,8 +129,10 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
                 var rebind = ProjectRebindStatePayloadContract.Decode(probe.Payload, sourcePath!, destinationPath!);
                 sourceOwned = rebind.SourceOpenedByWorker;
                 closesSource = rebind.WillCloseSource;
+                sourceContext = rebind.SourceContext;
                 // The rebind probe is the authoritative saved-state/ownership observation.
-                sourceStatus = new ProjectStatusInfo { IsOpen = true, Path = sourcePath, IsModified = rebind.SourceIsModified };
+                sourceStatus = new ProjectStatusInfo { IsOpen = true, Path = sourcePath,
+                    IsModified = rebind.SourceIsModified, Context = sourceContext };
             }
             catch (JsonException) { return ProtocolPlan(); }
         }
@@ -134,6 +143,7 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             try
             {
                 sourceStatus = LifecyclePayloadContract.DecodeStatus(probe, "probe_project_status_for_lifecycle", sourcePath, expectOpen: true);
+                sourceContext = sourceStatus.Context;
                 if ((item.Operation == "close_project" && !item.SaveBeforeClose
                     || item.Operation == "archive_project" && !item.SaveBeforeArchive) && sourceStatus.IsModified is null)
                     return WritePlan<LifecycleEffects>.Fail(WorkerFailureCategories.ProtocolError,
@@ -151,7 +161,8 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             destinationDirectory is not null && (Directory.Exists(destinationDirectory) || File.Exists(destinationDirectory)),
             item.Operation == "archive_project" ? archiveMode : null,
             item.Operation == "archive_project" ? Path.GetFullPath(Path.Combine(item.ArchiveDirectory!,
-                ArchiveModeNames.EnsureArchiveExtension(item.ArchiveName!, archiveMode))) : null);
+                ArchiveModeNames.EnsureArchiveExtension(item.ArchiveName!, archiveMode))) : null,
+            sourceContext);
         _planned = effect;
         return WritePlan<LifecycleEffects>.Ok(new[] { ItemPlan<LifecycleEffects>.Resolved(effect) });
     }
@@ -161,6 +172,17 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         var effect = plans.Single().Effect!;
         var guards = new List<FiredGuard>();
         void Fire(string id, string message) => guards.Add(new(id, item.OperationId, message));
+        if (item.Operation == "open_project" && effect.SourceContext is not null
+            && !LifecyclePayloadContract.SamePath(effect.SourceContext.SessionContainerPath,
+                effect.DestinationProjectPath))
+        {
+            if (effect.SourceContext.OpenedByWorker)
+                Fire("local_session_requires_terminal_operation",
+                    "The worker-opened local session requires an explicit terminal operation before another container opens.");
+            else
+                Fire("local_session_source_preservation_unproved",
+                    "The already-open local session cannot be proved preserved during another project or session open.");
+        }
         if (effect.WillCloseSource)
         {
             if (effect.SourceStatus?.IsModified == true)
@@ -211,16 +233,23 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             {
                 var expected = item.Operation switch
                 {
+                    "open_project" when string.Equals(Path.GetExtension(_planned!.DestinationProjectPath),
+                        ".als21", StringComparison.OrdinalIgnoreCase) => null,
                     "open_project" => _planned!.DestinationProjectPath,
                     "save_project" or "archive_project" or "close_project" => _planned!.SourceProjectPath,
                     _ => workerClient.BindingSnapshot.ProjectPath
                 };
                 var payload = LifecyclePayloadContract.Decode(result, item.Operation, expected, _planned!.DestinationDirectory);
+                if (item.Operation == "open_project" && string.Equals(Path.GetExtension(item.ProjectPath),
+                        ".als21", StringComparison.OrdinalIgnoreCase)
+                    && (!LifecyclePayloadContract.SamePath(payload.Project?.Context?.SessionContainerPath, item.ProjectPath)
+                        || payload.Project?.Context?.OpenedByWorker != true))
+                    throw new JsonException(LifecyclePayloadContract.ProtocolFailureMessage);
                 _mutation = new(OperationBatchStatus.Succeeded, payload, null, null);
             }
             catch (JsonException) { _mutation = LifecyclePayloadContract.ProtocolFailure<ProjectLifecycleResultInfo>(); }
         }
-        return new(item.OperationId, item.Operation, _mutation.Status,
+        return new(item.OperationId, item.Operation, _mutation!.Status,
             _mutation.Value is null ? null : CanonicalJson.ToElement(_mutation.Value),
             _mutation.Failure, null, null, result.Warnings);
     }
@@ -236,12 +265,22 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         try
         {
             var status = LifecyclePayloadContract.DecodeStatus(result, "get_project_status", expected, !closed);
+            if (!closed)
+            {
+                ProjectContextPayloadContract.ValidateStableOwner(_mutation.Value!.Project?.Context, status.Context);
+                ProjectContextPayloadContract.ValidateStableOwner(workerClient.BindingSnapshot.Context, status.Context);
+            }
             if (item.Operation == "save_project" && status.IsModified != false)
                 return new(OperationBatchStatus.Failed, status,
                     new(WorkerFailureCategories.PostconditionFailed, "The project was not verified as saved."), null);
             return new(OperationBatchStatus.Succeeded, status, null, null);
         }
-        catch (JsonException) { return LifecyclePayloadContract.ProtocolFailure<ProjectStatusInfo>(); }
+        catch (JsonException)
+        {
+            if (_mutation.Value?.Project?.Context?.ContainerKind == ProjectContainerKinds.LocalSession)
+                workerClient.InvalidateRejectedLifecycleContext();
+            return LifecyclePayloadContract.ProtocolFailure<ProjectStatusInfo>();
+        }
     }
 
     public bool VerificationSucceeded(StandaloneToolOutcome<ProjectStatusInfo>? verification)

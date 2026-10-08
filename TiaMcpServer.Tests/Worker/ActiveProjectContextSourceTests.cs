@@ -20,16 +20,15 @@ public sealed class ActiveProjectContextSourceTests
     }
 
     [Fact]
-    public void StatusAndLifecycle_UseStandaloneOwnerWithoutOpening()
+    public void StatusReadsUseActiveContextAndMutationRequiresStandaloneOwner()
     {
         var service = Read("Openness/ProjectLifecycleService.cs");
-        foreach (var declaration in new[] { "private static Project? ResolveProjectForRead(", "private static Project EnsureProject(" })
-        {
-            var body = Method(service, declaration);
-            AssertOrdered(body, "session.EnsureConnected(", "ProjectOpenPolicy.Decide", "RequireStandaloneOwner().Project");
-            Assert.DoesNotContain(".Open(", body);
-        }
-        Assert.Contains("session.ActiveContext is null", Method(service, "private static Project? ResolveProjectForRead("));
+        var read = Method(service, "private static ActiveProjectContext? ResolveProjectForRead(");
+        AssertOrdered(read, "session.EnsureConnected(", "ProjectOpenPolicy.Decide", "return session.ActiveContext");
+        Assert.DoesNotContain(".Open(", read);
+        var mutation = Method(service, "private static Project EnsureProject(");
+        AssertOrdered(mutation, "session.EnsureConnected(", "ProjectOpenPolicy.Decide", "RequireStandaloneOwner().Project");
+        Assert.DoesNotContain(".Open(", mutation);
     }
 
     [Fact]
@@ -41,15 +40,13 @@ public sealed class ActiveProjectContextSourceTests
     }
 
     [Fact]
-    public void LocalContext_HasNoProductionActivationOrTerminalAction()
+    public void LocalContext_HasNoUnconditionalTerminalAction()
     {
         var files = Directory.GetFiles(Path.Combine(Root, "TiaMcpServer.OpennessWorker"), "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
         foreach (var file in files)
         {
             var source = File.ReadAllText(file);
-            Assert.DoesNotContain("ActiveProjectContext.ForLocalSession(", source);
-            Assert.DoesNotContain(".LocalSessions.Open", source);
             Assert.DoesNotContain(".OpenServerProject(", source);
             Assert.DoesNotContain(".CloseAndCommit(", source);
             Assert.DoesNotContain("LocalSession.Save(", source);

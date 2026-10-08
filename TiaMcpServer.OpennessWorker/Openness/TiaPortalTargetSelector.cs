@@ -39,6 +39,11 @@ internal static class TiaPortalTargetSelector
 
         if (matches.Count == 0)
         {
+            // Process metadata advertises only one open project. A sole Portal is safe to
+            // inspect for an exact typed local-owner path after attachment.
+            if (candidates.Count == 1
+                && string.Equals(Path.GetExtension(projectPath), ".amc21", StringComparison.OrdinalIgnoreCase))
+                return candidates[0].Id;
             throw new WorkerOperationException(
                 WorkerFailureCategories.TargetNotFound,
                 $"No running TIA Portal exposes requested project '{projectPath}'. No process was attached.");

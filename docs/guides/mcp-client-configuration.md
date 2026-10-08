@@ -66,7 +66,16 @@ Use default/null `action` or `action:"bind"` on `bind_project` to adopt or switc
 different configured or previously bound path requires `forceRebind:true`. Explicit
 `action:"list_portals"` only discovers; Project Server inspection actions reuse a persistent
 attachment and cannot switch it or adopt a project. See [Multiuser inventory](../SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md)
-for exact selectors, PID continuity, current-user session scope and pending live qualification.
+for exact selectors, PID continuity, current-user session scope and recorded acceptance limits.
+For local sessions, use the exact observed `.amc21` engineering path for bind/status and
+`--project`/`TIA_MCP_PROJECT_PATH` already-open assertions, with an exact binding PID where
+needed. `.als21` and inventory directories are not adoption selectors. Writable `open_project`
+accepts an independently known exact existing `.als21` file; set `dryRun:true` to preview.
+Cold adoption reports null opener provenance; successful open records it only after verification.
+Local content/compile/save/terminal calls remain `unsupported_capability`. After an uncertain
+opener inspect AMC status and Portal inventory; never automatically replay. Offline read-write
+opening required operator-dismissed Siemens dialogs in the scoped
+[PR4 run](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md).
 Omit the path with the default binding action to select
 the sole open project or list candidates. Reattachment may require a human response to TIA's
 Openness access dialog. Worker ownership is lost on detach. Only `open_project` and `create_project`

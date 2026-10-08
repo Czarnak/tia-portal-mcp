@@ -2,6 +2,7 @@ using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Tools;
 
 namespace TiaMcpServer.Safety.Pipeline;
@@ -127,6 +128,14 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             {
                 return Finish(Failure(WritePhases.Error, pinFailure));
             }
+        }
+
+        if (_binding.IsVerified && _binding.Context is { } projectContext
+            && !ProjectCapabilityCatalog.Supports(projectContext.ContainerKind, _domain.ToolName))
+        {
+            return Finish(Failure(WritePhases.Error, new WriteToolError(
+                WorkerFailureCategories.UnsupportedCapability,
+                $"{_domain.ToolName} is unavailable for this project container.")));
         }
 
         _cancellationToken.ThrowIfCancellationRequested();
@@ -265,7 +274,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private async Task<WriteToolError?> ConfirmAndRecheckAsync(WritePlan<TEffect> planned, IReadOnlyList<FiredGuard> fired)
     {
         // Freeze before awaiting the client: a domain may hold mutable nested plan objects.
-        var plannedDocument = CanonicalJson.Serialize(planned.Items);
+        var plannedDocument = ConsequenceDocument(planned.Items);
         var guardDocument = CanonicalJson.Serialize(fired);
         var message = _domain.DescribeForConfirmation(Items, planned.Items) + "\n" + string.Join("\n", _guards
             .Where(guard => guard.Severity == WriteGuardSeverities.Acknowledge)
@@ -317,7 +326,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
         var freshGuards = _domain.EvaluateGuards(Items, fresh.Items);
         if (!_binding.SameBinding(_gate.CurrentBinding)
-            || plannedDocument != CanonicalJson.Serialize(fresh.Items)
+            || plannedDocument != ConsequenceDocument(fresh.Items)
             || guardDocument != CanonicalJson.Serialize(freshGuards))
         {
             return StaleConfirmation();
@@ -325,6 +334,15 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
         return null;
     }
+
+    private static string ConsequenceDocument(IReadOnlyList<ItemPlan<TEffect>> items)
+        => typeof(TEffect) == typeof(LifecycleEffects)
+            ? CanonicalJson.Serialize(items.Select(plan => plan with
+            {
+                Effect = plan.Effect is LifecycleEffects effect
+                    ? (TEffect)(object)effect.ForConsequenceComparison() : plan.Effect
+            }).ToArray())
+            : CanonicalJson.Serialize(items);
 
     private static WriteToolError StaleConfirmation() => new(WorkerFailureCategories.BindingConflict,
         "The project identity, checked state, or consequences changed while confirmation was pending. "

@@ -16,10 +16,12 @@ public static class ProjectLifecycleService
     {
         // A status read reports IsOpen=false when the requested project is not open. Other
         // non-lifecycle operations reject that request through EnsureRequestedProjectOpen.
-        var project = ResolveProjectForRead(session, requestedProjectPath, mode);
-        return project is null
+        var context = ResolveProjectForRead(session, requestedProjectPath, mode);
+        return context is null
             ? new ProjectStatusInfo { IsOpen = false }
-            : ReadStatusWithMetadata(project);
+            : context.Owner is StandaloneProjectOwner standalone
+                ? ReadStatusWithMetadata(standalone.Project)
+                : context.ToLocalBasicStatusInfo();
     }
 
     /// <summary>
@@ -32,10 +34,12 @@ public static class ProjectLifecycleService
     public static ProjectStatusInfo GetBasicStatusReadOnly(TiaPortalSession session, string? requestedProjectPath,
         McpAccessMode mode = McpAccessMode.Full)
     {
-        var project = ResolveProjectForRead(session, requestedProjectPath, mode);
-        return project is null
+        var context = ResolveProjectForRead(session, requestedProjectPath, mode);
+        return context is null
             ? new ProjectStatusInfo { IsOpen = false }
-            : ReadStatus(project);
+            : context.Owner is StandaloneProjectOwner standalone
+                ? ReadStatus(standalone.Project)
+                : context.ToLocalBasicStatusInfo();
     }
 
     /// <summary>
@@ -43,7 +47,7 @@ public static class ProjectLifecycleService
     /// other read-only worker operation, but never opens a project. Returns the currently open
     /// project, or <c>null</c> when none is open.
     /// </summary>
-    private static Project? ResolveProjectForRead(TiaPortalSession session, string? requestedProjectPath, McpAccessMode mode)
+    private static ActiveProjectContext? ResolveProjectForRead(TiaPortalSession session, string? requestedProjectPath, McpAccessMode mode)
     {
         session.EnsureConnected(requestedProjectPath);
 
@@ -55,7 +59,7 @@ public static class ProjectLifecycleService
                 ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, mode));
         }
 
-        return session.ActiveContext is null ? null : session.RequireStandaloneOwner().Project;
+        return session.ActiveContext;
     }
 
     /// <summary>
@@ -86,6 +90,16 @@ public static class ProjectLifecycleService
         session.EnsureConnected(projectPath);
         session.OpenProject(projectPath);
 
+        if (session.ActiveContext?.Owner is LocalSessionOwner)
+        {
+            var status = session.ActiveContext.ToLocalBasicStatusInfo();
+            return new ProjectLifecycleResultInfo
+            {
+                Operation = "open_project",
+                ProjectPath = status.Path,
+                Project = status
+            };
+        }
         return Result("open_project", session.RequireStandaloneOwner().Project);
     }
 

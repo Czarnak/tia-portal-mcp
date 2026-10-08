@@ -30,6 +30,9 @@ public static class WorkerFailureCategories
     /// <summary>The selected target kind is not supported by the requested operation.</summary>
     public const string TargetKindUnsupported = "target_kind_unsupported";
 
+    /// <summary>The active project container does not deliver the requested operation.</summary>
+    public const string UnsupportedCapability = "unsupported_capability";
+
     /// <summary>The worker responded, but the operation itself failed for a reason not covered by another category.</summary>
     public const string WorkerOperationFailed = "worker_operation_failed";
 
@@ -94,6 +97,7 @@ public static class WorkerFailureCategories
         TargetAmbiguous,
         TargetEvidenceMismatch,
         TargetKindUnsupported,
+        UnsupportedCapability,
         WorkerOperationFailed,
         WorkerTimeout,
         WorkerCrashed,

@@ -8,6 +8,7 @@ public class TiaPortalSession : IDisposable
     private readonly bool _allowTiaConfirmations;
     private readonly string _workerSessionId = Guid.NewGuid().ToString("N");
     private TiaPortal? _tiaPortal;
+    private TiaPortal? _unreleasedTemporaryTarget;
     private ActiveProjectContext? _activeContext;
     private bool _disposed;
     private int? _attachedProcessId;
@@ -61,7 +62,8 @@ public class TiaPortalSession : IDisposable
             WorkerSessionId = _workerSessionId,
             SessionGeneration = Interlocked.Read(ref _sessionGeneration),
             PortalProcessId = _attachedProcessId,
-            ProjectPath = liveProjectPath
+            ProjectPath = liveProjectPath,
+            Context = _activeContext?.Owner is LocalSessionOwner ? _activeContext.ToInfo() : null
         };
     }
 
@@ -103,12 +105,42 @@ public class TiaPortalSession : IDisposable
             + "Refresh project status and obtain a new explicitly verified binding before retrying.");
     }
 
-    public void Connect(string? requestedProjectPath)
+    internal void ValidateEmptyPortal(WorkerSessionIdentity expected)
     {
         ThrowIfDisposed();
+        if (!IsConnected || expected.ProjectPath is not null || expected.Context is not null
+            || string.IsNullOrWhiteSpace(expected.WorkerSessionId) || expected.PortalProcessId is null or <= 0
+            || expected.SessionGeneration < 0)
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                "Empty-Portal verification requires the complete already-attached Portal identity.");
+        ValidateExpectedSessionIdentity(expected, false);
+        ValidatePortalProcess();
+        if (ReadOpenContexts().Count != 0)
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                "The attached Portal contains an open owner. No project was selected or opened.");
+        ValidatePortalProcess();
+        ValidateExpectedSessionIdentity(expected, false);
+    }
+
+    public void Connect(string? requestedProjectPath, int? requestedProcessId = null)
+    {
+        ThrowIfDisposed();
+        if (requestedProcessId.HasValue && requestedProcessId <= 0)
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "PortalProcessId must be positive.");
 
         if (IsConnected)
         {
+            if (requestedProcessId.HasValue && requestedProcessId != _attachedProcessId)
+                throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                    "The requested Portal PID differs from the attached Portal. Use explicit selection to switch.");
+            return;
+        }
+
+        if (requestedProcessId.HasValue)
+        {
+            EnsurePortalConnected(requestedProcessId);
+            SelectOpenProject(ProjectPathNormalization.Canonicalize(requestedProjectPath));
             return;
         }
 
@@ -117,7 +149,6 @@ public class TiaPortalSession : IDisposable
         var selectedProcessId = TiaPortalTargetSelector.SelectProcessId(candidates, requestedProjectPath);
         var entry = inventory.FirstOrDefault(item => item.Candidate.Id == selectedProcessId);
         var selectedProcess = entry?.Process;
-        var advertisedProjectPath = entry?.Candidate.ProjectPath;
 
         if (selectedProcess is null)
         {
@@ -128,8 +159,7 @@ public class TiaPortalSession : IDisposable
 
         AttachPortal(selectedProcess, selectedProcessId);
         // Projects present when we attach belong to the TIA Portal UI, never this worker.
-        SelectOpenProject(
-            ProjectPathNormalization.Canonicalize(requestedProjectPath) ?? advertisedProjectPath);
+        SelectOpenProject(ProjectPathNormalization.Canonicalize(requestedProjectPath));
 
         Console.Error.WriteLine(
             $"Connected to TIA Portal PID {_attachedProcessId}"
@@ -138,11 +168,21 @@ public class TiaPortalSession : IDisposable
 
     private void AttachPortal(TiaPortalProcess selectedProcess, int selectedProcessId)
     {
+        ReleaseTemporaryTargetIfSafe();
         var attachedPortal = selectedProcess.Attach();
-        var attachedProcessId = attachedPortal.GetCurrentProcess().Id;
+        int attachedProcessId;
+        try { attachedProcessId = attachedPortal.GetCurrentProcess().Id; }
+        catch (Exception)
+        {
+            _unreleasedTemporaryTarget = attachedPortal;
+            ReleaseTemporaryTargetIfSafe();
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                "TIA Portal Attach() returned a handle whose PID could not be verified. No project was selected.");
+        }
         if (attachedProcessId != selectedProcessId)
         {
-            attachedPortal.Dispose();
+            _unreleasedTemporaryTarget = attachedPortal;
+            ReleaseTemporaryTargetIfSafe();
             throw new WorkerOperationException(
                 WorkerFailureCategories.BindingConflict,
                 $"TIA Portal Attach() targeted PID {selectedProcessId} but returned PID {attachedProcessId}. No operation was performed.");
@@ -205,17 +245,32 @@ public class TiaPortalSession : IDisposable
             WorkerSessionId = _workerSessionId,
             SessionGeneration = Interlocked.Read(ref _sessionGeneration),
             PortalProcessId = _attachedProcessId,
-            ProjectPath = _selectedProjectPath
+            ProjectPath = _selectedProjectPath,
+            Context = _activeContext?.Owner is LocalSessionOwner ? _activeContext.ToInfo() : null
         };
 
     public PortalProjectSelectionInfo SelectPortalProject(string projectPath)
+        => SelectPortalProject(projectPath, null);
+
+    public PortalProjectSelectionInfo SelectPortalProject(string? projectPath, int? requestedProcessId)
     {
         ThrowIfDisposed();
+        ReleaseTemporaryTargetIfSafe();
 
         // Lookup precedes every session transition, including the first attach and same-PID selection.
         var inventory = TiaPortalProcessInventory.Read();
-        var selectedProcessId = TiaPortalTargetSelector.SelectExactProcessId(
-            inventory.Select(entry => entry.Candidate).ToList(), projectPath);
+        if (requestedProcessId.HasValue && requestedProcessId <= 0)
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "PortalProcessId must be positive.");
+        var selectedProcessId = requestedProcessId
+            ?? (projectPath is null
+                ? throw new WorkerOperationException(WorkerFailureCategories.TargetAmbiguous,
+                    "An exact PortalProcessId is required when no projectPath identifies a Portal.")
+                : TiaPortalTargetSelector.SelectExactProcessId(
+                    inventory.Select(entry => entry.Candidate).ToList(), projectPath));
+        if (!inventory.Any(entry => entry.Candidate.Id == selectedProcessId))
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                "No running TIA Portal instance has the requested PortalProcessId.");
         var selectedProcess = inventory.First(entry => entry.Candidate.Id == selectedProcessId).Process;
         var previous = new PortalProjectSelectionInfo
         {
@@ -227,89 +282,85 @@ public class TiaPortalSession : IDisposable
 
         if (IsConnected && _attachedProcessId == selectedProcessId)
         {
-            var projects = _tiaPortal!.Projects.ToList();
+            var projects = ReadOpenContexts();
             var selectedIndex = TiaPortalTargetSelector.SelectProjectIndex(
-                projects.Select(TryReadProjectPathForSelection).ToList(), projectPath);
+                projects.Select(candidate => (string?)candidate.BindingPath).ToList(), projectPath);
             if (selectedIndex is null)
             {
                 throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
                     $"Requested project '{projectPath}' is no longer open in TIA Portal PID {selectedProcessId}. No project was selected.");
             }
 
-            AdoptProject(projects[selectedIndex.Value], openedByWorker: false, projectPath);
+            AdoptContext(projects[selectedIndex.Value].Context, projectPath);
             return previous;
         }
 
-        if (IsConnected)
-        {
-            var hasUserInterface = false;
-            var otherClientCount = 0;
-            try
-            {
-                var attachedProcess = _tiaPortal!.GetCurrentProcess();
-                hasUserInterface = TiaPortalProcessInventory.TryReadHasUserInterface(attachedProcess);
-                var workerProcessId = System.Diagnostics.Process.GetCurrentProcess().Id;
-                otherClientCount = attachedProcess.AttachedSessions
-                    .Count((Siemens.Engineering.TiaPortalSession session) => session.ProcessId != workerProcessId);
-            }
-            catch (Exception ex)
-            {
-                // An unreadable process/client state must not justify detaching the last headless client.
-                hasUserInterface = false;
-                otherClientCount = 0;
-                Console.Error.WriteLine($"Could not read attached Portal clients: {ex.Message}");
-            }
+        // A temporary target attachment must itself have a known retaining client. Otherwise a
+        // missing/ambiguous owner could leave us unable to release the last headless local client.
+        if (!HasRetainingClient(selectedProcess))
+            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                "The target Portal has no verified retaining client for a temporary attachment.");
 
-            var refusal = PortalDetachGuard.EvaluateProjects(hasUserInterface, otherClientCount,
-                ReadAttachedProjectModifiedStates());
-            if (refusal is not null)
-            {
-                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, refusal);
-            }
-        }
-
-        // From this point a former binding cannot be retained on any failure, including Dispose/Attach.
+        TiaPortal? target = null;
+        var promoted = false;
         try
         {
-            if (IsConnected)
-            {
-                Disconnect();
-            }
+            target = selectedProcess.Attach();
+            var actualProcessId = target.GetCurrentProcess().Id;
+            if (actualProcessId != selectedProcessId)
+                throw new InvalidOperationException($"TIA Portal Attach() targeted PID {selectedProcessId} but returned PID {actualProcessId}.");
 
-            var portal = selectedProcess.Attach();
-            try
-            {
-                var actualProcessId = portal.GetCurrentProcess().Id;
-                if (actualProcessId != selectedProcessId)
-                {
-                    throw new InvalidOperationException($"TIA Portal Attach() targeted PID {selectedProcessId} but returned PID {actualProcessId}.");
-                }
-
-                SetPortalHandle(portal, actualProcessId);
-                portal.Notification += OnNotification;
-                portal.Confirmation += OnConfirmation;
-                portal.Disposed += OnDisposed;
-            }
-            catch
-            {
-                portal.Dispose();
-                throw;
-            }
-
-            var projects = portal.Projects.ToList();
+            var projects = ReadOpenContexts(target);
             var selectedIndex = TiaPortalTargetSelector.SelectProjectIndex(
-                projects.Select(TryReadProjectPathForSelection).ToList(), projectPath);
+                projects.Select(candidate => (string?)candidate.BindingPath).ToList(), projectPath);
             if (selectedIndex is null)
-            {
-                throw new InvalidOperationException($"Requested project '{projectPath}' is no longer open in TIA Portal PID {selectedProcessId}.");
-            }
+                throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                    $"Requested project '{projectPath}' is no longer open in TIA Portal PID {selectedProcessId}.");
 
-            AdoptProject(projects[selectedIndex.Value], openedByWorker: false, projectPath);
+            var selectedOwner = projects[selectedIndex.Value].Context;
+            var verified = ReadOpenContexts(target);
+            var verifiedIndex = TiaPortalTargetSelector.SelectProjectIndex(
+                verified.Select(candidate => (string?)candidate.BindingPath).ToList(), projectPath);
+            if (verifiedIndex is null)
+                throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                    "The target owner disappeared before source release.");
+            var verifiedOwner = verified[verifiedIndex.Value].Context;
+            if (selectedOwner.Owner.GetType() != verifiedOwner.Owner.GetType()
+                || !object.Equals(selectedOwner.EngineeringRoot, verifiedOwner.EngineeringRoot)
+                || selectedOwner.Owner is LocalSessionOwner firstLocal
+                && verifiedOwner.Owner is LocalSessionOwner secondLocal
+                && !object.Equals(firstLocal.LocalSession, secondLocal.LocalSession))
+                throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                    "The target owner changed before source release.");
+
+            if (IsConnected)
+                Disconnect();
+
+            SetPortalHandle(target, actualProcessId);
+            target.Notification += OnNotification;
+            target.Confirmation += OnConfirmation;
+            target.Disposed += OnDisposed;
+            promoted = true;
+
+            AdoptContext(verifiedOwner, projectPath);
             previous.Reattached = true;
             return previous;
         }
         catch (Exception ex)
         {
+            if (!promoted && target is not null)
+            {
+                var refusal = EvaluatePortalDetach(target);
+                if (refusal is not null)
+                {
+                    _unreleasedTemporaryTarget = target;
+                    throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                        "The temporary target Portal cannot be safely released: " + refusal);
+                }
+                target.Dispose();
+            }
+            if (ex is WorkerOperationException operation)
+                throw operation;
             throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
                 $"Could not select the requested Portal project: {ex.Message}");
         }
@@ -328,9 +379,9 @@ public class TiaPortalSession : IDisposable
         }
     }
 
-    private IReadOnlyList<bool?>? ReadAttachedProjectModifiedStates()
+    private static IReadOnlyList<bool?>? ReadAttachedProjectModifiedStates(TiaPortal portal)
     {
-        try { return _tiaPortal!.Projects.Select(TryReadProjectIsModified).ToList(); }
+        try { return portal.Projects.Select(TryReadProjectIsModified).ToList(); }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Could not read attached Portal projects: {ex.Message}");
@@ -341,27 +392,123 @@ public class TiaPortalSession : IDisposable
     public void OpenProject(string projectPath)
     {
         ThrowIfDisposed();
-        if (_activeContext is not null)
-            RequireStandaloneOwner();
+        if (_activeContext?.ContainerKind == ProjectContainerKinds.ServerProject)
+            throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported,
+                "A server-project owner cannot be replaced through open_project.");
+        if (string.IsNullOrWhiteSpace(projectPath) || !Path.IsPathRooted(projectPath))
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "ProjectPath must be an absolute .ap21 or .als21 file path.");
+        var extension = Path.GetExtension(projectPath);
+        var isLocal = string.Equals(extension, ".als21", StringComparison.OrdinalIgnoreCase);
+        if (!isLocal && !string.Equals(extension, ".ap21", StringComparison.OrdinalIgnoreCase))
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "Only .ap21 and .als21 files can be opened.");
+        if (!File.Exists(projectPath))
+            throw new FileNotFoundException("TIA Portal project file was not found.", projectPath);
+        var requestedPath = Path.GetFullPath(projectPath);
 
         if (!IsConnected)
-        {
-            Connect(projectPath);
-        }
+            Connect(requestedPath);
 
-        if (!File.Exists(projectPath))
-        {
-            throw new FileNotFoundException("TIA Portal project file was not found.", projectPath);
-        }
-
-        var requestedPath = Path.GetFullPath(projectPath);
+        var sourceContext = _activeContext;
         var currentPath = TryReadCurrentProjectPath();
-        if (currentPath is not null &&
-            string.Equals(currentPath, requestedPath, StringComparison.OrdinalIgnoreCase))
+        if (sourceContext is not null && _activeContext is null)
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                "The selected source owner changed before the open. No opener was called.");
+
+        var openContexts = ReadOpenContexts();
+        if (isLocal)
         {
-            // Persistent session: the requested project is already open — reuse it.
+            if (_activeContext?.Owner is LocalSessionOwner existingLocal
+                && PathsEqual(_activeContext.SessionContainerPath, requestedPath))
+            {
+                // The exact input belongs to the continuously verified selected owner.
+                if (openContexts.Count(candidate => candidate.Context.Owner is LocalSessionOwner owner
+                    && object.Equals(owner.LocalSession, existingLocal.LocalSession)
+                    && object.Equals(owner.Project, existingLocal.Project)) != 1)
+                    throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                        "The previously opened local-session owner is no longer unique.");
+                return;
+            }
+
+            if (_activeContext?.Owner is LocalSessionOwner)
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                    "local_session_requires_terminal_operation: another session cannot be opened while a local owner is selected.");
+
+            // An unrelated owner could be this ALS destination; the installed API exposes no
+            // reverse owner-to-ALS join. Empty Portal is the only qualified opening case.
+            var currentStandalone = _activeContext?.Owner as StandaloneProjectOwner;
+            if (openContexts.Any(candidate => currentStandalone is null
+                || !object.Equals(candidate.Context.EngineeringRoot, currentStandalone.Project)))
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                    "An already-open owner prevents proving that this ALS destination is unopened.");
+            if (currentStandalone is not null && !currentStandalone.OpenedByWorker)
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                    "Preservation of the user-opened source during LocalSessions.Open is unproved.");
+
+            if (currentStandalone is not null)
+            {
+                if (openContexts.Count != 1
+                    || !object.Equals(openContexts[0].Context.EngineeringRoot, currentStandalone.Project))
+                    throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                        "The selected standalone source is no longer the sole open owner.");
+                var sourceIdentity = GetSessionIdentity();
+                ValidateExpectedSessionIdentity(sourceIdentity, false);
+                var beforeClose = ReadOpenContexts();
+                if (beforeClose.Count != 1
+                    || !object.Equals(beforeClose[0].Context.EngineeringRoot, currentStandalone.Project))
+                    throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                        "The selected standalone source changed before close.");
+                ProjectRebindCloseGuard.CloseBeforeRebind(
+                    () => currentStandalone.Project.IsModified,
+                    () => currentStandalone.Project.Close(),
+                    () => SetActiveContext(null));
+            }
+
+            if (ReadOpenContexts().Count != 0)
+                throw new WorkerOperationException(currentStandalone is null
+                    ? WorkerFailureCategories.GuardBlocked : WorkerFailureCategories.PostconditionFailed,
+                    currentStandalone is null
+                        ? "The Portal gained an owner before LocalSessions.Open; no opener was called."
+                        : "The Portal is not empty after source close. Inspect the possible mutation before retrying.");
+
+            var openedOwner = _tiaPortal!.LocalSessions.Open(new FileInfo(requestedPath));
+            var openedContext = LocalSessionContextResolver.Resolve(openedOwner, true);
+            var afterOpen = ReadOpenContexts();
+            if (afterOpen.Count != 1 || afterOpen[0].Context.Owner is not LocalSessionOwner liveOwner
+                || !object.Equals(liveOwner.LocalSession, openedOwner)
+                || !object.Equals(liveOwner.Project, openedContext.EngineeringRoot)
+                || !PathsEqual(afterOpen[0].BindingPath, openedContext.BindingPath))
+                throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed,
+                    "LocalSessions.Open returned an owner that could not be uniquely verified. The open may have succeeded; inspect before retrying.");
+            openedContext.RecordSuccessfulOpen(requestedPath);
+            AdoptContext(openedContext, openedContext.BindingPath);
             return;
         }
+
+        if (_activeContext?.Owner is LocalSessionOwner)
+            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                "local_session_requires_terminal_operation: another project cannot be opened while a local owner is selected.");
+
+        if (currentPath is not null && PathsEqual(currentPath, requestedPath))
+            return;
+
+        var alreadyOpen = openContexts.Where(candidate => PathsEqual(candidate.BindingPath, requestedPath)).ToList();
+        if (alreadyOpen.Count > 1)
+            throw new WorkerOperationException(WorkerFailureCategories.TargetAmbiguous,
+                "Multiple already-open projects have the requested path.");
+        if (alreadyOpen.Count == 1)
+        {
+            if (_activeContext?.Owner.OpenedByWorker == true)
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                    "Cannot abandon worker ownership of another open project during destination reuse.");
+            AdoptContext(alreadyOpen[0].Context, requestedPath);
+            return;
+        }
+
+        if (openContexts.Any(candidate => candidate.Context.Owner is LocalSessionOwner))
+            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                "Preservation of an already-open local session during Projects.Open is unproved.");
 
         if (Project is not null)
         {
@@ -397,7 +544,6 @@ public class TiaPortalSession : IDisposable
                 Console.Error.WriteLine($"Leaving user-opened project '{currentPath ?? "(unknown)"}' open; opening '{requestedPath}' alongside it.");
             }
 
-            SetActiveContext(null);
         }
 
         var project = _tiaPortal!.Projects.Open(new FileInfo(requestedPath));
@@ -411,8 +557,9 @@ public class TiaPortalSession : IDisposable
     internal ProjectRebindStateInfo ReadProjectRebindState(string destinationProjectPath)
     {
         ThrowIfDisposed();
-        if (_activeContext is not null)
-            RequireStandaloneOwner();
+        if (_activeContext?.ContainerKind == ProjectContainerKinds.ServerProject)
+            throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported,
+                "A server-project owner cannot be used for this rebind probe.");
 
         var destination = ProjectPathNormalization.Canonicalize(destinationProjectPath)
             ?? throw new WorkerOperationException(
@@ -424,7 +571,7 @@ public class TiaPortalSession : IDisposable
             return ProjectRebindStateInfo.Create(null, destination, null, sourceOpenedByWorker: false);
         }
 
-        var currentProject = RequireStandaloneOwner().Project;
+        var currentProject = EngineeringRoot;
         if (currentProject is null)
         {
             throw new WorkerOperationException(
@@ -445,7 +592,9 @@ public class TiaPortalSession : IDisposable
                 + "No project was opened or closed.");
         }
 
-        return ProjectRebindStateInfo.Create(source, destination, isModified, _activeContext?.Owner.OpenedByWorker == true);
+        return ProjectRebindStateInfo.Create(source, destination, isModified,
+            _activeContext?.Owner.OpenedByWorker == true,
+            _activeContext?.Owner is LocalSessionOwner ? _activeContext.ToInfo() : null);
     }
 
     internal void TrackWorkerOpenedProject(Project project)
@@ -477,6 +626,29 @@ public class TiaPortalSession : IDisposable
         if (EngineeringRoot is null)
         {
             return null;
+        }
+
+        if (_activeContext?.Owner is LocalSessionOwner localOwner)
+        {
+            try
+            {
+                var matching = ReadOpenContexts().Where(candidate =>
+                    candidate.Context.Owner is LocalSessionOwner
+                    && PathsEqual(candidate.BindingPath, _selectedProjectPath)).ToList();
+                if (matching.Count != 1
+                    || matching[0].Context.Owner is not LocalSessionOwner liveOwner
+                    || !object.Equals(localOwner.LocalSession, liveOwner.LocalSession)
+                    || !object.Equals(localOwner.Project, liveOwner.Project))
+                {
+                    SetActiveContext(null);
+                    return null;
+                }
+            }
+            catch (WorkerOperationException)
+            {
+                SetActiveContext(null);
+                throw;
+            }
         }
 
         try
@@ -517,15 +689,22 @@ public class TiaPortalSession : IDisposable
         }
     }
 
-    public void EnsureConnected(string? requestedProjectPath)
+    public void EnsureConnected(string? requestedProjectPath, int? requestedProcessId = null)
     {
         ThrowIfDisposed();
+        if (requestedProcessId.HasValue && requestedProcessId <= 0)
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "PortalProcessId must be positive.");
 
         if (!IsConnected)
         {
-            Connect(requestedProjectPath);
+            Connect(requestedProjectPath, requestedProcessId);
             return;
         }
+
+        if (requestedProcessId.HasValue && requestedProcessId != _attachedProcessId)
+            throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
+                "The requested Portal PID differs from the attached Portal. Use explicit selection to switch.");
 
         ValidatePortalProcess();
 
@@ -571,24 +750,90 @@ public class TiaPortalSession : IDisposable
             return;
         }
 
-        var projects = _tiaPortal.Projects.ToList();
-        var paths = new List<string?>(projects.Count);
-        foreach (var project in projects)
-        {
-            paths.Add(TryReadProjectPathForSelection(project));
-        }
-
-        var selectedIndex = TiaPortalTargetSelector.SelectProjectIndex(paths, expectedProjectPath);
+        var candidates = ReadOpenContexts();
+        var selectedIndex = TiaPortalTargetSelector.SelectProjectIndex(
+            candidates.Select(candidate => (string?)candidate.BindingPath).ToList(), expectedProjectPath);
         if (selectedIndex is null)
         {
             SetActiveContext(null);
             return;
         }
 
-        AdoptProject(
-            projects[selectedIndex.Value],
-            openedByWorker: false,
-            expectedProjectPath);
+        AdoptContext(candidates[selectedIndex.Value].Context, expectedProjectPath);
+    }
+
+    private static bool ReadAttachedLocalSessionPresence(TiaPortal portal)
+    {
+        try { return portal.LocalSessions.Any(); }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Could not read attached Portal local sessions: {ex.Message}");
+            return true;
+        }
+    }
+
+    private static bool HasRetainingClient(TiaPortalProcess process)
+    {
+        try
+        {
+            return TiaPortalProcessInventory.TryReadHasUserInterface(process)
+                || process.AttachedSessions.Any(session =>
+                    session.ProcessId != System.Diagnostics.Process.GetCurrentProcess().Id);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static string? EvaluatePortalDetach(TiaPortal portal)
+    {
+        var hasUserInterface = false;
+        var otherClientCount = 0;
+        try
+        {
+            var process = portal.GetCurrentProcess();
+            hasUserInterface = TiaPortalProcessInventory.TryReadHasUserInterface(process);
+            var workerProcessId = System.Diagnostics.Process.GetCurrentProcess().Id;
+            otherClientCount = process.AttachedSessions.Count(session => session.ProcessId != workerProcessId);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Could not read attached Portal clients: {ex.Message}");
+        }
+
+        return PortalDetachGuard.EvaluateProjects(hasUserInterface, otherClientCount,
+            ReadAttachedProjectModifiedStates(portal), ReadAttachedLocalSessionPresence(portal));
+    }
+
+    private void ReleaseTemporaryTargetIfSafe()
+    {
+        if (_unreleasedTemporaryTarget is null)
+            return;
+        var refusal = EvaluatePortalDetach(_unreleasedTemporaryTarget);
+        if (refusal is not null)
+            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked,
+                "The retained temporary target Portal cannot be safely released: " + refusal);
+        _unreleasedTemporaryTarget.Dispose();
+        _unreleasedTemporaryTarget = null;
+    }
+
+    internal IReadOnlyList<OpenProjectContextCandidate> ReadOpenContexts()
+    {
+        if (_tiaPortal is null)
+            return Array.Empty<OpenProjectContextCandidate>();
+
+        return ReadOpenContexts(_tiaPortal);
+    }
+
+    private static IReadOnlyList<OpenProjectContextCandidate> ReadOpenContexts(TiaPortal portal)
+    {
+        var contexts = new List<OpenProjectContextCandidate>();
+        foreach (var project in portal.Projects)
+            contexts.Add(new OpenProjectContextCandidate(ActiveProjectContext.ForStandalone(project, false)));
+        foreach (var owner in portal.LocalSessions)
+            contexts.Add(new OpenProjectContextCandidate(LocalSessionContextResolver.Resolve(owner, false)));
+        return contexts;
     }
 
     private void AdoptProject(Project project, bool openedByWorker, string? expectedProjectPath)
@@ -615,7 +860,14 @@ public class TiaPortalSession : IDisposable
                 + "The returned handle was not selected; inspect the TIA Portal UI before retrying.");
         }
 
-        var handleChanged = !ReferenceEquals(EngineeringRoot, context.EngineeringRoot);
+        if (_activeContext?.Owner is LocalSessionOwner previousOwner
+            && context.Owner is LocalSessionOwner nextOwner
+            && PathsEqual(_selectedProjectPath, actualPath)
+            && object.Equals(previousOwner.LocalSession, nextOwner.LocalSession)
+            && object.Equals(previousOwner.Project, nextOwner.Project))
+            return;
+
+        var handleChanged = !object.Equals(EngineeringRoot, context.EngineeringRoot);
         SetActiveContext(context);
 
         if (!PathsEqual(_selectedProjectPath, actualPath))
@@ -643,7 +895,9 @@ public class TiaPortalSession : IDisposable
 
     private void SetActiveContext(ActiveProjectContext? context)
     {
-        var rootChanged = !ReferenceEquals(EngineeringRoot, context?.EngineeringRoot);
+        var rootChanged = !object.Equals(EngineeringRoot, context?.EngineeringRoot)
+            || _activeContext?.Owner is LocalSessionOwner left && context?.Owner is LocalSessionOwner right
+               && !object.Equals(left.LocalSession, right.LocalSession);
         _activeContext = context;
         if (rootChanged)
         {
@@ -707,6 +961,15 @@ public class TiaPortalSession : IDisposable
 
     public void Disconnect()
     {
+        if (_tiaPortal is not null)
+        {
+            var refusal = EvaluatePortalDetach(_tiaPortal);
+            if (refusal is not null)
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, refusal);
+        }
+
+        ReleaseTemporaryTargetIfSafe();
+
         if (_tiaPortal != null)
         {
             _tiaPortal.Notification -= OnNotification;
@@ -724,8 +987,8 @@ public class TiaPortalSession : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        _disposed = true;
         Disconnect();
+        _disposed = true;
         GC.SuppressFinalize(this);
     }
 

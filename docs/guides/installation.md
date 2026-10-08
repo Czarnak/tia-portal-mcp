@@ -44,9 +44,12 @@ During build, the worker prints the selected reference directory:
 TIA Openness compile references: C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48 (UseTiaPortalReferenceStubs=false)
 ```
 
-The passive Multiuser contract foundation does not enable `.als21` selection/open or local-session
-save, close, discard, or commit. Internal binding integration belongs to PR 2; public local-session
-operations remain deferred. Existing explicit project selection and lifecycle rules below still apply.
+Local sessions support exact observed `.amc21` adoption, already-open startup assertions and
+basic status; writable `open_project` accepts an exact existing `.als21` file. Local content,
+compile, save, close/discard/commit and server mutation remain deferred. The
+[Multiuser reference](../SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) records scoped
+live acceptance: offline read-write actual opening required Siemens dialog dismissal in both
+tested fixtures; noninteractive/full-offline support is not established by that run.
 
 ## Install
 
@@ -66,6 +69,8 @@ To bind an MCP server process to a specific project, pass `--project` or set `TI
 tia-mcp --project C:\Projects\Line.ap21
 $env:TIA_MCP_PROJECT_PATH = 'C:\Projects\Line.ap21'
 tia-mcp
+# Synthetic example: assert the engineering path of an already-open local session
+tia-mcp --project 'C:\Disposable\A\Engineering\A.amc21'
 ```
 
 `--project` starts as a configured-but-unverified assertion. Before any guarded write preview, the
@@ -84,7 +89,9 @@ is read-only and non-binding: do not use it to switch projects. Use `bind_projec
 switching to an already-open project; use `open_project` only for opening one.
 
 Call `bind_project` without a path to adopt the sole open project or receive the candidate list;
-with multiple open projects, supply an advertised absolute `.ap21` path. A different configured,
+with multiple open projects, supply an advertised absolute `.ap21` or typed-owner `.amc21` path
+and optional exact `portalProcessId`. `.als21` is an explicit writable opening input only;
+an inventory directory is neither an opener nor a binding selector. A different configured,
 verified, or last-bound path requires `forceRebind:true`. Reattachment may show TIA's Openness
 access dialog, which a human must answer. Worker ownership is not carried across a detach; after
 reattachment the project is treated as UI-owned. Binding itself never opens, creates, saves or closes.
@@ -123,6 +130,10 @@ Even an existing local project path remains a Doctor warning because Doctor deli
 Attach and cannot prove which Portal has it open. Before using project tools, open the exact project
 in the intended TIA Portal process. Runtime identity checks remain the authority for accepting or
 rejecting a request.
+
+Doctor's file-binding diagnostic still accepts only existing `.ap21` files. Runtime supports
+already-open `.amc21` assertions, but Doctor does not validate them or attach to prove a local
+owner. Inspect the runtime `bind_project`/status result for local-session identity.
 
 Exit codes: `0` (no blocking failures), `1` (one or more checks failed), `2` (invalid arguments).
 
@@ -269,6 +280,6 @@ elicitation: preview with `dryRun:true`; omitted `dryRun` executes. No tool uses
 An elicitation client's accepted response does not prove that a person saw a dialog. Keep
 destructive tools out of client auto-approve lists to require client permission prompts on every
 call. See the [lifecycle reference](../SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
-for dry-run examples, all seven guards, and the staged major-release input/output migration.
+for dry-run examples, lifecycle/local-source guards, and the staged major-release input/output migration.
 
 The package includes the `openness-worker` folder and required non-Siemens dependencies. It intentionally excludes `Siemens.Engineering*.dll`; those are loaded from the local TIA Portal installation at runtime.

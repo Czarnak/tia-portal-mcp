@@ -14,7 +14,7 @@ public sealed class MultiuserGroupSelector
 
 internal static class ProjectBindingInspectionCatalog
 {
-    internal const string InvalidArguments = "Invalid bind_project action or selectors. Use bind with projectPath/forceRebind, list_portals without selectors, or an inventory action with its exact Portal/server/group/project selectors.";
+    internal const string InvalidArguments = "Invalid bind_project action or selectors. Use bind with an optional .ap21/.amc21 projectPath, forceRebind and positive portalProcessId; list_portals without selectors; or an inventory action with its exact Portal/server/group/project selectors.";
 
     internal static bool IsInventory(string action) => action is "list_server_connections" or "list_server_groups"
         or "list_server_projects" or "list_local_sessions" or "get_lock_state";
@@ -30,12 +30,16 @@ internal static class ProjectBindingInspectionCatalog
         }
         if (action == "bind")
         {
-            if (arguments.Keys.Any(key => key is not ("action" or "projectPath" or "forceRebind"))) return false;
+            if (arguments.Keys.Any(key => key is not ("action" or "projectPath" or "forceRebind" or "portalProcessId"))) return false;
             if (arguments.TryGetValue("forceRebind", out var force)
                 && force.ValueKind is not (JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null)) return false;
+            if (arguments.TryGetValue("portalProcessId", out var bindProcess)
+                && (bindProcess.ValueKind != JsonValueKind.Number || !bindProcess.TryGetInt32(out var id) || id <= 0)) return false;
             if (!arguments.TryGetValue("projectPath", out var path) || path.ValueKind == JsonValueKind.Null) return true;
             return path.ValueKind == JsonValueKind.String && Path.IsPathFullyQualified(path.GetString()!)
-                && string.Equals(Path.GetExtension(path.GetString()), ".ap21", StringComparison.OrdinalIgnoreCase);
+                && Path.GetExtension(path.GetString()) is { } extension
+                && (string.Equals(extension, ".ap21", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(extension, ".amc21", StringComparison.OrdinalIgnoreCase));
         }
         if (action == "list_portals") return arguments.Keys.All(key => key == "action");
         if (!IsInventory(action)) return false;

@@ -240,15 +240,15 @@ internal static class Program
     {
         return Execute(() =>
         {
-            if (string.IsNullOrWhiteSpace(request.ProjectPath))
+            if (request.ProjectPath is not null && string.IsNullOrWhiteSpace(request.ProjectPath))
             {
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
-                    "select_portal_project requires projectPath.");
+                    "select_portal_project requires an exact projectPath when supplied.");
             }
 
             ValidateExpectedSessionIdentityForRequest(_sharedSession, request,
                 allowMissingExpectedIdentity: true, useCachedIdentity: true);
-            return Success(_sharedSession.SelectPortalProject(request.ProjectPath!));
+            return Success(_sharedSession.SelectPortalProject(request.ProjectPath, request.PortalProcessId));
         });
     }
 
@@ -1171,6 +1171,16 @@ internal static class Program
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)
     {
+        if (request.ProjectPath is null && request.ExpectedSessionIdentity is { ProjectPath: null } empty)
+            return Execute(() =>
+            {
+                // Recovery must prove zero owners without EnsureConnected adopting a retained path.
+                _sharedSession.ValidateEmptyPortal(empty);
+                return Success(new ProjectStatusResultInfo
+                {
+                    Operation = "get_project_status", Project = new ProjectStatusInfo { IsOpen = false }
+                });
+            });
         return WithSession(request, session =>
         {
             var status = ProjectLifecycleService.GetStatusReadOnly(session, request.ProjectPath, _accessMode);
@@ -1468,6 +1478,19 @@ internal static class Program
                 _sharedSession,
                 request,
                 allowMissingExpectedIdentity);
+
+            var capabilityOperation = request.Method switch
+            {
+                "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
+                "get_basic_project_status" => "get_project_status",
+                "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
+                "search_equipment_catalog" => null,
+                _ => request.Method
+            };
+            if (capabilityOperation is not null && _sharedSession.ActiveContext is { } activeContext
+                && !ProjectCapabilityCatalog.Supports(activeContext.ContainerKind, capabilityOperation))
+                return Failure(WorkerFailureCategories.UnsupportedCapability,
+                    $"{capabilityOperation} is unavailable for this project container.");
 
             return body(_sharedSession);
         });

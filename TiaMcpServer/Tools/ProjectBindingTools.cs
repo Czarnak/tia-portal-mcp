@@ -20,11 +20,11 @@ public class ProjectBindingTools
     [Description("Bind this MCP session to a project already open in a running TIA Portal, or explicitly inspect Portal and Project Server inventory. This tool never opens, creates, closes or saves a project. The default bind action without a path binds the only open project or lists the candidates. Inspection actions never adopt or switch a project. Re-attaching to another TIA Portal can show TIA's Openness access dialog, which a human must answer.")]
     public static async Task<CallToolResult> BindProject(
         OpennessWorkerClient workerClient,
-        [Description("Optional absolute path to a .ap21 project file advertised as open by a running TIA Portal.")] string? projectPath = null,
+        [Description("Optional absolute .ap21 project or .amc21 local-session engineering path already open in a running TIA Portal.")] string? projectPath = null,
         [Description("Allow binding a different project than the session's current, configured or last bound project.")] bool forceRebind = false,
         CancellationToken cancellationToken = default,
         [Description("Optional action: bind (default), list_portals, list_server_connections, list_server_groups, list_server_projects, list_local_sessions, get_lock_state. Names are case-sensitive.")] string? action = null,
-        [Description("Optional positive Portal PID assertion for inventory; cannot switch an existing attachment.")] int? portalProcessId = null,
+        [Description("Optional positive Portal PID selector for bind, or exact Portal PID assertion for inventory.")] int? portalProcessId = null,
         [Description("Exact configured Project Server alias; required after list_server_connections.")] string? serverAlias = null,
         [Description("Exact group: root is {isRoot:true,name:null}; named is {isRoot:false,name:exactName}. Both members are required.")] MultiuserGroupSelector? group = null,
         [Description("Exact server project name, required for list_local_sessions and get_lock_state.")] string? serverProjectName = null)
@@ -51,9 +51,10 @@ public class ProjectBindingTools
                 new StandaloneToolOutcome<ProjectBindingResult>(decoded.Status, inspectionValue, decoded.Failure, null), inspected.Result.Warnings,
                 omissionGuidance: "The complete inspection inventory was omitted. Inspect a narrower exact group or project using an applicable inventory action, or inspect the inventory in TIA Portal. Repeating the same oversized inventory may still exceed the limit.");
         }
-        if (portalProcessId is not null || serverAlias is not null || group is not null || serverProjectName is not null)
+        if (serverAlias is not null || group is not null || serverProjectName is not null
+            || portalProcessId is <= 0)
             return InvalidArguments();
-        var outcome = await workerClient.BindOpenProjectAsync(projectPath, forceRebind, cancellationToken).ConfigureAwait(false);
+        var outcome = await workerClient.BindOpenProjectAsync(projectPath, forceRebind, cancellationToken, portalProcessId).ConfigureAwait(false);
         var failure = outcome.Failure is null ? null : new StructuredOperationFailure(
             outcome.Failure.FailureCategory ?? WorkerFailureCategories.ProtocolError,
             outcome.Failure.Error ?? "Project binding failed.");
@@ -68,7 +69,7 @@ public class ProjectBindingTools
     }
 
     private static ProjectBindingInfo BindingInfo(ProjectBindingSnapshot snapshot)
-        => new(snapshot.State, snapshot.ProjectPath, snapshot.PortalProcessId);
+        => new(snapshot.State, snapshot.ProjectPath, snapshot.PortalProcessId, snapshot.Context);
 
     private static PortalProcessInfo[] Portals(IReadOnlyList<TiaPortalProcessInfo> portals, ProjectBindingSnapshot binding)
         => portals.Select(portal => new PortalProcessInfo(portal.ProcessId, portal.ProjectPath,

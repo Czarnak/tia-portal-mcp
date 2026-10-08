@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 /// <summary>
@@ -6,6 +8,8 @@ namespace TiaMcpServer.Contracts;
 /// </summary>
 public sealed class ProjectBindingSnapshot
 {
+    private readonly ProjectContextInfo? _context;
+
     public const string UnboundState = "unbound";
     public const string ConfiguredUnverifiedState = "configured_unverified";
     public const string VerifiedState = "verified";
@@ -19,7 +23,8 @@ public sealed class ProjectBindingSnapshot
         string? workerSessionId,
         long? sessionGeneration,
         int? portalProcessId,
-        string? invalidatedReason)
+        string? invalidatedReason,
+        ProjectContextInfo? context = null)
     {
         State = state;
         BindingId = bindingId;
@@ -29,6 +34,7 @@ public sealed class ProjectBindingSnapshot
         SessionGeneration = sessionGeneration;
         PortalProcessId = portalProcessId;
         InvalidatedReason = invalidatedReason;
+        _context = context?.DeepCopy();
     }
 
     public string State { get; }
@@ -46,6 +52,9 @@ public sealed class ProjectBindingSnapshot
     public int? PortalProcessId { get; }
 
     public string? InvalidatedReason { get; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProjectContextInfo? Context => _context?.DeepCopy();
 
     public bool IsVerified => string.Equals(State, VerifiedState, StringComparison.Ordinal);
 
@@ -65,7 +74,8 @@ public sealed class ProjectBindingSnapshot
             WorkerSessionId = WorkerSessionId!,
             SessionGeneration = SessionGeneration.Value,
             PortalProcessId = PortalProcessId.Value,
-            ProjectPath = ProjectPath
+            ProjectPath = ProjectPath,
+            Context = _context?.DeepCopy()
         };
     }
 

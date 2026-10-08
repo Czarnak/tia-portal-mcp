@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TiaMcpServer.Contracts;
 using TiaMcpServer.Diagnostics;
+using TiaMcpServer.ProjectLifecycle;
 
 namespace TiaMcpServer.Worker;
 
@@ -56,6 +57,7 @@ public class OpennessWorkerClient : IDisposable
     private readonly SemaphoreSlim _bindingOperationGate = new(1, 1);
     private readonly AsyncLocal<BindingOperationContext?> _bindingOperationContext = new();
     private PersistentWorkerTransport? _transport;
+    private (ProjectBindingSnapshot Binding, WorkerSessionIdentity Identity)? _emptyPortalRecovery;
 
     public OpennessWorkerClient(
         ProjectSessionBinding projectSessionBinding,
@@ -125,7 +127,26 @@ public class OpennessWorkerClient : IDisposable
                         var validated = ValidateOrPromoteSessionIdentity(listing, before);
                         if (!validated.Success) result = validated;
                     }
-                    try { portals = ProjectBindingPayloadContract.DecodeProcessList(listing.Payload).Processes; }
+                    try
+                    {
+                        var inventory = ProjectBindingPayloadContract.DecodeProcessList(listing.Payload);
+                        portals = inventory.Processes;
+                        var invalidated = BindingSnapshot;
+                        if (before.IsVerified && invalidated.State == ProjectBindingSnapshot.InvalidatedState
+                            && invalidated.Revision == before.Revision + 1
+                            && listing.ResolvedProjectPath is null
+                            && listing.SessionIdentity is { ProjectPath: null, Context: null } empty
+                            && empty.WorkerSessionId == before.WorkerSessionId
+                            && empty.PortalProcessId == before.PortalProcessId
+                            && empty.SessionGeneration > before.SessionGeneration
+                            && listing.PortalProcessId == empty.PortalProcessId
+                            && inventory.AttachedProcessId == empty.PortalProcessId)
+                            _emptyPortalRecovery = (invalidated, new WorkerSessionIdentity
+                            {
+                                WorkerSessionId = empty.WorkerSessionId, PortalProcessId = empty.PortalProcessId,
+                                SessionGeneration = empty.SessionGeneration
+                            });
+                    }
                     catch (JsonException)
                     {
                         result = WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
@@ -140,12 +161,13 @@ public class OpennessWorkerClient : IDisposable
 
     /// <summary>Selects an already-open project under the serialized session binding gate.</summary>
     public Task<ProjectBindingOutcome> BindOpenProjectAsync(
-        string? projectPath, bool forceRebind, CancellationToken cancellationToken = default)
+        string? projectPath, bool forceRebind, CancellationToken cancellationToken = default,
+        int? portalProcessId = null)
         => ExecuteSerializedBindingOperationAsync(
-            () => BindOpenProjectCoreAsync(projectPath, forceRebind, cancellationToken), cancellationToken);
+            () => BindOpenProjectCoreAsync(projectPath, forceRebind, cancellationToken, portalProcessId), cancellationToken);
 
     private async Task<ProjectBindingOutcome> BindOpenProjectCoreAsync(
-        string? projectPath, bool forceRebind, CancellationToken cancellationToken)
+        string? projectPath, bool forceRebind, CancellationToken cancellationToken, int? portalProcessId)
     {
         var before = BindingSnapshot;
         var invalidationTarget = before;
@@ -196,10 +218,17 @@ public class OpennessWorkerClient : IDisposable
             return new(transition, before, BindingSnapshot, project, portals, CapWarnings(warnings), null, false);
         }
 
-        if (projectPath is not null && (string.IsNullOrWhiteSpace(projectPath)
-            || !Path.IsPathFullyQualified(projectPath) || !projectPath.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase)))
-            return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "projectPath must be an absolute .ap21 file path."), true);
-        var step = ProjectBindingDecision.Decide(before, projectPath, forceRebind);
+        if (portalProcessId is <= 0)
+            return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "portalProcessId must be positive."), true);
+        var assertedPath = projectPath ?? (before.State == ProjectBindingSnapshot.ConfiguredUnverifiedState
+            ? before.ProjectPath : null);
+        if (assertedPath is not null && (string.IsNullOrWhiteSpace(assertedPath)
+            || !Path.IsPathFullyQualified(assertedPath)
+            || !(string.Equals(Path.GetExtension(assertedPath), ".ap21", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Path.GetExtension(assertedPath), ".amc21", StringComparison.OrdinalIgnoreCase))))
+            return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError,
+                "projectPath must be an absolute .ap21 or .amc21 engineering path."), true);
+        var step = ProjectBindingDecision.Decide(before, projectPath, forceRebind, portalProcessId);
         if (step is BindingStep.Reject reject)
             return Fail(WorkerCallResult.Fail(reject.Category, reject.Message), true);
         if (step is BindingStep.Reverify)
@@ -208,17 +237,18 @@ public class OpennessWorkerClient : IDisposable
         {
             var failure = await List().ConfigureAwait(false);
             if (failure is not null) return Fail(failure);
-            var choice = ProjectBindingDecision.ChooseFromListing(portals);
+            var choice = ProjectBindingDecision.ChooseFromListing(portals, portalProcessId);
             if (choice is not ListingChoice.Select selected)
                 return Fail(WorkerCallResult.Fail(choice is ListingChoice.NotFound
                     ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous,
                     "Select an open project from the reported Portal inventory."));
-            step = new BindingStep.Select(selected.Path, false);
+            step = new BindingStep.Select(selected.Path, false, selected.PortalProcessId);
         }
         var select = (BindingStep.Select)step;
         var result = await SendSelection(new WorkerRequest
         {
             Method = "select_portal_project", ProjectPath = select.Path,
+            PortalProcessId = select.PortalProcessId,
             ExpectedSessionIdentity = before.IsVerified ? before.ToWorkerIdentity() : null
         }).ConfigureAwait(false);
         if (!result.Success)
@@ -237,7 +267,8 @@ public class OpennessWorkerClient : IDisposable
         try { selection = ProjectBindingPayloadContract.DecodeSelection(result.Payload, before); }
         catch (JsonException) { return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError, "The worker Portal selection did not match its declared contract.")); }
         if (!TryValidateCompleteSessionIdentity(result.SessionIdentity, out var identityPath)
-            || !string.Equals(identityPath, select.Path, StringComparison.OrdinalIgnoreCase))
+            || (select.Path is not null && !string.Equals(identityPath, select.Path, StringComparison.OrdinalIgnoreCase))
+            || (select.PortalProcessId is not null && result.SessionIdentity!.PortalProcessId != select.PortalProcessId))
             return Fail(WorkerCallResult.Fail(WorkerFailureCategories.PostconditionFailed, "The worker did not stamp the complete selected project identity."));
         if (!_projectSessionBinding.TryAdoptVerified(before, result.SessionIdentity, out var error))
             return Fail(WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, error!));
@@ -247,7 +278,7 @@ public class OpennessWorkerClient : IDisposable
             warnings.Add("TIA Portal may have shown the Openness dialog. Answering Yes to all stops it for this worker binary.");
         if (selection.PreviousProjectWasWorkerOpened && selection.PreviousProjectIsModified == true)
             warnings.Add("The previous project opened by the worker remains open with unsaved changes. Save or discard them in TIA Portal.");
-        return await Verify(select.IsSwitch ? ProjectBindingTransitions.Switched : ProjectBindingTransitions.Bound, select.Path).ConfigureAwait(false);
+        return await Verify(select.IsSwitch ? ProjectBindingTransitions.Switched : ProjectBindingTransitions.Bound, identityPath!).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -391,6 +422,18 @@ public class OpennessWorkerClient : IDisposable
                     "The invalidated binding has no retained source project to verify."));
             }
 
+            if (_emptyPortalRecovery is { } recovery && recovery.Binding.SameBinding(invalidated))
+            {
+                var empty = await RevalidateRecoveredEmptyPortalAsync(invalidated).ConfigureAwait(false);
+                if (!empty.Success) return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(empty);
+                if (!invalidated.SameBinding(BindingSnapshot) || !_projectSessionBinding.Clear(source, out _))
+                    return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                        WorkerFailureCategories.BindingConflict, "The source binding changed during empty-Portal recovery."));
+                var unbound = BindingSnapshot;
+                _emptyPortalRecovery = (unbound, recovery.Identity);
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(unbound);
+            }
+
             // Reasserting retained A creates a fresh configured revision. The only request that
             // follows is the existing read-only status route; it must promote a complete,
             // matching worker/Portal/project identity before any rebind probe can be sent.
@@ -440,6 +483,45 @@ public class OpennessWorkerClient : IDisposable
             }
 
             return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(promoted);
+        });
+
+    /// <summary>
+    /// Rechecks only a previously observed empty attachment; ordinary unbound sessions stay unchanged.
+    /// </summary>
+    internal Task<WorkerCallResult> RevalidateRecoveredEmptyPortalAsync(ProjectBindingSnapshot expected)
+        => ExecuteSerializedBindingOperationAsync(async () =>
+        {
+            if (!expected.SameBinding(BindingSnapshot))
+                return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                    "The binding changed before empty-Portal verification.");
+            if (_emptyPortalRecovery is not { } recovery || !recovery.Binding.SameBinding(expected))
+                return WorkerCallResult.Ok("{}");
+
+            var result = await InvokeWorkerAsync(new WorkerRequest
+            {
+                Method = "get_project_status", ExpectedSessionIdentity = recovery.Identity
+            }).ConfigureAwait(false);
+            if (!expected.SameBinding(BindingSnapshot))
+                return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                    "The binding changed during empty-Portal verification.");
+            if (result.Success)
+            {
+                var decoded = Tools.StandalonePayloadContract.DecodeStatus(result);
+                if (decoded.Failure is { } failure)
+                    result = WorkerCallResult.Fail(failure.Category, failure.Message, result.Warnings);
+                else if (decoded.Value is not { IsOpen: false, Path: null, Context: null }
+                    || result.ResolvedProjectPath is not null
+                    || result.SessionIdentity is not { ProjectPath: null, Context: null } identity
+                    || identity.WorkerSessionId != recovery.Identity.WorkerSessionId
+                    || identity.PortalProcessId != recovery.Identity.PortalProcessId
+                    || identity.SessionGeneration != recovery.Identity.SessionGeneration
+                    || result.PortalProcessId != recovery.Identity.PortalProcessId)
+                    result = WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                        "The worker did not prove the same attached Portal remains empty.", result.Warnings);
+            }
+            if (!result.Success && expected.State == ProjectBindingSnapshot.UnboundState)
+                _projectSessionBinding.TryInvalidate(expected, "The recovered empty Portal is no longer verified.");
+            return result;
         });
 
     /// <summary>
@@ -1494,6 +1576,12 @@ public class OpennessWorkerClient : IDisposable
             return WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "Project path is required.");
         }
 
+        var current = BindingSnapshot;
+        if (current.IsVerified && current.Context is { OpenedByWorker: true } local
+            && string.Equals(ProjectPathNormalization.Canonicalize(local.SessionContainerPath),
+                ProjectPathNormalization.Canonicalize(projectPath), StringComparison.OrdinalIgnoreCase))
+            return WorkerCallResult.Ok("{}");
+
         // Upfront gate: the generic helper's TryResolve has no forceRebind concept, so open keeps
         // its own binding-policy check against the CALLER's requested path before doing any work.
         if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
@@ -1518,12 +1606,19 @@ public class OpennessWorkerClient : IDisposable
                 WorkerFailureCategories.BindingConflict,
                 "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.");
         }
+        WorkerSessionIdentity? emptyIdentity = null;
+        if (_emptyPortalRecovery is { } recovery && recovery.Binding.SameBinding(bindingBeforeCall))
+        {
+            var empty = await RevalidateRecoveredEmptyPortalAsync(bindingBeforeCall).ConfigureAwait(false);
+            if (!empty.Success) return empty with { DispatchState = WorkerDispatchState.NotSent };
+            emptyIdentity = recovery.Identity;
+        }
         var result = await InvokeWorkerAsync(
             new WorkerRequest
             {
                 Method = "open_project",
                 ProjectPath = projectPath,
-                ExpectedSessionIdentity = bindingBeforeCall.ToWorkerIdentity(),
+                ExpectedSessionIdentity = emptyIdentity ?? bindingBeforeCall.ToWorkerIdentity(),
                 Confirm = true,
                 ForceRebind = forceRebind,
                 AllowTiaConfirmations = true
@@ -1531,7 +1626,46 @@ public class OpennessWorkerClient : IDisposable
 
         if (!result.Success)
         {
+            if (result.DispatchState == WorkerDispatchState.Sent && emptyIdentity is not null)
+                _projectSessionBinding.TryInvalidate(bindingBeforeCall,
+                    "The sent opener failed without proving the recovered empty Portal remained unchanged.");
+            else if (result.DispatchState == WorkerDispatchState.Sent
+                && string.Equals(Path.GetExtension(projectPath), ".als21", StringComparison.OrdinalIgnoreCase))
+                // A failed response does not prove that the source survived the attempted replacement.
+                InvalidateVerifiedBinding("the sent ALS opener failed without proving source continuity");
             return result;
+        }
+
+        if (emptyIdentity is not null && (result.SessionIdentity is not { } openedIdentity
+            || openedIdentity.WorkerSessionId != emptyIdentity.WorkerSessionId
+            || openedIdentity.PortalProcessId != emptyIdentity.PortalProcessId
+            || openedIdentity.SessionGeneration <= emptyIdentity.SessionGeneration))
+        {
+            _projectSessionBinding.TryInvalidate(bindingBeforeCall, "The opener did not preserve the recovered Portal identity.");
+            return WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict,
+                "The opener did not preserve the recovered Portal identity. Inspect the possible mutation before retrying.", result.Warnings)
+                with { DispatchState = result.DispatchState, IsPostOperationFailure = true };
+        }
+
+        if (string.Equals(Path.GetExtension(projectPath), ".als21", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var opened = LifecyclePayloadContract.Decode(result, "open_project", null);
+                if (opened.Project?.Context?.OpenedByWorker != true
+                    || !LifecyclePayloadContract.SamePath(opened.Project.Context.SessionContainerPath, projectPath))
+                    throw new JsonException(LifecyclePayloadContract.ProtocolFailureMessage);
+            }
+            catch (JsonException)
+            {
+                InvalidateVerifiedBinding("the ALS opener returned contradictory owner evidence");
+                return WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                    LifecyclePayloadContract.ProtocolFailureMessage, result.Warnings) with
+                {
+                    IsPostOperationFailure = true,
+                    DispatchState = result.DispatchState
+                };
+            }
         }
 
         // Bind to the project the worker actually opened, never the caller's projectPath argument.
@@ -2154,6 +2288,23 @@ public class OpennessWorkerClient : IDisposable
             }
         }
 
+        var capabilityOperation = request.Method switch
+        {
+            "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
+            "get_basic_project_status" => "get_project_status",
+            "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
+            "hello" or "select_portal_project" or "list_tia_portal_processes"
+                or "list_server_connections" or "list_server_groups" or "list_server_projects"
+                or "list_local_sessions" or "get_lock_state" or "search_equipment_catalog" => null,
+            _ => request.Method
+        };
+        var verified = BindingSnapshot;
+        if (capabilityOperation is not null && verified.IsVerified && verified.Context is { } projectContext
+            && !ProjectCapabilityCatalog.Supports(projectContext.ContainerKind, capabilityOperation))
+            return WorkerCallResult.Fail(WorkerFailureCategories.UnsupportedCapability,
+                $"{capabilityOperation} is unavailable for this project container.")
+                with { DispatchState = WorkerDispatchState.NotSent };
+
         try
         {
             // Exactly one transport request per call: SendAsync neither loops nor retries: on any
@@ -2256,6 +2407,9 @@ public class OpennessWorkerClient : IDisposable
             _projectSessionBinding.Invalidate(reason);
         }
     }
+
+    internal void InvalidateRejectedLifecycleContext()
+        => InvalidateVerifiedBinding("the lifecycle verification returned contradictory owner evidence");
 
     private PersistentWorkerTransport GetOrCreateTransport()
     {

@@ -12,7 +12,7 @@ raw-key validated; root group requires `{isRoot:true,name:null}`. Verified forei
 local/NotSent and preserves binding/cursors; genuine context/transport loss still invalidates.
 Sessions cover `currentMachineCurrentUser`; locks are non-atomic observations. Typed inspection
 is conditional inside the budgeted binding value (60,000/180,000 characters), not a new envelope.
-No lifecycle elicitation/write audit, ALS21 adoption, session content/markings or mutation is added.
+Inspection adds no lifecycle elicitation/write audit or session mutation.
 See [Multiuser reference](docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
 PR3 received exact live authorization on 2026-10-06. All six inspection actions succeeded against
 three disposable session copies and a standalone AP21; all five remote inventories also succeeded
@@ -20,6 +20,19 @@ with zero open projects. Healthy verified binding/cursors and worker-loss invali
 were observed. The maintainer accepted PR3 live testing as finished and passed on 2026-10-06;
 unexecuted cases are retained as non-blocking evidence limitations in the
 [live acceptance report](docs/superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md).
+
+PR4 selects typed already-open local owners by observed `.amc21` identity, supports basic local
+status/startup assertions and explicit file-only `.als21` opening through the guarded lifecycle
+pipeline. Cold adoption has null ALS provenance and no worker ownership; known same-ALS reuse
+requires continuous owner identity. Conditional local `context` includes descriptive capabilities;
+mode remains unknown, remote identity null and active connection unknown. Local content/compile,
+save/terminal operations and the same-server-project session-identity follow-up remain open.
+Worker-owned local sources block a different open even when clean; borrowed sources require
+proved preservation. No generic session close or automatic terminal cleanup is added.
+Candidate `3772eda` is offline qualified and scoped-live accepted by maintainer decision on
+2026-10-08. Both read-write offline actual opens required Siemens dialog dismissal, failing the
+original noninteractive expectation; full offline/headless/race and other matrix cases remain
+unexecuted. See the [PR4 report](docs/superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md).
 
 The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`, net48) are separate processes. Siemens Openness DLLs use .NET Framework remoting and **cannot run in a .NET 10 process** — this is why the split exists.
 

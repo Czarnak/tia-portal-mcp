@@ -21,10 +21,13 @@ namespace TiaMcpServer.OpennessReferenceProbe
             ProjectBase standaloneBase = standaloneProject;
             ProjectBase multiuserBase = multiuserProject;
             LocalSessionComposition localSessions = portal.LocalSessions;
+            IEnumerable<LocalSession> openOwners = localSessions;
+            Func<IEnumerator<LocalSession>> enumerateOwners = localSessions.GetEnumerator;
             ProjectServerComposition projectServers = portal.ProjectServers;
             Func<FileInfo, LocalSession> open = localSessions.Open;
             Func<FileInfo, LocalSession> openServerProject = localSessions.OpenServerProject;
             MultiuserProject sessionProject = localSession.Project;
+            FileInfo engineeringProjectPath = sessionProject.Path;
             var markingService = localSession.MarkingService;
             Action save = localSession.Save;
             Action close = localSession.Close;

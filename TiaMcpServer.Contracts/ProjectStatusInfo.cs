@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TiaMcpServer.Contracts;
 
 public class ProjectStatusInfo
@@ -29,4 +31,8 @@ public class ProjectStatusInfo
     /// contract remains additive and backward compatible.
     /// </summary>
     public ProjectMetadataInfo? Metadata { get; set; }
+
+    /// <summary>Typed local-session context; omitted for standalone or closed status.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProjectContextInfo? Context { get; set; }
 }
