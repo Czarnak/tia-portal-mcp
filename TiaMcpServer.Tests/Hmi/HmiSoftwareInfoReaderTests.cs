@@ -220,6 +220,22 @@ public class HmiSoftwareInfoReaderTests
     }
 
     [Fact]
+    public void NullEditingAndReferenceLanguageAreNullWithMessagesNotAFailedItem()
+    {
+        var project = ProjectWith().WithLanguages("en-US", "en-US", "en-US");
+        project.LanguageSettings.EditingLanguage = null!;
+        project.LanguageSettings.ReferenceLanguage = null!;
+
+        var info = HmiSoftwareInfoReader.ListProjectLanguages(project);
+
+        Assert.Null(info.EditingLanguage);
+        Assert.Null(info.ReferenceLanguage);
+        Assert.False(info.IsComplete);
+        Assert.Equal(2, info.Messages.Count);
+        Assert.DoesNotContain(info.Messages, m => m.Contains("NullReference"));
+    }
+
+    [Fact]
     public void DispatchRoutesTheFiveOperationsAndRejectsOthers()
     {
         var project = ProjectWith(DeviceWith("Panel", Unified("Panel_RT"))).WithLanguages("en-US", "en-US", "en-US");

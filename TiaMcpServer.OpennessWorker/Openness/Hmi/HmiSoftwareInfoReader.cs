@@ -167,8 +167,8 @@ public static class HmiSoftwareInfoReader
         return new HmiProjectLanguagesInfo
         {
             Languages = languages,
-            EditingLanguage = log.Try(() => project.LanguageSettings.EditingLanguage.Culture.Name, "The editing language"),
-            ReferenceLanguage = log.Try(() => project.LanguageSettings.ReferenceLanguage.Culture.Name, "The reference language"),
+            EditingLanguage = log.TryPresent(() => project.LanguageSettings?.EditingLanguage?.Culture?.Name, "The editing language"),
+            ReferenceLanguage = log.TryPresent(() => project.LanguageSettings?.ReferenceLanguage?.Culture?.Name, "The reference language"),
             IsComplete = log.IsComplete,
             Messages = log.Messages,
         };

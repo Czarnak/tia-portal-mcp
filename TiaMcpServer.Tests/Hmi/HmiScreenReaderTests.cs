@@ -289,6 +289,20 @@ public class HmiScreenReaderTests
     }
 
     [Fact]
+    public void NullRuntimeSettingsGiveNullStartScreenWithMessageNotAFailedItem()
+    {
+        var software = Plant();
+        software.RuntimeSettings = null!;
+
+        var navigation = HmiScreenReader.GetScreenNavigation(software);
+
+        Assert.Null(navigation.StartScreen);
+        Assert.False(navigation.IsComplete);
+        Assert.Contains("runtime settings", Assert.Single(navigation.Messages));
+        Assert.Equal(3, navigation.Edges.Count);
+    }
+
+    [Fact]
     public void UnreadableScreenCompositionFailsTheItem()
     {
         var software = Plant();

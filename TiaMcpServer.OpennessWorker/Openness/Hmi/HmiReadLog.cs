@@ -54,6 +54,23 @@ internal sealed class HmiReadLog
     }
 
     /// <summary>
+    /// Like <see cref="Try{T}"/>, for a value Openness may return as null where one is expected (a sub-object):
+    /// null is one message and an incomplete result (D8) instead of a later <c>NullReferenceException</c>.
+    /// </summary>
+    public T? TryPresent<T>(Func<T?> read, string what)
+        where T : class
+    {
+        var before = Messages.Count;
+        var value = Try(read, what);
+        if (value is null && Messages.Count == before)
+        {
+            Fail($"{what} is null.");
+        }
+
+        return value;
+    }
+
+    /// <summary>
     /// Openness reports an unsupported property on the current device as <see cref="EngineeringTargetInvocationException"/>
     /// or <see cref="EngineeringNotSupportedException"/>; those are recoverable per property. Anything else
     /// (a disposed object after the Portal died, a security failure) fails the whole item.

@@ -95,7 +95,8 @@ public static class HmiScreenReader
     public static HmiScreenNavigationInfo GetScreenNavigation(HmiSoftware software)
     {
         var log = new HmiReadLog();
-        var startScreen = log.Try(() => software.RuntimeSettings.StartScreen, "Property StartScreen of the runtime settings");
+        var settings = log.TryPresent(() => software.RuntimeSettings, "The runtime settings");
+        var startScreen = settings is null ? null : log.Try(() => settings.StartScreen, "Property StartScreen of the runtime settings");
         var edges = new List<HmiScreenEdgeInfo>();
         foreach (var (screenName, screen) in AllScreens(software))
         {
