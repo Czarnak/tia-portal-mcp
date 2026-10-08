@@ -122,6 +122,7 @@ live gate is explicitly pending.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-08 | [OB creation Phase 0 spike (issue #75) — SimaticML import passes under the SimaticSD default; import never renumbers and accepts duplicate singletons; STL rejects `SetENOAutomatically`; S7-1200 case not run](acceptance/reports/2026-10-08-ob-creation-spike.md) |
 | 2026-10-08 | [Multiuser PR4 — scoped maintainer acceptance, offline dialog failures, audits and restoration](acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md) |
 | 2026-10-08 | [`hmi_read` installed-tool live acceptance — all 20 operations, the error/edge paths and the re-check PASS (42/42), read-only; Medium redaction finding D1 and Low D2 fixed and re-verified live, Low D3 (scan performance) accepted, non-integral `Double` not exercised live](acceptance/reports/2026-10-08-hmi-read-live-acceptance.md) |
 | 2026-10-07 | [`hmi_read` live spike S1–S10 — read-only probe of four Unified Comfort panels and one Unified PC station; default `limit`, depth cap, Classic type, variant encoding, and the `HmiTag.ConfirmationType` Portal crash](acceptance/reports/2026-10-07-hmi-read-spike.md) |
