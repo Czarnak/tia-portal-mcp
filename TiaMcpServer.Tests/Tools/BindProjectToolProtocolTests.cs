@@ -119,7 +119,9 @@ public sealed class BindProjectToolProtocolTests
             Assert.Equal(observation is null && portal.GetProperty("processId").GetInt32() == 42, portal.GetProperty("isBound").GetBoolean()));
         if (observation == "discovery-project-closed")
             Assert.Equal(JsonValueKind.Null, value.GetProperty("portals")[0].GetProperty("projectPath").ValueKind);
-        Assert.Equal(6, value.GetProperty("inspection").EnumerateObject().Count(p => p.Value.ValueKind == JsonValueKind.Null));
+        var inspection = value.GetProperty("inspection");
+        Assert.Equal(observation is null ? 5 : 6, inspection.EnumerateObject().Count(p => p.Value.ValueKind == JsonValueKind.Null));
+        if (observation is null) Assert.Equal(42, inspection.GetProperty("portalProcessId").GetInt32());
         Assert.Equal(selectorFailure is null ? new[] { "list_tia_portal_processes" }
             : new[] { "list_server_groups", "list_tia_portal_processes" }, fixture.Methods().Skip(before));
         Assert.Empty(Directory.GetFiles(fixture.AuditPath, "*.jsonl", SearchOption.AllDirectories));
