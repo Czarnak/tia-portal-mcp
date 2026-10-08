@@ -138,6 +138,31 @@ public sealed class LocalSessionOpenWorkerTests
         Assert.Equal(0, f.A.Portal.LocalSessions.OpenCalls);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedAlsReplacement_ClosesSourceWithoutCleanupOrReplay(bool openerThrows)
+    {
+        using var f = new Fixture();
+        f.Session.OpenProject(f.Ap);
+        var source = Assert.Single(f.A.Portal.Projects.Items);
+        if (openerThrows) f.A.Portal.LocalSessions.OpenFailure = new InvalidOperationException("opener failed");
+
+        if (openerThrows)
+            Assert.Equal("opener failed", Assert.Throws<InvalidOperationException>(() => f.Session.OpenProject(f.Als)).Message);
+        else
+            LocalSessionSelectionWorkerTests.AssertCategory(WorkerFailureCategories.PostconditionFailed,
+                () => f.Session.OpenProject(f.Als));
+
+        Assert.Equal(1, source.CloseCalls);
+        Assert.Equal(0, source.SaveCalls);
+        Assert.Empty(f.A.Portal.Projects.Items);
+        Assert.Equal(1, f.A.Portal.LocalSessions.OpenCalls);
+        Assert.Null(f.Session.ActiveContext);
+        foreach (var owner in f.A.Portal.LocalSessions.Items)
+            Assert.Equal(0, owner.SaveCalls + owner.CloseCalls + owner.CommitCalls);
+    }
+
     private static string? ContainerPath(object context)
         => context.GetType().GetProperty("SessionContainerPath")?.GetValue(context) as string;
 }

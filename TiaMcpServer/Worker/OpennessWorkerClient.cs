@@ -1539,9 +1539,9 @@ public class OpennessWorkerClient : IDisposable
         if (!result.Success)
         {
             if (result.DispatchState == WorkerDispatchState.Sent
-                && result.FailureCategory == WorkerFailureCategories.ProtocolError
                 && string.Equals(Path.GetExtension(projectPath), ".als21", StringComparison.OrdinalIgnoreCase))
-                InvalidateVerifiedBinding("the sent ALS opener returned invalid worker identity");
+                // A failed response does not prove that the source survived the attempted replacement.
+                InvalidateVerifiedBinding("the sent ALS opener failed without proving source continuity");
             return result;
         }
 

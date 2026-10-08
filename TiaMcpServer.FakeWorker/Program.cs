@@ -354,6 +354,20 @@ while ((line = Console.In.ReadLine()) is not null)
     }
 
     if (portalInventoryDeclared && currentMethod == "open_project"
+        && Path.GetFileNameWithoutExtension(currentProjectPath)?.StartsWith("local-session-open-failed-", StringComparison.Ordinal) == true)
+    {
+        fakeProjectPath = null;
+        fakeSessionGeneration++;
+        Respond(JsonSerializer.Serialize(new WorkerResponse
+        {
+            Success = false,
+            FailureCategory = Path.GetFileNameWithoutExtension(currentProjectPath)!["local-session-open-failed-".Length..],
+            Error = "The ALS replacement failed after source close; inspect before retrying."
+        }, WorkerJson.Envelope), includeSessionIdentity: false);
+        continue;
+    }
+
+    if (portalInventoryDeclared && currentMethod == "open_project"
         && (Path.GetFileNameWithoutExtension(currentProjectPath) is "local-session-open" or "local-session-open-bad-result"
             or "local-session-open-context-mismatch" or "local-session-open-verification-mismatch"
             or "local-session-open-passive-observation" or "local-session-open-malformed-identity"

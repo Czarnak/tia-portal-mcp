@@ -365,6 +365,45 @@ public sealed class LocalSessionLifecycleProtocolTests
         Assert.Single(File.ReadAllLines(Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl", SearchOption.AllDirectories))));
     }
 
+    [Theory]
+    [InlineData(WorkerFailureCategories.WorkerOperationFailed)]
+    [InlineData(WorkerFailureCategories.PostconditionFailed)]
+    [InlineData(WorkerFailureCategories.GuardBlocked)]
+    public async Task SentAlsOpener_CompletedFailureInvalidatesVerifiedSource(string category)
+    {
+        const string source = "C:/Projects/guarded-lifecycle-ui-owned.ap21";
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, source));
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var input = Path.Combine(audit.Path, "local-session-open-failed-" + category + ".als21");
+        File.WriteAllText(input, "offline fixture");
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var bound = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = source });
+        Assert.True(bound.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        var before = harness.WorkerClient.BindingSnapshot;
+        Assert.True(before.IsVerified);
+
+        var call = await harness.Client.CallToolAsync("open_project", new Dictionary<string, object?>
+        {
+            ["projectPath"] = input, ["forceRebind"] = true
+        });
+        var document = call.StructuredContent!.Value;
+        Assert.False(document.GetProperty("success").GetBoolean(), document.GetRawText());
+        Assert.Equal("applied", document.GetProperty("phase").GetString());
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("error").ValueKind);
+        Assert.Equal(category, document.GetProperty("result").GetProperty("failure").GetProperty("category").GetString());
+        Assert.Contains(document.GetProperty("warnings").EnumerateArray(), warning =>
+            warning.GetString()!.Contains("Inspect", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, harness.WorkerClient.BindingSnapshot.State);
+        Assert.False(before.SameBinding(harness.WorkerClient.BindingSnapshot));
+        Assert.True(harness.WorkerClient.BindingSnapshot.Revision > before.Revision);
+        Assert.Equal(1, log.Methods().Count(method => method == "open_project"));
+        Assert.DoesNotContain(log.Methods(), method => method is "save_project" or "close_project");
+        Assert.Single(File.ReadAllLines(Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl", SearchOption.AllDirectories))));
+    }
+
     [Fact]
     public async Task SentAlsOpener_MalformedEnvelopeIdentityInvalidatesVerifiedSource()
     {
