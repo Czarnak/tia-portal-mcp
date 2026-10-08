@@ -153,6 +153,9 @@ public sealed class LocalSessionBindingIntegrationTests
     [Theory]
     [InlineData("local-envelope-secret", "PRIVATE_IDENTITY_CONTEXT_MEMBER", "PRIVATE_IDENTITY_CONTEXT_VALUE")]
     [InlineData("local-envelope-missing-null", "sessionContainerPath", "PRIVATE_IDENTITY_CONTEXT_VALUE")]
+    [InlineData("local-envelope-invalid-mode", "invalid_session_mode", "PRIVATE_IDENTITY_CONTEXT_VALUE")]
+    [InlineData("local-envelope-mismatched-path", "PRIVATE_OTHER_ENGINEERING_PATH", "PRIVATE_IDENTITY_CONTEXT_VALUE")]
+    [InlineData("local-envelope-forged-remote", "PRIVATE_FORGED_SERVER_ALIAS", "PRIVATE_IDENTITY_CONTEXT_VALUE")]
     [InlineData("local-status-secret", "PRIVATE_STATUS_CONTEXT_MEMBER", "PRIVATE_STATUS_CONTEXT_VALUE")]
     public async Task MalformedLocalContext_IsSanitizedProtocolError(string scenario, string member, string value)
     {

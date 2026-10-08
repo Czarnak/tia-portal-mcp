@@ -1680,6 +1680,12 @@ void Respond(string json, bool includeSessionIdentity = true)
                     context["PRIVATE_IDENTITY_CONTEXT_MEMBER"] = "PRIVATE_IDENTITY_CONTEXT_VALUE";
                 if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-missing-null")
                     context.Remove("sessionContainerPath");
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-invalid-mode")
+                    context["sessionMode"] = "invalid_session_mode";
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-mismatched-path")
+                    context["engineeringProjectPath"] = "C:/Projects/PRIVATE_OTHER_ENGINEERING_PATH.amc21";
+                if (Path.GetFileNameWithoutExtension(projectPath) == "local-envelope-forged-remote")
+                    context["remoteIdentity"] = new JsonObject { ["serverAlias"] = "PRIVATE_FORGED_SERVER_ALIAS" };
             }
             json = response.ToJsonString();
         }
