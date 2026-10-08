@@ -1196,13 +1196,12 @@ renamed `NetworkIntrospectionSafetySnapshotTests` to `NetworkHardwareConfigDeter
 file outside `docs/superpowers/` names the retired token argument any more. Major version, release notes, agent migration note and tag stay open for the maintainer
 ([redesign spec](superpowers/specs/2026-09-29-write-safety-redesign-design.md)).
 
-
 ## OB creation for `create_block` (issue #75) — live-accepted 2026-10-09
 
 `create_block` with `blockType:"OB"` failed for every event class. It now creates any of 15
 event classes named by `obEventClass` (a closed enum; the earlier advertised names that were not real
 event classes are gone). The server picks the OB number from a shared table and rule in
-`TiaMcpServer.Contracts`, so the previewed and executed numbers agree; `plc_ob_singleton_exists`
+`TiaMcpServer.Contracts`, so the previewed and executed numbers agree unless another OB takes the number in between (the result `number` is authoritative); `plc_ob_singleton_exists`
 (block) stops a duplicate singleton in `dryRun` and in actual runs; results carry `number` and
 `obEventClass`. STL FB/FC/OB creation was fixed in the same generator (STL rejects
 `SetENOAutomatically`). Commits `a05cfc5`..`33058d8`; live acceptance passed with no defects, see the

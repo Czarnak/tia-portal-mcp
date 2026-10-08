@@ -179,6 +179,7 @@ Portal's own message (for example "Cannot create an organization block of type
 'ProgrammingError'." on an S7-1200). The 2026-10-09
 [live acceptance report](../superpowers/acceptance/reports/2026-10-09-ob-creation-live-acceptance.md)
 records the V21 run.
+
 `create_block`, `create_block_group` and `delete_block_group` take a deterministic group path or the
 two-segment `PLC/Name` (the PLC root group); a one-segment path is `validation_error`.
 `update_block_logic` and `delete_block` resolve the block uniquely across the PLC, so a missing block
