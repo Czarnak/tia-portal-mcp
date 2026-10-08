@@ -175,6 +175,61 @@ public class PlcOperationCatalogTests
         BlockPath = path,
     };
 
+    private static PlcOperationRequest CreateTyped(string blockType, string? language = null, string? obEventClass = null) => new()
+    {
+        OperationId = "c",
+        Operation = "create_block",
+        BlockPath = "PLC_1/Main",
+        BlockType = blockType,
+        Language = language,
+        ObEventClass = obEventClass,
+    };
+
+    [Fact]
+    public void CreateBlockRejectsUnknownObEventClass()
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { CreateTyped("OB", obEventClass: "TimeDelay") });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Operation 'create_block' (operationId 'c'): obEventClass 'TimeDelay' is not valid. Valid values: ", result.Error);
+        Assert.Contains("TimeDelayInterrupt", result.Error);
+    }
+
+    [Fact]
+    public void CreateBlockRejectsObEventClassForFb()
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { CreateTyped("FB", obEventClass: "Startup") });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Operation 'create_block' (operationId 'c'): obEventClass applies only to blockType OB.", result.Error);
+    }
+
+    [Theory]
+    [InlineData("OB", "GRAPH")]
+    [InlineData("ob", "graph")]
+    public void CreateBlockRejectsGraphForOb(string blockType, string language)
+    {
+        var result = PlcOperationCatalog.ValidateWrite(new[] { CreateTyped(blockType, language) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("Operation 'create_block' (operationId 'c'): language GRAPH is not supported for blockType OB.", result.Error);
+    }
+
+    [Fact]
+    public void CreateBlockAcceptsNullObEventClassForFb()
+        => Assert.True(PlcOperationCatalog.ValidateWrite(new[] { CreateTyped("FB", "GRAPH") }).IsValid);
+
+    [Fact]
+    public void CreateBlockAcceptsEveryClassForOb()
+    {
+        foreach (var cls in ObEventClasses.All)
+        {
+            Assert.True(PlcOperationCatalog.ValidateWrite(new[] { CreateTyped("OB", "SCL", cls.Name) }).IsValid, cls.Name);
+        }
+
+        Assert.True(PlcOperationCatalog.ValidateWrite(new[] { CreateTyped("OB") }).IsValid);
+    }
+
     [Fact]
     public void RejectsReadOperationInWrite()
     {

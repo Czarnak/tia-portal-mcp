@@ -71,6 +71,20 @@ public sealed class PlcGuardedWriteMcpTests
         Assert.Contains("effects", output);
     }
 
+    [Fact]
+    public async Task ObEventClassSchemaEnumListsClassesAndNull()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
+        var tool = Assert.Single(await harness.Client.ListToolsAsync(), t => t.Name == "plc_write").ProtocolTool;
+
+        var items = tool.InputSchema.GetProperty("properties").GetProperty("operations").GetProperty("items");
+        var values = items.GetProperty("properties").GetProperty("obEventClass").GetProperty("enum").EnumerateArray()
+            .Select(v => v.GetString()).ToArray();
+
+        Assert.Equal(ObEventClasses.All.Select(c => c.Name).Cast<string?>().Append(null), values);
+    }
+
     [Theory]
     [InlineData(McpAccessMode.ReadWrite, null)]
     [InlineData(McpAccessMode.ReadWrite, false)]

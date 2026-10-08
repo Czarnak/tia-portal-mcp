@@ -269,9 +269,35 @@ public static class PlcOperationCatalog
             ValidateGroupPath(operation.BlockPath, prefix, errors);
         }
 
+        if (operation.Operation == "create_block")
+        {
+            ValidateObCreation(operation, prefix, errors);
+        }
+
         if (!string.IsNullOrWhiteSpace(operation.ExpectedContentHash) && formatIsValid)
         {
             ValidateHash(operation, prefix, errors);
+        }
+    }
+
+    private static void ValidateObCreation(PlcOperationRequest operation, string prefix, List<string> errors)
+    {
+        var isOb = string.Equals(operation.BlockType, "OB", StringComparison.OrdinalIgnoreCase);
+        if (operation.ObEventClass is not null)
+        {
+            if (!isOb)
+            {
+                errors.Add($"{prefix}: obEventClass applies only to blockType OB.");
+            }
+            else if (!ObEventClasses.TryGet(operation.ObEventClass, out _))
+            {
+                errors.Add($"{prefix}: obEventClass '{operation.ObEventClass}' is not valid. Valid values: {ObEventClasses.NamesForMessage()}.");
+            }
+        }
+
+        if (isOb && string.Equals(operation.Language, "GRAPH", StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add($"{prefix}: language GRAPH is not supported for blockType OB.");
         }
     }
 
