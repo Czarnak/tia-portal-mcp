@@ -31,7 +31,7 @@ npx -y @modelcontextprotocol/inspector dotnet .\TiaMcpServer\bin\Debug\net10.0\T
 In the Inspector UI:
 
 - Open the Tools tab.
-- Click `List Tools` and verify 15 tools in read-write/full or 6 in read-only. Full adds no tools; lifecycle works in both writable modes.
+- Click `List Tools` and verify 16 tools in read-write/full or 7 in read-only. Full adds no tools; lifecycle works in both writable modes.
 - Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open.
 - Start with the standalone `get_project_status` and `browse_project_tree` tools.
 - In read-write or full mode, call standalone `compile_check` for PLC or block compilation.

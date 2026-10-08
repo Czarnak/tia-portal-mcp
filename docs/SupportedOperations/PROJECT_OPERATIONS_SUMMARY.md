@@ -49,7 +49,7 @@ cursors, cannot switch an existing attachment, and rejects binding selectors eve
 Results add conditional `result.value.inspection`, with observed PID and typed nullable slots;
 `transition:"none"` and `project:null`. Whole-value omission includes the inventory. See the
 [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md) for selectors, examples, current-user scope,
-lock/error/omission limits and pending live qualification. Tool discovery is 6/15/15.
+lock/error/omission limits and pending live qualification. Tool discovery is 7/16/16.
 
 ### `browse_project_tree` v3
 
@@ -237,7 +237,7 @@ the plain project status only — it never enumerates history or the extended me
 ## Lifecycle operations
 
 All six lifecycle tools are available in read-write and full; the complete mode counts are
-6/15/15. Read-write requires one confirmation form per actual call; full executes under policy
+7/16/16. Read-write requires one confirmation form per actual call; full executes under policy
 without server elicitation. Block guards stop a call in every mode. Ordinary reads never bind,
 switch or open; use `bind_project` for already-open projects and open/create for deliberate opening.
 

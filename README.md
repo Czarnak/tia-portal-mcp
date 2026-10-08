@@ -12,11 +12,11 @@
 
 MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents inspect a running TIA Portal project through the Siemens Openness API.
 
-The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
+The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, read-only WinCC Unified HMI inspection, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
 ## Tools
 
-The server exposes 6 tools in `read-only`, 15 in `read-write` (the startup default), and the same 15 in `full`.
+The server exposes 7 tools in `read-only`, 16 in `read-write` (the startup default), and the same 16 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls, asking once per actual lifecycle call.
 `full` adds no tools or operations; it only runs lifecycle calls without the prompt. Every write tool
 (`plc_write`, `network_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
@@ -26,6 +26,10 @@ safety tokens and no PLC run/stop.
 
 - `plc_read` - run up to 50 PLC read operations in one call: `get_block_content`, `get_type_content` and `list_tag_tables`. Each item carries a unique `operationId`, an `operation` name, and that operation's parameters. Items run independently, so a failing item does not stop the others. Results are structured JSON with `contractVersion` `1.0`; a value over 60,000 characters is omitted whole with narrowing guidance, never cut.
 - `read_cross_references` - read the cross-references of one project-tree target (a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it). Arguments: `target`, `filter`, `maxResults`, `projectPath`. Both reads are available in every access mode and never open or switch a project.
+
+### HMI reads
+
+- `hmi_read` - run up to 50 read-only WinCC Unified HMI operations in one call (devices, tags, connections, alarms, logs, screens and items, faceplates, navigation, runtime settings, script modules, text and graphic lists, languages and `validate`). Registered in every access mode, paged with `offset`/`limit` (default 100), structured JSON with `contractVersion` `1.0`. Classic WinCC devices are listed but not read. See the [HMI operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md).
 
 ### PLC writes
 
@@ -163,9 +167,9 @@ structured results. This custom-integration requirement is separate from the `br
 v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
-**read-only** mode by default (six tools); add `--access-mode read-write` for edits, compilation,
-and lifecycle with one prompt per actual call (fifteen tools). Select `--access-mode full` for
-lifecycle without server elicitation (the same fifteen tools).
+**read-only** mode by default (seven tools); add `--access-mode read-write` for edits, compilation,
+and lifecycle with one prompt per actual call (sixteen tools). Select `--access-mode full` for
+lifecycle without server elicitation (the same sixteen tools).
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing

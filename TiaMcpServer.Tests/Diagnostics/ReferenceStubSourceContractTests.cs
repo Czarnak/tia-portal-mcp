@@ -16,12 +16,12 @@ public class ReferenceStubSourceContractTests
     }
 
     [Fact]
-    public void DedicatedSolutionContainsBothSourcesAndCompileOnlyProbe()
+    public void DedicatedSolutionContainsAllSourcesAndCompileOnlyProbe()
     {
         var path = StubPath("TiaMcpServer.ReferenceStubs.sln");
         Assert.True(File.Exists(path), $"Expected dedicated source-reference solution: {path}");
         var solution = File.ReadAllText(path);
-        foreach (var name in new[] { "Siemens.Engineering.Base", "Siemens.Engineering.Step7", "TiaMcpServer.OpennessReferenceProbe" })
+        foreach (var name in new[] { "Siemens.Engineering.Base", "Siemens.Engineering.Step7", "Siemens.Engineering.WinCCUnified", "TiaMcpServer.OpennessReferenceProbe" })
         {
             Assert.Contains(name + "\\" + name + ".csproj", solution, StringComparison.Ordinal);
             Assert.True(File.Exists(StubPath(name, name + ".csproj")));
@@ -31,6 +31,7 @@ public class ReferenceStubSourceContractTests
     [Theory]
     [InlineData("Siemens.Engineering.Base")]
     [InlineData("Siemens.Engineering.Step7")]
+    [InlineData("Siemens.Engineering.WinCCUnified")]
     public void ProjectsPreserveIdentityAndHaveNoProductOrInstalledReferences(string name)
     {
         var project = ReadProject(name);

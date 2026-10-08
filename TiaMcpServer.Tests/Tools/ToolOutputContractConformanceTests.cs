@@ -127,6 +127,29 @@ public sealed class ToolOutputContractConformanceTests
                 },
             }),
         new ToolProbe(
+            "hmi_read",
+            "rejected",
+            ExpectIsError: true,
+            StartupProjectPath: null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe(
+            "hmi_read",
+            "succeeded",
+            ExpectIsError: false,
+            StartupProjectPath: null,
+            new Dictionary<string, object?>
+            {
+                ["operations"] = new[]
+                {
+                    new
+                    {
+                        operationId = "devices",
+                        operation = "list_hmi_devices",
+                        projectPath = "hmi-read-roundtrip",
+                    },
+                },
+            }),
+        new ToolProbe(
             "read_cross_references",
             "rejected",
             ExpectIsError: true,
@@ -331,6 +354,7 @@ public sealed class ToolOutputContractConformanceTests
             "get_project_status/omitted" => "status-oversized",
             "network_read/succeeded" => "network-roundtrip",
             "plc_read/succeeded" => "plc-read-roundtrip",
+            "hmi_read/succeeded" => "hmi-read-roundtrip",
             "plc_write/previewed" => "plc-write-roundtrip",
             "read_cross_references/succeeded" => "xref-roundtrip",
             "read_cross_references/omittedSources" => "xref-oversized",
@@ -346,7 +370,7 @@ public sealed class ToolOutputContractConformanceTests
             _ => null
         };
         using var uiOpen = probe.Name is "get_project_status/malformed" or
-            "get_project_status/omitted" or "network_read/succeeded" or "plc_read/succeeded" or
+            "get_project_status/omitted" or "network_read/succeeded" or "plc_read/succeeded" or "hmi_read/succeeded" or
             "read_cross_references/succeeded" or "read_cross_references/omittedSources" or
             "browse_project_tree/succeeded"
             ? FakeWorkerUiOpenProject.ForWorkerRelativePath(sourcePath!)
@@ -398,6 +422,22 @@ public sealed class ToolOutputContractConformanceTests
             Assert.Equal(
                 probe.ExpectIsError ? System.Text.Json.JsonValueKind.Null : System.Text.Json.JsonValueKind.Object,
                 document.GetProperty("batch").ValueKind);
+        }
+        if (probe.Tool == "hmi_read")
+        {
+            var document = result.StructuredContent!.Value;
+            Assert.Equal("hmi_read", document.GetProperty("tool").GetString());
+            Assert.Equal("1.0", document.GetProperty("contractVersion").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
+            Assert.Equal(
+                probe.ExpectIsError ? System.Text.Json.JsonValueKind.Null : System.Text.Json.JsonValueKind.Object,
+                document.GetProperty("batch").ValueKind);
+            if (!probe.ExpectIsError)
+            {
+                var item = document.GetProperty("batch").GetProperty("operations")[0];
+                Assert.Equal("succeeded", item.GetProperty("status").GetString());
+                Assert.Equal("HMI_1_RT", item.GetProperty("result").GetProperty("devices")[0].GetProperty("softwareName").GetString());
+            }
         }
         if (probe.Tool == "plc_write")
         {

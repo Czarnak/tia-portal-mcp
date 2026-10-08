@@ -1,6 +1,6 @@
 <Project>
   <Import Project="..\Directory.Build.props" />
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Siemens.Engineering.Base' or '$(MSBuildProjectName)' == 'Siemens.Engineering.Step7'">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Siemens.Engineering.Base' or '$(MSBuildProjectName)' == 'Siemens.Engineering.Step7' or '$(MSBuildProjectName)' == 'Siemens.Engineering.WinCCUnified'">
     <TargetFramework>net48</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -19,7 +19,7 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Siemens.Engineering.Base' or '$(MSBuildProjectName)' == 'Siemens.Engineering.Step7'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Siemens.Engineering.Base' or '$(MSBuildProjectName)' == 'Siemens.Engineering.Step7' or '$(MSBuildProjectName)' == 'Siemens.Engineering.WinCCUnified'">
     <AssemblyMetadata Include="StubOrigin" Value="tia-portal-mcp" />
     <AssemblyMetadata Include="StubSourceHash" Value="$(StubSourceHash)" />
   </ItemGroup>

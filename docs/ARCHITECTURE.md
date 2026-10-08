@@ -64,7 +64,7 @@ falling back to another mode.
 
 ### Read-write mode
 
-Read-write exposes fifteen tools: five observation tools, `bind_project`, `compile_check`,
+Read-write exposes sixteen tools: six observation tools, `bind_project`, `compile_check`,
 `network_write`, `plc_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
 `SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`. `plc_write` and
 `network_write` never elicit; every actual lifecycle call asks once through client form elicitation.
@@ -72,7 +72,7 @@ Reads never bind, switch, or open; `bind_project` selects an already-open projec
 
 ### Full mode
 
-Full exposes the same fifteen tools and permits the same capabilities; it adds no tools or
+Full exposes the same sixteen tools and permits the same capabilities; it adds no tools or
 operations. Lifecycle runs under policy without server elicitation. Block guards stop the call in
 every mode. PLC run/stop (`start_plc`/`stop_plc`) was removed; `OperationCapability.OnlineControl`
 remains as a reserved value with no operation and is permitted in no mode.
@@ -99,7 +99,7 @@ archives, or closes a project; never compiles;
 and never performs project-data mutations. It operates only on a project that
 is already open in the attached TIA Portal instance.
 
-The read-only surface contains six tools: five observations and `bind_project` for explicit
+The read-only surface contains seven tools: six observations and `bind_project` for explicit
 session selection. Binding can switch the selected Portal/project without project mutation.
 
 A supplied `projectPath` on ordinary observation/read tools in read-only mode is an assertion.
@@ -114,6 +114,7 @@ Tool registration is explicit and mode-dependent. The host always registers:
 - `NetworkReadTools`
 - `PlcReadTools`
 - `CrossReferenceReadTools`
+- `HmiReadTools`
 
 The shared `McpToolRegistration.WithAccessModeTools` helper registers these in read-write and full:
 
@@ -144,6 +145,7 @@ preview-only live V21 evidence are recorded in the
 | `plc_read` | Execute up to 50 validated PLC read operations (`get_block_content`, `get_type_content`, `list_tag_tables`) on the structured contract. |
 | `read_cross_references` | Read the cross-references of one project-tree target (leaf object, member, or container sweep) on the structured contract. |
 | `network_read` | Execute up to 50 validated network observation operations. |
+| `hmi_read` | Execute up to 50 validated read-only WinCC Unified HMI operations on the structured contract. |
 
 `execute_read_batch` was retired; its four operations moved to `plc_read` (`get_block_content`,
 `get_type_content`, `list_tag_tables`) and the standalone `read_cross_references`. See the
@@ -331,7 +333,7 @@ handlers and release the Portal without calling project or local-session lifecyc
 The internal capability collection is empty, and remote identity/connection observation are
 null. These fields describe unpopulated preparation and grant no permission or advertised
 compatibility. Host binding epochs, public schemas, protocol version, confirmation, audit,
-and discovery counts remain unchanged by that internal migration. Current counts are 6/15/15;
+and discovery counts remain unchanged by that internal migration. Current counts are 7/16/16;
 PR3 inventory live acceptance remains separate from historical standalone acceptance. `.als21`
 adoption/content/session/markings/mutations remain undelivered; see the
 [Multiuser boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
@@ -504,6 +506,32 @@ The six tools left the output-conformance legacy register, which is now empty. P
 remain. The [lifecycle reference](SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations)
 describes guards and client migration. Network and PLC token retirement are implemented; package
 release remains a later gate.
+
+### HMI reads (`hmi_read`)
+
+`hmi_read` is the seventh read-only tool, registered in every mode through `HmiReadTools`. It builds on the
+structured seam (`StructuredToolResult`/`StructuredOperationBatch`): `HmiOperationCatalog` (pure, Siemens-free) whitelists the 20
+operations, validates the batch (1-50 items, unique `operationId`, per-operation field lists, paging
+`limit` 1-2000 default 100) and owns the single public-operation to worker-method map. Worker methods
+are `hmi_<operation>` because `OperationPolicyCatalog` is one flat namespace and PLC already owns
+`list_tag_tables`, `create_tag` and others; parameters travel in the nested `WorkerRequest.HmiQuery`.
+`HmiPayloadContract` declares one typed CLR result per operation (decoded through the worker-payload
+reader, `protocol_error` otherwise), and `HmiWorkerInvoker` runs items independently.
+
+The worker side lives in `TiaMcpServer.OpennessWorker/Openness/Hmi/`: `HmiSoftwareLocator` finds the
+Unified `HmiSoftware` (Classic `Siemens.Engineering.Hmi.HmiTarget` is recognised by type name and fails
+`target_kind_unsupported`, so the worker never references `Siemens.Engineering.WinCC.dll`), per-domain
+readers produce the `TiaMcpServer.Contracts/Hmi` DTOs, and `HmiPager` applies the stable order
+(case-insensitive ordinal, case-sensitive tie-break). Every result carries `isComplete` and `messages`;
+an unreadable property becomes null plus a message, an unreadable composition fails the item. `validate`
+pages over scanned objects. Properties known to be dangerous or sensitive are never read
+(`HmiTag.ConfirmationType`; connection driver properties with a credential-like name, whose values are
+never read; matching `InitialAddress` keys are dropped and the raw address is withheld).
+
+Compile-time types come from a third generated stub, `ref/Siemens.Engineering.WinCCUnified.dll`, built
+from `reference-stubs/Siemens.Engineering.WinCCUnified/` and verified with the other two by
+`scripts/verify-reference-stubs.ps1` (one shared source hash). Operation reference:
+[HMI operations summary](SupportedOperations/HMI_OPERATIONS_SUMMARY.md).
 
 ### Typed Network payload registry
 

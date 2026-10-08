@@ -52,6 +52,8 @@
       Link="Linked\Openness\ProjectTreeSnapshotWalker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcSoftwareLocator.cs"
       Link="Linked\Openness\PlcSoftwareLocator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Hmi\*.cs"
+      Link="Linked\Openness\Hmi\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcWritePreconditions.cs"
       Link="Linked\Openness\PlcWritePreconditions.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagMutationService.cs"
@@ -149,6 +151,13 @@
       Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"
       Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiContractVersion.cs" Link="Host\Hmi\HmiContractVersion.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiOperationCatalog.cs" Link="Host\Hmi\HmiOperationCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiOperationRequest.cs" Link="Host\Hmi\HmiOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiPayloadContract.cs" Link="Host\Hmi\HmiPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiReadTools.cs" Link="Host\Hmi\HmiReadTools.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiToolResponses.cs" Link="Host\Hmi\HmiToolResponses.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWorkerInvoker.cs" Link="Host\Hmi\HmiWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcContentDiff.cs" Link="Host\Plc\PlcContentDiff.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcContentHashes.cs" Link="Host\Plc\PlcContentHashes.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcContractVersion.cs" Link="Host\Plc\PlcContractVersion.cs" />

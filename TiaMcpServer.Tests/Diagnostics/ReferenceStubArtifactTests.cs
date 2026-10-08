@@ -12,6 +12,7 @@ public class ReferenceStubArtifactTests
     [Theory]
     [InlineData("Siemens.Engineering.Base")]
     [InlineData("Siemens.Engineering.Step7")]
+    [InlineData("Siemens.Engineering.WinCCUnified")]
     public void TrackedReferencesHaveIdentityAndCurrentSourceProvenance(string name)
     {
         using var stream = File.OpenRead(Path.Combine(RepositoryRoot, "ref", name + ".dll"));
@@ -100,7 +101,7 @@ public class ReferenceStubArtifactTests
 
     // Canonical framing: UTF-8 slash-relative path, LF, decimal byte length, LF, exact bytes, LF.
     internal static string[] SourceFiles(string root) => new[] { "Directory.Build.props", "reference-stubs/Directory.Build.props", "reference-stubs/Siemens.Engineering.PublicKey.snk" }
-        .Concat(new[] { "Siemens.Engineering.Base", "Siemens.Engineering.Step7" }.SelectMany(name =>
+        .Concat(new[] { "Siemens.Engineering.Base", "Siemens.Engineering.Step7", "Siemens.Engineering.WinCCUnified" }.SelectMany(name =>
             Directory.EnumerateFiles(Path.Combine(root, "reference-stubs", name), "*", SearchOption.AllDirectories)
                 .Where(p => p.EndsWith(".cs", StringComparison.Ordinal) || p.EndsWith(".csproj", StringComparison.Ordinal))
                 .Select(p => Path.GetRelativePath(root, p).Replace('\\', '/'))
