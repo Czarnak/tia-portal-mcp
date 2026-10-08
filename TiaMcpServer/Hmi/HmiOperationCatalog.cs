@@ -32,7 +32,7 @@ public static class HmiOperationCatalog
         ["list_connections"] = Op(NoFields, new[] { "hmiName" }),
         ["list_alarms"] = Op(NoFields, new[] { "hmiName", "alarmKind", "language" }, paged: true),
         ["get_alarm"] = Op(new[] { "alarmName", "alarmKind" }, new[] { "hmiName", "language" }),
-        ["list_alarm_classes"] = Op(NoFields, new[] { "hmiName", "language" }),
+        ["list_alarm_classes"] = Op(NoFields, new[] { "hmiName" }),
         ["list_logs"] = Op(NoFields, new[] { "hmiName" }),
         ["list_logging_tags"] = Op(NoFields, new[] { "hmiName", "dataLogName", "tagName" }, paged: true),
         ["list_screens"] = Op(NoFields, new[] { "hmiName", "groupPath", "language" }),

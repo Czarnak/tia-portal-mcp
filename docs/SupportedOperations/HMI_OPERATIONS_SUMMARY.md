@@ -25,7 +25,7 @@ operation's list are rejected before any worker call.
 | `list_connections` | - | `hmiName` | no | Connections, driver properties, initial addresses |
 | `list_alarms` | - | `hmiName`, `alarmKind`, `language` | yes | Discrete or analog alarm rows |
 | `get_alarm` | `alarmName`, `alarmKind` | `hmiName`, `language` | no | One alarm with detail |
-| `list_alarm_classes` | - | `hmiName`, `language` | no | Alarm classes, audit classes, OPC UA alarm types |
+| `list_alarm_classes` | - | `hmiName` | no | Alarm classes, audit classes, OPC UA alarm types |
 | `list_logs` | - | `hmiName` | no | Data logs and alarm logs with settings, segments, backup |
 | `list_logging_tags` | - | `hmiName`, `dataLogName`, `tagName` | yes | Logging tags |
 | `list_screens` | - | `hmiName`, `groupPath`, `language` | no | Screen group tree with screens |
@@ -40,8 +40,8 @@ operation's list are rejected before any worker call.
 
 `alarmKind` is `discrete` or `analog`. `validate` takes `category` `tags`, `alarms`, `screens`,
 `connections`, `logs`, `alarmClasses` or `all`; `name` narrows to one object and is not valid with
-`all`. `language` is a culture name such as `en-US`; `list_connections` has no `language` because
-connection comments are plain strings.
+`all`. `language` is a culture name such as `en-US`; `list_connections` and `list_alarm_classes`
+have no `language` because connection comments are plain strings and alarm classes carry no texts.
 
 ## Result conventions
 

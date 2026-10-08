@@ -35,7 +35,7 @@ public class HmiOperationCatalogTests
         ["list_connections"] = (new string[0], new[] { "hmiName" }),
         ["list_alarms"] = (new string[0], new[] { "hmiName", "alarmKind", "language", "offset", "limit" }),
         ["get_alarm"] = (new[] { "alarmName", "alarmKind" }, new[] { "hmiName", "language" }),
-        ["list_alarm_classes"] = (new string[0], new[] { "hmiName", "language" }),
+        ["list_alarm_classes"] = (new string[0], new[] { "hmiName" }),
         ["list_logs"] = (new string[0], new[] { "hmiName" }),
         ["list_logging_tags"] = (new string[0], new[] { "hmiName", "dataLogName", "tagName", "offset", "limit" }),
         ["list_screens"] = (new string[0], new[] { "hmiName", "groupPath", "language" }),
@@ -127,6 +127,17 @@ public class HmiOperationCatalogTests
 
         Assert.False(result.IsValid);
         Assert.Contains("'hmiName' is not valid", result.Error);
+    }
+
+    [Theory]
+    [InlineData("list_connections")]
+    [InlineData("list_alarm_classes")]
+    public void LanguageIsRejectedOnOperationsWithoutTexts(string operation)
+    {
+        var result = HmiOperationCatalog.ValidateRead(new[] { Build(operation, new[] { "language" }) });
+
+        Assert.False(result.IsValid);
+        Assert.Contains($"'language' is not valid for {operation}", result.Error);
     }
 
     [Theory]

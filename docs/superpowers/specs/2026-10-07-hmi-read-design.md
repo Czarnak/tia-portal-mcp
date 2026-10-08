@@ -226,4 +226,7 @@ The sections above are the historical design. Where the implementation differs, 
   item `target_not_found` and names the project languages.
 - **Default limit** is 100 (the spike lowered it from 500); maximum 2000.
 - **`list_connections` has no `language`**; connection comments are plain strings.
+- **`list_alarm_classes` has no `language`** (final review I2): alarm classes, audit classes and OPC UA
+  alarm types carry no texts, so the field is rejected. The live acceptance runs that passed `language`
+  to it predate this change.
 - **Password omission.** Connection driver properties whose name contains "password" are never returned.
