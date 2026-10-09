@@ -15,7 +15,7 @@ public class ProjectEngineeringTools
     [Description("Compile a PLC or selected block scope and return compiler messages. Available in read-write and full modes.")]
     public static async Task<CallToolResult> CompileCheck(
         OpennessWorkerClient workerClient,
-        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null,
+        [Description("Optional .ap21 project or .amc21 local-session engineering path. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null,
         [Description("Optional PLC software name to compile.")] string? plcName = null,
         [Description("Optional PLC block path to compile only that block.")] string? blockPath = null)
     {

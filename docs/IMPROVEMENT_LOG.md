@@ -63,8 +63,12 @@ offline read-write opens failed because Siemens dialogs required dismissal. Full
 headless/race and other matrix rows remain unexecuted. PR5 delivers local-session content reads
 and fixes the unmapped `hmi_*` capability check that refused `hmi_read` for every container; see the
 [October 9 report](superpowers/acceptance/reports/2026-10-09-multiuser-pr5-live-verification.md).
-Exclusive and offline read coverage is still unexercised. Content writes, compile, local save,
-markings, terminal actions and server mutation remain later work. Preserve
+PR6 delivers local-session PLC/Network writes, `compile_check` and `LocalSession.Save()` through
+`save_project`; the
+[PR6 report](superpowers/acceptance/reports/2026-10-09-multiuser-pr6-live-verification.md)
+covers Multiuser and Exclusive sessions in `full` mode. Read-write local-save confirmation,
+worker-opened and offline sessions are unexercised live. Markings, terminal actions and server
+mutation remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
 
