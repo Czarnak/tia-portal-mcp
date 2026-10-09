@@ -1,4 +1,4 @@
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;

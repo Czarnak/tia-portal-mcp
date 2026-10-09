@@ -1,4 +1,4 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Safety;

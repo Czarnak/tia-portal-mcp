@@ -3,7 +3,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TiaMcpServer.Cli;
 using TiaMcpServer.Cli.Install;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
@@ -12,6 +11,8 @@ using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer
 {

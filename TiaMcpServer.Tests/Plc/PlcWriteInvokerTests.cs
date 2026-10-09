@@ -1,8 +1,12 @@
 using System.Reflection;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Plc;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;

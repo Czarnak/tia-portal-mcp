@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Cursors;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 

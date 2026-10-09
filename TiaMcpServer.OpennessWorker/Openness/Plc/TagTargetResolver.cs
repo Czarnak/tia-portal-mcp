@@ -1,0 +1,74 @@
+using Siemens.Engineering;
+using Siemens.Engineering.SW;
+using Siemens.Engineering.SW.Tags;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
+
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
+
+using Project = Siemens.Engineering.Project;
+
+internal sealed record ResolvedTagTarget(
+    PlcSoftware Plc,
+    string PlcName,
+    string FolderPath,
+    PlcTagTable Table,
+    PlcTag Tag);
+
+internal static class TagTargetResolver
+{
+    internal static ResolvedTagTarget Resolve(
+        Project project,
+        string? plcName,
+        string tableName,
+        string? folderPath,
+        string name)
+    {
+        RequireName(tableName, "TableName");
+        RequireName(name, "Name");
+
+        var normalizedFolderPath = NormalizeFolderPath(folderPath);
+        var plcSoftware = PlcSoftwareLocator.FindUnique(project, plcName).Software;
+        PlcTagTableGroup group = plcSoftware.TagTableGroup;
+        foreach (var segment in SplitFolderPath(folderPath))
+        {
+            group = group.Groups.Find(segment)
+                ?? throw NotFound($"Tag table folder '{normalizedFolderPath}' was not found.");
+        }
+
+        var table = group.TagTables.Find(tableName)
+            ?? throw NotFound($"Tag table '{tableName}' was not found in '{normalizedFolderPath}'.");
+        var tag = table.Tags.Find(name)
+            ?? throw NotFound($"Tag '{name}' was not found in tag table '{tableName}'.");
+
+        return new ResolvedTagTarget(plcSoftware, plcSoftware.Name, normalizedFolderPath, table, tag);
+    }
+
+    private static WorkerOperationException NotFound(string message)
+        => new(WorkerFailureCategories.TargetNotFound, message);
+
+    internal static string NormalizeFolderPath(string? folderPath)
+    {
+        var segments = SplitFolderPath(folderPath);
+        return segments.Length == 0 ? "/" : "/" + string.Join("/", segments);
+    }
+
+    private static string[] SplitFolderPath(string? folderPath)
+    {
+        var trimmed = folderPath?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed) || trimmed == "/")
+        {
+            return Array.Empty<string>();
+        }
+
+        return trimmed!.Trim('/').Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static void RequireName(string? value, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"{fieldName} is required.");
+        }
+    }
+}

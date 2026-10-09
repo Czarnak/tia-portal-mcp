@@ -1,9 +1,10 @@
 using System.Reflection;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Hmi;
 

@@ -1,4 +1,4 @@
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -27,7 +27,7 @@ public sealed class NetworkObjectDiscoveryEvidenceTests
     [Fact]
     public void TwoInterfacesWithE1_EmitDistinctRoundTripSelectors()
     {
-        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.HardwareDiscoveryEvidenceInfo
+        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.Network.HardwareDiscoveryEvidenceInfo
             { Scope = "project", Complete = true }).Devices[0];
         NetworkNodeReadSelectorBuilder.Apply(device, true);
         var x1Selector = device.Items[0].Items[0].NetworkInterfaces[0].Nodes[0].Selector!;
@@ -47,7 +47,7 @@ public sealed class NetworkObjectDiscoveryEvidenceTests
     [Fact]
     public void NullParentType_DoesNotDisableQualifiedNode()
     {
-        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.HardwareDiscoveryEvidenceInfo
+        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.Network.HardwareDiscoveryEvidenceInfo
             { Scope = "project", Complete = true }).Devices[0];
         NetworkNodeReadSelectorBuilder.Apply(device, true);
         Assert.True(device.Items[0].Items[0].NetworkInterfaces[0].Nodes[0].Selectable);
@@ -60,7 +60,7 @@ public sealed class NetworkObjectDiscoveryEvidenceTests
     [InlineData("traversal")]
     public void ReadSelectability_RequiresReadableUniqueOwnerAndNode(string failure)
     {
-        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.HardwareDiscoveryEvidenceInfo
+        var device = NetworkDiscoveryRepairFixture.Metadata(new TiaMcpServer.Contracts.Network.HardwareDiscoveryEvidenceInfo
             { Scope = "project", Complete = true }).Devices[0];
         var networkInterface = device.Items[0].Items[0].NetworkInterfaces[0];
         networkInterface.Nodes[0].Selectable = true;

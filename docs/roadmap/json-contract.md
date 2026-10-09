@@ -69,7 +69,7 @@ removed with the batch tools.
 Below the tool surface, the host and worker also disagree about JSON:
 
 - Null handling is declared per worker payload contract (Phase 1a). `WorkerJson.SerializePayload`
-  (`TiaMcpServer.Contracts/WorkerJson.cs`) writes null members unless the payload root carries
+  (`TiaMcpServer.Contracts/Json/WorkerJson.cs`) writes null members unless the payload root carries
   `[LegacyNullOmission(reason)]`. The network payload roots, `ProjectTreeBrowseResultInfo` and
   `ProjectRebindStateInfo` write explicit nulls (Phase 1b removed the network markers). No
   production payload root carries the marker any more; the batch-only roots went with the batch
@@ -182,7 +182,7 @@ Not visible to clients unless noted. Decisions (2026-09-28):
 
 #### Phase 1a: Worker Wire Normalization — Complete
 
-- One wire definition, `TiaMcpServer.Contracts/WorkerJson.cs`: `Envelope` for reading both
+- One wire definition, `TiaMcpServer.Contracts/Json/WorkerJson.cs`: `Envelope` for reading both
   directions and writing responses, `Request` for writing requests (null members kept), and
   `SerializePayload`, which writes null members unless the payload root carries
   `[LegacyNullOmission(reason)]`. The worker, `PersistentWorkerTransport` and the FakeWorker use

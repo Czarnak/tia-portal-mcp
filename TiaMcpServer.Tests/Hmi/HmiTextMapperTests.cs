@@ -1,7 +1,7 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 using static TiaMcpServer.Tests.Hmi.HmiTestProjects;
 

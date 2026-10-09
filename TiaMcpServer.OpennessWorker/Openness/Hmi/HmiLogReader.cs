@@ -1,7 +1,9 @@
 using System.Globalization;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HmiUnified.HmiLogging.HmiLoggingCommon;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 

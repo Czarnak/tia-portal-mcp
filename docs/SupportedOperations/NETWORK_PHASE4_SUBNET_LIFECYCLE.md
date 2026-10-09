@@ -160,7 +160,7 @@ then calls `Delete()` on it. No pre-transaction subnet object supplies the mutat
 ## Typed result
 
 Every subnet lifecycle item retains the four core members shown below, plus typed conditional
-worker `verification` required on guarded public calls. The example is the core identity/count excerpt. They are typed by `TiaMcpServer.Contracts.SubnetLifecycleResultInfo`
+worker `verification` required on guarded public calls. The example is the core identity/count excerpt. They are typed by `TiaMcpServer.Contracts.Network.SubnetLifecycleResultInfo`
 and enforced before typed normalization by
 `NetworkPayloadContract`:
 

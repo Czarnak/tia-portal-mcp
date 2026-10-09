@@ -1,5 +1,6 @@
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -10,7 +11,7 @@ public sealed class NetworkInterfacePathMatcherTests
     public void OrdinaryNodeProducer_PreservesCaptureFailuresAndRemainingCandidates()
     {
         var diagnostics = new List<string>();
-        var capture = new TiaMcpServer.OpennessWorker.Openness.HardwareDiscoveryEvidenceCapture("project", diagnostics.Add);
+        var capture = new TiaMcpServer.OpennessWorker.Openness.Network.HardwareDiscoveryEvidenceCapture("project", diagnostics.Add);
         var nodes = NetworkNodeReadSelectorBuilder.ReadNodes(() => ThrowingNodes(), node =>
             node.NodeId == "bad" ? throw new InvalidOperationException("candidate failure") : node, capture);
         Assert.Equal(new[] { "E2", "E1" }, nodes.Select(node => node.NodeId));

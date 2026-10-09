@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -9,7 +9,7 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     [Fact]
     public void Preflight_AllDependencySelectorsPrecedeFirstScalarSetter()
     {
-        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
         var firstSetter = source.IndexOf("ApplyNodeAttribute(node,", StringComparison.Ordinal);
         var preflight = source[..firstSetter];
         Assert.Contains("FindExactlyOneSubnet(project, subnetId!)", preflight);
@@ -21,25 +21,25 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     [Fact]
     public void PnDeviceNameAutoGeneration_IsSetBeforePnDeviceName()
     {
-        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
         var autoGeneration = source.IndexOf("\"PnDeviceNameAutoGeneration\", generated", StringComparison.Ordinal);
         var name = source.IndexOf("ApplyNodeAttribute(node, \"PnDeviceName\", pnDeviceName", StringComparison.Ordinal);
         Assert.True(autoGeneration >= 0 && name > autoGeneration);
-        var verifier = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkMutationVerifier.cs");
+        var verifier = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkMutationVerifier.cs");
         Assert.Contains("case \"PnDeviceNameAutoGeneration\":", verifier);
     }
 
     [Fact]
     public void SelectionCertainty_DeviceAndInterfaceDiscoveryCannotDropUnreadableCandidates()
     {
-        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkDeviceConfigurator.cs");
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
         var firstSetter = source.IndexOf("ApplyNodeAttribute(node,", StringComparison.Ordinal);
         var preflight = source[..firstSetter];
         Assert.Contains("NetworkObjectSelectorResolver.ResolveNode(project, target)", preflight);
         Assert.Contains("if (!selection.Success) throw new WorkerOperationException(selection.FailureCategory!, selection.Error!);", preflight);
 
         // Selection certainty now belongs to the shared resolver, including bare requests.
-        var resolver = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs");
+        var resolver = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkObjectSelectorResolver.cs");
         Assert.Contains("string.IsNullOrWhiteSpace(candidate.Name)", resolver);
         Assert.Contains("The device-name namespace has unreadable required identity evidence.", resolver);
         Assert.Contains("The device-name namespace could not be read completely.", resolver);
@@ -48,10 +48,10 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         Assert.Contains("The selected owner's network interface could not be read.", resolver);
         Assert.Contains("The selected interface node collection could not be read.", resolver);
         Assert.DoesNotContain("Skipping network interface lookup", resolver);
-        var matcher = ReadRepositorySource("TiaMcpServer.OpennessWorker", "NetworkNodeReadSelectorBuilder.cs");
+        var matcher = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkNodeReadSelectorBuilder.cs");
         Assert.Contains("Node namespace has unreadable identity evidence.", matcher);
         Assert.Contains("Node namespace could not be read completely.", matcher);
-        var subnet = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "SubnetLifecycleService.cs");
+        var subnet = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "SubnetLifecycleService.cs");
         Assert.Contains("FindMatches(project, subnetId, out var unreadableCount)", subnet);
         Assert.Contains("NetworkPostconditionChecks.ClassifySelection(matches.Count, unreadableCount == 0)", subnet);
         Assert.Contains("string.IsNullOrWhiteSpace(candidateId)", subnet);
@@ -75,6 +75,7 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         var source = ReadRepositorySource(
             "TiaMcpServer.OpennessWorker",
             "Openness",
+            "Network",
             "NetworkDeviceCreator.cs");
         var normalizedSource = Regex.Replace(source, @"\s+", " ");
         const string expectedCall =
@@ -91,7 +92,7 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     {
         foreach (var file in new[] { "NetworkDeviceCreator.cs", "NetworkMutationVerifier.cs" })
         {
-            var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", file);
+            var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", file);
             Assert.Contains("NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>()", source);
         }
     }

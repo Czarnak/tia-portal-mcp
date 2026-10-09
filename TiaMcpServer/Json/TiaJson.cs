@@ -10,7 +10,7 @@ namespace TiaMcpServer.Json;
 /// the MCP client by tools not yet on the structured contract, the presentation audit JSONL
 /// records, and stable hashing.
 /// Structured tools render through CanonicalJson instead. The host↔worker wire format lives in
-/// TiaMcpServer.Contracts.WorkerJson.
+/// TiaMcpServer.Contracts.Json.WorkerJson.
 /// </para>
 /// </summary>
 public static class TiaJson

@@ -1,9 +1,11 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Plc;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Network;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Plc;

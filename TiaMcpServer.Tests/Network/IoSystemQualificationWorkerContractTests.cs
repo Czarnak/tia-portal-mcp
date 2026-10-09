@@ -1,13 +1,15 @@
 using System.Text.RegularExpressions;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using Xunit;
-using QualificationEvidence = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence;
+using QualificationEvidence = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence;
 
 namespace TiaMcpServer.Tests.Network;
 
 public class IoSystemQualificationWorkerContractTests
 {
-    private static string Source => File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/IoSystemQualificationProbeService.cs"));
+    private static string Source => File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/Network/IoSystemQualificationProbeService.cs"));
 
     [Fact]
     public void MasterPlcSelection_RequiresUniqueDeviceSoftwareAndFreshAncestorIdentity()
@@ -357,18 +359,18 @@ public class IoSystemQualificationWorkerContractTests
             AttributeName = "Number", ExpectedValue = new() { Kind = "integer", IntegerValue = 2 },
             DesiredValue = new() { Kind = "integer", IntegerValue = 3 }
         };
-        Assert.Null(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        Assert.Null(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.ValidateChange(observation, request));
         observation.Writable = false;
-        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.ValidateChange(observation, request));
         observation.Writable = true;
         observation.Value.IntegerValue = 9;
-        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.ValidateChange(observation, request));
         observation.Value.IntegerValue = 2;
         observation.SupportedTypes = new() { "System.String" };
-        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.ValidateChange(observation, request));
         observation.SupportedTypes = new() { "System.Int32" };
         observation.Available = false;
-        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ValidateChange(observation, request));
+        Assert.NotNull(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.ValidateChange(observation, request));
     }
 
     [Fact]
@@ -376,14 +378,14 @@ public class IoSystemQualificationWorkerContractTests
     {
         var result = new IoSystemQualificationResultInfo { MutationCommitted = true, CompileState = "Error" };
         for (var i = 0; i < 70; i++)
-            TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.AddMessage(result, new string('x', 5000));
+            TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.AddMessage(result, new string('x', 5000));
         Assert.Equal(32, result.Messages.Count);
         Assert.Equal(38, result.OmittedMessageCount);
         Assert.All(result.Messages, message => Assert.True(message.Length <= 512));
-        var serialized = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SerializeBounded(result);
+        var serialized = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SerializeBounded(result);
         Assert.True(System.Text.Encoding.UTF8.GetByteCount(serialized) <= 65536);
         result.Before.Add(new() { Value = new() { Kind = "string", StringValue = new string('x', 100000) } });
-        serialized = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SerializeBounded(result);
+        serialized = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SerializeBounded(result);
         Assert.True(System.Text.Encoding.UTF8.GetByteCount(serialized) <= 65536);
         Assert.Contains("\"mutationCommitted\":true", serialized);
         Assert.Contains("\"evidenceOmitted\":true", serialized);
@@ -392,7 +394,7 @@ public class IoSystemQualificationWorkerContractTests
     public void CompilerEvidence_RedactsPathsAndCredentials_AndKeepsUsefulText()
     {
         var result = new IoSystemQualificationResultInfo();
-        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.AddMessage(result,
+        TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.AddMessage(result,
             @"Invalid station at C:\private\fixture.ap21 password=secret123 token: abcdef /home/private/project");
         var message = Assert.Single(result.Messages);
         Assert.Contains("Invalid station", message);
@@ -408,8 +410,8 @@ public class IoSystemQualificationWorkerContractTests
         var result = new IoSystemQualificationResultInfo { MutationCommitted = true };
         result.After.Add(new() { Name = "Name", Value = new() { Kind = "string", StringValue = new string('a', 54000) } });
         for (var i = 0; i < 32; i++)
-            TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.AddMessage(result, new string('x', 512));
-        var json = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SerializeBounded(result);
+            TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.AddMessage(result, new string('x', 512));
+        var json = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SerializeBounded(result);
         Assert.Contains(new string('a', 54000), json);
         Assert.Contains("\"evidenceOmitted\":true", json);
         Assert.True(System.Text.Encoding.UTF8.GetByteCount(json) <= 65536);
@@ -504,9 +506,9 @@ public class IoSystemQualificationWorkerContractTests
     {
         var result = new IoSystemQualificationResultInfo();
         result.BeforePnDeviceNames.Add(PnNode("node-0"));
-        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.FitsResultBudget(result));
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.FitsResultBudget(result));
         result.Before.Add(new() { Name = "Name", Value = new() { Kind = "string", StringValue = new string('x', 70000) } });
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.FitsResultBudget(result));
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.FitsResultBudget(result));
     }
 
     private static IoSystemQualificationPnDeviceNameInfo PnNode(string nodeId)
@@ -531,7 +533,7 @@ public class IoSystemQualificationWorkerContractTests
             Warnings = new() { "raw private warning" }, Payload = "raw private payload",
             ResolvedProjectPath = "private-protocol-identity", SessionIdentity = identity
         };
-        var normalized = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.NormalizeSessionResponse(response, mode);
+        var normalized = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.NormalizeSessionResponse(response, mode);
         Assert.False(normalized.Success);
         Assert.Equal(category, normalized.FailureCategory);
         Assert.NotSame(response, normalized);
@@ -552,7 +554,7 @@ public class IoSystemQualificationWorkerContractTests
     public void SuccessfulSessionResponse_PreservesTypedCommittedEvidence()
     {
         var response = new WorkerResponse { Success = true, Payload = "typed-committed-state" };
-        Assert.Same(response, TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.NormalizeSessionResponse(response, "setAndCompile"));
+        Assert.Same(response, TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.NormalizeSessionResponse(response, "setAndCompile"));
     }
 
     [Fact]
@@ -571,7 +573,7 @@ public class IoSystemQualificationWorkerContractTests
     {
         var pathCalls = 0;
         var verifyCalls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => { for (var i = 0; i < count; i++) matches.Add(i); },
             _ => { pathCalls++; return new(); }, _ => { verifyCalls++; return true; });
         Assert.Equal("matching", diagnostic.Stage);
@@ -586,9 +588,9 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_IncompleteMatchedPathCannotReachSelectorVerification()
     {
         var verifyCalls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("synthetic-device", new[]
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SummarizeOwnerPath("synthetic-device", new[]
             {
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "synthetic-item", TypeIdentifier = "", PositionNumber = -1 }
             }), _ => { verifyCalls++; return true; });
@@ -609,7 +611,7 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_TraversalExceptionRetainsOnlyClosedReasonAndPartialCount()
     {
         var verifyCalls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => { matches.Add(1); throw new ArgumentException("private exception text"); },
             _ => throw new InvalidOperationException("Path must not be read"),
             _ => { verifyCalls++; return true; });
@@ -628,7 +630,7 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_CompletePathStillRequiresIdentityProof(bool identityMatches, string reason)
     {
         var verifyCalls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1), _ => new() { Depth = 1 },
             _ => { verifyCalls++; return identityMatches; });
         Assert.Equal("verification", diagnostic.Stage);
@@ -642,9 +644,9 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_ObservedTypeEvidenceCanReachExactIdentityProof(string type, int blankCount, string reason)
     {
         var calls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
             {
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "root", PositionNumber = 0, TypeIdentifier = type },
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 1, TypeIdentifier = "observed-type" }
@@ -662,9 +664,9 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_WhitespaceTypeCannotReachIdentityProof(string type)
     {
         var calls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
             {
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 0, TypeIdentifier = type }
             }),
@@ -682,9 +684,9 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_ObservedNullTypeRequiresFreshIdentityProof(bool identityMatches, string reason)
     {
         var calls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
             {
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "root", PositionNumber = 0, TypeIdentifier = null! },
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 1, TypeIdentifier = "observed-type" }
@@ -703,9 +705,9 @@ public class IoSystemQualificationWorkerContractTests
     [Fact]
     public void OwnerDiagnostics_ObservedNullTypeWithThrowingIdentityProofFailsClosed()
     {
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SummarizeOwnerPath("device", new[]
             {
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "root", PositionNumber = 0, TypeIdentifier = null! },
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "owner", PositionNumber = 1, TypeIdentifier = "observed-type" }
@@ -720,9 +722,9 @@ public class IoSystemQualificationWorkerContractTests
     [Fact]
     public void OwnerDiagnostics_MixedTypeClassesHaveBoundedAggregateCounts()
     {
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath("private-device", new[]
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SummarizeOwnerPath("private-device", new[]
             {
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "private-root", PositionNumber = 0, TypeIdentifier = null! },
                 new DeviceItemPathSegmentInfo { Index = 0, Name = "private-middle", PositionNumber = 1, TypeIdentifier = "" },
@@ -753,7 +755,7 @@ public class IoSystemQualificationWorkerContractTests
     [InlineData("unexpected-private-locator", "unknown")]
     public void OwnerDiagnostics_DeviceLocationIsAClosedCode(string locator, string expected)
     {
-        var actual = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.ClassifyDeviceLocation(locator);
+        var actual = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.ClassifyDeviceLocation(locator);
         Assert.Equal(expected, actual);
         Assert.DoesNotContain("/", actual);
     }
@@ -765,7 +767,7 @@ public class IoSystemQualificationWorkerContractTests
     [InlineData(new[] { "owner", "OWNER" }, 2)]
     public void OwnerDiagnostics_DirectDeviceLookupCountsOnlyExactNameMatches(string[] names, int expected)
     {
-        Assert.Equal(expected, TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.Equal(expected, TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .CountDirectDeviceNameMatches(names, "owner"));
     }
 
@@ -774,16 +776,16 @@ public class IoSystemQualificationWorkerContractTests
     {
         var candidate = new EqualProxy();
         var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
-        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, null, diagnostic);
+        TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, null, diagnostic);
         Assert.Equal("unresolved", diagnostic.ResolverOutcome);
         Assert.Null(diagnostic.ResolvedObjectEqualsCandidate);
 
-        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, new EqualProxy(), diagnostic);
+        TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, new EqualProxy(), diagnostic);
         Assert.Equal("different_reference", diagnostic.ResolverOutcome);
         Assert.True(diagnostic.ResolvedObjectEqualsCandidate);
         Assert.False(diagnostic.Reason == "verified");
 
-        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, candidate, diagnostic);
+        TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.RecordOwnerResolution(candidate, candidate, diagnostic);
         Assert.Equal("same_reference", diagnostic.ResolverOutcome);
         Assert.Null(diagnostic.ResolvedObjectEqualsCandidate);
     }
@@ -792,17 +794,17 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_EqualProxyWithoutControllerLinkDoesNotPassOrRevealLocation()
     {
         var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
-        diagnostic.OwnerDeviceLocation = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        diagnostic.OwnerDeviceLocation = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .ClassifyDeviceLocation("deviceGroups/private-group/devices/private-device");
         diagnostic.DirectDeviceNameMatchCount = 0;
-        var result = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
+        var result = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
             matches => matches.Add(new EqualProxy()), _ => new() { Depth = 1 },
             candidate =>
             {
                 var resolved = new EqualProxy();
-                TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+                TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
                     .RecordOwnerResolution(candidate, resolved, diagnostic);
-                return TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+                return TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
                     .VerifyResolvedOwner(resolved, candidate, "target", _ => Array.Empty<string>());
             }, diagnostic);
         Assert.Equal("identity_unverified", result.Reason);
@@ -822,12 +824,12 @@ public class IoSystemQualificationWorkerContractTests
         var linkReads = 0;
         IEnumerable<string> ReadLinks(object _) { linkReads++; return new[] { "target" }; }
         var candidate = new EqualProxy();
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner<object, string>(null, candidate, "target", ReadLinks));
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner<object, string>(new object(), candidate, "target", ReadLinks));
         Assert.Equal(0, linkReads);
-        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(new EqualProxy(), candidate, "target", _ =>
             {
                 linkReads++;
@@ -841,21 +843,21 @@ public class IoSystemQualificationWorkerContractTests
     {
         var candidate = new EqualProxy();
         var verified = new EqualProxy();
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => null));
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => Array.Empty<string>()));
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(candidate, candidate, "target", _ => Array.Empty<string>()));
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "other" }));
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "target", "target" }));
-        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, "target", _ => new[] { "other", "target" }));
-        Assert.True(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.True(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, new SystemProxy(7), _ => new[] { new SystemProxy(7) }));
-        Assert.False(TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+        Assert.False(TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
             .VerifyResolvedOwner(verified, candidate, new SystemProxy(7), _ => new[] { new SystemProxy(7), new SystemProxy(7) }));
     }
 
@@ -863,16 +865,16 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerProof_ThrowingEqualityOrControllerReadFailsClosed()
     {
         var candidate = new EqualProxy();
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
             matches => matches.Add(candidate), _ => new() { Depth = 1 },
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
                 .VerifyResolvedOwner<object, string>(new ThrowingProxy(), candidate, "target", _ => new[] { "target" }));
         Assert.Equal("verification_failed", diagnostic.Reason);
         Assert.False(diagnostic.Reason == "verified");
 
-        diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
+        diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<EqualProxy>(
             matches => matches.Add(candidate), _ => new() { Depth = 1 },
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence
                 .VerifyResolvedOwner(new EqualProxy(), candidate, "target", _ =>
                     throw new InvalidOperationException("private controller detail")));
         Assert.Equal("verification_failed", diagnostic.Reason);
@@ -883,7 +885,7 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_ThrowingEqualityReturnsUnknownWithoutPrivateText()
     {
         var diagnostic = new IoSystemQualificationOwnerDiagnosticInfo();
-        TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.RecordOwnerResolution(
+        TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.RecordOwnerResolution(
             new EqualProxy(), new ThrowingProxy(), diagnostic);
         Assert.Equal("different_reference", diagnostic.ResolverOutcome);
         Assert.Null(diagnostic.ResolvedObjectEqualsCandidate);
@@ -935,9 +937,9 @@ public class IoSystemQualificationWorkerContractTests
     public void OwnerDiagnostics_IncompleteNameOrCoordinatesRejectBeforeIdentityProof(string deviceName, int index, int position)
     {
         var calls = 0;
-        var diagnostic = TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.InspectOwner<int>(
+        var diagnostic = TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.InspectOwner<int>(
             matches => matches.Add(1),
-            _ => TiaMcpServer.OpennessWorker.Openness.IoSystemQualificationEvidence.SummarizeOwnerPath(deviceName, new[]
+            _ => TiaMcpServer.OpennessWorker.Openness.Network.IoSystemQualificationEvidence.SummarizeOwnerPath(deviceName, new[]
             {
                 new DeviceItemPathSegmentInfo { Index = index, Name = "owner", PositionNumber = position, TypeIdentifier = "" }
             }),
@@ -957,12 +959,12 @@ public class IoSystemQualificationWorkerContractTests
         Ordered(body, "NetworkObjectSelectorResolver.ResolveQualificationDeviceItem(project, selector)",
             "VerifyResolvedOwner(verified, candidate.Item, (IoSystem)target.Value, ReadControllerIoSystems)",
             "owner = new Owner(verified, selector, candidate.Device, candidate.Ancestors)");
-        var proof = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/IoSystemQualificationEvidence.cs"));
+        var proof = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/Network/IoSystemQualificationEvidence.cs"));
         var proofBody = ExtractMethodBody(proof, "VerifyResolvedOwner");
         Assert.Contains("object.Equals(verified, candidate)", proofBody);
         Assert.Contains("object.Equals(system, target)", proofBody);
         Assert.Contains("matchingLinks == 1", proofBody);
-        var resolver = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/NetworkObjectSelectorResolver.cs"));
+        var resolver = File.ReadAllText(Find("TiaMcpServer.OpennessWorker/Openness/Network/NetworkObjectSelectorResolver.cs"));
         var qualification = ExtractMethodBody(resolver, "ResolveQualificationDeviceItem");
         Assert.Contains("MatchDeviceItem(project, target)", qualification);
         Assert.DoesNotContain("NetworkSelectorFactory", qualification);

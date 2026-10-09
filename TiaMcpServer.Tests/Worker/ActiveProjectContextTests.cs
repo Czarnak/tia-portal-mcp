@@ -1,8 +1,9 @@
 using Xunit;
 using Siemens.Engineering;
 using Siemens.Engineering.Multiuser;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.OpennessWorker.Openness.Project;
 
 namespace TiaMcpServer.Tests.Worker;
 

@@ -1,4 +1,4 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
 
 namespace TiaMcpServer.ProjectTree;
 

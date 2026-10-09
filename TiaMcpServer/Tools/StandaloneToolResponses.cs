@@ -1,6 +1,9 @@
 using System.Text.Json.Serialization;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
 
 namespace TiaMcpServer.Tools;
 

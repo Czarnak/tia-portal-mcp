@@ -1,7 +1,8 @@
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Worker;
 using Microsoft.Extensions.Logging;
 

@@ -1,10 +1,12 @@
 using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.CrossReferences;
 

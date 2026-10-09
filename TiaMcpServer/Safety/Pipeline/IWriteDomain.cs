@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Safety.Pipeline;
 

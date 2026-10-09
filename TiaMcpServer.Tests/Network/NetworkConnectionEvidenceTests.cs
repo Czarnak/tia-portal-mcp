@@ -1,6 +1,9 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Network;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Network;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using System.Text.Json;
 using Xunit;
@@ -110,10 +113,10 @@ public sealed class NetworkConnectionEvidenceTests
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName,
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"))) directory = directory.Parent;
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs"))) directory = directory.Parent;
         Assert.NotNull(directory);
         var source = File.ReadAllText(Path.Combine(directory.FullName,
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs"));
         Assert.Contains("result.RootDeviceCount = project.Devices.Count", source);
         Assert.Contains("NetworkConnectionEvidenceCapture.CaptureNode(", source);
         Assert.Contains("NetworkConnectionEvidenceCapture.CaptureSubnet(", source);
@@ -165,10 +168,10 @@ public sealed class NetworkConnectionEvidenceTests
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName,
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"))) directory = directory.Parent;
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs"))) directory = directory.Parent;
         Assert.NotNull(directory);
         var source = File.ReadAllText(Path.Combine(directory.FullName,
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs"));
         Assert.DoesNotContain("messages.AddRange(nodeInfo.ConnectionEvidence.Messages)", source);
         Assert.DoesNotContain("messages.AddRange(subnetInfo.ConnectionEvidence.Messages)", source);
         Assert.Contains("ReadConnectedSubnetName(node, nodeDescription, relationshipMessages)", source);

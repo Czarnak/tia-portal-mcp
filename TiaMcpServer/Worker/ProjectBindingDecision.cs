@@ -1,4 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Diagnostics;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Worker;
 

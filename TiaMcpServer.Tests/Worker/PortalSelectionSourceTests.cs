@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -26,7 +26,7 @@ public sealed class PortalSelectionSourceTests
         throw new InvalidOperationException("Missing closing brace.");
     }
 
-    private static string Selection => Method(Read("Openness/TiaPortalSession.cs"),
+    private static string Selection => Method(Read("Openness/Project/TiaPortalSession.cs"),
         "public PortalProjectSelectionInfo SelectPortalProject(string? projectPath, int? requestedProcessId)");
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class PortalSelectionSourceTests
         Assert.True(validationIndex >= 0 && lookupIndex > validationIndex);
         Assert.Contains("allowMissingExpectedIdentity: true", body);
         Assert.Contains("useCachedIdentity: true", body);
-        var validation = Method(Read("Openness/TiaPortalSession.cs"), "public void ValidateExpectedSessionIdentity(");
+        var validation = Method(Read("Openness/Project/TiaPortalSession.cs"), "public void ValidateExpectedSessionIdentity(");
         Assert.Contains("useCachedIdentity ? GetCachedSessionIdentity() : GetSessionIdentity()", validation);
     }
 
@@ -100,7 +100,7 @@ public sealed class PortalSelectionSourceTests
     [Fact]
     public void DisconnectUnsubscribesBeforeRelease()
     {
-        var body = Method(Read("Openness/TiaPortalSession.cs"), "public void Disconnect(");
+        var body = Method(Read("Openness/Project/TiaPortalSession.cs"), "public void Disconnect(");
         var release = body.IndexOf("portal?.Dispose()", StringComparison.Ordinal);
         Assert.True(release >= 0);
         foreach (var before in new[] { "Notification -=", "Confirmation -=", "Disposed -=", "SetActiveContext(null)", "_selectedProjectPath = null", "SetPortalHandle(null, null)" })
@@ -110,7 +110,7 @@ public sealed class PortalSelectionSourceTests
     [Fact]
     public void GuardRunsBeforeDisconnect()
     {
-        var disconnect = Method(Read("Openness/TiaPortalSession.cs"), "public void Disconnect(");
+        var disconnect = Method(Read("Openness/Project/TiaPortalSession.cs"), "public void Disconnect(");
         var guardIndex = disconnect.IndexOf("EvaluatePortalDetach(_tiaPortal)", StringComparison.Ordinal);
         var clearIndex = disconnect.IndexOf("SetActiveContext(null)", StringComparison.Ordinal);
         Assert.True(guardIndex >= 0 && clearIndex > guardIndex);
@@ -119,11 +119,11 @@ public sealed class PortalSelectionSourceTests
     [Fact]
     public void DetachGuardInspectsAttachedProjectsWithoutChangingSelectedHandle()
     {
-        var guard = Method(Read("Openness/TiaPortalSession.cs"), "private static string? EvaluatePortalDetach(");
+        var guard = Method(Read("Openness/Project/TiaPortalSession.cs"), "private static string? EvaluatePortalDetach(");
         Assert.Contains("ReadAttachedProjectModifiedStates(portal)", guard);
         Assert.Contains("ReadAttachedLocalSessionPresence(portal)", guard);
         Assert.Contains("PortalDetachGuard.EvaluateProjects(", guard);
-        var read = Method(Read("Openness/TiaPortalSession.cs"), "private static IReadOnlyList<bool?>? ReadAttachedProjectModifiedStates(");
+        var read = Method(Read("Openness/Project/TiaPortalSession.cs"), "private static IReadOnlyList<bool?>? ReadAttachedProjectModifiedStates(");
         Assert.Contains("portal.Projects", read);
         Assert.Contains("catch (Exception", read);
         Assert.Contains("return null", read);
@@ -144,8 +144,8 @@ public sealed class PortalSelectionSourceTests
     [Fact]
     public void ConnectAndListingShareInventory()
     {
-        Assert.Contains("TiaPortalProcessInventory.Read()", Method(Read("Openness/TiaPortalSession.cs"), "public void Connect("));
-        var inventory = Read("Openness/TiaPortalProcessInventory.cs");
+        Assert.Contains("TiaPortalProcessInventory.Read()", Method(Read("Openness/Project/TiaPortalSession.cs"), "public void Connect("));
+        var inventory = Read("Openness/Project/TiaPortalProcessInventory.cs");
         Assert.Contains("TiaPortal.GetProcesses()", inventory);
         Assert.DoesNotContain(".Attach()", inventory);
     }

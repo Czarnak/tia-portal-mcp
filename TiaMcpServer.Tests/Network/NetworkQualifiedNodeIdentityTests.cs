@@ -1,7 +1,8 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Network;
-using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Network;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 namespace TiaMcpServer.Tests.Network;
 [Collection(RealWorkerProcessCollection.Name)]

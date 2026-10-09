@@ -1,0 +1,92 @@
+using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts.Worker;
+
+namespace TiaMcpServer.Contracts.Project;
+
+/// <summary>
+/// Immutable host-side binding snapshot. Guarded writes retain this complete value so a worker
+/// restart, Portal switch, project close/reopen, or host binding transition is detected.
+/// </summary>
+public sealed class ProjectBindingSnapshot
+{
+    private readonly ProjectContextInfo? _context;
+
+    public const string UnboundState = "unbound";
+    public const string ConfiguredUnverifiedState = "configured_unverified";
+    public const string VerifiedState = "verified";
+    public const string InvalidatedState = "invalidated";
+
+    public ProjectBindingSnapshot(
+        string state,
+        string bindingId,
+        long revision,
+        string? projectPath,
+        string? workerSessionId,
+        long? sessionGeneration,
+        int? portalProcessId,
+        string? invalidatedReason,
+        ProjectContextInfo? context = null)
+    {
+        State = state;
+        BindingId = bindingId;
+        Revision = revision;
+        ProjectPath = projectPath;
+        WorkerSessionId = workerSessionId;
+        SessionGeneration = sessionGeneration;
+        PortalProcessId = portalProcessId;
+        InvalidatedReason = invalidatedReason;
+        _context = context?.DeepCopy();
+    }
+
+    public string State { get; }
+
+    public string BindingId { get; }
+
+    public long Revision { get; }
+
+    public string? ProjectPath { get; }
+
+    public string? WorkerSessionId { get; }
+
+    public long? SessionGeneration { get; }
+
+    public int? PortalProcessId { get; }
+
+    public string? InvalidatedReason { get; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProjectContextInfo? Context => _context?.DeepCopy();
+
+    public bool IsVerified => string.Equals(State, VerifiedState, StringComparison.Ordinal);
+
+    public WorkerSessionIdentity? ToWorkerIdentity()
+    {
+        if (!IsVerified ||
+            string.IsNullOrWhiteSpace(WorkerSessionId) ||
+            SessionGeneration is null ||
+            PortalProcessId is null ||
+            string.IsNullOrWhiteSpace(ProjectPath))
+        {
+            return null;
+        }
+
+        return new WorkerSessionIdentity
+        {
+            WorkerSessionId = WorkerSessionId!,
+            SessionGeneration = SessionGeneration.Value,
+            PortalProcessId = PortalProcessId.Value,
+            ProjectPath = ProjectPath,
+            Context = _context?.DeepCopy()
+        };
+    }
+
+    public bool SameBinding(ProjectBindingSnapshot other)
+        => other is not null
+           && string.Equals(State, other.State, StringComparison.Ordinal)
+           && string.Equals(BindingId, other.BindingId, StringComparison.Ordinal)
+           && Revision == other.Revision
+           && string.Equals(ProjectPath, other.ProjectPath, StringComparison.OrdinalIgnoreCase)
+           && string.Equals(WorkerSessionId, other.WorkerSessionId, StringComparison.Ordinal)
+           && SessionGeneration == other.SessionGeneration
+           && PortalProcessId == other.PortalProcessId;
+}

@@ -1,7 +1,11 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>Routes an <c>hmi_*</c> worker method to its reader. Unknown methods are denied; reads never bind, switch or open a project.</summary>
 public static class HmiReadDispatch

@@ -1,9 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 

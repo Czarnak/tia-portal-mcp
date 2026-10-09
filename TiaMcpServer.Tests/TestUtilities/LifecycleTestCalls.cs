@@ -2,10 +2,11 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestUtilities;
 
 internal static class LifecycleTestCalls
 {

@@ -1,5 +1,5 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Contracts.Block;
 
 namespace TiaMcpServer.Plc;
 

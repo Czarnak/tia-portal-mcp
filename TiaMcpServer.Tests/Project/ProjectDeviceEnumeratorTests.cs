@@ -1,5 +1,5 @@
 using Siemens.Engineering.HW;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Project;
 using Xunit;
 using SiemensProject = Siemens.Engineering.Project;
 

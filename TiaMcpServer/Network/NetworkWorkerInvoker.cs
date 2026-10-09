@@ -1,5 +1,6 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 

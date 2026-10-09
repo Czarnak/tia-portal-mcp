@@ -1,10 +1,14 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 using Xunit.Abstractions;

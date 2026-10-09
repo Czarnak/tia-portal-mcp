@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Safety.Pipeline;
 using Xunit;
 

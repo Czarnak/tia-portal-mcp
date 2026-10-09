@@ -1,5 +1,6 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
 using Xunit;

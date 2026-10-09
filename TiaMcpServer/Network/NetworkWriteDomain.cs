@@ -1,8 +1,10 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 

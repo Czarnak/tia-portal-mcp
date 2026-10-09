@@ -1,7 +1,19 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Diagnostics;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.FakeWorker.Plc;
+using TiaMcpServer.OpennessWorker.Openness.Network;
+using TiaMcpServer.OpennessWorker.Worker;
 
 // Scripted stand-in for TiaMcpServer.OpennessWorker used by IPC integration tests.
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until

@@ -1,5 +1,6 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;

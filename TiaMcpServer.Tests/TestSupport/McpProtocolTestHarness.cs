@@ -4,18 +4,19 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
-using TiaMcpServer.ProjectTree;
 using TiaMcpServer.ProjectLifecycle;
-using TiaMcpServer.Tests.Network;
+using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Runs a real MCP server and a real MCP client in-process over a pair of anonymous pipes, with

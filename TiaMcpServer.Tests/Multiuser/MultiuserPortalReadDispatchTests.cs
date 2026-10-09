@@ -1,9 +1,10 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Multiuser;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
-using Session = TiaMcpServer.OpennessWorker.Openness.TiaPortalSession;
+using Session = TiaMcpServer.OpennessWorker.Openness.Project.TiaPortalSession;
 using PortalProject = Siemens.Engineering.Project;
 
 namespace TiaMcpServer.Tests.Multiuser;

@@ -1,7 +1,10 @@
 using Siemens.Engineering;
 using Siemens.Engineering.Multiuser;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Multiuser;
+using TiaMcpServer.OpennessWorker.Openness.Project;
 using Xunit;
 using static TiaMcpServer.Tests.Multiuser.LocalSessionSelectionWorkerTests;
 
@@ -69,7 +72,7 @@ public sealed class LocalSessionObservationTests
         var before = f.Session.GetSessionIdentity();
         service.ListServerGroups(new() { ServerAlias = "Fixture" });
         server.RemoteFailure = new EngineeringException("secret remote detail");
-        var failure = Assert.Throws<TiaMcpServer.OpennessWorker.WorkerOperationException>(() =>
+        var failure = Assert.Throws<TiaMcpServer.OpennessWorker.Worker.WorkerOperationException>(() =>
             service.ListServerGroups(new() { ServerAlias = "Fixture" }));
         Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, failure.FailureCategory);
         Assert.DoesNotContain("secret", failure.Message);

@@ -1,6 +1,7 @@
 using TiaMcpServer.Cli;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Safety;

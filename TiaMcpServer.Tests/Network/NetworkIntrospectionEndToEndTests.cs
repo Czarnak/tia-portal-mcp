@@ -1,12 +1,15 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using TiaMcpServer.OperationBatches;
-using TiaMcpServer.Worker;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Tests.Worker;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;

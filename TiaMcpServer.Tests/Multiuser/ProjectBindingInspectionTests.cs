@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;

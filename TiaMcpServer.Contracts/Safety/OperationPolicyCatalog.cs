@@ -1,0 +1,177 @@
+namespace TiaMcpServer.Contracts.Safety;
+
+/// <summary>
+/// Central classification of every worker operation by its capability. Both the host
+/// (OperationAccessPolicy) and the worker (WorkerOperationAuthorization) consume this
+/// single source of truth. An operation not listed here is denied in every mode
+/// (deny-by-default).
+/// </summary>
+public static class OperationPolicyCatalog
+{
+    private static readonly IReadOnlyDictionary<string, OperationCapability> Classifications =
+        BuildClassifications();
+
+    /// <summary>
+    /// Returns the capability for <paramref name="operation"/>, or null if the operation
+    /// is not classified (unknown operations are denied in every mode).
+    /// </summary>
+    public static OperationCapability? GetCapability(string? operation)
+        => !string.IsNullOrWhiteSpace(operation) && Classifications.TryGetValue(operation!, out var cap) ? cap : null;
+
+    /// <summary>
+    /// True when <paramref name="operation"/> is allowed under the given access mode.
+    /// Read-only mode allows Observe, TemporaryExport,
+    /// and SessionSelection of already-open projects.
+    /// </summary>
+    public static bool IsAllowed(McpAccessMode mode, string? operation)
+    {
+        var cap = GetCapability(operation);
+        return cap is not null && IsCapabilityAllowed(mode, cap.Value);
+    }
+
+    /// <summary>Immutable capability presets, shared by discovery and request authorization.</summary>
+    public static bool IsCapabilityAllowed(McpAccessMode mode, OperationCapability capability)
+        => mode switch
+        {
+            McpAccessMode.ReadOnly => capability is OperationCapability.Observe
+                or OperationCapability.TemporaryExport
+                or OperationCapability.SessionSelection,
+            McpAccessMode.ReadWrite => capability is OperationCapability.Observe
+                or OperationCapability.TemporaryExport
+                or OperationCapability.SessionSelection
+                or OperationCapability.Compile or OperationCapability.ProjectMutation
+                or OperationCapability.ProjectLifecycle,
+            McpAccessMode.Full => capability is OperationCapability.Observe
+                or OperationCapability.TemporaryExport
+                or OperationCapability.SessionSelection
+                or OperationCapability.Compile or OperationCapability.ProjectMutation
+                or OperationCapability.ProjectLifecycle,
+            _ => false
+        };
+
+    /// <summary>
+    /// True when a worker request must carry the exact currently verified
+    /// worker/Portal/project identity.
+    /// </summary>
+    public static bool RequiresExpectedSessionIdentity(string operation)
+    {
+        if (string.IsNullOrWhiteSpace(operation))
+        {
+            return true;
+        }
+
+        if (string.Equals(operation, "open_project", StringComparison.Ordinal) ||
+            string.Equals(operation, "create_project", StringComparison.Ordinal) ||
+            // The lifecycle-only non-opening read verifies the empty state after close cleared the
+            // project binding. A supplied identity is still checked by worker dispatch.
+            string.Equals(operation, "get_basic_project_status", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return GetCapability(operation) switch
+        {
+            OperationCapability.Observe => false,
+            OperationCapability.TemporaryExport => false,
+            OperationCapability.SessionSelection => false,
+            _ => true
+        };
+    }
+
+    /// <summary>
+    /// Every known operation name. Used by tests to verify completeness.
+    /// </summary>
+    public static IReadOnlyCollection<string> AllOperationNames => new List<string>(Classifications.Keys);
+
+    private static IReadOnlyDictionary<string, OperationCapability> BuildClassifications()
+    {
+        var dict = new Dictionary<string, OperationCapability>(StringComparer.Ordinal)
+        {
+            // Observe (read-only safe)
+            ["get_project_status"] = OperationCapability.Observe,
+            ["list_tia_portal_processes"] = OperationCapability.Observe,
+            ["list_server_connections"] = OperationCapability.Observe,
+            ["list_server_groups"] = OperationCapability.Observe,
+            ["list_server_projects"] = OperationCapability.Observe,
+            ["list_local_sessions"] = OperationCapability.Observe,
+            ["get_lock_state"] = OperationCapability.Observe,
+            ["browse_project_tree_v3_snapshot"] = OperationCapability.Observe,
+            ["read_hardware_config"] = OperationCapability.Observe,
+            ["read_hardware_page_candidates"] = OperationCapability.Observe,
+            ["search_equipment_catalog"] = OperationCapability.Observe,
+            ["read_cross_references"] = OperationCapability.Observe,
+            ["list_tag_tables"] = OperationCapability.Observe,
+            ["list_network_objects"] = OperationCapability.Observe,
+            ["inspect_network_object"] = OperationCapability.Observe,
+            ["probe_network_object_attributes"] = OperationCapability.Observe,
+            ["hmi_list_hmi_devices"] = OperationCapability.Observe,
+            ["hmi_list_tag_tables"] = OperationCapability.Observe,
+            ["hmi_list_tags"] = OperationCapability.Observe,
+            ["hmi_get_tag"] = OperationCapability.Observe,
+            ["hmi_list_system_tags"] = OperationCapability.Observe,
+            ["hmi_list_connections"] = OperationCapability.Observe,
+            ["hmi_list_alarms"] = OperationCapability.Observe,
+            ["hmi_get_alarm"] = OperationCapability.Observe,
+            ["hmi_list_alarm_classes"] = OperationCapability.Observe,
+            ["hmi_list_logs"] = OperationCapability.Observe,
+            ["hmi_list_logging_tags"] = OperationCapability.Observe,
+            ["hmi_list_screens"] = OperationCapability.Observe,
+            ["hmi_list_screen_items"] = OperationCapability.Observe,
+            ["hmi_list_faceplate_instances"] = OperationCapability.Observe,
+            ["hmi_get_screen_navigation"] = OperationCapability.Observe,
+            ["hmi_get_runtime_settings"] = OperationCapability.Observe,
+            ["hmi_list_script_modules"] = OperationCapability.Observe,
+            ["hmi_list_text_and_graphic_lists"] = OperationCapability.Observe,
+            ["hmi_list_project_languages"] = OperationCapability.Observe,
+            ["hmi_validate"] = OperationCapability.Observe,
+
+            // SessionSelection (all presets, selects an already-open project)
+            ["select_portal_project"] = OperationCapability.SessionSelection,
+
+            // TemporaryExport (read-only safe, temporary files with cleanup)
+            ["get_block_content"] = OperationCapability.TemporaryExport,
+            ["get_type_content"] = OperationCapability.TemporaryExport,
+
+            // Compile (NOT read-only safe)
+            ["compile_check"] = OperationCapability.Compile,
+
+            // ProjectLifecycle (NOT read-only safe)
+            ["open_project"] = OperationCapability.ProjectLifecycle,
+            ["create_project"] = OperationCapability.ProjectLifecycle,
+            ["save_project"] = OperationCapability.ProjectLifecycle,
+            ["save_project_as"] = OperationCapability.ProjectLifecycle,
+            ["archive_project"] = OperationCapability.ProjectLifecycle,
+            ["close_project"] = OperationCapability.ProjectLifecycle,
+
+            // ProjectMutation (NOT read-only safe)
+            ["update_block_logic"] = OperationCapability.ProjectMutation,
+            ["update_type_content"] = OperationCapability.ProjectMutation,
+            ["create_block"] = OperationCapability.ProjectMutation,
+            ["delete_block"] = OperationCapability.ProjectMutation,
+            ["create_block_group"] = OperationCapability.ProjectMutation,
+            ["delete_block_group"] = OperationCapability.ProjectMutation,
+            ["create_tag_table"] = OperationCapability.ProjectMutation,
+            ["delete_tag_table"] = OperationCapability.ProjectMutation,
+            ["create_tag"] = OperationCapability.ProjectMutation,
+            ["update_tag"] = OperationCapability.ProjectMutation,
+            ["delete_tag"] = OperationCapability.ProjectMutation,
+            ["create_user_constant"] = OperationCapability.ProjectMutation,
+            ["update_user_constant"] = OperationCapability.ProjectMutation,
+            ["delete_user_constant"] = OperationCapability.ProjectMutation,
+            ["add_network_device"] = OperationCapability.ProjectMutation,
+            ["configure_network_device"] = OperationCapability.ProjectMutation,
+            ["create_subnet"] = OperationCapability.ProjectMutation,
+            ["update_subnet"] = OperationCapability.ProjectMutation,
+            ["delete_subnet"] = OperationCapability.ProjectMutation,
+            ["probe_subnet_lifecycle_mutations"] = OperationCapability.ProjectMutation,
+            ["probe_io_system_qualification"] = OperationCapability.ProjectMutation,
+
+            // Internal non-opening lifecycle probes and verification reads require a writable mode.
+            ["probe_project_status_for_lifecycle"] = OperationCapability.ProjectLifecycle,
+            ["probe_open_project_rebind"] = OperationCapability.ProjectLifecycle,
+            ["get_basic_project_status"] = OperationCapability.ProjectLifecycle,
+        };
+
+        return dict;
+    }
+}

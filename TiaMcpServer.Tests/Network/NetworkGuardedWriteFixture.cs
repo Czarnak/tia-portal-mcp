@@ -1,9 +1,11 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
-using TiaMcpServer.Tools;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tests.Network;

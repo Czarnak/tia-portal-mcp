@@ -1,7 +1,10 @@
 using System.Text.Json;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Multiuser;

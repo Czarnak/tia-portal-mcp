@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Contracts.Block;
 
 namespace TiaMcpServer.Plc;
 

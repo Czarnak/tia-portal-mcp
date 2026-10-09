@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;

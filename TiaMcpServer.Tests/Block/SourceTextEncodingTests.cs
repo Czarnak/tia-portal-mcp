@@ -1,5 +1,5 @@
 using System.Text;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Block;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Block;

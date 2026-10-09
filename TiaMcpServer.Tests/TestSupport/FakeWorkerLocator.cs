@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Locates the built TiaMcpServer.FakeWorker.exe by walking up from the test assembly's output

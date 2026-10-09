@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.ProjectLifecycle;
 

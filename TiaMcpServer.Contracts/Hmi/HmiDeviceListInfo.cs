@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>
 /// Result of <c>list_hmi_devices</c>. <see cref="IsComplete"/> is false when a device item could not be

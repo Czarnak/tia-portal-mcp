@@ -1,8 +1,10 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Tools;
 

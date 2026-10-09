@@ -1,7 +1,9 @@
 using ModelContextProtocol.Protocol;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Project;
 
 namespace TiaMcpServer.Tools;
 

@@ -1,7 +1,10 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Network;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 

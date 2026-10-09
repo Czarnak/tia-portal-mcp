@@ -2,9 +2,10 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 using SiemensProject = Siemens.Engineering.Project;
 

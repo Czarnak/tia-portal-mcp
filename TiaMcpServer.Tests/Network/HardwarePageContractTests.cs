@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;

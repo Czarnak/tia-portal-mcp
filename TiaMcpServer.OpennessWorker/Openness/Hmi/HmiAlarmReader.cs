@@ -2,7 +2,9 @@ using Siemens.Engineering;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HmiUnified.HmiAlarm;
 using Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 

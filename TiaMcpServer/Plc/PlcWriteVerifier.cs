@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 

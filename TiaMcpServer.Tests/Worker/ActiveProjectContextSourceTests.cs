@@ -22,7 +22,7 @@ public sealed class ActiveProjectContextSourceTests
     [Fact]
     public void StatusReadsUseActiveContextAndMutationRequiresStandaloneOwner()
     {
-        var service = Read("Openness/ProjectLifecycleService.cs");
+        var service = Read("Openness/Project/ProjectLifecycleService.cs");
         var read = Method(service, "private static ActiveProjectContext? ResolveProjectForRead(");
         AssertOrdered(read, "session.EnsureConnected(", "ProjectOpenPolicy.Decide", "return session.ActiveContext");
         Assert.DoesNotContain(".Open(", read);
@@ -34,7 +34,7 @@ public sealed class ActiveProjectContextSourceTests
     [Fact]
     public void Create_RejectsLocalSourceBeforeAnySiemensCreate()
     {
-        var body = Method(Read("Openness/ProjectLifecycleService.cs"), "public static ProjectLifecycleResultInfo CreateProject(");
+        var body = Method(Read("Openness/Project/ProjectLifecycleService.cs"), "public static ProjectLifecycleResultInfo CreateProject(");
         AssertOrdered(body, "session.ActiveContext is not null", "RequireStandaloneOwner()", "session.TiaPortal.Projects.Create(");
         AssertOrdered(body, "RequireStandaloneOwner()", ".Create(typeof(Project)");
     }
@@ -52,7 +52,7 @@ public sealed class ActiveProjectContextSourceTests
             Assert.DoesNotContain("LocalSession.Save(", source);
             Assert.DoesNotContain("LocalSession.Close(", source);
         }
-        foreach (var file in new[] { "Openness/ProjectLifecycleOwner.cs", "Openness/LocalSessionOwner.cs" })
+        foreach (var file in new[] { "Openness/Project/ProjectLifecycleOwner.cs", "Openness/Project/LocalSessionOwner.cs" })
         {
             var owner = Read(file);
             Assert.DoesNotContain("IDisposable", owner);
@@ -61,7 +61,7 @@ public sealed class ActiveProjectContextSourceTests
         }
         foreach (var method in new[] { "public void Disconnect(", "private void OnDisposed(" })
         {
-            var cleanup = Method(Read("Openness/TiaPortalSession.cs"), method);
+            var cleanup = Method(Read("Openness/Project/TiaPortalSession.cs"), method);
             Assert.DoesNotContain(".Save(", cleanup);
             Assert.DoesNotContain(".Close(", cleanup);
             Assert.DoesNotContain(".CloseAndCommit(", cleanup);

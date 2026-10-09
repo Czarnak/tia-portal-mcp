@@ -1,8 +1,14 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
-using TiaMcpServer.Tools;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.TestUtilities;
+using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
 

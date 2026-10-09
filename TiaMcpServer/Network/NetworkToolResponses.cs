@@ -1,6 +1,6 @@
 using TiaMcpServer.OperationBatches;
-using TiaMcpServer.Contracts;
 using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts.Network;
 
 namespace TiaMcpServer.Network;
 
@@ -42,7 +42,7 @@ public sealed record NetworkReadResponse(
 /// scoped to that device), and — when requested — exactly one subnet and/or IO system. For
 /// <c>update_subnet</c>/<c>delete_subnet</c> only <see cref="SubnetName"/>/<see cref="SubnetId"/>
 /// are populated, resolved by exact ordinal <c>subnetId</c> match against
-/// <see cref="TiaMcpServer.Contracts.HardwareConfigInfo.Subnets"/>; <see cref="DeviceName"/> stays
+/// <see cref="TiaMcpServer.Contracts.Network.HardwareConfigInfo.Subnets"/>; <see cref="DeviceName"/> stays
 /// null because a subnet target never has a device identity. Presentation names here are evidence
 /// only; current ordinary reads establish exact identity before mutation.
 /// </para>

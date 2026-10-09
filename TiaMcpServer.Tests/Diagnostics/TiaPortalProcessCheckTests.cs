@@ -1,6 +1,6 @@
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Diagnostics.Checks;
-using TiaMcpServer.Contracts;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;

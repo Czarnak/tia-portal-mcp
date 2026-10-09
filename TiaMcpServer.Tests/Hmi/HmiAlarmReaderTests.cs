@@ -5,9 +5,10 @@ using Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon;
 using Siemens.Engineering.HmiUnified.HmiAudit;
 using Siemens.Engineering.HmiUnified.HmiOpcUaAlarm;
 using Siemens.Engineering.HmiUnified.HmiTags;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 using static TiaMcpServer.Tests.Hmi.HmiTestProjects;
 

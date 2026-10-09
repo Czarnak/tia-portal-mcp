@@ -6,7 +6,7 @@ using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
 using System.Text.Json;
 using TiaMcpServer.Json;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Block;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Block;
@@ -519,7 +519,7 @@ public class CompileCheckerTests
 
     private sealed class UnexpectedInvalidOperationException : InvalidOperationException { }
 
-    private static void AssertIdentity(TiaMcpServer.Contracts.PlcCompileInfo plc)
+    private static void AssertIdentity(TiaMcpServer.Contracts.Plc.PlcCompileInfo plc)
     {
         Assert.Equal("PLC_DP", plc.PlcName);
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(plc, TiaJson.Presentation));

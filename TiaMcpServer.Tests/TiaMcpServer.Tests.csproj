@@ -8,11 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkConfigurationTargetBinding.cs" Link="NetworkConfigurationTargetBinding.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
 
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkNodeReadSelectorBuilder.cs" Link="Network\NetworkNodeReadSelectorBuilder.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\HardwareDiscoveryEvidenceCapture.cs"
-      Link="Linked\Openness\HardwareDiscoveryEvidenceCapture.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkNodeReadSelectorBuilder.cs" Link="Network\NetworkNodeReadSelectorBuilder.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwareDiscoveryEvidenceCapture.cs"
+      Link="Network\HardwareDiscoveryEvidenceCapture.cs" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
@@ -30,55 +30,55 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalSession.cs" Link="Linked\Openness\TiaPortalSession.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\MultiuserPortalReadDispatch.cs" Link="Linked\Openness\MultiuserPortalReadDispatch.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\MultiuserInventoryService.cs" Link="Linked\Openness\MultiuserInventoryService.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectServerObservationTracker.cs" Link="Linked\Openness\ProjectServerObservationTracker.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalProcessInventory.cs" Link="Linked\Openness\TiaPortalProcessInventory.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectLifecycleOwner.cs" Link="Linked\Openness\ProjectLifecycleOwner.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\StandaloneProjectOwner.cs" Link="Linked\Openness\StandaloneProjectOwner.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\LocalSessionOwner.cs" Link="Linked\Openness\LocalSessionOwner.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ActiveProjectContext.cs" Link="Linked\Openness\ActiveProjectContext.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\OpenProjectContextCandidate.cs" Link="Linked\Openness\OpenProjectContextCandidate.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\LocalSessionContextResolver.cs" Link="Linked\Openness\LocalSessionContextResolver.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\IoSystemQualificationEvidence.cs"
-      Link="Linked\Openness\IoSystemQualificationEvidence.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkConnectionEvidenceCapture.cs"
-      Link="Linked\Openness\NetworkConnectionEvidenceCapture.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\NetworkPostconditionChecks.cs"
-      Link="Linked\Openness\NetworkPostconditionChecks.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectDeviceEnumerator.cs"
-      Link="Linked\Openness\ProjectDeviceEnumerator.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectDeviceNameMatcher.cs"
-      Link="Linked\Openness\ProjectDeviceNameMatcher.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectTreeSnapshotWalker.cs"
-      Link="Linked\Openness\ProjectTreeSnapshotWalker.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcSoftwareLocator.cs"
-      Link="Linked\Openness\PlcSoftwareLocator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\TiaPortalSession.cs" Link="Project\TiaPortalSession.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Multiuser\MultiuserPortalReadDispatch.cs" Link="Multiuser\MultiuserPortalReadDispatch.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Multiuser\MultiuserInventoryService.cs" Link="Multiuser\MultiuserInventoryService.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectServerObservationTracker.cs" Link="Project\ProjectServerObservationTracker.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\TiaPortalProcessInventory.cs" Link="Project\TiaPortalProcessInventory.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectLifecycleOwner.cs" Link="Project\ProjectLifecycleOwner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\StandaloneProjectOwner.cs" Link="Project\StandaloneProjectOwner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\LocalSessionOwner.cs" Link="Project\LocalSessionOwner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ActiveProjectContext.cs" Link="Project\ActiveProjectContext.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\OpenProjectContextCandidate.cs" Link="Project\OpenProjectContextCandidate.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\LocalSessionContextResolver.cs" Link="Project\LocalSessionContextResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\IoSystemQualificationEvidence.cs"
+      Link="Network\IoSystemQualificationEvidence.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConnectionEvidenceCapture.cs"
+      Link="Network\NetworkConnectionEvidenceCapture.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkPostconditionChecks.cs"
+      Link="Network\NetworkPostconditionChecks.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectDeviceEnumerator.cs"
+      Link="Project\ProjectDeviceEnumerator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectDeviceNameMatcher.cs"
+      Link="Project\ProjectDeviceNameMatcher.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectTreeSnapshotWalker.cs"
+      Link="Project\ProjectTreeSnapshotWalker.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcSoftwareLocator.cs"
+      Link="Plc\PlcSoftwareLocator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Hmi\*.cs"
       Link="Linked\Openness\Hmi\%(Filename)%(Extension)" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcWritePreconditions.cs"
-      Link="Linked\Openness\PlcWritePreconditions.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagMutationService.cs"
-      Link="Linked\Openness\TagMutationService.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTargetResolver.cs"
-      Link="Linked\Openness\TagTargetResolver.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockMutationService.cs"
-      Link="Linked\Openness\BlockMutationService.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TagTableReader.cs"
-      Link="Linked\Openness\TagTableReader.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileChecker.cs"
-      Link="Linked\Openness\CompileChecker.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferenceReader.cs"
-      Link="Linked\Openness\CrossReferenceReader.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferenceTargetResolver.cs"
-      Link="Linked\Openness\CrossReferenceTargetResolver.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CompileReportProjection.cs"
-      Link="Linked\Openness\CompileReportProjection.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockTargetResolver.cs"
-      Link="Linked\Openness\BlockTargetResolver.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ObNumberScanner.cs"
-      Link="Linked\Openness\ObNumberScanner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcWritePreconditions.cs"
+      Link="Plc\PlcWritePreconditions.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagMutationService.cs"
+      Link="Plc\TagMutationService.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagTargetResolver.cs"
+      Link="Plc\TagTargetResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockMutationService.cs"
+      Link="Block\BlockMutationService.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagTableReader.cs"
+      Link="Plc\TagTableReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\CompileChecker.cs"
+      Link="Block\CompileChecker.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferences\CrossReferenceReader.cs"
+      Link="CrossReferences\CrossReferenceReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferences\CrossReferenceTargetResolver.cs"
+      Link="CrossReferences\CrossReferenceTargetResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\CompileReportProjection.cs"
+      Link="Block\CompileReportProjection.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockTargetResolver.cs"
+      Link="Block\BlockTargetResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\ObNumberScanner.cs"
+      Link="Block\ObNumberScanner.cs" />
     <ProjectReference Include="..\TiaMcpServer.Contracts\TiaMcpServer.Contracts.csproj" />
     <ProjectReference Include="..\TiaMcpServer.FakeWorker\TiaMcpServer.FakeWorker.csproj"
       ReferenceOutputAssembly="false" />
@@ -223,74 +223,74 @@
       Link="Host\Network\NetworkReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWriteTools.cs"
       Link="Host\Network\NetworkWriteTools.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ProjectRebindCloseGuard.cs"
-      Link="Worker\ProjectRebindCloseGuard.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\TiaPortalTargetSelector.cs"
-      Link="Worker\TiaPortalTargetSelector.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PortalDetachGuard.cs"
-      Link="Worker\PortalDetachGuard.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\AssemblyResolver.cs"
-      Link="Worker\AssemblyResolver.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerWarningMerger.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectRebindCloseGuard.cs"
+      Link="Project\ProjectRebindCloseGuard.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\TiaPortalTargetSelector.cs"
+      Link="Project\TiaPortalTargetSelector.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\PortalDetachGuard.cs"
+      Link="Project\PortalDetachGuard.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\AssemblyResolver.cs"
+      Link="Infrastructure\AssemblyResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerWarningMerger.cs"
       Link="Worker\WorkerWarningMerger.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationException.cs"
-      Link="Linked\Openness\WorkerOperationException.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\WorkerOperationAuthorization.cs"
-      Link="Linked\Openness\WorkerOperationAuthorization.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\BlockUpdateOutcomeDecorator.cs"
-      Link="Linked\Openness\BlockUpdateOutcomeDecorator.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\HardwarePageDescriptorSet.cs"
-      Link="Worker\HardwarePageDescriptorSet.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\HardwarePageCandidateReader.cs"
-      Link="Worker\HardwarePageCandidateReader.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDocument.cs"
-      Link="Linked\Openness\BlockImportDocument.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ParsedBlockImportBundle.cs"
-      Link="Linked\Openness\ParsedBlockImportBundle.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportBundleParser.cs"
-      Link="Linked\Openness\BlockImportBundleParser.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportStager.cs"
-      Link="Linked\Openness\BlockImportStager.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockPostconditionEvidence.cs"
-      Link="Linked\Openness\BlockPostconditionEvidence.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockPostconditionVerifier.cs"
-      Link="Linked\Openness\BlockPostconditionVerifier.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockExporterVerification.cs"
-      Link="Linked\Openness\BlockExporterVerification.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockExporterXmlBundle.cs"
-      Link="Linked\Openness\BlockExporterXmlBundle.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportResult.cs"
-      Link="Linked\Openness\BlockImportResult.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportInvocationBoundary.cs"
-      Link="Linked\Openness\BlockImportInvocationBoundary.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceArtifactTracker.cs"
-      Link="Linked\Openness\BlockSourceArtifactTracker.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockCompileObservation.cs"
-      Link="Linked\Openness\BlockCompileObservation.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportOutcomeProjection.cs"
-      Link="Linked\Openness\BlockImportOutcomeProjection.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportDiagnosticSanitizer.cs"
-      Link="Linked\Openness\BlockImportDiagnosticSanitizer.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportCoordinator.cs"
-      Link="Linked\Openness\BlockImportCoordinator.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockCreationCoordinator.cs"
-      Link="Linked\Openness\BlockCreationCoordinator.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceGenerator.cs"
-      Link="Linked\Openness\BlockSourceGenerator.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\ObFixtureStore.cs"
-      Link="Linked\Openness\ObFixtureStore.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerOperationException.cs"
+      Link="Worker\WorkerOperationException.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerOperationAuthorization.cs"
+      Link="Worker\WorkerOperationAuthorization.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockUpdateOutcomeDecorator.cs"
+      Link="Block\BlockUpdateOutcomeDecorator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwarePageDescriptorSet.cs"
+      Link="Network\HardwarePageDescriptorSet.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwarePageCandidateReader.cs"
+      Link="Network\HardwarePageCandidateReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportDocument.cs"
+      Link="Block\BlockImportDocument.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\ParsedBlockImportBundle.cs"
+      Link="Block\ParsedBlockImportBundle.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportBundleParser.cs"
+      Link="Block\BlockImportBundleParser.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportStager.cs"
+      Link="Block\BlockImportStager.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockPostconditionEvidence.cs"
+      Link="Block\BlockPostconditionEvidence.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockPostconditionVerifier.cs"
+      Link="Block\BlockPostconditionVerifier.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockExporterVerification.cs"
+      Link="Block\BlockExporterVerification.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockExporterXmlBundle.cs"
+      Link="Block\BlockExporterXmlBundle.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportResult.cs"
+      Link="Block\BlockImportResult.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportInvocationBoundary.cs"
+      Link="Block\BlockImportInvocationBoundary.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockSourceArtifactTracker.cs"
+      Link="Block\BlockSourceArtifactTracker.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockCompileObservation.cs"
+      Link="Block\BlockCompileObservation.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportOutcomeProjection.cs"
+      Link="Block\BlockImportOutcomeProjection.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportDiagnosticSanitizer.cs"
+      Link="Block\BlockImportDiagnosticSanitizer.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportCoordinator.cs"
+      Link="Block\BlockImportCoordinator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockCreationCoordinator.cs"
+      Link="Block\BlockCreationCoordinator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockSourceGenerator.cs"
+      Link="Block\BlockSourceGenerator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\ObFixtureStore.cs"
+      Link="Block\ObFixtureStore.cs" />
     <EmbeddedResource Include="..\TiaMcpServer.OpennessWorker\Openness\ObFixtures\*.xml"
       LogicalName="TiaMcpServer.ObFixtures.%(Filename)%(Extension)" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceValidator.cs"
-      Link="Linked\Openness\BlockSourceValidator.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockWritePreflight.cs"
-      Link="Linked\Openness\BlockWritePreflight.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockXmlSanitizer.cs"
-      Link="Linked\Openness\BlockXmlSanitizer.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockBundleFormat.cs"
-      Link="Linked\Openness\BlockBundleFormat.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockDocumentPackagePolicy.cs"
-      Link="Linked\Openness\BlockDocumentPackagePolicy.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockSourceValidator.cs"
+      Link="Block\BlockSourceValidator.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockWritePreflight.cs"
+      Link="Block\BlockWritePreflight.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockXmlSanitizer.cs"
+      Link="Block\BlockXmlSanitizer.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockBundleFormat.cs"
+      Link="Block\BlockBundleFormat.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockDocumentPackagePolicy.cs"
+      Link="Block\BlockDocumentPackagePolicy.cs" />
     <None Include="Fixtures\get_block_content.ob-lad.bundle.txt"
       CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\get_block_content.ob-lad.v2.bundle.txt"
@@ -302,41 +302,41 @@
     <None Include="Fixtures\AnalogInput.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\DamperAnalog.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\nStageHeater.scl" CopyToOutputDirectory="PreserveNewest" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceTextEncoding.cs"
-      Link="Linked\Openness\SourceTextEncoding.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\DynamicNumericAttribute.cs"
-      Link="Linked\Openness\DynamicNumericAttribute.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\PlcTypeSourcePreflight.cs"
-      Link="Linked\Openness\PlcTypeSourcePreflight.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceDeclarationScanner.cs"
-      Link="Linked\Openness\SourceDeclarationScanner.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceFormatEligibility.cs"
-      Link="Linked\Openness\SourceFormatEligibility.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\SourceReadWarnings.cs"
-      Link="Linked\Openness\SourceReadWarnings.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockImportRouting.cs"
-      Link="Linked\Openness\BlockImportRouting.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\BlockSourceWriteWarnings.cs"
-      Link="Linked\Openness\BlockSourceWriteWarnings.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkSelectorFactory.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\SourceTextEncoding.cs"
+      Link="Block\SourceTextEncoding.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\DynamicNumericAttribute.cs"
+      Link="Network\DynamicNumericAttribute.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypeSourcePreflight.cs"
+      Link="Plc\PlcTypeSourcePreflight.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\SourceDeclarationScanner.cs"
+      Link="Block\SourceDeclarationScanner.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\SourceFormatEligibility.cs"
+      Link="Block\SourceFormatEligibility.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\SourceReadWarnings.cs"
+      Link="Block\SourceReadWarnings.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportRouting.cs"
+      Link="Block\BlockImportRouting.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockSourceWriteWarnings.cs"
+      Link="Block\BlockSourceWriteWarnings.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkSelectorFactory.cs"
       Link="Network\NetworkSelectorFactory.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\CommunicationConnectionSelectorFactory.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\CommunicationConnectionSelectorFactory.cs"
       Link="Network\CommunicationConnectionSelectorFactory.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectCursorCodec.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkObjectCursorCodec.cs"
       Link="Network\NetworkObjectCursorCodec.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectPageBuilder.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkObjectPageBuilder.cs"
       Link="Network\NetworkObjectPageBuilder.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkObjectDiscoveryEvidence.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkObjectDiscoveryEvidence.cs"
       Link="Network\NetworkObjectDiscoveryEvidence.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeValueNormalizer.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkAttributeValueNormalizer.cs"
       Link="Network\NetworkAttributeValueNormalizer.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeResultBuilder.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkAttributeResultBuilder.cs"
       Link="Network\NetworkAttributeResultBuilder.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkAttributeMetadataProcessor.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkAttributeMetadataProcessor.cs"
       Link="Network\NetworkAttributeMetadataProcessor.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\NetworkModeledAttributeCatalog.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkModeledAttributeCatalog.cs"
       Link="Network\NetworkModeledAttributeCatalog.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\ConnectionModeledAttributeCatalog.cs"
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\ConnectionModeledAttributeCatalog.cs"
       Link="Network\ConnectionModeledAttributeCatalog.cs" />
   </ItemGroup>
   <Import Project="TestUtilities\WorkerSerializationHarness.targets" />

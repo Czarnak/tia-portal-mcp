@@ -1,6 +1,8 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Shared;
 
 namespace TiaMcpServer.Plc;
 

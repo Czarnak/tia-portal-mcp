@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>Result of <c>list_tag_tables</c>: the tables and groups below the requested group (the root when none), with each group's tables and subgroups nested recursively.</summary>
 public class HmiTagTableTreeInfo

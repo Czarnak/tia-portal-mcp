@@ -1,9 +1,11 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 

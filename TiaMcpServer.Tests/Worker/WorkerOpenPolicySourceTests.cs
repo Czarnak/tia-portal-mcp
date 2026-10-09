@@ -8,7 +8,7 @@ public sealed class WorkerOpenPolicySourceTests
     public void WorkerSource_OnlyOpenAndCreateCallOpenProject()
     {
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        var service = File.ReadAllText(Path.Combine(root, "TiaMcpServer.OpennessWorker", "Openness", "ProjectLifecycleService.cs"));
+        var service = File.ReadAllText(Path.Combine(root, "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectLifecycleService.cs"));
         var open = service.IndexOf("public static ProjectLifecycleResultInfo OpenProject(", StringComparison.Ordinal);
         var save = service.IndexOf("public static ProjectLifecycleResultInfo SaveProject(", StringComparison.Ordinal);
         Assert.True(open >= 0 && save > open);

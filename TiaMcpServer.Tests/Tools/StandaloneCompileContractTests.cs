@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.Tests.Project;
 using TiaMcpServer.Tools;

@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
 
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Declares the project already open in the simulated TIA Portal UI before the child worker

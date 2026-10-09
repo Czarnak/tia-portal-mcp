@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>Result of <c>list_connections</c>: every connection ordered by name. An unreadable property is null (see messages).</summary>
 public class HmiConnectionListInfo

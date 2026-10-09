@@ -1,6 +1,6 @@
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HmiUnified.HmiConnections;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Hmi;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 

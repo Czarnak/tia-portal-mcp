@@ -1,5 +1,5 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Hmi;
 

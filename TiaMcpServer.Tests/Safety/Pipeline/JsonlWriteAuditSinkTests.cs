@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using Xunit;
 

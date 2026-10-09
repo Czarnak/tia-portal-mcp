@@ -158,7 +158,7 @@ public sealed class NetworkObjectTarget
 /// are rejected to prevent silent misidentification.
 ///
 /// <para>
-/// Carries the same four evidence fields as <see cref="TiaMcpServer.Contracts.DeviceItemPathSegmentInfo"/>
+/// Carries the same four evidence fields as <see cref="TiaMcpServer.Contracts.Network.DeviceItemPathSegmentInfo"/>
 /// so a selector embedded in a <c>read_hardware_config</c> result can be forwarded directly into an
 /// inspect request without field transformation.
 /// </para>

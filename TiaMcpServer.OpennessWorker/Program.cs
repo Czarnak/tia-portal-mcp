@@ -1,9 +1,25 @@
 using System.Text.Json;
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Diagnostics;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Openness.CrossReferences;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
-using WorkerTiaPortalSession = TiaMcpServer.OpennessWorker.Openness.TiaPortalSession;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
+using TiaMcpServer.OpennessWorker.Openness.Multiuser;
+using TiaMcpServer.OpennessWorker.Openness.Network;
+using TiaMcpServer.OpennessWorker.Openness.Plc;
+using TiaMcpServer.OpennessWorker.Openness.Project;
+using TiaMcpServer.OpennessWorker.Worker;
+using WorkerTiaPortalSession = TiaMcpServer.OpennessWorker.Openness.Project.TiaPortalSession;
 
 namespace TiaMcpServer.OpennessWorker;
 

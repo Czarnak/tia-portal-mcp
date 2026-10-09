@@ -1,7 +1,9 @@
 namespace TiaMcpServer.Tests.Network;
 
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Worker;
@@ -80,7 +82,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void SelectorResolver_UsesTypedTraversalAndStableSelectionCategories()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkObjectSelectorResolver.cs"));
 
         Assert.Contains("GetService<NetworkInterface>()", source);
         Assert.Contains("ItemAt(siblings, requestedSegment.Index)", source);
@@ -97,9 +99,9 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void IoSystemDiscoverySelector_CarriesNameEvidenceUsedToDisambiguateDuplicateNumbers()
     {
         var discoverySource = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkObjectIndexReader.cs"));
         var resolverSource = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkObjectSelectorResolver.cs"));
 
         Assert.Contains("NetworkSelectorFactory.IoSystem(", discoverySource, StringComparison.Ordinal);
         Assert.Contains("ioSystemIndex,", discoverySource, StringComparison.Ordinal);
@@ -114,7 +116,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void NodeDiscoverySelector_CarriesExactOwnerNamespaceIndependentlyOfType()
     {
         var device = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }).Devices[0];
-        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.Apply(device, true);
+        TiaMcpServer.OpennessWorker.Openness.Network.NetworkNodeReadSelectorBuilder.Apply(device, true);
         var target = device.Items[0].Items[1].NetworkInterfaces[0].Nodes[0].Selector!;
         var owner = NetworkInterfacePathMatcher.Match(device.Items, target.InterfacePath!,
             item => item.Items, item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
@@ -140,7 +142,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void ModeledAdapters_DoNotUseReflectionOrArbitraryToStringPublication()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkModeledAttributeAdapters.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkModeledAttributeAdapters.cs"));
 
         Assert.DoesNotContain("System.Reflection", source, StringComparison.Ordinal);
         Assert.DoesNotContain("GetProperty(", source, StringComparison.Ordinal);
@@ -151,7 +153,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void DiscoveryReader_UsesTypedV21TraversalAndExactDynamicStringReads()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkObjectIndexReader.cs"));
 
         Assert.Contains("device.Name", source, StringComparison.Ordinal);
         Assert.Contains("item.Name", source, StringComparison.Ordinal);
@@ -177,7 +179,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void DiscoveryReader_OptionalNamesDoNotGateOtherwiseCompleteSelectors()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectIndexReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkObjectIndexReader.cs"));
 
         Assert.DoesNotContain("interfaceName.Diagnostic", source, StringComparison.Ordinal);
         Assert.DoesNotContain("nodeName.Diagnostic", source, StringComparison.Ordinal);
@@ -189,7 +191,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void HardwareReader_UsesTypedIdentityReadsWithoutReflectionOrStringCoercion()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareConfigReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs"));
 
         Assert.Contains("item.Name", source, StringComparison.Ordinal);
         Assert.Contains("item.PositionNumber", source, StringComparison.Ordinal);
@@ -207,7 +209,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void HardwareReader_NormalizesNegativeIoAddressesAndCoercesDynamic64BitChannelAttributes()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "HardwareIoMapReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareIoMapReader.cs"));
 
         // Diagnosis-type addresses can report StartAddress = -1 (and Length = -1) on V21; the
         // worker turns those into null plus a messages entry, never a negative payload member.
@@ -230,7 +232,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void EngineeringAttributeInspector_UsesReadOnlyDynamicMetadataSurface()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "EngineeringAttributeInspector.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "EngineeringAttributeInspector.cs"));
 
         Assert.Equal(1, CountOccurrences(source, "GetAttributeInfos()"));
         Assert.Contains("GetAttribute(", source);
@@ -247,7 +249,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void ConnectionReader_RoutesLocalIdReadFailureIntoSelectorIdentityDiagnostics()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "CommunicationConnectionReader.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "CommunicationConnectionReader.cs"));
 
         Assert.Contains("RequiresLocalConnectionId(connectionType)", source, StringComparison.Ordinal);
         Assert.Contains("AddDiagnostic(identityDiagnostics, idDiagnostic)", source, StringComparison.Ordinal);
@@ -258,7 +260,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void SelectorResolver_RequiresAndVerifiesNonHmiLocalConnectionIdEvidence()
     {
         var source = File.ReadAllText(FindRepositoryFile(
-            "TiaMcpServer.OpennessWorker", "Openness", "NetworkObjectSelectorResolver.cs"));
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkObjectSelectorResolver.cs"));
 
         Assert.Contains("RequiresLocalConnectionId(connectionType!)", source, StringComparison.Ordinal);
         Assert.Contains("string.IsNullOrWhiteSpace(target.LocalConnectionId)", source, StringComparison.Ordinal);

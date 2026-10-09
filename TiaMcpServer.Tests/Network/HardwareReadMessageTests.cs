@@ -1,6 +1,5 @@
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -93,7 +92,7 @@ public sealed class HardwareReadMessageTests
         var current = AppContext.BaseDirectory;
         while (!string.IsNullOrEmpty(current))
         {
-            var candidate = Path.Combine(current, "TiaMcpServer.OpennessWorker", "Openness", file);
+            var candidate = Path.Combine(current, "TiaMcpServer.OpennessWorker", "Openness", "Network", file);
             if (File.Exists(candidate))
             {
                 return File.ReadAllText(candidate).Replace("\r\n", "\n");

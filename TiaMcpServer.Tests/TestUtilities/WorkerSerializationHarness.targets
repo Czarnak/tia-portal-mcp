@@ -25,7 +25,7 @@
             return false;
         }
         var generated = "// Generated from the actual worker Program.cs; do not edit.\n"
-            + "using System.Text.Json;\nusing System.Text.Json.Serialization;\nusing TiaMcpServer.Contracts;\n"
+            + "using System.Text.Json;\nusing System.Text.Json.Serialization;\nusing TiaMcpServer.Contracts.Json;\nusing TiaMcpServer.Contracts.Worker;\n"
             + "namespace TiaMcpServer.Tests.TestUtilities;\ninternal static class WorkerSerializationHarness\n{\n"
             + string.Join("\n", fields) + "\n" + success[0].Value
             + "\npublic static WorkerResponse Serialize<T>(T payload) => Success(payload);\n}\n";

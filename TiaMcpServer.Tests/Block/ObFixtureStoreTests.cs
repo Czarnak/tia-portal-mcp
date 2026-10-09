@@ -1,7 +1,8 @@
 using System.Xml.Linq;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Block;

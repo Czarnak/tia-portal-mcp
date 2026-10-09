@@ -1,4 +1,4 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Safety.Pipeline;
 using Xunit;
 

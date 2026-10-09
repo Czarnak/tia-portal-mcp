@@ -6,9 +6,11 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Diagnostics;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Tools;
 

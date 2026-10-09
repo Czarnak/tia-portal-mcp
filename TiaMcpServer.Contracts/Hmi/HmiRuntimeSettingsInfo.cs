@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>
 /// Result of <c>get_runtime_settings</c>. Sub-objects that a device does not have (for example reporting

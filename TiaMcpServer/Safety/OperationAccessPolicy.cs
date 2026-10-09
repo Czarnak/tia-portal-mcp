@@ -1,5 +1,6 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Safety;
 

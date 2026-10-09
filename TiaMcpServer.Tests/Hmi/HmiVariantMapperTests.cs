@@ -1,5 +1,5 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
 using Xunit;
 

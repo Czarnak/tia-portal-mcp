@@ -66,13 +66,13 @@ public class NativeProcessRunnerTests
     public async Task RunAsync_Cancellation_ReturnsCancelledResult()
     {
         var runner = new NativeProcessRunner();
-        var cmd = new NativeCommand("cmd.exe", new[] { "/c", "ping 127.0.0.1 -n 30" }, false);
+        var cmd = new NativeCommand("powershell.exe",
+            new[] { "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 5" }, false);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
         var result = await runner.RunAsync(cmd, cts.Token);
 
-        // Cancellation may result in exit code -1 (OperationCanceledException) or
-        // a nonzero exit code if the process was killed after the token fired.
+        Assert.Equal(-1, result.ExitCode);
         Assert.Contains("cancel", result.Stderr, StringComparison.OrdinalIgnoreCase);
     }
 

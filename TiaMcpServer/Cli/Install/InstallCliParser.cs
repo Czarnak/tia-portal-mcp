@@ -1,4 +1,4 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Cli.Install;
 

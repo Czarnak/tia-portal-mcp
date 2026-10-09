@@ -1,5 +1,6 @@
 using System.Globalization;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Hmi;
 

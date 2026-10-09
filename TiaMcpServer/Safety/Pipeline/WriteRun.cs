@@ -1,9 +1,11 @@
 using ModelContextProtocol.Protocol;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Tools;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Safety.Pipeline;
 
