@@ -60,8 +60,11 @@ basic local status/startup assertions and explicit `.als21` opening. Its
 [October 8 report](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
 records offline qualification and scoped maintainer live acceptance; both noninteractive
 offline read-write opens failed because Siemens dialogs required dismissal. Full offline,
-headless/race and other matrix rows remain unexecuted. Content, compile, local save, markings,
-terminal actions and server mutation remain later work. Preserve
+headless/race and other matrix rows remain unexecuted. PR5 delivers local-session content reads
+and fixes the unmapped `hmi_*` capability check that refused `hmi_read` for every container; see the
+[October 9 report](superpowers/acceptance/reports/2026-10-09-multiuser-pr5-live-verification.md).
+Exclusive and offline read coverage is still unexercised. Content writes, compile, local save,
+markings, terminal actions and server mutation remain later work. Preserve
 `bind_project`, host binding ID/revision, configured-selector checks, detach ownership, guarded
 lifecycle confirmation, and audit v2. Capability descriptions remain descriptive, not permission.
 

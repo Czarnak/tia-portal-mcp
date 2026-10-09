@@ -57,9 +57,9 @@ worker-reported copied project path; verify it with a subsequent status or read 
 
 ## Guarded lifecycle failures
 
-- Local `unsupported_capability`: PR4 delivers adoption/open/basic status; content, compile,
-  local save and standalone-only create/save-as/archive/close remain unavailable, even in full
-  or a dry run. Do not use generic `close_project` to clean up a local session.
+- Local `unsupported_capability`: local sessions support adoption, open, basic status and
+  content reads; content writes, compile, local save and standalone-only
+  create/save-as/archive/close remain unavailable, even in full or a dry run. Do not use generic `close_project` to clean up a local session.
 - Invalid local selector: use the observed typed `.amc21` owner path for bind/status/startup;
   an existing file-only `.als21` path belongs to `open_project`. Inventory directories and
   guessed filename relationships cannot resolve an owner or its opener provenance.

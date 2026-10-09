@@ -25,14 +25,22 @@ PR4 selects typed already-open local owners by observed `.amc21` identity, suppo
 status/startup assertions and explicit file-only `.als21` opening through the guarded lifecycle
 pipeline. Cold adoption has null ALS provenance and no worker ownership; known same-ALS reuse
 requires continuous owner identity. Conditional local `context` includes descriptive capabilities;
-mode remains unknown, remote identity null and active connection unknown. Local content/compile,
-save/terminal operations and the same-server-project session-identity follow-up remain open.
+mode remains unknown, remote identity null and active connection unknown. Local content writes,
+compile, save/terminal operations and the same-server-project session-identity follow-up remain open.
 Worker-owned local sources block a different open even when clean; borrowed sources require
 proved preservation. No generic session close or automatic terminal cleanup is added.
 Candidate `3772eda` is offline qualified and scoped-live accepted by maintainer decision on
 2026-10-08. Both read-write offline actual opens required Siemens dialog dismissal, failing the
 original noninteractive expectation; full offline/headless/race and other matrix cases remain
 unexecuted. See the [PR4 report](docs/superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md).
+
+PR5 enables content reads (`browse_project_tree`, `plc_read`, `network_read`,
+`read_cross_references`, `hmi_read`) on local sessions. Read handlers use the worker's
+`WithEngineeringRoot` (`ProjectBase`); writes/compile keep standalone-only `WithProject`.
+`ProjectCapabilityCatalog.OperationFor` is the only worker-method→capability map for both host
+and worker gates; a new worker method must map through it. Live verified on 2026-10-09 against one
+cold-adopted local session and a standalone regression; see the
+[PR5 report](docs/superpowers/acceptance/reports/2026-10-09-multiuser-pr5-live-verification.md).
 
 The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`, net48) are separate processes. Siemens Openness DLLs use .NET Framework remoting and **cannot run in a .NET 10 process** — this is why the split exists.
 

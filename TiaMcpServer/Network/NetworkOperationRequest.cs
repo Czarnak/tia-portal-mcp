@@ -33,7 +33,7 @@ public sealed class NetworkOperationRequest : IOperationBatchItem
     [Description("Network operation to run: read_hardware_config, search_equipment_catalog, add_network_device, configure_network_device, list_network_objects, inspect_network_object, create_subnet, update_subnet, or delete_subnet.")]
     public string Operation { get; set; } = string.Empty;
 
-    [Description("Optional absolute project path (.ap21). When omitted, the active project is used; all network writes in one request must share it.")]
+    [Description("Optional absolute .ap21 project or .amc21 local-session engineering path. When omitted, the active project is used; all network writes in one request must share it.")]
     public string? ProjectPath { get; set; }
 
     [Description("Hardware catalog search query. Required by search_equipment_catalog.")]

@@ -322,10 +322,13 @@ derived from a typed lifecycle owner, so the root and owner cannot disagree. A
 `StandaloneProjectOwner` retains a concrete `Project`; `LocalSessionOwner` retains
 a `LocalSession` and its `MultiuserProject`, with no save, close, discard, or commit methods.
 Production local selection resolves that typed owner and requires its absolute `.amc21`
-engineering path. Basic status/open verification use the local context; existing content
-services keep the standalone `Project` compatibility accessor. Host and worker capability
-checks reject local content/compile/save and standalone-only lifecycle operations with
-`unsupported_capability`, including previews, before mutation dispatch.
+engineering path. Basic status/open verification use the local context. Content reads
+(`browse_project_tree`, `plc_read`, `network_read`, `read_cross_references`, `hmi_read`) run
+through the worker's `WithEngineeringRoot` against the common `ProjectBase` root of either owner;
+writes and compilation keep `WithProject`, the standalone `Project` projection. Host and worker
+capability checks share `ProjectCapabilityCatalog.OperationFor`, the single worker-method to
+capability map, and reject local writes/compile/save and standalone-only lifecycle operations
+with `unsupported_capability`, including previews, before mutation dispatch.
 
 The session remains the authority for worker ID, Portal PID, generation, and live path; the
 context stores no duplicate wire identity. Rewrapping the same engineering handle preserves

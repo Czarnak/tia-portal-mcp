@@ -15,7 +15,7 @@ public sealed class PlcOperationRequest : IOperationBatchItem
     [Description("PLC operation to run. Reads (plc_read): get_block_content, get_type_content, list_tag_tables. Writes (plc_write): update_block_logic, update_type_content, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, create_block, delete_block, create_block_group, delete_block_group.")]
     public string Operation { get; set; } = string.Empty;
 
-    [Description("Optional absolute project path (.ap21). Reads never open or switch a project; a path that differs from the bound project fails only this item with binding_conflict.")]
+    [Description("Optional absolute .ap21 project or .amc21 local-session engineering path. Reads never open or switch a project; a path that differs from the bound project fails only this item with binding_conflict.")]
     public string? ProjectPath { get; set; }
 
     [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, create_block, delete_block, create_block_group and delete_block_group. create_block, create_block_group and delete_block_group also accept PLC/Name (the PLC root group).")]
