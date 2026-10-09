@@ -17,7 +17,7 @@ using Project = Siemens.Engineering.Project;
 internal static class HardwarePageCandidateSourceFactory
 {
     public static HardwarePageCandidateSource Create(
-        Project project,
+        ProjectBase project,
         string? deviceName,
         string? plcName,
         bool includeIoDetails,

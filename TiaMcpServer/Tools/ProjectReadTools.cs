@@ -42,7 +42,7 @@ public class ProjectReadTools
     [Description("Browse a point-in-time TIA project tree through typed, bounded, resumable flat-node pages.")]
     public static async Task<CallToolResult> BrowseProjectTree(
         ProjectTreeBrowseCoordinator coordinator,
-        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal. On continuation, omit it or repeat the same project.")] string? projectPath = null,
+        [Description("Optional .ap21 project or .amc21 local-session engineering path. If omitted, uses the project currently open in TIA Portal. On continuation, omit it or repeat the same project.")] string? projectPath = null,
         [Description("Optional ordered selector segments { nodeType, name }. Names match case-insensitively, node types exactly, and each segment must identify one direct child. On continuation, omit it or repeat the equivalent selector.")] ProjectTreeSelectorSegment[]? startSelector = null,
         [Description("Optional maximum depth from the selected root. Must be 1 or greater. On continuation, omit it or repeat the same depth.")] int? depth = null,
         [Description("Optional number of flat nodes requested for this page, from 1 through 200; defaults to 100 and may change between continuation pages.")] int? pageSize = null,

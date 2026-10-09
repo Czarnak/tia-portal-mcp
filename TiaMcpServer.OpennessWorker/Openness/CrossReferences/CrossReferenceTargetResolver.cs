@@ -47,7 +47,7 @@ public sealed class ResolvedCrossReferenceTarget
 /// </summary>
 public static class CrossReferenceTargetResolver
 {
-    public static ResolvedCrossReferenceTarget Resolve(Project project, CrossReferenceSelectorInfo selector)
+    public static ResolvedCrossReferenceTarget Resolve(ProjectBase project, CrossReferenceSelectorInfo selector)
     {
         var path = selector?.Path ?? throw Invalid("The cross-reference target needs a path.");
         Device device;

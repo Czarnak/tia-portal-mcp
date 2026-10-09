@@ -26,7 +26,7 @@ using Project = Siemens.Engineering.Project;
 /// </summary>
 internal static class BlockTargetResolver
 {
-    public static ResolvedBlockTarget ResolveForExport(Project project, BlockAddress address)
+    public static ResolvedBlockTarget ResolveForExport(ProjectBase project, BlockAddress address)
     {
         PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
         return ResolveForExport(plcSoftware, address);
@@ -60,7 +60,7 @@ internal static class BlockTargetResolver
         return matches[0];
     }
 
-    public static ResolvedBlockTarget ResolveForImport(Project project, BlockAddress address)
+    public static ResolvedBlockTarget ResolveForImport(ProjectBase project, BlockAddress address)
     {
         PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 

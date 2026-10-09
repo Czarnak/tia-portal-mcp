@@ -61,7 +61,7 @@ public static class HmiSoftwareLocator
     /// <c>target_not_found</c>, several <c>target_ambiguous</c>, a Classic match <c>target_kind_unsupported</c>.
     /// A device item that cannot be read fails the call as <c>worker_operation_failed</c>, so it can never hide a second match.
     /// </summary>
-    public static DiscoveredHmiSoftware FindUnique(Project project, string? hmiName)
+    public static DiscoveredHmiSoftware FindUnique(ProjectBase project, string? hmiName)
     {
         Found? match = null;
         foreach (var found in Walk(project, messages: null))
@@ -105,7 +105,7 @@ public static class HmiSoftwareLocator
     /// Every Unified and Classic HMI in the project (root, grouped and ungrouped devices). With
     /// <paramref name="messages"/> an unreadable device item is reported there and skipped; without it the call fails.
     /// </summary>
-    public static IEnumerable<DiscoveredHmiEntry> EnumerateAll(Project project, ICollection<string>? messages = null)
+    public static IEnumerable<DiscoveredHmiEntry> EnumerateAll(ProjectBase project, ICollection<string>? messages = null)
     {
         foreach (var found in Walk(project, messages))
         {
@@ -145,7 +145,7 @@ public static class HmiSoftwareLocator
         public string Kind { get; }
     }
 
-    private static IEnumerable<Found> Walk(Project project, ICollection<string>? messages)
+    private static IEnumerable<Found> Walk(ProjectBase project, ICollection<string>? messages)
     {
         foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
         {

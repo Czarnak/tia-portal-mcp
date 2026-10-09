@@ -20,7 +20,7 @@ public class HardwarePaginationWorkerSourceContractTests
             "private static WorkerResponse ListNetworkObjects(WorkerRequest request)");
 
         Assert.Contains($"\"{WorkerMethod}\" => ReadHardwarePageCandidates(request)", source, StringComparison.Ordinal);
-        Assert.Contains("WithProject(request", handler, StringComparison.Ordinal);
+        Assert.Contains("WithEngineeringRoot(request", handler, StringComparison.Ordinal);
         AssertBefore(
             handler,
             "ValidateHardwarePageContinuationIdentity(request)",

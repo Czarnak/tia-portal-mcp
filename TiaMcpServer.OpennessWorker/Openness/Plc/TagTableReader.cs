@@ -38,7 +38,7 @@ public static class TagTableReader
     /// <remarks>A narrowing that matches no table fails <c>target_not_found</c>, unless part of the
     /// tree was unreadable: then the incomplete inventory is returned, since the target may be there.</remarks>
     public static PlcTagInventoryInfo ReadInventory(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string? tableName = null,
         string? folderPath = null)

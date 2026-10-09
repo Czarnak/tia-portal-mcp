@@ -14,7 +14,7 @@ public sealed class HmiOperationRequest : IOperationBatchItem
     [Description("HMI operation to run: list_hmi_devices, list_tag_tables, list_tags, get_tag, list_system_tags, list_connections, list_alarms, get_alarm, list_alarm_classes, list_logs, list_logging_tags, list_screens, list_screen_items, list_faceplate_instances, get_screen_navigation, get_runtime_settings, list_script_modules, list_text_and_graphic_lists, list_project_languages, validate.")]
     public string Operation { get; set; } = string.Empty;
 
-    [Description("Optional absolute project path (.ap21). Reads never open or switch a project; a path that differs from the bound project fails only this item with binding_conflict.")]
+    [Description("Optional absolute .ap21 project or .amc21 local-session engineering path. Reads never open or switch a project; a path that differs from the bound project fails only this item with binding_conflict.")]
     public string? ProjectPath { get; set; }
 
     [Description("Optional WinCC Unified HMI, matched case-insensitively on software name or device name. May be omitted only when the project has exactly one Unified HMI, otherwise the item fails with target_ambiguous. Not valid for list_hmi_devices and list_project_languages.")]

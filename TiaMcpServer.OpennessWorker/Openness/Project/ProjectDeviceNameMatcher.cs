@@ -8,7 +8,7 @@ using Project = Siemens.Engineering.Project;
 internal static class ProjectDeviceNameMatcher
 {
     internal static IReadOnlyList<(Device Device, string Name)> FindMatches(
-        Project project,
+        ProjectBase project,
         string? requestedName,
         Action<EngineeringException>? onUnreadableName = null)
     {

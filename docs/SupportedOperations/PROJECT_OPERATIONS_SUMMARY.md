@@ -69,8 +69,10 @@ connection observation. Cold adoption has `openedByWorker:false` and `sessionCon
 Only a verified successful exact `.als21` open records that opener provenance; detach loses
 ownership/provenance. No reverse ALS/inventory join is available: mode remains `unknown`, remote
 identity remains null, and active connection observation remains `unknown`. Descriptive capability
-entries grant no access-mode permission. Local content reads/writes, compilation, save, create,
-save-as, archive and generic close reject with `unsupported_capability`, including previews.
+entries grant no access-mode permission. Local content reads are delivered (see the
+[Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md#internal-context)); local content writes,
+compilation, save, create, save-as, archive and generic close reject with `unsupported_capability`,
+including previews.
 
 The [PR4 live report](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
 records scoped maintainer acceptance. Two retained UI Portals recovered local sessions online in

@@ -48,11 +48,15 @@ namespace Siemens.Engineering
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
+    public abstract partial class ProjectBase
+    {
+        public Composition<HW.Device> Devices { get; } = new();
+        public Composition<HW.DeviceUserGroup> DeviceGroups { get; } = new();
+    }
+
     public sealed partial class Project : ProjectBase
     {
         private HW.DeviceSystemGroup ungroupedDevicesGroup = new();
-        public Composition<HW.Device> Devices { get; } = new();
-        public Composition<HW.DeviceUserGroup> DeviceGroups { get; } = new();
         public Exception? UngroupedDevicesGroupFailure { get; set; }
         public HW.DeviceSystemGroup UngroupedDevicesGroup
         {

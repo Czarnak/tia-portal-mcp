@@ -72,7 +72,9 @@ For local sessions, use the exact observed `.amc21` engineering path for bind/st
 needed. `.als21` and inventory directories are not adoption selectors. Writable `open_project`
 accepts an independently known exact existing `.als21` file; set `dryRun:true` to preview.
 Cold adoption reports null opener provenance; successful open records it only after verification.
-Local content/compile/save/terminal calls remain `unsupported_capability`. After an uncertain
+Content reads (`browse_project_tree`, `plc_read`, `network_read`, `read_cross_references`,
+`hmi_read`) work on a bound local session; content writes, compile, save and terminal calls
+remain `unsupported_capability`. After an uncertain
 opener inspect AMC status and Portal inventory; never automatically replay. Offline read-write
 opening required operator-dismissed Siemens dialogs in the scoped
 [PR4 run](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md).

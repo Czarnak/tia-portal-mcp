@@ -88,13 +88,46 @@ public sealed class LocalSessionCapabilityTests
         Assert.Equal(before, log.Methods().Count(method => method == "browse_project_tree_v3_snapshot"));
 
         var fresh = await harness.Client.CallToolAsync("browse_project_tree", new Dictionary<string, object?>());
-        Assert.Equal(WorkerFailureCategories.UnsupportedCapability,
-            fresh.StructuredContent!.Value.GetProperty("failure").GetProperty("category").GetString());
-        Assert.Equal(before, log.Methods().Count(method => method == "browse_project_tree_v3_snapshot"));
+        Assert.DoesNotContain(WorkerFailureCategories.UnsupportedCapability, fresh.StructuredContent!.Value.GetRawText());
+        Assert.Equal(before + 1, log.Methods().Count(method => method == "browse_project_tree_v3_snapshot"));
     }
 
     [Theory]
-    [InlineData("browse_project_tree")]
+    [InlineData("browse_project_tree", "browse_project_tree_v3_snapshot")]
+    [InlineData("plc_read", "list_tag_tables")]
+    [InlineData("network_read", "read_hardware_config")]
+    [InlineData("read_cross_references", "read_cross_references")]
+    [InlineData("hmi_read", "hmi_list_hmi_devices")]
+    public async Task LocalRead_DispatchesToWorker(string tool, string workerMethod)
+    {
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, Amc));
+        using var ui = new FakeWorkerUiOpenProject(Amc);
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadOnly);
+        var bound = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = Amc });
+        Assert.True(bound.StructuredContent!.Value.GetProperty("success").GetBoolean(), bound.StructuredContent.Value.GetRawText());
+
+        var before = log.Methods().Length;
+        var arguments = tool switch
+        {
+            "plc_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_tag_tables" } } },
+            "network_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "read_hardware_config" } } },
+            "hmi_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_hmi_devices" } } },
+            "read_cross_references" => new Dictionary<string, object?>
+            {
+                ["target"] = new { path = new[] { new { nodeType = "Device", name = "PLC_1" } } }
+            },
+            _ => new Dictionary<string, object?>()
+        };
+        var response = await harness.Client.CallToolAsync(tool, arguments);
+
+        Assert.DoesNotContain(WorkerFailureCategories.UnsupportedCapability, response.StructuredContent!.Value.GetRawText());
+        Assert.Contains(workerMethod, log.Methods().Skip(before));
+    }
+
+    [Theory]
     [InlineData("save_project")]
     public async Task UnsupportedProjectOperation_DeniesBeforeDomainDispatch(string operation)
     {
@@ -108,19 +141,11 @@ public sealed class LocalSessionCapabilityTests
         Assert.True(bound.StructuredContent!.Value.GetProperty("success").GetBoolean(), bound.StructuredContent!.Value.GetRawText());
 
         var before = log.Methods().Length;
-        var arguments = operation == "save_project"
-            ? new Dictionary<string, object?> { ["dryRun"] = true }
-            : new Dictionary<string, object?>();
-        var result = await harness.Client.CallToolAsync(operation, arguments);
+        var result = await harness.Client.CallToolAsync(operation, new Dictionary<string, object?> { ["dryRun"] = true });
         var document = result.StructuredContent!.Value;
-        var error = operation == "browse_project_tree"
-            ? document.GetProperty("failure") : document.GetProperty("error");
-        if (operation == "browse_project_tree")
-            Assert.Equal("failed", document.GetProperty("status").GetString());
-        else
-            Assert.False(document.GetProperty("success").GetBoolean(), document.GetRawText());
+        Assert.False(document.GetProperty("success").GetBoolean(), document.GetRawText());
         Assert.Equal(WorkerFailureCategories.UnsupportedCapability,
-            error.GetProperty("category").GetString());
+            document.GetProperty("error").GetProperty("category").GetString());
         Assert.DoesNotContain(operation, log.Methods().Skip(before));
         Assert.DoesNotContain("probe_project_status_for_lifecycle", log.Methods().Skip(before));
     }
@@ -153,8 +178,6 @@ public sealed class LocalSessionCapabilityTests
     [InlineData("archive_project")]
     [InlineData("close_project")]
     [InlineData("compile_check")]
-    [InlineData("plc_read")]
-    [InlineData("network_read")]
     [InlineData("plc_write")]
     [InlineData("network_write")]
     public async Task LocalUnsupportedOperation_DeniesBeforeWorkerDispatch(string operation)
@@ -175,8 +198,6 @@ public sealed class LocalSessionCapabilityTests
             "save_project_as" => new Dictionary<string, object?> { ["targetDirectory"] = audit.Path, ["targetName"] = "Copy", ["dryRun"] = true },
             "archive_project" => new Dictionary<string, object?> { ["archiveDirectory"] = audit.Path, ["archiveName"] = "Copy", ["dryRun"] = true },
             "close_project" => new Dictionary<string, object?> { ["dryRun"] = true },
-            "plc_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_tag_tables" } } },
-            "network_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "read_hardware_config" } } },
             "plc_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "create_block_group", blockPath = "PLC_1/Blocks/New" } }, ["dryRun"] = true },
             "network_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "create_subnet", subnet = new { name = "New", networkType = "Ethernet" } } }, ["dryRun"] = true },
             _ => new Dictionary<string, object?>()

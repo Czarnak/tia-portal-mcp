@@ -132,9 +132,18 @@ truncated; repeating the same oversized request may still exceed the limit.
 typed owner. `StandaloneProjectOwner` retains a `Project`; `LocalSessionOwner` retains a
 `LocalSession` and its `MultiuserProject`. Production selection resolves the exact typed owner
 and its absolute `.amc21` engineering path. Local basic status and explicit `.als21` opening
-use that owner; content services retain the standalone compatibility projection. Local content,
-compile, save and standalone-only lifecycle calls reject with `unsupported_capability` before
-mutation, including previews. The local owner exposes no save, close, discard or commit method.
+use that owner. PR5 content reads (`browse_project_tree`, `plc_read`, `network_read`,
+`read_cross_references`, `hmi_read`) run against the session's `MultiuserProject` through the
+common `ProjectBase` root and are advertised as `projectContent`. Local writes, compile, save and
+standalone-only lifecycle calls reject with `unsupported_capability` before mutation, including
+previews; server-project contexts deliver no content operation. The local owner exposes no save,
+close, discard or commit method.
+
+Reads observe the local session only. They report no other-user markings, freshness or
+outdated-object state, and they do not establish Project Server connectivity. The
+[PR5 live report](../superpowers/acceptance/reports/2026-10-09-multiuser-pr5-live-verification.md)
+records one cold-adopted local session (reported mode and connection `unknown`) and a standalone
+regression; deliberately Exclusive and offline sessions were not exercised.
 
 Identity remains a projection of the authoritative session. Rewrapping the same root does
 not advance generation; a replacement root or accepted path change does. Detach releases

@@ -10,7 +10,7 @@ using Project = Siemens.Engineering.Project;
 /// <summary>Routes an <c>hmi_*</c> worker method to its reader. Unknown methods are denied; reads never bind, switch or open a project.</summary>
 public static class HmiReadDispatch
 {
-    public static object Read(Project project, string method, HmiQueryInfo query)
+    public static object Read(ProjectBase project, string method, HmiQueryInfo query)
     {
         if (query.Language is not null)
         {
@@ -69,6 +69,6 @@ public static class HmiReadDispatch
     private static WorkerOperationException MissingField(string field)
         => new(WorkerFailureCategories.ValidationError, $"The '{field}' field is required.");
 
-    private static Siemens.Engineering.HmiUnified.HmiSoftware Software(Project project, HmiQueryInfo query)
+    private static Siemens.Engineering.HmiUnified.HmiSoftware Software(ProjectBase project, HmiQueryInfo query)
         => HmiSoftwareLocator.FindUnique(project, query.HmiName).Software;
 }

@@ -273,7 +273,7 @@ internal static class Program
         try
         {
             ProjectTreeNodeTypes.Validate(request.StartSelector);
-            return WithProject(request, project =>
+            return WithEngineeringRoot(request, project =>
             {
                 var selected = new ProjectTreeSnapshotWalker().WalkSnapshot(project, request.StartSelector, request.Depth);
                 return Success(new ProjectTreeBrowseResultInfo
@@ -293,7 +293,7 @@ internal static class Program
 
     private static WorkerResponse ReadHardwareConfig(WorkerRequest request)
     {
-        return WithProject(request, project => Success(HardwareConfigReader.Read(
+        return WithEngineeringRoot(request, project => Success(HardwareConfigReader.Read(
             project,
             request.DeviceName,
             request.PlcName,
@@ -303,7 +303,7 @@ internal static class Program
 
     private static WorkerResponse ReadHardwarePageCandidates(WorkerRequest request)
     {
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             ValidateHardwarePageContinuationIdentity(request);
             var source = HardwarePageCandidateSourceFactory.Create(
@@ -337,7 +337,7 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectPageSize must be between 1 and 200.");
         }
 
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             var orderedItems = NetworkObjectIndexReader.Read(project, request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
             var queryHash = NetworkObjectCursorCodec.CreateQueryHash(request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
@@ -390,7 +390,7 @@ internal static class Program
                 "NetworkObjectTarget is required.");
         }
 
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             var resolution = NetworkObjectSelectorResolver.Resolve(project, request.NetworkObjectTarget);
             if (!resolution.Success)
@@ -465,7 +465,7 @@ internal static class Program
                 "NetworkAttributeNames must contain between 1 and 200 unique, nonblank names when supplied.");
         }
 
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             var resolution = NetworkObjectSelectorResolver.Resolve(project, request.NetworkObjectTarget);
             if (!resolution.Success)
@@ -865,7 +865,7 @@ internal static class Program
                 "read_cross_references requires a target selector.");
         }
 
-        return WithProject(request, project => Success(
+        return WithEngineeringRoot(request, project => Success(
             CrossReferenceReader.Read(project, request.CrossReferenceSelector, filter, request.MaxResults)));
     }
 
@@ -879,7 +879,7 @@ internal static class Program
         var format = NormalizeBlockFormat(request.Format);
         var withDependencies = request.WithDependencies == true;
 
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             var content = BlockExporter.Export(project, request.BlockPath!, format, withDependencies);
             return RawPayload(content, SourceReadWarnings.ForExport(withDependencies, format, content));
@@ -934,7 +934,7 @@ internal static class Program
         var format = NormalizeTypeFormat(request.Format);
         var withDependencies = request.WithDependencies == true;
 
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             var content = PlcTypeExporter.Export(project, request.TypePath!, format, withDependencies);
             return RawPayload(content, SourceReadWarnings.ForExport(withDependencies, format, content));
@@ -995,13 +995,13 @@ internal static class Program
 
     private static WorkerResponse ListTagTables(WorkerRequest request)
     {
-        return WithProject(request, project => Success(TagTableReader.ReadInventory(
+        return WithEngineeringRoot(request, project => Success(TagTableReader.ReadInventory(
             project, request.PlcName, request.TableName, request.FolderPath)));
     }
 
     private static WorkerResponse ReadHmi(WorkerRequest request)
     {
-        return WithProject(request, project => Success(
+        return WithEngineeringRoot(request, project => Success(
             HmiReadDispatch.Read(project, request.Method, request.HmiQuery ?? new HmiQueryInfo())));
     }
 
@@ -1369,8 +1369,16 @@ internal static class Program
         return WithSession(request, session => Success(operation(session)));
     }
 
-    /// <summary>Opens an Openness session, ensures a project is available, then runs <paramref name="body"/>.</summary>
+    /// <summary>Runs a standalone-only <paramref name="body"/> (writes, compile) against the active <see cref="Project"/>.</summary>
     private static WorkerResponse WithProject(WorkerRequest request, Func<Project, WorkerResponse> body)
+        => WithActiveContext(request, session => body(session.RequireStandaloneOwner().Project));
+
+    /// <summary>Runs a content read against the common <see cref="ProjectBase"/> root of any open container.</summary>
+    private static WorkerResponse WithEngineeringRoot(WorkerRequest request, Func<ProjectBase, WorkerResponse> body)
+        => WithActiveContext(request, session => body(session.EngineeringRoot!));
+
+    /// <summary>Opens an Openness session, ensures a project is available, then runs <paramref name="body"/>.</summary>
+    private static WorkerResponse WithActiveContext(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
     {
         return WithSession(request, session =>
         {
@@ -1388,7 +1396,7 @@ internal static class Program
                     ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
             }
 
-            return body(session.RequireStandaloneOwner().Project);
+            return body(session);
         });
     }
 
@@ -1495,14 +1503,7 @@ internal static class Program
                 request,
                 allowMissingExpectedIdentity);
 
-            var capabilityOperation = request.Method switch
-            {
-                "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
-                "get_basic_project_status" => "get_project_status",
-                "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
-                "search_equipment_catalog" => null,
-                _ => request.Method
-            };
+            var capabilityOperation = ProjectCapabilityCatalog.OperationFor(request.Method);
             if (capabilityOperation is not null && _sharedSession.ActiveContext is { } activeContext
                 && !ProjectCapabilityCatalog.Supports(activeContext.ContainerKind, capabilityOperation))
                 return Failure(WorkerFailureCategories.UnsupportedCapability,

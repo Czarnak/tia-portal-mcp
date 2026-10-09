@@ -1,7 +1,7 @@
 // Executable boundary doubles only. Tests never load the compile-only Siemens references.
 namespace Siemens.Engineering
 {
-    public abstract class ProjectBase
+    public abstract partial class ProjectBase
     {
         private FileInfo? path;
         private bool isModified;

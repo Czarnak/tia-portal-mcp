@@ -71,8 +71,10 @@ Large hardware reads can opt into cursor pagination with `pageSize` (`1..200`) o
 - `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - guarded single-call lifecycle writes in read-write and full. Read-write asks once per actual call; full proceeds without server elicitation. Set `dryRun:true` to inspect effects and guards without mutation or elicitation. These tools advertise structured outputs and accept no public confirmation list or safety token; they remain single-tool only.
 
 Local sessions use the observed typed `.amc21` path for adoption, basic status and already-open
-startup assertions; writable `open_project` accepts an exact existing `.als21` file. Local content,
-compile, save and terminal operations remain deferred. Scoped PR4 acceptance includes online
+startup assertions; writable `open_project` accepts an exact existing `.als21` file. Content reads
+(`browse_project_tree`, `plc_read`, `network_read`, `read_cross_references`, `hmi_read`) work on a
+bound local session; local content writes, compile, save and terminal operations remain deferred.
+Scoped PR4 acceptance includes online
 retained-Portal recovery and UI-assisted offline read-write opening; the tested offline opens
 required Siemens dialog dismissal. See [local-session support and limits](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
 

@@ -13,7 +13,7 @@ using Project = Siemens.Engineering.Project;
 public static partial class BlockExporter
 {
     internal static BlockPostconditionEvidence VerifyPrimaryDocument(
-        Project project,
+        ProjectBase project,
         string blockPath,
         string primaryDocumentName)
     {
@@ -65,7 +65,7 @@ public static partial class BlockExporter
     /// <see cref="SourceFormatNames.Xml"/>.
     /// </param>
     public static string Export(
-        Project project,
+        ProjectBase project,
         string blockPath,
         string format,
         bool withDependencies = false)
@@ -81,7 +81,7 @@ public static partial class BlockExporter
         return ExportXml(target, address, requireAuthoritativeXml: false);
     }
 
-    internal static string ExportForSafety(Project project, string blockPath)
+    internal static string ExportForSafety(ProjectBase project, string blockPath)
     {
         var address = BlockAddress.Parse(blockPath);
         var target = BlockTargetResolver.ResolveForExport(project, address);

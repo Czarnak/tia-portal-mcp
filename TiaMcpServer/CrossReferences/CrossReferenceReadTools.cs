@@ -29,7 +29,7 @@ public class CrossReferenceReadTools
         [Description("The target: { path: [{ nodeType, name }, ...], member?: { kind, name } }. Copy path segments from browse_project_tree output.")] CrossReferenceTargetSelector target,
         [Description("Optional filter: AllObjects, ObjectsWithReferences (default), ObjectsWithoutReferences, or UnusedObjects.")] string? filter = null,
         [Description("Optional cap on returned sources, 1 or greater. When cut, isComplete is false.")] int? maxResults = null,
-        [Description("Optional path to a .ap21 project file. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
+        [Description("Optional .ap21 project or .amc21 local-session engineering path. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
     {
         var invalid = Validate(target, filter, maxResults);
         if (invalid is not null)
