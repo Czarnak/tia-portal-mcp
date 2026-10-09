@@ -104,7 +104,10 @@ public sealed class LocalSessionStartupProcessTests
         var fakeExe = FakeWorkerLocator.Locate();
         var fakeDirectory = Path.GetDirectoryName(fakeExe)!;
         var repository = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        var hostDirectory = Path.Combine(repository, "TiaMcpServer", "bin", "Debug", "net10.0");
+        // Match the test assembly's own configuration (bin/<Configuration>/net10.0); CI builds Release.
+        var configuration = Path.GetFileName(Path.GetDirectoryName(
+            Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory)))!;
+        var hostDirectory = Path.Combine(repository, "TiaMcpServer", "bin", configuration, "net10.0");
         var hostExe = Path.Combine(hostDirectory, "TiaMcpServer.exe");
         Assert.True(File.Exists(hostExe), "Build the host stub project before running the built-host process tests.");
         Assert.True(File.Exists(Path.Combine(fakeDirectory, "TiaMcpServer.FakeWorker.dll")));
