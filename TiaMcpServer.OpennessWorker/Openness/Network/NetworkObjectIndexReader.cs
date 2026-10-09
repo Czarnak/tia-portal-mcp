@@ -16,7 +16,7 @@ using Project = Siemens.Engineering.Project;
 public static class NetworkObjectIndexReader
 {
     public static IReadOnlyList<NetworkObjectSummaryInfo> Read(
-        Project project,
+        ProjectBase project,
         IReadOnlyList<string> objectKinds,
         string? deviceName)
     {
@@ -274,7 +274,7 @@ public static class NetworkObjectIndexReader
         }
     }
 
-    private static void ReadSubnets(Project project, ISet<string> requestedKinds, List<Entry> entries)
+    private static void ReadSubnets(ProjectBase project, ISet<string> requestedKinds, List<Entry> entries)
     {
         var subnetIndex = 0;
         foreach (Subnet subnet in project.Subnets)

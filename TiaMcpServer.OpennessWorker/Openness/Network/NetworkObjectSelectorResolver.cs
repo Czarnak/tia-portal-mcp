@@ -15,14 +15,14 @@ public static class NetworkObjectSelectorResolver
 {
     // The temporary qualification probe needs the same fresh indexed-path comparison
     // without rebuilding a public selector, whose factory excludes empty type identifiers.
-    internal static DeviceItem? ResolveQualificationDeviceItem(Project project, NetworkObjectSelectorInfo target)
+    internal static DeviceItem? ResolveQualificationDeviceItem(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         if (target.Kind != NetworkObjectKinds.DeviceItem) return null;
         var match = MatchDeviceItem(project, target);
         return match.Item;
     }
 
-    public static NetworkObjectSelectionResult Resolve(Project project, NetworkObjectSelectorInfo target)
+    public static NetworkObjectSelectionResult Resolve(ProjectBase project, NetworkObjectSelectorInfo target)
         => target.Kind switch
         {
             NetworkObjectKinds.DeviceItem => ResolveDeviceItem(project, target),
@@ -36,7 +36,7 @@ public static class NetworkObjectSelectorResolver
                 $"Network object kind '{target.Kind ?? "(null)"}' is not supported by this inspector."),
         };
 
-    private static NetworkObjectSelectionResult ResolveDeviceItem(Project project, NetworkObjectSelectorInfo target)
+    private static NetworkObjectSelectionResult ResolveDeviceItem(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         var itemMatch = MatchDeviceItem(project, target);
         if (!itemMatch.Success)
@@ -65,7 +65,7 @@ public static class NetworkObjectSelectorResolver
             messages));
     }
 
-    private static NetworkObjectSelectionResult ResolveNetworkInterface(Project project, NetworkObjectSelectorInfo target)
+    private static NetworkObjectSelectionResult ResolveNetworkInterface(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         var itemMatch = MatchDeviceItem(project, target);
         if (!itemMatch.Success)
@@ -137,7 +137,7 @@ public static class NetworkObjectSelectorResolver
             messages));
     }
 
-    public static NetworkObjectSelectionResult ResolveNode(Project project, NetworkObjectSelectorInfo target)
+    public static NetworkObjectSelectionResult ResolveNode(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         if (target.InterfacePath is not null && target.ItemPath is not null)
             return EvidenceMismatch("A node selector cannot contain both owner path forms.");
@@ -179,7 +179,7 @@ public static class NetworkObjectSelectorResolver
             match.Item!.OwnerPath));
     }
 
-    private static NetworkObjectSelectionResult ResolveQualifiedNode(Project project, NetworkObjectSelectorInfo target)
+    private static NetworkObjectSelectionResult ResolveQualifiedNode(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         var deviceMatch = MatchDevice(project, target.DeviceName);
         if (!deviceMatch.Success) return deviceMatch.Failure!;
@@ -219,7 +219,7 @@ public static class NetworkObjectSelectorResolver
     }
 
     private static NetworkObjectSelectionResult ResolveIndexedNode(
-        Project project,
+        ProjectBase project,
         NetworkObjectSelectorInfo target)
     {
         if (target.NodeIndex is not int nodeIndex)
@@ -240,7 +240,7 @@ public static class NetworkObjectSelectorResolver
             { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList(), target.InterfaceName, nodeIndex));
     }
 
-    private static NetworkObjectSelectionResult ResolveSubnet(Project project, NetworkObjectSelectorInfo target)
+    private static NetworkObjectSelectionResult ResolveSubnet(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         var subnetMatch = MatchSubnet(project, target.SubnetId);
         if (!subnetMatch.Success)
@@ -265,7 +265,7 @@ public static class NetworkObjectSelectorResolver
             messages));
     }
 
-    private static NetworkObjectSelectionResult ResolveIoSystem(Project project, NetworkObjectSelectorInfo target)
+    private static NetworkObjectSelectionResult ResolveIoSystem(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         var subnetMatch = MatchSubnet(project, target.SubnetId);
         if (!subnetMatch.Success)
@@ -339,7 +339,7 @@ public static class NetworkObjectSelectorResolver
     }
 
     private static NetworkObjectSelectionResult ResolveCommunicationConnection(
-        Project project,
+        ProjectBase project,
         NetworkObjectSelectorInfo target)
     {
         var itemMatch = MatchDeviceItem(project, target);
@@ -496,7 +496,7 @@ public static class NetworkObjectSelectorResolver
             messages));
     }
 
-    private static DeviceItemMatch MatchDeviceItem(Project project, NetworkObjectSelectorInfo target)
+    private static DeviceItemMatch MatchDeviceItem(ProjectBase project, NetworkObjectSelectorInfo target)
     {
         var deviceMatch = MatchDevice(project, target.DeviceName);
         if (!deviceMatch.Success)
@@ -558,7 +558,7 @@ public static class NetworkObjectSelectorResolver
         return DeviceItemMatch.Ok(deviceMatch.Name!, selected!, verifiedPath);
     }
 
-    private static Match<Device> MatchDevice(Project project, string? requestedName)
+    private static Match<Device> MatchDevice(ProjectBase project, string? requestedName)
     {
         try
         {
@@ -585,7 +585,7 @@ public static class NetworkObjectSelectorResolver
         return Match<Device>.Ok(matches[0].Device, matches[0].Name, null);
     }
 
-    private static Match<Subnet> MatchSubnet(Project project, string? subnetId)
+    private static Match<Subnet> MatchSubnet(ProjectBase project, string? subnetId)
     {
         var matches = new List<(Subnet Subnet, string Identity)>();
         foreach (Subnet candidate in project.Subnets)

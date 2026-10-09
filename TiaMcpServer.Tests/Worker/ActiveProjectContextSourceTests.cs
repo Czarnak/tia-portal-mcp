@@ -11,9 +11,13 @@ public sealed class ActiveProjectContextSourceTests
     [Fact]
     public void ProjectDispatch_ResolvesOwnerAfterFreshIdentityCheck()
     {
-        var body = Method(Read("Program.cs"), "private static WorkerResponse WithProject(");
-        AssertOrdered(body, "ValidateExpectedAfterProjectResolution(", "return body(session.RequireStandaloneOwner().Project)");
-        Assert.Contains("Func<Project, WorkerResponse>", body);
+        var body = Method(Read("Program.cs"), "private static WorkerResponse WithActiveContext(");
+        AssertOrdered(body, "ValidateExpectedAfterProjectResolution(", "return body(session)");
+        var standalone = Method(Read("Program.cs"), "private static WorkerResponse WithProject(");
+        Assert.Contains("Func<Project, WorkerResponse>", standalone);
+        Assert.Contains("WithActiveContext(request, session => body(session.RequireStandaloneOwner().Project))", standalone);
+        var root = Method(Read("Program.cs"), "private static WorkerResponse WithEngineeringRoot(");
+        Assert.Contains("WithActiveContext(request, session => body(session.EngineeringRoot!))", root);
         Assert.DoesNotContain("session.Project", Read("Program.cs"));
         var subnet = Method(Read("Program.cs"), "private static WorkerResponse WithSubnetLifecycleProject(");
         AssertOrdered(subnet, "ValidateExpectedAfterProjectResolution(", "RequireStandaloneOwner()", "body(session)");

@@ -17,7 +17,7 @@ using Project = Siemens.Engineering.Project;
 
 public static class CrossReferenceReader
 {
-    public static CrossReferenceReport Read(Project project, CrossReferenceSelectorInfo selector, string filterName, int? maxResults = null)
+    public static CrossReferenceReport Read(ProjectBase project, CrossReferenceSelectorInfo selector, string filterName, int? maxResults = null)
     {
         var filter = ToOpennessFilter(filterName);
         var target = CrossReferenceTargetResolver.Resolve(project, selector);

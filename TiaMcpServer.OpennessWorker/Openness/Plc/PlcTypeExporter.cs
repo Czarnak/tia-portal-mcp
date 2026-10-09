@@ -22,7 +22,7 @@ using Project = Siemens.Engineering.Project;
 internal static class PlcTypeExporter
 {
     public static string Export(
-        Project project,
+        ProjectBase project,
         string typePath,
         string format,
         bool withDependencies = false)

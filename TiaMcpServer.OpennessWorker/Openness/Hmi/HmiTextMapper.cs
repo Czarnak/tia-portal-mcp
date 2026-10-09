@@ -49,7 +49,7 @@ public static class HmiTextMapper
     }
 
     /// <summary>The culture names of the project's active languages, ordered by name.</summary>
-    public static IReadOnlyList<string> ProjectCultures(Project project)
+    public static IReadOnlyList<string> ProjectCultures(ProjectBase project)
     {
         try
         {
@@ -69,7 +69,7 @@ public static class HmiTextMapper
     }
 
     /// <summary>Fails the item with <c>target_not_found</c>, naming the project languages, unless <paramref name="language"/> is one.</summary>
-    public static void RequireProjectLanguage(Project project, string language)
+    public static void RequireProjectLanguage(ProjectBase project, string language)
     {
         var cultures = ProjectCultures(project);
         if (!cultures.Contains(language, StringComparer.OrdinalIgnoreCase))

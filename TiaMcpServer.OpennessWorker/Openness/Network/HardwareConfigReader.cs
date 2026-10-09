@@ -13,11 +13,11 @@ public static class HardwareConfigReader
     /// <summary>
     /// Ordinary unfiltered hardware read, including exact relationship evidence, without I/O maps.
     /// </summary>
-    public static HardwareConfigInfo Read(Project project)
+    public static HardwareConfigInfo Read(ProjectBase project)
         => Read(project, deviceName: null, plcName: null, includeIoDetails: false, includeTagMatches: false);
 
     public static HardwareConfigInfo Read(
-        Project project,
+        ProjectBase project,
         string? deviceName,
         string? plcName,
         bool includeIoDetails,
@@ -85,12 +85,12 @@ public static class HardwareConfigReader
         return HardwarePageCandidateMaterialization.ForSubnet(materialized, messages);
     }
 
-    internal static IoTagIndex? ResolvePageTagIndex(Project project, string? plcName, List<string> messages)
+    internal static IoTagIndex? ResolvePageTagIndex(ProjectBase project, string? plcName, List<string> messages)
     {
         return ResolveTagIndex(project, plcName, messages);
     }
 
-    private static IoTagIndex? ResolveTagIndex(Project project, string? plcName, List<string> messages)
+    private static IoTagIndex? ResolveTagIndex(ProjectBase project, string? plcName, List<string> messages)
     {
         try
         {
@@ -110,7 +110,7 @@ public static class HardwareConfigReader
     /// only that device, while zero or multiple matches report a non-fatal message and no devices.
     /// </summary>
     private static IReadOnlyList<(Device Device, NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)> SelectDevices(
-        Project project,
+        ProjectBase project,
         string? deviceName,
         List<string> messages,
         HardwareDiscoveryEvidenceCapture capture,
@@ -514,12 +514,12 @@ public static class HardwareConfigReader
         if (!nodeId.IsUsable) throw new InvalidOperationException(nodeId.Diagnostic);
         IEngineeringObject? current = node;
         var ancestors = new List<IEngineeringObject>();
-        Project? project = null;
+        ProjectBase? project = null;
         while (current is not null)
         {
             if (ancestors.Any(value => ReferenceEquals(value, current))) throw new InvalidOperationException("Connected node hierarchy contains a cycle.");
             ancestors.Add(current);
-            if (current is Project owningProject) { project = owningProject; break; }
+            if (current is ProjectBase owningProject) { project = owningProject; break; }
             current = current.Parent;
         }
         if (project is null) throw new InvalidOperationException("Connected node project was unavailable.");

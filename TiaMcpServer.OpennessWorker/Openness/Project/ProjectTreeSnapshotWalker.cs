@@ -21,7 +21,7 @@ public sealed class ProjectTreeSnapshotWalker
 {
     private static readonly IReadOnlyList<ProjectTreeSelectorSegment> NoParent = Array.Empty<ProjectTreeSelectorSegment>();
 
-    public ProjectTreeSelectionResult WalkSnapshot(Project project, IReadOnlyList<ProjectTreeSelectorSegment>? startSelector, int? depth)
+    public ProjectTreeSelectionResult WalkSnapshot(ProjectBase project, IReadOnlyList<ProjectTreeSelectorSegment>? startSelector, int? depth)
     {
         ProjectTreeNodeTypes.Validate(startSelector);
         var devices = ProjectDeviceEnumerator.Enumerate(project).Cast<Device>().ToList();

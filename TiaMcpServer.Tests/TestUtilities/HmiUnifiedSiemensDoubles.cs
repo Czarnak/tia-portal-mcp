@@ -54,7 +54,7 @@ namespace Siemens.Engineering
         }
     }
 
-    public sealed partial class Project
+    public abstract partial class ProjectBase
     {
         public LanguageSettings LanguageSettings { get; set; } = new();
     }

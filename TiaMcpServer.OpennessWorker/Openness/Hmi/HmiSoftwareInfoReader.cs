@@ -13,7 +13,7 @@ using Project = Siemens.Engineering.Project;
 /// <summary>Operations 1 and 16-19: device discovery and software-level information.</summary>
 public static class HmiSoftwareInfoReader
 {
-    public static HmiDeviceListInfo ListDevices(Project project)
+    public static HmiDeviceListInfo ListDevices(ProjectBase project)
     {
         var messages = new List<string>();
         var entries = HmiSoftwareLocator.EnumerateAll(project, messages).ToList();
@@ -164,7 +164,7 @@ public static class HmiSoftwareInfoReader
         };
     }
 
-    public static HmiProjectLanguagesInfo ListProjectLanguages(Project project)
+    public static HmiProjectLanguagesInfo ListProjectLanguages(ProjectBase project)
     {
         var log = new HmiReadLog();
         var languages = HmiTextMapper.ProjectCultures(project).ToList();

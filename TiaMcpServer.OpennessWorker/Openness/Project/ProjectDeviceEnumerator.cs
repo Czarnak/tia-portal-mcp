@@ -10,7 +10,7 @@ using Project = Siemens.Engineering.Project;
 
 internal static class ProjectDeviceEnumerator
 {
-    public static IEnumerable<Device> Enumerate(Project project)
+    public static IEnumerable<Device> Enumerate(ProjectBase project)
     {
         foreach (LocatedProjectDevice locatedDevice in EnumerateWithLocations(project))
         {
@@ -18,7 +18,7 @@ internal static class ProjectDeviceEnumerator
         }
     }
 
-    internal static IReadOnlyList<LocatedProjectDevice> EnumerateWithLocations(Project project)
+    internal static IReadOnlyList<LocatedProjectDevice> EnumerateWithLocations(ProjectBase project)
     {
         var devices = new List<LocatedProjectDevice>();
         var sourceOrder = 0;
@@ -50,7 +50,7 @@ internal static class ProjectDeviceEnumerator
         return devices;
     }
 
-    private static IEnumerable<Device> EnumerateUngroupedDevices(Project project)
+    private static IEnumerable<Device> EnumerateUngroupedDevices(ProjectBase project)
     {
         // Read via reflection: Project.UngroupedDevicesGroup (DeviceSystemGroup) exists in the
         // real V21 API but not in the CI reference stubs under ref/.

@@ -14,7 +14,7 @@ using Project = Siemens.Engineering.Project;
 public static class HardwareTagIndexResolver
 {
     public static IoTagIndex? Resolve(
-        Project project,
+        ProjectBase project,
         string? plcName,
         List<string> messages)
     {

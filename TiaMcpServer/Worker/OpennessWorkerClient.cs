@@ -2296,16 +2296,7 @@ public class OpennessWorkerClient : IDisposable
             }
         }
 
-        var capabilityOperation = request.Method switch
-        {
-            "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
-            "get_basic_project_status" => "get_project_status",
-            "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
-            "hello" or "select_portal_project" or "list_tia_portal_processes"
-                or "list_server_connections" or "list_server_groups" or "list_server_projects"
-                or "list_local_sessions" or "get_lock_state" or "search_equipment_catalog" => null,
-            _ => request.Method
-        };
+        var capabilityOperation = ProjectCapabilityCatalog.OperationFor(request.Method);
         var verified = BindingSnapshot;
         if (capabilityOperation is not null && verified.IsVerified && verified.Context is { } projectContext
             && !ProjectCapabilityCatalog.Supports(projectContext.ContainerKind, capabilityOperation))

@@ -324,7 +324,7 @@ public sealed class LocalSessionContextContractTests
         var publicTools = new[]
         {
             "bind_project", "get_project_status", "browse_project_tree", "plc_read", "plc_write",
-            "network_read", "network_write", "read_cross_references", "compile_check",
+            "network_read", "network_write", "read_cross_references", "compile_check", "hmi_read",
             "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project"
         };
         var projectItems = PlcOperationCatalog.ReadOperationNames
@@ -342,26 +342,71 @@ public sealed class LocalSessionContextContractTests
     }
 
     [Fact]
-    public void LocalContentAndTerminalOperations_AreNotDelivered()
+    public void LocalWritesAndTerminalOperations_AreNotDelivered()
     {
         Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "bind_project"));
         Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "open_project"));
         Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "get_project_status"));
         Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "save_project"));
         Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "close_project"));
-        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "get_block_content"));
+        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "compile_check"));
+        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "update_block_logic"));
         var capabilities = ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession)
             .ToDictionary(item => item.Operation, StringComparer.Ordinal);
         Assert.Equal(ProjectCapabilityApplicabilities.NotYetDelivered, capabilities["save_project"].Applicability);
         Assert.Equal(ProjectCapabilityApplicabilities.StandaloneOnly, capabilities["close_project"].Applicability);
-        Assert.Equal(ProjectCapabilityApplicabilities.NotYetDelivered, capabilities["get_block_content"].Applicability);
+        Assert.Equal(ProjectCapabilityApplicabilities.NotYetDelivered, capabilities["plc_write"].Applicability);
     }
+
+    [Theory]
+    [InlineData("browse_project_tree")]
+    [InlineData("plc_read")]
+    [InlineData("network_read")]
+    [InlineData("read_cross_references")]
+    [InlineData("hmi_read")]
+    [InlineData("get_block_content")]
+    [InlineData("get_type_content")]
+    [InlineData("list_tag_tables")]
+    [InlineData("read_hardware_config")]
+    [InlineData("list_network_objects")]
+    [InlineData("inspect_network_object")]
+    public void LocalReads_AreProjectContent(string operation)
+    {
+        Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, operation));
+        Assert.Equal(ProjectCapabilityApplicabilities.ProjectContent,
+            ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession)
+                .Single(item => item.Operation == operation).Applicability);
+        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.ServerProject, operation));
+    }
+
+    [Theory]
+    [InlineData("browse_project_tree_v3_snapshot", "browse_project_tree")]
+    [InlineData("read_hardware_page_candidates", "browse_project_tree")]
+    [InlineData("get_basic_project_status", "get_project_status")]
+    [InlineData("probe_open_project_rebind", "open_project")]
+    [InlineData("probe_project_status_for_lifecycle", "open_project")]
+    [InlineData("probe_network_object_attributes", "network_read")]
+    [InlineData("probe_io_system_qualification", "network_write")]
+    [InlineData("hmi_list_hmi_devices", "hmi_read")]
+    [InlineData("hmi_validate", "hmi_read")]
+    [InlineData("get_block_content", "get_block_content")]
+    [InlineData("search_equipment_catalog", null)]
+    [InlineData("list_server_connections", null)]
+    [InlineData("hello", null)]
+    public void OperationFor_MapsWorkerMethodToCapability(string method, string? expected)
+        => Assert.Equal(expected, ProjectCapabilityCatalog.OperationFor(method));
+
+    [Theory]
+    [InlineData(ProjectContainerKinds.StandaloneProject)]
+    [InlineData(ProjectContainerKinds.LocalSession)]
+    public void HmiWorkerMethods_AreSupported(string containerKind)
+        => Assert.True(ProjectCapabilityCatalog.Supports(containerKind, "hmi_list_hmi_devices"));
 
     [Theory]
     [InlineData("probe_network_object_attributes", ProjectContainerKinds.StandaloneProject, true)]
     [InlineData("probe_io_system_qualification", ProjectContainerKinds.StandaloneProject, true)]
     [InlineData("probe_subnet_lifecycle_mutations", ProjectContainerKinds.StandaloneProject, true)]
-    [InlineData("probe_network_object_attributes", ProjectContainerKinds.LocalSession, false)]
+    [InlineData("probe_network_object_attributes", ProjectContainerKinds.LocalSession, true)]
     [InlineData("probe_io_system_qualification", ProjectContainerKinds.LocalSession, false)]
     [InlineData("probe_subnet_lifecycle_mutations", ProjectContainerKinds.LocalSession, false)]
     public void InternalNetworkProbe_CapabilityDecisionPreservesStandaloneOnlySupport(

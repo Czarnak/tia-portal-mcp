@@ -18,7 +18,7 @@ public static class PlcSoftwareLocator
     /// throw <c>target_not_found</c>, several <c>target_ambiguous</c>; a device item that cannot be read fails
     /// the call as <c>worker_operation_failed</c>, so it can never hide a second match.
     /// </summary>
-    public static DiscoveredPlcSoftware FindUnique(Project project, string? plcName)
+    public static DiscoveredPlcSoftware FindUnique(ProjectBase project, string? plcName)
     {
         DiscoveredPlcSoftware? match = null;
         foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
@@ -87,7 +87,7 @@ public static class PlcSoftwareLocator
     }
 
     /// <summary>Enumerates every PLC software in the project (optionally filtered by device name), paired with its owning device name.</summary>
-    public static IEnumerable<DiscoveredPlcSoftware> FindAll(Project project, string? plcName)
+    public static IEnumerable<DiscoveredPlcSoftware> FindAll(ProjectBase project, string? plcName)
     {
         return Discover(project.Devices.Cast<Device>(), plcName);
     }
@@ -98,7 +98,7 @@ public static class PlcSoftwareLocator
     /// </summary>
     /// <param name="discoveryFailures">Receives one message per device item that could not be read, when not null.</param>
     public static IEnumerable<DiscoveredPlcSoftware> FindEveryPlc(
-        Project project,
+        ProjectBase project,
         string? plcName,
         ICollection<string>? discoveryFailures = null)
     {

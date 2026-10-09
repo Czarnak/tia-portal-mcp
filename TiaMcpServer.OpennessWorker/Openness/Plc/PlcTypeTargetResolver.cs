@@ -27,7 +27,7 @@ using Project = Siemens.Engineering.Project;
 /// </summary>
 internal static class PlcTypeTargetResolver
 {
-    public static ResolvedTypeTarget ResolveForExport(Project project, PlcTypeAddress address)
+    public static ResolvedTypeTarget ResolveForExport(ProjectBase project, PlcTypeAddress address)
     {
         PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
@@ -55,7 +55,7 @@ internal static class PlcTypeTargetResolver
         return matches[0];
     }
 
-    public static ResolvedTypeTarget ResolveForImport(Project project, PlcTypeAddress address)
+    public static ResolvedTypeTarget ResolveForImport(ProjectBase project, PlcTypeAddress address)
     {
         PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
 
