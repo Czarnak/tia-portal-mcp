@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+
+namespace TiaMcpServer.Contracts.Multiuser;
 
 public sealed class MultiuserServerConnectionsRequest
 {

@@ -1,4 +1,9 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Project;
+
+namespace TiaMcpServer.Contracts.Worker;
 
 /// <summary>
 /// Flat request envelope for one host→worker call, serialized as newline-delimited JSON.

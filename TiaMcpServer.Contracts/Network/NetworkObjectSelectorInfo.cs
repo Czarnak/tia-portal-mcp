@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// One segment of a path through a device's item hierarchy.

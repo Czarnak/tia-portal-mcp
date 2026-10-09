@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Groups the test classes that spawn a real OS process (powershell.exe, scripted to speak the

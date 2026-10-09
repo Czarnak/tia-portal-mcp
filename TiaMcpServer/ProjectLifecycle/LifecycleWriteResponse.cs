@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
+using TiaMcpServer.Contracts.Project;
 
 namespace TiaMcpServer.ProjectLifecycle;
 

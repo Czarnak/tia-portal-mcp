@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// Summary of one network object as returned by a <c>list_network_objects</c> page.

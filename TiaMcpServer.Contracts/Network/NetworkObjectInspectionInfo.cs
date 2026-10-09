@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// Detailed result returned by an <c>inspect_network_object</c> operation.

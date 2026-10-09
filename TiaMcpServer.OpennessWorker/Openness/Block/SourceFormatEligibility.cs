@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>The outcome of asking whether format=source applies to one block.</summary>
 internal sealed class SourceFormatDecision

@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// Structured I/O evidence for one device item, populated only when a <c>read_hardware_config</c>

@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+
+namespace TiaMcpServer.Contracts.CrossReferences;
 
 /// <summary>
 /// Cross-reference target: a <c>browse_project_tree</c> selector path, optionally narrowed to a

@@ -1,5 +1,6 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 

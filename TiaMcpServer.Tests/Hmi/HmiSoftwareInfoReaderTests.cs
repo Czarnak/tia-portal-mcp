@@ -3,9 +3,10 @@ using Siemens.Engineering.HmiUnified.RuntimeSettings;
 using Siemens.Engineering.HmiUnified.Scripts;
 using Siemens.Engineering.HmiUnified.TextGraphicList;
 using Siemens.Engineering.HW;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 using static TiaMcpServer.Tests.Hmi.HmiTestProjects;
 

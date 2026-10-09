@@ -1,7 +1,8 @@
 using System.Text.RegularExpressions;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 internal static class BlockImportBundleParser
 {

@@ -1,7 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.ProjectTree;
 

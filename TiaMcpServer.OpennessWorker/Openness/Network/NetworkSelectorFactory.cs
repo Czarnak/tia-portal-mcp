@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Pure, Siemens-free factory that builds deterministic <see cref="NetworkObjectSelectorInfo"/>

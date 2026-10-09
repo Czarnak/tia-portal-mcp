@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+
+namespace TiaMcpServer.Contracts.Project;
 
 public static class ProjectTreeDeviceSelector
 {

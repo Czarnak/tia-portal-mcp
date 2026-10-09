@@ -1,4 +1,5 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using Xunit;
 
@@ -28,13 +29,13 @@ public class NetworkIdentityResolverTests
     public void OrdinaryProducer_SourceIndexAgreesWithHostAndWorker(bool legacy, int index, bool succeeds)
     {
         var source = new[] { new NodeInfo { NodeId = "E2", Name = "second" }, new NodeInfo { NodeId = "E1", Name = "first" } };
-        var capture = new TiaMcpServer.OpennessWorker.Openness.HardwareDiscoveryEvidenceCapture("project", _ => { });
+        var capture = new TiaMcpServer.OpennessWorker.Openness.Network.HardwareDiscoveryEvidenceCapture("project", _ => { });
         var state = NetworkDiscoveryRepairFixture.Metadata(capture.Evidence);
         var owner = state.Devices[0].Items[0].Items[0];
         state.Devices[0].Items[0].TypeIdentifier = "CPU"; owner.TypeIdentifier = "Port";
-        owner.NetworkInterfaces[0].Nodes = TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.ReadNodes(
+        owner.NetworkInterfaces[0].Nodes = TiaMcpServer.OpennessWorker.Openness.Network.NetworkNodeReadSelectorBuilder.ReadNodes(
             () => source, node => new NodeInfo { NodeId = node.NodeId, Name = node.Name }, capture);
-        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.ApplyInventory(state);
+        TiaMcpServer.OpennessWorker.Openness.Network.NetworkNodeReadSelectorBuilder.ApplyInventory(state);
         Assert.All(owner.NetworkInterfaces[0].Nodes, node => { Assert.NotNull(node.Selector!.InterfacePath); Assert.Null(node.Selector.NodeIndex); });
         var request = RepairRequest(); request.Target!.NodeIndex = index;
         if (legacy)
@@ -44,7 +45,7 @@ public class NetworkIdentityResolverTests
                 new NetworkDeviceItemPathSegment { Index = 0, Name = "PROFINET interface_1", PositionNumber = 32768, TypeIdentifier = "Port" } };
         }
         var host = NetworkIdentityResolver.Resolve(request, state);
-        var worker = TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.MatchNode(source, "E1", index, node => node.NodeId);
+        var worker = TiaMcpServer.OpennessWorker.Openness.Network.NetworkNodeReadSelectorBuilder.MatchNode(source, "E1", index, node => node.NodeId);
         Assert.Equal(succeeds, worker.Success);
         Assert.True(host.Success == succeeds, $"source E2,E1, index {index}, legacy {legacy}: host success={host.Success}, error={host.Error}");
         if (succeeds) { Assert.Equal("first", host.Evidence!.NodeName); Assert.Same(source[1], worker.Item); }

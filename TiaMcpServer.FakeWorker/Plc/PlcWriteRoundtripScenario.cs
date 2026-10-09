@@ -1,6 +1,14 @@
 using System.Text.Json;
-using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
+
+namespace TiaMcpServer.FakeWorker.Plc;
 
 /// <summary>
 /// Stateful <c>plc-write-roundtrip</c> fixture: a root PLC (software PLC_1 on device Station_1)

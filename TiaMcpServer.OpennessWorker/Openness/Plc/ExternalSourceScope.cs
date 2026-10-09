@@ -1,6 +1,9 @@
 using Siemens.Engineering.SW.ExternalSources;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
 /// <summary>
 /// Owns the temp file and the PlcExternalSource project node created for one import, and
@@ -84,7 +87,7 @@ internal sealed class ExternalSourceScope : IDisposable
             if (observer is not null)
             {
                 throw new WorkerOperationException(
-                    TiaMcpServer.Contracts.WorkerFailureCategories.WorkerOperationFailed,
+                    TiaMcpServer.Contracts.Worker.WorkerFailureCategories.WorkerOperationFailed,
                     BlockImportDiagnosticSanitizer.Failure(
                         BlockImportDiagnosticContext.SourceNodeCreation,
                         exception));

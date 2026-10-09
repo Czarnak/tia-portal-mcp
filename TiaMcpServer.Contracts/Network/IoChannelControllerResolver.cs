@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// Lightweight address record used for pure channel-to-address interval containment and controller resolution.

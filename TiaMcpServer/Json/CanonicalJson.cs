@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
 
 namespace TiaMcpServer.Json;
 

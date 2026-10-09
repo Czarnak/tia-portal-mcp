@@ -1,9 +1,10 @@
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>
 /// The numbers held by OBs in a PLC: the PLC and each software unit, through user and system

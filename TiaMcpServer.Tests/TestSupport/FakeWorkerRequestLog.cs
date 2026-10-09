@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Records only child-worker method names. Use only in RealWorkerProcessCollection or

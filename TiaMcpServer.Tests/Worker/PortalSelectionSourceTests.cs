@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;

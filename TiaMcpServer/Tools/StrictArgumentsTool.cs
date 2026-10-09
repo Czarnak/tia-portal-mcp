@@ -4,8 +4,8 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Plc;
+using TiaMcpServer.Contracts.Block;
 
 namespace TiaMcpServer.Tools;
 

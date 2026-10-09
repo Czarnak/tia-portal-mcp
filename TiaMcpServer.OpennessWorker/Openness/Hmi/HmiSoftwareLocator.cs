@@ -2,9 +2,13 @@ using Siemens.Engineering;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Project;
+using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
+
+using Project = Siemens.Engineering.Project;
 
 public sealed class DiscoveredHmiSoftware
 {

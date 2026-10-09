@@ -1,7 +1,8 @@
 using System.Text.Json;
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 using Xunit;
 using static TiaMcpServer.Tests.Multiuser.LocalSessionSelectionWorkerTests;
 

@@ -1,7 +1,12 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
+
+using Project = Siemens.Engineering.Project;
 
 public class TiaPortalSession : IDisposable
 {

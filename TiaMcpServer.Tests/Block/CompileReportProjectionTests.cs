@@ -1,7 +1,7 @@
 using System.Reflection;
 using Siemens.Engineering;
 using TiaMcpServer.Json;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Block;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Block;
@@ -11,7 +11,7 @@ public class CompileReportProjectionTests
     [Fact]
     public void BlockOutcomeProjectionCopiesAndBoundsEveryComponentWithoutMutatingInput()
     {
-        var report = new TiaMcpServer.Contracts.CompileCheckReport
+        var report = new TiaMcpServer.Contracts.Block.CompileCheckReport
         {
             Scope = new string('s', 400),
             BlockPath = "C:\\private\\" + new string('p', 400),
@@ -21,7 +21,7 @@ public class CompileReportProjectionTests
         };
         for (var plcIndex = 0; plcIndex < 10; plcIndex++)
         {
-            var plc = new TiaMcpServer.Contracts.PlcCompileInfo
+            var plc = new TiaMcpServer.Contracts.Plc.PlcCompileInfo
             {
                 PlcName = "PLC-" + plcIndex + "-" + new string('n', 300),
                 DeviceName = "Device-" + new string('d', 300),
@@ -31,7 +31,7 @@ public class CompileReportProjectionTests
             };
             for (var messageIndex = 0; messageIndex < 5; messageIndex++)
             {
-                plc.Messages.Add(new TiaMcpServer.Contracts.CompileMessageInfo
+                plc.Messages.Add(new TiaMcpServer.Contracts.Block.CompileMessageInfo
                 {
                     Description = "SECRET_CONTENT-" + new string('x', 300),
                     Path = "C:\\private\\Fixture.ap21\\" + new string('y', 300),
@@ -42,7 +42,7 @@ public class CompileReportProjectionTests
             report.Plcs.Add(plc);
         }
 
-        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.Block.BlockImportOutcomeInfo
         {
             ImportStage = "completed",
             ImportResultState = "success",
@@ -82,7 +82,7 @@ public class CompileReportProjectionTests
     [Fact]
     public void BlockOutcomeProjectionBoundsEscapeHeavySerializedDocument()
     {
-        var report = new TiaMcpServer.Contracts.CompileCheckReport
+        var report = new TiaMcpServer.Contracts.Block.CompileCheckReport
         {
             Scope = new string('"', 256),
             BlockPath = new string('\\', 256),
@@ -91,14 +91,14 @@ public class CompileReportProjectionTests
         };
         for (var plcIndex = 0; plcIndex < 8; plcIndex++)
         {
-            var plc = new TiaMcpServer.Contracts.PlcCompileInfo
+            var plc = new TiaMcpServer.Contracts.Plc.PlcCompileInfo
             {
                 PlcName = new string('"', 256),
                 DeviceName = new string('\\', 256),
                 State = "Warning",
                 WarningCount = plcIndex == 0 ? 20 : 0
             };
-            plc.Messages.Add(new TiaMcpServer.Contracts.CompileMessageInfo
+            plc.Messages.Add(new TiaMcpServer.Contracts.Block.CompileMessageInfo
             {
                 Description = new string('\u0001', 256),
                 Path = new string('"', 256),
@@ -108,7 +108,7 @@ public class CompileReportProjectionTests
             report.Plcs.Add(plc);
         }
 
-        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.Block.BlockImportOutcomeInfo
         {
             ImportStage = "completed",
             ImportResultState = "success",
@@ -132,7 +132,7 @@ public class CompileReportProjectionTests
         var maximumHostLength = 0;
         for (var severityLength = 1; severityLength <= 256; severityLength++)
         {
-            var report = new TiaMcpServer.Contracts.CompileCheckReport
+            var report = new TiaMcpServer.Contracts.Block.CompileCheckReport
             {
                 Scope = new string('"', 256),
                 BlockPath = null,
@@ -141,7 +141,7 @@ public class CompileReportProjectionTests
             };
             for (var plcIndex = 0; plcIndex < 8; plcIndex++)
             {
-                var plc = new TiaMcpServer.Contracts.PlcCompileInfo
+                var plc = new TiaMcpServer.Contracts.Plc.PlcCompileInfo
                 {
                     PlcName = new string('"', 256),
                     DeviceName = null,
@@ -150,7 +150,7 @@ public class CompileReportProjectionTests
                 };
                 for (var messageIndex = 0; messageIndex < (plcIndex < 4 ? 3 : 2); messageIndex++)
                 {
-                    plc.Messages.Add(new TiaMcpServer.Contracts.CompileMessageInfo
+                    plc.Messages.Add(new TiaMcpServer.Contracts.Block.CompileMessageInfo
                     {
                         Description = string.Empty,
                         Path = string.Empty,
@@ -160,7 +160,7 @@ public class CompileReportProjectionTests
                 report.Plcs.Add(plc);
             }
 
-            var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+            var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.Block.BlockImportOutcomeInfo
             {
                 ImportStage = "completed",
                 ImportResultState = "success",
@@ -185,7 +185,7 @@ public class CompileReportProjectionTests
     [Fact]
     public void BlockOutcomeProjectionReplacesShortSecretsAndRelativeNodePathsDeterministically()
     {
-        var report = new TiaMcpServer.Contracts.CompileCheckReport
+        var report = new TiaMcpServer.Contracts.Block.CompileCheckReport
         {
             Scope = "block",
             BlockPath = "PLC/Blocks/SecretNode",
@@ -193,7 +193,7 @@ public class CompileReportProjectionTests
             TotalWarningCount = 1,
             Plcs =
             {
-                new TiaMcpServer.Contracts.PlcCompileInfo
+                new TiaMcpServer.Contracts.Plc.PlcCompileInfo
                 {
                     PlcName = "PLC A",
                     DeviceName = "Device A",
@@ -201,7 +201,7 @@ public class CompileReportProjectionTests
                     WarningCount = 1,
                     Messages =
                     {
-                        new TiaMcpServer.Contracts.CompileMessageInfo
+                        new TiaMcpServer.Contracts.Block.CompileMessageInfo
                         {
                             Description = "pw",
                             Path = "Project/PLC/Blocks/SecretNode",
@@ -213,7 +213,7 @@ public class CompileReportProjectionTests
             }
         };
 
-        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.BlockImportOutcomeInfo
+        var projected = BlockImportOutcomeProjection.Project(new TiaMcpServer.Contracts.Block.BlockImportOutcomeInfo
         {
             ImportStage = "completed",
             ImportResultState = "success",
@@ -226,7 +226,7 @@ public class CompileReportProjectionTests
             TemporarySourceState = "not_applicable"
         });
 
-        var projectedReport = Assert.IsType<TiaMcpServer.Contracts.CompileCheckReport>(projected.CompileReport);
+        var projectedReport = Assert.IsType<TiaMcpServer.Contracts.Block.CompileCheckReport>(projected.CompileReport);
         var plc = Assert.Single(projectedReport.Plcs);
         var message = Assert.Single(plc.Messages);
         var note = Assert.Single(plc.DiagnosticNotes);

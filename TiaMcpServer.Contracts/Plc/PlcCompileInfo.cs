@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+
+namespace TiaMcpServer.Contracts.Plc;
 
 public class PlcCompileInfo
 {

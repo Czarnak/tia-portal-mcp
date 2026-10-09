@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Hmi;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 

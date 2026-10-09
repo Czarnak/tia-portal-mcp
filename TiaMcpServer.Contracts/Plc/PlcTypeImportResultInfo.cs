@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Plc;
 
 /// <summary>Payload of a completed <c>update_type_content</c>.</summary>
 public sealed class PlcTypeImportResultInfo

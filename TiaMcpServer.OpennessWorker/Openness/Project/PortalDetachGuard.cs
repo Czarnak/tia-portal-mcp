@@ -1,4 +1,4 @@
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 internal static class PortalDetachGuard
 {

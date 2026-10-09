@@ -1,8 +1,11 @@
 using System.Globalization;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety.Pipeline;
 using static TiaMcpServer.Plc.PlcGuardDefinitions;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 

@@ -1,7 +1,9 @@
 namespace TiaMcpServer.Tests.Network;
 
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Worker;
@@ -114,7 +116,7 @@ public class NetworkIntrospectionWorkerDispatchTests
     public void NodeDiscoverySelector_CarriesExactOwnerNamespaceIndependentlyOfType()
     {
         var device = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }).Devices[0];
-        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.Apply(device, true);
+        TiaMcpServer.OpennessWorker.Openness.Network.NetworkNodeReadSelectorBuilder.Apply(device, true);
         var target = device.Items[0].Items[1].NetworkInterfaces[0].Nodes[0].Selector!;
         var owner = NetworkInterfacePathMatcher.Match(device.Items, target.InterfacePath!,
             item => item.Items, item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);

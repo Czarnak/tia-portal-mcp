@@ -1,6 +1,6 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
+using TiaMcpServer.Contracts.Project;
 
 namespace TiaMcpServer.Worker;
 

@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>Descriptive capability applicability vocabulary; these values do not grant authorization.</summary>
 public static class ProjectCapabilityApplicabilities

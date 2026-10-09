@@ -1,6 +1,6 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 using Xunit;
 using Fixture = TiaMcpServer.Tests.Multiuser.LocalSessionSelectionWorkerTests.Fixture;
 

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// One attribute entry returned by an <c>inspect_network_object</c> operation.

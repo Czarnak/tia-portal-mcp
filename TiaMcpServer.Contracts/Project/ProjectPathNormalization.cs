@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Shared "is this the same project?" comparability primitive. <see cref="ProjectOpenPolicy"/>

@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>Describes an operation's applicability; capability information is not authorization.</summary>
 public sealed class ProjectCapabilityInfo

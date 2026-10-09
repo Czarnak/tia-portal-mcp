@@ -95,7 +95,7 @@ public class ReferenceStubSourceContractTests
             $@"public enum {enumName} : int\s*\{{(?<body>[^}}]*)\}}").Groups["body"].Value;
         var declared = System.Text.RegularExpressions.Regex.Matches(body, @"(\w+)\s*=\s*(\d+)")
             .Select(m => (Name: m.Groups[1].Value, Value: int.Parse(m.Groups[2].Value))).ToList();
-        var expected = enumName == "Access" ? TiaMcpServer.Contracts.CrossReferenceAccessNames.All : TiaMcpServer.Contracts.CrossReferenceTypeNames.All;
+        var expected = enumName == "Access" ? TiaMcpServer.Contracts.CrossReferences.CrossReferenceAccessNames.All : TiaMcpServer.Contracts.CrossReferences.CrossReferenceTypeNames.All;
 
         // The closed names are the V21 declaration order, so each value is its index.
         Assert.Equal(expected.Select((name, index) => (name, index)), declared);

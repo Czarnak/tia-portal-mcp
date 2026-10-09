@@ -1,7 +1,7 @@
 using System.Globalization;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
 
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Declares the simulated Portal inventory before a child worker starts. Use only in

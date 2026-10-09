@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Worker;
 
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Worker;
 
 /// <summary>
 /// Thrown by worker-side validation and Siemens-call-site code to carry a closed failure

@@ -1,4 +1,4 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.CrossReferences;
 using TiaMcpServer.CrossReferences;
 using TiaMcpServer.Json;
 using Xunit;

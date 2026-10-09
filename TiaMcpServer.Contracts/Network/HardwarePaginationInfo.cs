@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>Public paging metadata returned only when a hardware-config read was explicitly paged.</summary>
 public sealed record HardwarePaginationInfo(

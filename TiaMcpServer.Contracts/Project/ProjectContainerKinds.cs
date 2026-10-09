@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>Canonical project-container kinds and their closed, ordered vocabulary.</summary>
 public static class ProjectContainerKinds

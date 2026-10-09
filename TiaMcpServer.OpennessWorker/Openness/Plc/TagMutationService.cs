@@ -1,9 +1,13 @@
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Tags;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
+
+using Project = Siemens.Engineering.Project;
 
 public static class TagMutationService
 {

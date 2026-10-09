@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 public static class NetworkObjectInspector
 {

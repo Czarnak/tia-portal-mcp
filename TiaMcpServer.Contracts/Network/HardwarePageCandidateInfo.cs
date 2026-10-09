@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>One device candidate, with its stable offset and candidate-scoped degradation messages.</summary>
 public sealed record HardwareDevicePageCandidateInfo(

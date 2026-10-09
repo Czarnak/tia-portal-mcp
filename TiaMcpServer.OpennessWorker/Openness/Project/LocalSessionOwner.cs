@@ -1,7 +1,7 @@
 using Siemens.Engineering;
 using Siemens.Engineering.Multiuser;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 /// <summary>Retains a session without save, discard, commit, or disposal behavior.</summary>
 internal sealed class LocalSessionOwner : ProjectLifecycleOwner

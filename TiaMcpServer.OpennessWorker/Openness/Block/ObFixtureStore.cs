@@ -1,6 +1,8 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>Loads the embedded V21 interface <c>Sections</c> element of an offered OB event class.</summary>
 internal static class ObFixtureStore

@@ -1,8 +1,9 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>
 /// Sole owner of the multi-document block bundle format returned by get_block_content and

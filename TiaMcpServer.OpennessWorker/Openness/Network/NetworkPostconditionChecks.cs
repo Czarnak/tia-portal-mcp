@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>Siemens-free comparison; unreadable state can never establish a postcondition.</summary>
 internal static class NetworkPostconditionChecks

@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 

@@ -1,6 +1,9 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Diagnostics;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 /// <summary>
 /// Siemens-free description of one attachable TIA Portal process. Keeping the selection input

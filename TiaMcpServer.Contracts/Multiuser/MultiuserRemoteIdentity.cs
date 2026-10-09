@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+
+namespace TiaMcpServer.Contracts.Multiuser;
 
 /// <summary>Passive remote-project and local-session identity, with explicit nulls for absent information.</summary>
 public sealed class MultiuserRemoteIdentity

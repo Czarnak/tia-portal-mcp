@@ -1,4 +1,4 @@
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Worker;
 
 /// <summary>
 /// Combines response warnings that were set directly during a worker request (e.g. by a thrown

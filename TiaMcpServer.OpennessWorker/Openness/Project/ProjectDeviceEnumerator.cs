@@ -4,7 +4,9 @@ using System.Runtime.ExceptionServices;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
+
+using Project = Siemens.Engineering.Project;
 
 internal static class ProjectDeviceEnumerator
 {

@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Block;
 
 /// <summary>
 /// Bounded evidence for one update_block_logic attempt. Commitment refers only to the in-memory

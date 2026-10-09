@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>Structural discovery scope and losses; optional scalar diagnostics remain separate.</summary>
 public sealed class HardwareDiscoveryEvidenceInfo

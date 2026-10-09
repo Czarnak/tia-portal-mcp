@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>Shared fail-closed capture; Siemens traversal is supplied by the ordinary reader.</summary>
 internal static class NetworkConnectionEvidenceCapture

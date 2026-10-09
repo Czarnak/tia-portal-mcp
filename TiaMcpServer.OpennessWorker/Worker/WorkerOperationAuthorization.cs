@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Worker;
 
 /// <summary>
 /// Worker-side authorization. Enforces the immutable access mode before any handler is called.

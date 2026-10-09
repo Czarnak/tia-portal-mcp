@@ -1,7 +1,8 @@
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>
 /// Adds bounded block-import evidence to update failures that occur outside the importer. This

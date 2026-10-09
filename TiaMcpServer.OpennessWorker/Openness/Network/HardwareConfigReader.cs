@@ -1,9 +1,12 @@
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.OpennessWorker.Openness.Project;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
+
+using Project = Siemens.Engineering.Project;
 
 public static class HardwareConfigReader
 {

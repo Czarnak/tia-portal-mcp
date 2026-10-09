@@ -1,5 +1,9 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Diagnostics;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 

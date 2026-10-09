@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>Deterministic query evidence for hardware-config pagination continuations.</summary>
 public static class HardwarePageEvidence

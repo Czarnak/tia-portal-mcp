@@ -1,7 +1,12 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Proves a PLC data type write actually landed, mirroring <see cref="BlockPostconditionVerifier"/>

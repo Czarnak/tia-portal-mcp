@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts.Worker;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Immutable host-side binding snapshot. Guarded writes retain this complete value so a worker

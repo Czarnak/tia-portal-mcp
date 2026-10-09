@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Worker;
 
 /// <summary>
 /// Closed vocabulary of failure categories shared by the worker, the wire contract

@@ -1,5 +1,5 @@
 using System.Collections;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;

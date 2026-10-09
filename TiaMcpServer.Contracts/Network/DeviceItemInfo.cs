@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 public class DeviceItemInfo
 {

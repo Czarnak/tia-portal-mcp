@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>
 /// Result of <c>validate</c>: one page of the scanned objects of a category. <see cref="Scanned"/> counts the

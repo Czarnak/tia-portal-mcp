@@ -1,4 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Plc;
 using TiaMcpServer.ProjectTree;
 using Xunit;

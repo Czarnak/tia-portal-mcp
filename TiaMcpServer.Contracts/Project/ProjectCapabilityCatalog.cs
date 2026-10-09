@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Project-scoped public tools and batch items. Internal worker probes are represented by their

@@ -6,9 +6,16 @@ using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Tags;
 using Siemens.Engineering.SW.Types;
 using Siemens.Engineering.SW.Units;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Plc;
+using TiaMcpServer.OpennessWorker.Openness.Project;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.CrossReferences;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// A resolved cross-reference target: either a leaf owner's service (one query) or a container

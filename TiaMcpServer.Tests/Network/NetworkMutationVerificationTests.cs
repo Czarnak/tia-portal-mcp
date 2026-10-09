@@ -1,6 +1,8 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -75,8 +77,8 @@ public class NetworkMutationVerificationTests
     {
         var request = new WorkerRequest { DeviceName = "Station", NodeId = "E1", NetworkObjectTarget = new()
         { Kind = "node", DeviceName = identity == "device" ? "Other" : "Station", NodeId = identity == "node" ? "e1" : "E1" } };
-        var error = Assert.Throws<TiaMcpServer.OpennessWorker.WorkerOperationException>(() =>
-            TiaMcpServer.OpennessWorker.NetworkConfigurationTargetBinding.Resolve(request));
+        var error = Assert.Throws<TiaMcpServer.OpennessWorker.Worker.WorkerOperationException>(() =>
+            TiaMcpServer.OpennessWorker.Openness.Network.NetworkConfigurationTargetBinding.Resolve(request));
         Assert.Equal(WorkerFailureCategories.ValidationError, error.FailureCategory);
     }
 
@@ -86,7 +88,7 @@ public class NetworkMutationVerificationTests
         var request = new WorkerRequest { DeviceName = "station", NodeId = "E1", NetworkObjectTarget = new()
         { Kind = "node", DeviceName = "Station", NodeId = "E1", NodeIndex = 0, InterfaceName = "X1",
           InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768, TypeIdentifier = "type" } } } };
-        var target = TiaMcpServer.OpennessWorker.NetworkConfigurationTargetBinding.Resolve(request);
+        var target = TiaMcpServer.OpennessWorker.Openness.Network.NetworkConfigurationTargetBinding.Resolve(request);
         request.NetworkObjectTarget.InterfacePath![0].PositionNumber = 33024;
         Assert.Equal(32768, target.InterfacePath![0].PositionNumber);
         Assert.Equal("X1", target.InterfaceName);

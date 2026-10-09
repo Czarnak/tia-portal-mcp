@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Network;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Openness.Network;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;

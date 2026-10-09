@@ -2,9 +2,10 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Siemens.Engineering;
 using Siemens.Engineering.HW.HardwareCatalog;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 public static class EquipmentCatalogSearcher
 {

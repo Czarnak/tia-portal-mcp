@@ -1,6 +1,10 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Project;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Multiuser;
 
 /// <summary>The Portal-only admission and identity seam; no project discovery or selection.</summary>
 internal static class MultiuserPortalReadDispatch

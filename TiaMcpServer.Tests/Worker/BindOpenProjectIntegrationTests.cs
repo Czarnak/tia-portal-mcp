@@ -1,8 +1,11 @@
 using System.Text.Json;
-using TiaMcpServer.Tests.Network;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
+using TiaMcpServer.Tests.Network;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 

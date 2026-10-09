@@ -1,7 +1,10 @@
 using Siemens.Engineering;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.OpennessWorker.Openness.Plc;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Resolves the single PLC whose tag tables are matched, deterministically and without a

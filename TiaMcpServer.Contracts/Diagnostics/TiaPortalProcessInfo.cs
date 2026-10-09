@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Diagnostics;
 
 public sealed class TiaPortalProcessInfo
 {

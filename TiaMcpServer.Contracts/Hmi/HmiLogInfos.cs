@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>Result of <c>list_logs</c>: data logs, alarm logs and audit trails, each ordered by name.</summary>
 public class HmiLogsInfo

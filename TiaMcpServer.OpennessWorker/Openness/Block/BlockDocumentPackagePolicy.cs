@@ -1,4 +1,4 @@
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>The outcome of asking what a failed s7dcl document-package export means.</summary>
 internal sealed class BlockDocumentPackageOutcome

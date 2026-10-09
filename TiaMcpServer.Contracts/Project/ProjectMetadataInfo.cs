@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Extended read-only project metadata, attached to <see cref="ProjectStatusInfo.Metadata"/> for

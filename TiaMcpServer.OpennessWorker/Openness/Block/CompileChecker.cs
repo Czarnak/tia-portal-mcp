@@ -3,9 +3,13 @@ using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Siemens.Engineering;
 using Siemens.Engineering.Compiler;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.OpennessWorker.Openness.Plc;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
+
+using Project = Siemens.Engineering.Project;
 
 public static class CompileChecker
 {

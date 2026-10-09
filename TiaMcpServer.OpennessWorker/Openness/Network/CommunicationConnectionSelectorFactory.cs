@@ -1,6 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Builds lightweight connection summaries and selectors from already-read typed evidence.

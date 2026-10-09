@@ -1,4 +1,4 @@
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 public static partial class BlockExporter
 {

@@ -1,6 +1,8 @@
 using Siemens.Engineering;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
+
+using Project = Siemens.Engineering.Project;
 
 internal sealed class StandaloneProjectOwner : ProjectLifecycleOwner
 {

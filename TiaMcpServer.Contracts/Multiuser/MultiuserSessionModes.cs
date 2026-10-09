@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Multiuser;
 
 /// <summary>Canonical session modes; unknown does not establish a healthy or usable session.</summary>
 public static class MultiuserSessionModes

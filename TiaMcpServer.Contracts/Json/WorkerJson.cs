@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Json;
 
 /// <summary>
 /// The single definition of the host-worker wire format.

@@ -1,8 +1,12 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Plc;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Network;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 using static TiaMcpServer.Tests.Plc.PlcGuardedWriteFixture;
 

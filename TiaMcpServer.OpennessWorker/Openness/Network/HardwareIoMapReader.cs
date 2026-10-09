@@ -1,9 +1,9 @@
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Reads the structured I/O map for one device item: addresses (I/O type, start, length,

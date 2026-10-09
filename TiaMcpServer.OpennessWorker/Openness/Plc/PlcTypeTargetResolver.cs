@@ -3,9 +3,13 @@ using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.ExternalSources;
 using Siemens.Engineering.SW.Types;
 using Siemens.Engineering.SW.Units;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Resolves a <see cref="PlcTypeAddress"/> to a live type group and (optionally) the type itself.

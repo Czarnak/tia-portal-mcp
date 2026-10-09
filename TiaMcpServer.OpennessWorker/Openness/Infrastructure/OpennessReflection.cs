@@ -2,7 +2,7 @@ using System.Collections;
 using System.Reflection;
 using Siemens.Engineering;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 
 /// <summary>
 /// Exception-guarded reflection helpers for reading properties and collections off TIA Openness

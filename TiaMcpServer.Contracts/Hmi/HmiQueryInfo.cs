@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>
 /// Parameters of one <c>hmi_read</c> operation as forwarded to the worker. The host has already

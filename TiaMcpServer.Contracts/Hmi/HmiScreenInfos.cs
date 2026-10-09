@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>Result of <c>list_screens</c>: the screens and screen groups below the requested group (the root when none), with each group's screens and subgroups nested recursively, ordered by name.</summary>
 public class HmiScreenTreeInfo

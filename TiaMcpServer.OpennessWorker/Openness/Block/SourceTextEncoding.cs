@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>
 /// BOM and line-ending handling for Siemens external-source text (.udt, .db, .scl).

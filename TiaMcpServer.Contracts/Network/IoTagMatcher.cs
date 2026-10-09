@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// Pure, TIA-free deterministic matching of a PLC tag's normalized absolute I/O interval against a

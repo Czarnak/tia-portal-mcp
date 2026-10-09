@@ -1,10 +1,10 @@
 using ModelContextProtocol.Server;
 using Microsoft.Extensions.DependencyInjection;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Network;
 using TiaMcpServer.Plc;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Tools;
 

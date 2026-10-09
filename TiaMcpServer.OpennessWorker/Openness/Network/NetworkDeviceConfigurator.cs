@@ -3,9 +3,14 @@ using System.Reflection;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>Resolves the complete node selector and all requested subnet/IO dependencies before
 /// the first scalar setter. Bare signatures forward to the same exact owner/node resolver.

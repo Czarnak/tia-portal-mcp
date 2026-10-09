@@ -6,9 +6,10 @@ using Siemens.Engineering.HmiUnified.HmiLogging;
 using Siemens.Engineering.HmiUnified.HmiTags;
 using Siemens.Engineering.HmiUnified.LoggingTags;
 using Siemens.Engineering.HmiUnified.UI.Screens;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 using static TiaMcpServer.Tests.Hmi.HmiTestProjects;
 

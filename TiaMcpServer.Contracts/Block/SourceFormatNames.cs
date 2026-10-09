@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Block;
 
 /// <summary>
 /// Document format selector shared by the type and block read/write operations.

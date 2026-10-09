@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Diagnostics;
 

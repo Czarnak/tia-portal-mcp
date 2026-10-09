@@ -1,4 +1,6 @@
-namespace TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.OpennessWorker.Worker;
+
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 internal enum BlockImportDiagnosticContext
 {

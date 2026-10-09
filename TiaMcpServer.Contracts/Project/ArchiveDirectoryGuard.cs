@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Pure path-comparison guard for archiving into the open project's own folder or anywhere inside

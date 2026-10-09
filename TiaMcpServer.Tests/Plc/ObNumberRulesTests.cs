@@ -1,4 +1,4 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Plc;

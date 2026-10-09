@@ -7,9 +7,10 @@ using Siemens.Engineering.HmiUnified.UI.ScreenGroup;
 using Siemens.Engineering.HmiUnified.UI.Screens;
 using Siemens.Engineering.HmiUnified.UI.Shapes;
 using Siemens.Engineering.HmiUnified.UI.Widgets;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 using static TiaMcpServer.Tests.Hmi.HmiTestProjects;
 

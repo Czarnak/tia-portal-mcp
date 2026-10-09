@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Safety;
 
 /// <summary>
 /// Classifies every worker operation by its intent. Both the host and worker use this

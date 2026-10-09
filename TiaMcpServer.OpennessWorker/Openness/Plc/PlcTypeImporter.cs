@@ -1,9 +1,15 @@
 using System.Text;
 using Siemens.Engineering;
 using Siemens.Engineering.SW.ExternalSources;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Updates one existing PlcType from Siemens external-source text (.udt) or Simatic ML.

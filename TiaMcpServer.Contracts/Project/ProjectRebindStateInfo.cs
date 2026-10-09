@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>Live source state for one proposed open-project rebind.</summary>
 public sealed class ProjectRebindStateInfo

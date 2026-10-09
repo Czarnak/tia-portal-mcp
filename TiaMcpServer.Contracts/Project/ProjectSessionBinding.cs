@@ -1,4 +1,7 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Worker;
+
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Process-local project binding state. A configured path is only a caller assertion; guarded

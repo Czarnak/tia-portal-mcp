@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
 /// <summary>
 /// Removes non-deterministic content from exported Simatic ML so get_block_content is stable

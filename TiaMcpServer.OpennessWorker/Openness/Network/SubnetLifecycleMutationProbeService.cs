@@ -1,8 +1,11 @@
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Live-only evidence probe for subnet lifecycle behavior. This is deliberately not registered in

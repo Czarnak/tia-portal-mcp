@@ -1,4 +1,4 @@
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Siemens-free, fault-injectable description of one dynamic engineering attribute.

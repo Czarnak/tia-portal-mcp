@@ -1,8 +1,8 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Contracts.Network;
 
 namespace TiaMcpServer.Network;
 

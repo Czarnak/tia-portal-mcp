@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Block;
 
 public sealed class BlockAddress
 {

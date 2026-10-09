@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 public sealed record ProjectTreeSelectionResult(
     List<ProjectTreeNode> Roots,

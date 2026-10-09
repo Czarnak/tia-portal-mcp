@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Plc;
 
 /// <summary>
 /// Tag inventory of one or more PLCs. <see cref="IsComplete"/> is false when any table, group,

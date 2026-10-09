@@ -1,8 +1,12 @@
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Production implementation of the Phase 4 subnet lifecycle operations (<c>create_subnet</c>,

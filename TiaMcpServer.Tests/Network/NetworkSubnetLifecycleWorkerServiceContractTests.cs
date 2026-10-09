@@ -6,7 +6,7 @@ using Xunit;
 
 /// <summary>
 /// Task 5, Step 1: source-contract tests for the production
-/// <c>TiaMcpServer.OpennessWorker.Openness.SubnetLifecycleService</c>. The worker cannot instantiate
+/// <c>TiaMcpServer.OpennessWorker.Openness.Network.SubnetLifecycleService</c>. The worker cannot instantiate
 /// Siemens Openness objects in an ordinary unit test (Openness uses .NET remoting that only works
 /// inside a real TIA Portal-attached process), so these tests read the production source text and
 /// assert structural properties instead of exercising runtime behavior.

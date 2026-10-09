@@ -1,12 +1,13 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Worker;
 
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>Certifies read selectors using required namespace identities independently of optional metadata.</summary>
 internal static class NetworkNodeReadSelectorBuilder
 {
     public static List<NodeInfo> ReadNodes<TNode>(Func<IEnumerable<TNode>> enumerate,
-        Func<TNode, NodeInfo> materialize, Openness.HardwareDiscoveryEvidenceCapture capture)
+        Func<TNode, NodeInfo> materialize, HardwareDiscoveryEvidenceCapture capture)
     {
         var nodes = new List<NodeInfo>();
         capture.Traverse(enumerate, node => nodes.Add(materialize(node)),

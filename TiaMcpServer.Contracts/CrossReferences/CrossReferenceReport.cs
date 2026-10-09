@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.CrossReferences;
 
 /// <summary>
 /// Cross-references of one target. A leaf target is one owner query; a container fans out over

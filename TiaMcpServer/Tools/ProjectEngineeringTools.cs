@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Block;
 
 namespace TiaMcpServer.Tools;
 

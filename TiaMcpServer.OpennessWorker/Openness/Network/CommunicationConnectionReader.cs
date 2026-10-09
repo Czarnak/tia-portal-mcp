@@ -2,9 +2,9 @@ using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.CommunicationConnections;
 using Siemens.Engineering.HW.Features;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Enumerates one device item's communication-connection composition exactly once and captures

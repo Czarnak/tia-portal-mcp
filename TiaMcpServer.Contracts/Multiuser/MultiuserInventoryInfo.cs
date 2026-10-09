@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+
+namespace TiaMcpServer.Contracts.Multiuser;
 
 /// <summary>Configured endpoints; enumeration does not prove connectivity or authentication.</summary>
 public sealed class MultiuserServerConnectionsInfo

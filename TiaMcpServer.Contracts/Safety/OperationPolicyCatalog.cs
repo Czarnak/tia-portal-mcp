@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Safety;
 
 /// <summary>
 /// Central classification of every worker operation by its capability. Both the host

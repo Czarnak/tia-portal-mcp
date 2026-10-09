@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts.Block;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Worker;
 
 public class WorkerResponse
 {

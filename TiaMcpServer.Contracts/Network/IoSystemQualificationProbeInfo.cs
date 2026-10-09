@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>Worker-only input for bounded IO-system qualification.</summary>
 public sealed class IoSystemQualificationProbeInfo

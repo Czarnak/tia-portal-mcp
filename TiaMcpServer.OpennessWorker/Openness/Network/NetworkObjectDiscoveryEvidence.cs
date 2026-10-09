@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 internal sealed class NetworkObjectDiscoveryEvidenceValue<T>
 {

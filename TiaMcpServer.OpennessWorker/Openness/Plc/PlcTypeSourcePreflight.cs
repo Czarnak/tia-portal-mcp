@@ -1,7 +1,8 @@
 using System.Xml.Linq;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.OpennessWorker.Openness.Block;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
 /// <summary>
 /// Reads the object name a submitted document declares, so a write can refuse a document whose

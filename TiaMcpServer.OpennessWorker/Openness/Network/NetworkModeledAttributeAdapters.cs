@@ -1,7 +1,7 @@
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>Typed V21 property readers keyed by the Siemens-free modeled catalog.</summary>
 public static class NetworkModeledAttributeAdapters

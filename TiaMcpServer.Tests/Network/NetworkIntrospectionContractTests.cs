@@ -1,5 +1,5 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using Xunit;
@@ -16,7 +16,7 @@ public class NetworkIntrospectionContractTests
     public void PreferredReadSelectors_AreDirectInspectRequests()
     {
         var device = NetworkDiscoveryRepairFixture.Metadata(new() { Scope = "project", Complete = true }).Devices[0];
-        TiaMcpServer.OpennessWorker.NetworkNodeReadSelectorBuilder.Apply(device, true);
+        TiaMcpServer.OpennessWorker.Openness.Network.NetworkNodeReadSelectorBuilder.Apply(device, true);
         foreach (var owner in device.Items[0].Items)
         {
             var selector = owner.NetworkInterfaces[0].Nodes[0].Selector!;

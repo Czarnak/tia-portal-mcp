@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>Structural node identity; optional type and service-name evidence are constraints.</summary>
 public sealed class NetworkNodeIdentityComparer : IEqualityComparer<NetworkNodeIdentityInfo>

@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Json;
 
 /// <summary>Why a worker payload contract still omits null members on the wire.</summary>
 public enum LegacyNullOmissionReason

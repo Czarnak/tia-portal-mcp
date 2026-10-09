@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Safety;
 
 /// <summary>
 /// Immutable access mode for the MCP server process. Resolved once at startup and cannot

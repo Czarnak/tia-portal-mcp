@@ -5,9 +5,12 @@ using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Tags;
 using Siemens.Engineering.SW.Types;
 using Siemens.Engineering.SW.Units;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.OpennessWorker.Openness.Plc;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Materializes a typed tree snapshot without legacy presentation paths. A node that cannot be read

@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>Explicit-null wire root for the direct status read; lifecycle probes keep their legacy root.</summary>
 public class ProjectStatusResultInfo

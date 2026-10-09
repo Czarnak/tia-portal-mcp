@@ -1,7 +1,8 @@
 using Siemens.Engineering;
 using Siemens.Engineering.Multiuser;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.OpennessWorker.Openness;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.OpennessWorker.Openness.Multiuser;
 using Xunit;
 using static TiaMcpServer.Tests.Multiuser.MultiuserPortalReadDispatchTests;
 
@@ -234,7 +235,7 @@ public sealed class MultiuserInventoryWorkerTests
         var before = f.Portal.Session.GetSessionIdentity();
         f.Service.ListServerGroups(new() { ServerAlias = "Fixture" });
         f.Server.RemoteFailure = new EngineeringException("secret remote diagnostic");
-        var exception = Assert.Throws<TiaMcpServer.OpennessWorker.WorkerOperationException>(() => f.Service.ListServerGroups(new() { ServerAlias = "Fixture" }));
+        var exception = Assert.Throws<TiaMcpServer.OpennessWorker.Worker.WorkerOperationException>(() => f.Service.ListServerGroups(new() { ServerAlias = "Fixture" }));
         Assert.Equal("worker_operation_failed", exception.FailureCategory);
         Assert.DoesNotContain("secret", exception.Message);
         Assert.Same(context, f.Portal.Session.ActiveContext);

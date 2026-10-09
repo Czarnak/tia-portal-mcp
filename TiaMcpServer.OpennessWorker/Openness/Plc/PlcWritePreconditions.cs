@@ -2,9 +2,12 @@ using Siemens.Engineering;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Tags;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
 /// <summary>
 /// Fail-closed checks the worker applies at mutation time (spec Appendix A rules 3, 4, 6, 8, 9).

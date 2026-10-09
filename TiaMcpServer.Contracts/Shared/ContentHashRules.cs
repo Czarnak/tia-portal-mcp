@@ -1,7 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using TiaMcpServer.Contracts.Block;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Shared;
 
 /// <summary>
 /// Format-tagged content hashes (<c>xml:sha256:&lt;hex&gt;</c> / <c>source:sha256:&lt;hex&gt;</c>) shared by

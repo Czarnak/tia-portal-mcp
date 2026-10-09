@@ -1,7 +1,6 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Gives a test an isolated, unique-per-instance audit directory for audit writers

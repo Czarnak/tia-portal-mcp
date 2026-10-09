@@ -1,8 +1,11 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Json;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 

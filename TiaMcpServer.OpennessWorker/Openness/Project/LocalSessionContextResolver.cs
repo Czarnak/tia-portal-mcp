@@ -1,7 +1,10 @@
 using Siemens.Engineering.Multiuser;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 internal static class LocalSessionContextResolver
 {

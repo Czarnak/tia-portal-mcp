@@ -1,6 +1,6 @@
 using Siemens.Engineering;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>Adapts the read-only Siemens metadata surface to the fault-isolated pure processor.</summary>
 public static class EngineeringAttributeInspector

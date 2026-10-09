@@ -1,4 +1,4 @@
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Coerces dynamic Openness attribute values to the fixed-width DTO numeric members. Openness can

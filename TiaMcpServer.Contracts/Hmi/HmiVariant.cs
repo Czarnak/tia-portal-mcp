@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>
 /// A <c>System.Object</c> property value. <see cref="Type"/> is the runtime type's FullName (null when

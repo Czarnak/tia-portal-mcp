@@ -25,7 +25,7 @@ public sealed record TiaPortalInstallationResult(
 
 /// <summary>
 /// Locates the TIA Portal V21 Openness API folder from the host (.NET 10) process.
-/// Mirrors the precedence of <c>TiaMcpServer.OpennessWorker.Openness.AssemblyResolver</c>
+/// Mirrors the precedence of <c>TiaMcpServer.OpennessWorker.Openness.Infrastructure.AssemblyResolver</c>
 /// (which lives in the net48 worker and cannot be referenced here):
 /// 1. <c>TiaPortalV21Dir</c> environment variable (used as-is, points at the net48 API folder).
 /// 2. <c>TiaPortalLocation</c> environment variable (Portal root; <c>PublicAPI\V21\net48</c> appended).

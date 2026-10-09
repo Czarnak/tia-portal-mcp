@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Block;
 
 /// <summary>One offered organization-block event class: its name, base number and whether only one OB may exist.</summary>
 public sealed class ObEventClass

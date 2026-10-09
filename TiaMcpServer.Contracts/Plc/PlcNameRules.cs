@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Plc;
 
 /// <summary>An object that occupies a name inside a PLC (<c>Kind</c> is one of the <see cref="PlcNameRules"/> kinds).</summary>
 public sealed record PlcNamedObject(string Kind, string Name, string? Container);

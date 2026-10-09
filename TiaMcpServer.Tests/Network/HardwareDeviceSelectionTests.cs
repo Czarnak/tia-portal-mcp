@@ -1,4 +1,4 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Json;
 using Xunit;
 

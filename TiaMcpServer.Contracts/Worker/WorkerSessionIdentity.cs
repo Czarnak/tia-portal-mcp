@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts.Project;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Worker;
 
 /// <summary>
 /// Stable identity of the worker/TIA/project session that handled one request.

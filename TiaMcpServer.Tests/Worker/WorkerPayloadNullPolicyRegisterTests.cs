@@ -1,5 +1,5 @@
 using System.Reflection;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Json;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;

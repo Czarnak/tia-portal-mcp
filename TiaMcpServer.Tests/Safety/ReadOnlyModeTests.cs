@@ -1,15 +1,19 @@
 using System.Reflection;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Cli;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Network;
+using TiaMcpServer.OpennessWorker.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.TestUtilities;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
-using TiaMcpServer.OpennessWorker;
-using TiaMcpServer.Tests.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Safety;

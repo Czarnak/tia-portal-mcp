@@ -1,4 +1,5 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tests.Worker;

@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
+
+namespace TiaMcpServer.Contracts.Project;
 
 public enum ProjectOpenDecision
 {

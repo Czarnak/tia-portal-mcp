@@ -1,7 +1,11 @@
 using Siemens.Engineering.Multiuser;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Project;
+using TiaMcpServer.OpennessWorker.Worker;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Multiuser;
 
 /// <summary>Portal-only remote inventory. No local session/project is ever opened or adopted.</summary>
 internal sealed class MultiuserInventoryService

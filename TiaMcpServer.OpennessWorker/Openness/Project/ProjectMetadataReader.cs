@@ -1,8 +1,10 @@
 using Siemens.Engineering;
 using Siemens.Engineering.SW;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Project;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
+
+using Project = Siemens.Engineering.Project;
 
 /// <summary>
 /// Pure read of the extended project-metadata surface served by <c>get_project_status</c>:

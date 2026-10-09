@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// A node the worker could not read while walking the project tree. <see cref="ParentPath"/> is the

@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Pure post-processing for browse_project_tree: typed subtree selection and depth limiting.

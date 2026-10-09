@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Multiuser;
+using TiaMcpServer.Contracts.Project;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 /// <summary>Endpoint observations from explicit operations; never associates an active owner.</summary>
 internal sealed class ProjectServerObservationTracker

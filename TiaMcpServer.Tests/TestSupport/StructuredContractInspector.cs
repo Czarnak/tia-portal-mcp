@@ -2,7 +2,7 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Json;
 
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
 /// Checks a <c>tools/call</c> result against the delivery rules of the structured JSON contract

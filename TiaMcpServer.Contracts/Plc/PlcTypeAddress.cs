@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Plc;
 
 /// <summary>
 /// A path to a PLC data type (UDT), parsed into the parts needed to walk a live project.

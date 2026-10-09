@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Worker;
+
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>A unique owner candidate or the existing selection failure category.</summary>
 public sealed class NetworkInterfacePathMatch<TItem> where TItem : class

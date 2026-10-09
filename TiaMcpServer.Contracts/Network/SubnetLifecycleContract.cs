@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>
 /// Siemens-free closed vocabulary shared by the Phase 4 subnet lifecycle request contract

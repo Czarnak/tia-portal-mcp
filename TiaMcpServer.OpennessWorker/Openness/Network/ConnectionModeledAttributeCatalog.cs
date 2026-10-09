@@ -1,4 +1,4 @@
-namespace TiaMcpServer.OpennessWorker;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Siemens-free declaration of typed communication-connection attributes available in the

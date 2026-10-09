@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>Result of <c>list_alarms</c>: one page of discrete and analog alarm rows ordered by name. Texts are raw (markup kept).</summary>
 public class HmiAlarmListInfo

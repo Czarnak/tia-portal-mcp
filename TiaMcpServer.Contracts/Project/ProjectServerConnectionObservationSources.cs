@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>Canonical sources of passive Project Server connection observations.</summary>
 public static class ProjectServerConnectionObservationSources

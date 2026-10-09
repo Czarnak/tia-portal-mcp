@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>A passive connection observation; an unknown state must never be treated as healthy.</summary>
 public sealed class ProjectServerConnectionObservation

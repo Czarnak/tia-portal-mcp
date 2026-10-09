@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.CrossReferences;
+using TiaMcpServer.Contracts.Project;
 
 namespace TiaMcpServer.CrossReferences;
 

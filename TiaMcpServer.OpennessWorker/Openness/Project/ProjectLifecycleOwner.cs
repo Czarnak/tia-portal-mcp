@@ -1,6 +1,6 @@
 using Siemens.Engineering;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 /// <summary>Retains the lifecycle handle and its provenance; grants no mutation authority.</summary>
 internal abstract class ProjectLifecycleOwner

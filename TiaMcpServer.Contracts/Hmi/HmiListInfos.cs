@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Hmi;
 
 /// <summary>Result of <c>list_script_modules</c>: module names ordered by name.</summary>
 public class HmiScriptModuleListInfo

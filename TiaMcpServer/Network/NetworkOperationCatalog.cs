@@ -1,6 +1,7 @@
-using TiaMcpServer.Contracts;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Network;
 

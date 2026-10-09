@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.CrossReferences;
 
 public static class CrossReferenceFilterNames
 {

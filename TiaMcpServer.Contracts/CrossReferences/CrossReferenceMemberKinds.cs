@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.CrossReferences;
 
 /// <summary>
 /// Member kinds addressable under a <c>TagTable</c> path. Each is a verified cross-reference owner

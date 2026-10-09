@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts.Multiuser;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
 /// Typed active-container evidence. The engineering path identifies an already-open local owner;

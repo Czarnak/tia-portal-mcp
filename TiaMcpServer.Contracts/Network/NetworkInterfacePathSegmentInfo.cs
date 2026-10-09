@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Text.Json;
 
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Network;
 
 /// <summary>One exact name/position pair on the path to an item's NetworkInterface service.</summary>
 public sealed class NetworkInterfacePathSegmentInfo

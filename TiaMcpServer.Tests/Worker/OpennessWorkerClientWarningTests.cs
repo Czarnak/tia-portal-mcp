@@ -1,7 +1,8 @@
 using System.Reflection;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.Worker;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;

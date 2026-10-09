@@ -1,6 +1,6 @@
 using Siemens.Engineering;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 internal sealed class PortalInventoryEntry
 {

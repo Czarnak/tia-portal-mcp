@@ -1,15 +1,18 @@
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
+using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Safety;
+using TiaMcpServer.Safety.Pipeline;
+using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Worker;
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using TiaMcpServer.Contracts;
-using TiaMcpServer.Network;
-using TiaMcpServer.OperationBatches;
-using TiaMcpServer.Safety;
-using TiaMcpServer.Safety.Pipeline;
-using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;

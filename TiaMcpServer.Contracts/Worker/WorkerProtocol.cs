@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Worker;
 
 /// <summary>
 /// Exact host/worker wire contract. Identity enforcement is a protocol boundary, so a same-major

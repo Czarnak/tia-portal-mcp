@@ -1,6 +1,6 @@
 using TiaMcpServer.Cli;
 using TiaMcpServer.Cli.Install;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Diagnostics;
 using Xunit;
 

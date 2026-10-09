@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Tests;
+namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>Filesystem targets used only by the scripted lifecycle producer.</summary>
 internal sealed class LifecycleProtocolFixture : IDisposable

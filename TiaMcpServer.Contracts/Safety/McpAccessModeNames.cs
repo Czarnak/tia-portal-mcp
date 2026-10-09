@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Safety;
 
 /// <summary>Canonical access-mode spelling shared across process and diagnostic boundaries.</summary>
 public static class McpAccessModeNames

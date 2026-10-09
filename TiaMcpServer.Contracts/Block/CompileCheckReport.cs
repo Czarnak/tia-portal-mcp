@@ -1,4 +1,6 @@
-namespace TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Plc;
+
+namespace TiaMcpServer.Contracts.Block;
 
 public class CompileCheckReport
 {

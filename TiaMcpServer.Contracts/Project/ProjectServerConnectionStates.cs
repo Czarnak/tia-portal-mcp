@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>Canonical connection observations; unknown must never be treated as healthy.</summary>
 public static class ProjectServerConnectionStates

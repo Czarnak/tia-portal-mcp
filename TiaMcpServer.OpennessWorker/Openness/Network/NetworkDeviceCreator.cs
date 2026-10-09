@@ -1,8 +1,10 @@
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Network;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
+
+using Project = Siemens.Engineering.Project;
 
 public static class NetworkDeviceCreator
 {

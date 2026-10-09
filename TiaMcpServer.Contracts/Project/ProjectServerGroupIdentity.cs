@@ -1,4 +1,4 @@
-namespace TiaMcpServer.Contracts;
+namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>A Project Server group identity; the root group has IsRoot=true and Name=null.</summary>
 public sealed class ProjectServerGroupIdentity

@@ -1,4 +1,6 @@
-using TiaMcpServer.Contracts;
+using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Safety.Pipeline;
 

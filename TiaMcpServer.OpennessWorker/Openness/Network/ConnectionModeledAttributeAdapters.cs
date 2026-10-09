@@ -1,6 +1,6 @@
 using Siemens.Engineering.HW.CommunicationConnections;
 
-namespace TiaMcpServer.OpennessWorker.Openness;
+namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
 /// Typed V21 communication-connection property readers keyed by the Siemens-free catalog.
