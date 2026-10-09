@@ -73,7 +73,9 @@ Large hardware reads can opt into cursor pagination with `pageSize` (`1..200`) o
 Local sessions use the observed typed `.amc21` path for adoption, basic status and already-open
 startup assertions; writable `open_project` accepts an exact existing `.als21` file. Content reads
 (`browse_project_tree`, `plc_read`, `network_read`, `read_cross_references`, `hmi_read`) work on a
-bound local session; local content writes, compile, save and terminal operations remain deferred.
+bound local session, and so do `plc_write`, `network_write`, `compile_check` and `save_project`.
+A local `save_project` saves the session through `LocalSession.Save()` and never checks in to the
+Project Server; create, save-as, archive, close and other terminal operations remain unavailable.
 Scoped PR4 acceptance includes online
 retained-Portal recovery and UI-assisted offline read-write opening; the tested offline opens
 required Siemens dialog dismissal. See [local-session support and limits](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).

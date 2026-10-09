@@ -52,7 +52,7 @@ public class BlockImporterRouteSourceTests
             "TiaMcpServer.OpennessWorker", "Openness", "Block", "CompileChecker.cs");
 
         Assert.Contains("CompileObserved(", source, StringComparison.Ordinal);
-        Assert.Contains("Project project,", source, StringComparison.Ordinal);
+        Assert.Contains("ProjectBase project,", source, StringComparison.Ordinal);
         Assert.Contains("string? plcName,", source, StringComparison.Ordinal);
         Assert.Contains("string? blockPath)", source, StringComparison.Ordinal);
         Assert.Contains("!string.IsNullOrWhiteSpace(blockPath)", source, StringComparison.Ordinal);

@@ -69,10 +69,11 @@ connection observation. Cold adoption has `openedByWorker:false` and `sessionCon
 Only a verified successful exact `.als21` open records that opener provenance; detach loses
 ownership/provenance. No reverse ALS/inventory join is available: mode remains `unknown`, remote
 identity remains null, and active connection observation remains `unknown`. Descriptive capability
-entries grant no access-mode permission. Local content reads are delivered (see the
-[Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md#internal-context)); local content writes,
-compilation, save, create, save-as, archive and generic close reject with `unsupported_capability`,
-including previews.
+entries grant no access-mode permission. Local content reads, PLC/Network writes, compilation
+and `save_project` are delivered (see the
+[Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md#internal-context)). A local
+`save_project` uses `LocalSession.Save()` and never checks in to the Project Server. Local
+create, save-as, archive and generic close reject with `unsupported_capability`, including previews.
 
 The [PR4 live report](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
 records scoped maintainer acceptance. Two retained UI Portals recovered local sessions online in
@@ -441,6 +442,6 @@ The current project surface does not provide:
 - UMAC delegates, authentication events, or explicit primary/secondary `ProjectOpenMode` selection.
 - Portal settings, diagnostics settings, or search-index administration.
 - VCI workspace, version-control, compare, synchronize, or mapped-object operations.
-- Multiuser server mutation, session content/compile/local save, markings, discard and commit.
-  Delivered local selection/open/basic status and evidence limits are in the
+- Multiuser server mutation, markings, discard and commit. Delivered local
+  selection/open/status, content reads/writes, compile, local save and evidence limits are in the
   [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md).

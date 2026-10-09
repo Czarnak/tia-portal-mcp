@@ -25,6 +25,10 @@ public static class ProjectCapabilityCatalog
         "read_hardware_config", "list_network_objects", "inspect_network_object"
     };
 
+    /// <summary>
+    /// Content writes, compile and save against <c>ProjectBase</c>; a local session saves through
+    /// <c>LocalSession.Save()</c> and never checks in to the Project Server.
+    /// </summary>
     private static readonly string[] ProjectContentOperations =
     {
         "plc_write", "network_write", "compile_check", "save_project",
@@ -34,6 +38,12 @@ public static class ProjectCapabilityCatalog
         "create_block_group", "delete_block_group",
         "add_network_device", "configure_network_device", "create_subnet", "update_subnet",
         "delete_subnet"
+    };
+
+    /// <summary>Internal qualification probes that save or compile-and-revert; never delivered for local sessions.</summary>
+    private static readonly string[] StandaloneOnlyProbes =
+    {
+        "probe_io_system_qualification", "probe_subnet_lifecycle_mutations"
     };
 
     private static readonly string[] NonProjectMethods =
@@ -90,8 +100,10 @@ public static class ProjectCapabilityCatalog
         if (containerKind == ProjectContainerKinds.StandaloneProject)
             return Standalone.Any(item => item.Operation == mapped);
         if (containerKind == ProjectContainerKinds.LocalSession)
-            return BasicLocalOperations.Contains(mapped, StringComparer.Ordinal)
-                || ProjectContentReadOperations.Contains(mapped, StringComparer.Ordinal);
+            return !StandaloneOnlyProbes.Contains(operation, StringComparer.Ordinal)
+                && (BasicLocalOperations.Contains(mapped, StringComparer.Ordinal)
+                || ProjectContentReadOperations.Contains(mapped, StringComparer.Ordinal)
+                || ProjectContentOperations.Contains(mapped, StringComparer.Ordinal));
         return false;
     }
 
@@ -108,21 +120,13 @@ public static class ProjectCapabilityCatalog
                         ? ProjectCapabilityApplicabilities.ProjectContent
                         : ProjectCapabilityApplicabilities.Unsupported
             });
-        foreach (var operation in ProjectContentReadOperations)
+        foreach (var operation in ProjectContentReadOperations.Concat(ProjectContentOperations))
             result.Add(new ProjectCapabilityInfo
             {
                 Operation = operation,
                 Applicability = containerKind == ProjectContainerKinds.ServerProject
                     ? ProjectCapabilityApplicabilities.NotYetDelivered
                     : ProjectCapabilityApplicabilities.ProjectContent
-            });
-        foreach (var operation in ProjectContentOperations)
-            result.Add(new ProjectCapabilityInfo
-            {
-                Operation = operation,
-                Applicability = containerKind == ProjectContainerKinds.StandaloneProject
-                    ? ProjectCapabilityApplicabilities.ProjectContent
-                    : ProjectCapabilityApplicabilities.NotYetDelivered
             });
         foreach (var operation in StandaloneLifecycleOperations)
             result.Add(new ProjectCapabilityInfo

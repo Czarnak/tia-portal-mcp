@@ -8,12 +8,10 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
-using Project = Siemens.Engineering.Project;
-
 public static class BlockImporter
 {
     internal static BlockImportResult Import(
-        Project project,
+        ProjectBase project,
         string blockPath,
         string yamlContent,
         string format,
@@ -74,7 +72,7 @@ public static class BlockImporter
     }
 
     private static void ImportDocuments(
-        Project project,
+        ProjectBase project,
         BlockAddress address,
         string blockPath,
         DirectoryInfo directory,
@@ -120,7 +118,7 @@ public static class BlockImporter
     }
 
     private static BlockImportResult ImportSource(
-        Project project,
+        ProjectBase project,
         string blockPath,
         string sourceContent,
         string? expectedContentHash)
@@ -248,7 +246,7 @@ public static class BlockImporter
     }
 
     private static BlockPostconditionEvidence ObservePostconditions(
-        Project project,
+        ProjectBase project,
         BlockAddress address,
         string blockPath,
         string format,
@@ -278,7 +276,7 @@ public static class BlockImporter
     }
 
     private static BlockPostconditionEvidence ObserveFinalState(
-        Project project,
+        ProjectBase project,
         BlockAddress address,
         string blockPath,
         string format,

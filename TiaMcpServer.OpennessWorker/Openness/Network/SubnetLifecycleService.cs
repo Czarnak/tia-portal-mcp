@@ -6,8 +6,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Production implementation of the Phase 4 subnet lifecycle operations (<c>create_subnet</c>,
 /// <c>update_subnet</c>, <c>delete_subnet</c>). Each entry point opens exactly one Openness
@@ -24,7 +22,7 @@ internal static class SubnetLifecycleService
 
     public static SubnetLifecycleResultInfo Create(
         TiaPortal tiaPortal,
-        Project project,
+        ProjectBase project,
         string name,
         string networkType,
         int? highestAddress,
@@ -61,7 +59,7 @@ internal static class SubnetLifecycleService
 
     public static SubnetLifecycleResultInfo Update(
         TiaPortal tiaPortal,
-        Project project,
+        ProjectBase project,
         string subnetId,
         string? name,
         int? highestAddress,
@@ -113,7 +111,7 @@ internal static class SubnetLifecycleService
 
     public static SubnetLifecycleResultInfo Delete(
         TiaPortal tiaPortal,
-        Project project,
+        ProjectBase project,
         string subnetId)
     {
         int deviceCountBefore;
@@ -245,7 +243,7 @@ internal static class SubnetLifecycleService
     /// exactly one worker-side match is reported as postcondition drift.
     /// </summary>
     private static Subnet ResolveExactSubnetOrThrow(
-        Project project,
+        ProjectBase project,
         string subnetId,
         string operationName)
     {
@@ -276,7 +274,7 @@ internal static class SubnetLifecycleService
     /// Reports unreadable candidates separately from known nonmatches so partial discovery
     /// cannot authorize a mutation on an apparently unique visible match.
     /// </summary>
-    private static List<Subnet> FindMatches(Project project, string subnetId, out int unreadableCount)
+    private static List<Subnet> FindMatches(ProjectBase project, string subnetId, out int unreadableCount)
     {
         var matches = new List<Subnet>();
         var unreadable = 0;

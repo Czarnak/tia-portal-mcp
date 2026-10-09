@@ -9,12 +9,10 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
-using Project = Siemens.Engineering.Project;
-
 /// <summary>Immediate observations in the worker, before a later operation can supersede them.</summary>
 internal static class NetworkMutationVerifier
 {
-    public static NetworkMutationVerificationInfo VerifyAddedDevice(Project project, WorkerRequest request, AddDeviceResultInfo result)
+    public static NetworkMutationVerificationInfo VerifyAddedDevice(ProjectBase project, WorkerRequest request, AddDeviceResultInfo result)
     {
         var evidence = new NetworkMutationVerificationInfo
         {
@@ -38,7 +36,7 @@ internal static class NetworkMutationVerifier
         return NetworkPostconditionChecks.Complete(evidence);
     }
 
-    public static NetworkMutationVerificationInfo VerifyConfiguration(Project project, WorkerRequest request, ConfigureNetworkDeviceResultInfo result)
+    public static NetworkMutationVerificationInfo VerifyConfiguration(ProjectBase project, WorkerRequest request, ConfigureNetworkDeviceResultInfo result)
     {
         var selector = NetworkConfigurationTargetBinding.Resolve(request);
         var path = selector.InterfacePath?.Select(x =>
@@ -90,7 +88,7 @@ internal static class NetworkMutationVerifier
         return NetworkPostconditionChecks.Complete(evidence);
     }
 
-    public static NetworkMutationVerificationInfo VerifySubnet(Project project, WorkerRequest request,
+    public static NetworkMutationVerificationInfo VerifySubnet(ProjectBase project, WorkerRequest request,
         SubnetLifecycleResultInfo result, int rootCountBefore, IReadOnlyList<NetworkNodeIdentityInfo> affectedNodes)
     {
         var evidence = new NetworkMutationVerificationInfo { Identity = new NetworkMutationIdentityInfo { SubnetId = result.SubnetId } };
@@ -165,7 +163,7 @@ internal static class NetworkMutationVerifier
         catch (Exception) { evidence.Checks.Add(NetworkPostconditionChecks.Compare(name, expected, null, false)); }
     }
 
-    private static Device ResolveDevice(Project project, string name)
+    private static Device ResolveDevice(ProjectBase project, string name)
     {
         var unreadable = false;
         var matches = ProjectDeviceNameMatcher.FindMatches(project, name, _ => unreadable = true);
@@ -173,7 +171,7 @@ internal static class NetworkMutationVerifier
         return matches[0].Device;
     }
 
-    private static (NetworkInterface Interface, Node Node) ResolveNode(Project project, NetworkNodeIdentityInfo identity)
+    private static (NetworkInterface Interface, Node Node) ResolveNode(ProjectBase project, NetworkNodeIdentityInfo identity)
     {
         if (identity.InterfacePath is null) throw new InvalidOperationException("Affected node has no verified owner path.");
         var resolved = NetworkObjectSelectorResolver.ResolveNode(project, NetworkSelectorFactory.QualifiedNode(

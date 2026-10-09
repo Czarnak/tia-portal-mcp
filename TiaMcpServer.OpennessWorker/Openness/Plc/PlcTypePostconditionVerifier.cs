@@ -6,8 +6,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Proves a PLC data type write actually landed, mirroring <see cref="BlockPostconditionVerifier"/>
 /// and reusing its <see cref="BlockPostconditionEvidence"/>.
@@ -31,7 +29,7 @@ internal static class PlcTypePostconditionVerifier
 
     /// <summary>Compiles the PLC and re-exports the type, recording what it observed.</summary>
     public static BlockPostconditionEvidence BuildEvidence(
-        Project project,
+        ProjectBase project,
         PlcTypeAddress address,
         string format,
         bool projectNodeRemoved)

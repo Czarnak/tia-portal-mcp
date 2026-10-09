@@ -4,12 +4,10 @@ using TiaMcpServer.Contracts.Network;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
-using Project = Siemens.Engineering.Project;
-
 public static class NetworkDeviceCreator
 {
     public static AddDeviceResultInfo Create(
-        Project project,
+        ProjectBase project,
         string typeIdentifier,
         string deviceName,
         string deviceItemName)

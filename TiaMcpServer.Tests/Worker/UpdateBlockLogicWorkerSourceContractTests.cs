@@ -41,7 +41,7 @@ public sealed class UpdateBlockLogicWorkerSourceContractTests
         Assert.True(tryIndex >= 0);
         Assert.True(method.IndexOf("BlockPath is required", StringComparison.Ordinal) > tryIndex);
         Assert.True(method.IndexOf("NormalizeBlockFormat", StringComparison.Ordinal) > tryIndex);
-        Assert.True(method.IndexOf("WithProject", StringComparison.Ordinal) > tryIndex);
+        Assert.True(method.IndexOf("WithEngineeringRoot", StringComparison.Ordinal) > tryIndex);
         Assert.Contains("catch (WorkerOperationException", method, StringComparison.Ordinal);
         Assert.Contains("catch (Exception", method, StringComparison.Ordinal);
         Assert.Contains("BlockUpdateOutcomeDecorator.Decorate", method, StringComparison.Ordinal);

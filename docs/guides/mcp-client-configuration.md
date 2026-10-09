@@ -73,8 +73,9 @@ needed. `.als21` and inventory directories are not adoption selectors. Writable 
 accepts an independently known exact existing `.als21` file; set `dryRun:true` to preview.
 Cold adoption reports null opener provenance; successful open records it only after verification.
 Content reads (`browse_project_tree`, `plc_read`, `network_read`, `read_cross_references`,
-`hmi_read`) work on a bound local session; content writes, compile, save and terminal calls
-remain `unsupported_capability`. After an uncertain
+`hmi_read`), `plc_write`, `network_write`, `compile_check` and `save_project` work on a bound
+local session. Local `save_project` saves the session only and never checks in to the Project
+Server; create, save-as, archive and close remain `unsupported_capability`. After an uncertain
 opener inspect AMC status and Portal inventory; never automatically replay. Offline read-write
 opening required operator-dismissed Siemens dialogs in the scoped
 [PR4 run](../superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md).

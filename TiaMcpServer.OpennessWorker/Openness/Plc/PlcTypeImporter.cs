@@ -9,8 +9,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Updates one existing PlcType from Siemens external-source text (.udt) or Simatic ML.
 ///
@@ -25,7 +23,7 @@ using Project = Siemens.Engineering.Project;
 internal static class PlcTypeImporter
 {
     public static PlcTypeImportResultInfo Import(
-        Project project,
+        ProjectBase project,
         string typePath,
         string sourceContent,
         string format,

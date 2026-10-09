@@ -114,7 +114,9 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
             ExtractMethodBody(source, "WithSession"),
             StringComparison.Ordinal);
         Assert.Contains("session.TiaPortal", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
-        Assert.Contains("session.RequireStandaloneOwner();", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
+        // Subnet lifecycle runs on any container's ProjectBase root (local sessions included).
+        Assert.DoesNotContain("RequireStandaloneOwner", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
+        Assert.Equal(3, CountOccurrences(source, "session.EngineeringRoot!,"));
     }
 
     private static int CountOccurrences(string source, string value)

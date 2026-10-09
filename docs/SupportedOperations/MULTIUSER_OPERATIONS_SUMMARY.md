@@ -4,7 +4,8 @@
 all modes. Omitted/null `action` or `action:"bind"` selects already-open standalone `.ap21`
 or typed local-session `.amc21` owners. Discovery remains **7/16/16** tools in
 read-only/read-write/full. PR4 adds explicit existing `.als21` opening in writable modes and
-basic local status. PR1/PR2 ownership contracts remain the foundation; Issue #65 is incomplete.
+basic local status; PR5 adds local content reads and PR6 local content writes, compilation and
+`LocalSession.Save()` (see [Internal context](#internal-context)). PR1/PR2 ownership contracts remain the foundation; Issue #65 is incomplete.
 PR 3 has [installed-tool live acceptance](../superpowers/acceptance/reports/2026-10-06-multiuser-pr3-live-verification.md)
 for all six inspection actions against authorized session copies and a standalone `.ap21`,
 including remote reads with zero open projects. The maintainer accepted live testing as finished
@@ -134,16 +135,25 @@ typed owner. `StandaloneProjectOwner` retains a `Project`; `LocalSessionOwner` r
 and its absolute `.amc21` engineering path. Local basic status and explicit `.als21` opening
 use that owner. PR5 content reads (`browse_project_tree`, `plc_read`, `network_read`,
 `read_cross_references`, `hmi_read`) run against the session's `MultiuserProject` through the
-common `ProjectBase` root and are advertised as `projectContent`. Local writes, compile, save and
-standalone-only lifecycle calls reject with `unsupported_capability` before mutation, including
-previews; server-project contexts deliver no content operation. The local owner exposes no save,
-close, discard or commit method.
+common `ProjectBase` root and are advertised as `projectContent`. PR6 adds `plc_write` (all
+operations), `network_write` (all operations), `compile_check` and `save_project` on the same root.
+A local `save_project` calls `LocalSession.Save()`: it persists the local session only and never
+updates from or checks in to the Project Server; read-write confirmation states this. Create,
+save-as, archive, generic close and the internal IO-system/subnet qualification probes reject with
+`unsupported_capability` before mutation, including previews; server-project contexts deliver no
+content operation. The local owner exposes no close, discard or commit method.
+
+Writes act on the local session only. They do not check other-user markings or locks, so a
+conflicting server change surfaces only at a later update or check-in.
 
 Reads observe the local session only. They report no other-user markings, freshness or
 outdated-object state, and they do not establish Project Server connectivity. The
 [PR5 live report](../superpowers/acceptance/reports/2026-10-09-multiuser-pr5-live-verification.md)
 records one cold-adopted local session (reported mode and connection `unknown`) and a standalone
-regression; deliberately Exclusive and offline sessions were not exercised.
+regression; deliberately Exclusive and offline sessions were not exercised. The
+[PR6 live report](../superpowers/acceptance/reports/2026-10-09-multiuser-pr6-live-verification.md)
+records every write, compile and save path on cold-adopted Multiuser and Exclusive sessions in
+`full` mode. Read-write confirmation, worker-opened and offline sessions were not exercised.
 
 Identity remains a projection of the authoritative session. Rewrapping the same root does
 not advance generation; a replacement root or accepted path change does. Detach releases
@@ -175,8 +185,8 @@ without session save, discard or commit. See the [project reference](PROJECT_OPE
 
 ## Public Multiuser work still pending
 
-Local-session content compatibility, compilation, `get_session_state`, `get_markings`, local
-save, discard, commit and server mutation remain undelivered. `.als21` remains an opening input,
+`get_session_state`, `get_markings`, mark/unmark, lock-aware write preconditions, discard,
+commit and server mutation remain undelivered. `.als21` remains an opening input,
 never a bind/status/startup assertion; those use observed `.amc21` identity. Inventory
 does not open/bind implicitly to satisfy an open-project prerequisite; current-PR live evidence
 must establish the prerequisite and scope. Generic standalone lifecycle cannot replace a synthetic
