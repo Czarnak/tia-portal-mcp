@@ -27,6 +27,8 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             "open_project" => $"Confirm open_project: open '{effect.DestinationProjectPath}' and bind this session to it."
                 + (effect.WillCloseSource ? $" Close source project '{effect.SourceProjectPath}'." : string.Empty),
             "create_project" => $"Confirm create_project: create '{effect.DestinationDirectory}' and bind this session to it.",
+            "save_project" when effect.SourceContext?.ContainerKind == ProjectContainerKinds.LocalSession
+                => $"Confirm save_project: save local session '{effect.SourceProjectPath}'. This does not check in to the Project Server.",
             "save_project" => $"Confirm save_project: save '{effect.SourceProjectPath}'.",
             "save_project_as" => $"Confirm save_project_as: save '{effect.SourceProjectPath}' to '{effect.DestinationDirectory}' and bind this session to the copy.",
             "archive_project" => $"Confirm archive_project: archive '{effect.SourceProjectPath}' to '{effect.ArchivePath}' with mode '{effect.ArchiveMode}'"

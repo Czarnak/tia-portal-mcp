@@ -6,8 +6,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
-using Project = Siemens.Engineering.Project;
-
 internal sealed record ResolvedTagTarget(
     PlcSoftware Plc,
     string PlcName,
@@ -18,7 +16,7 @@ internal sealed record ResolvedTagTarget(
 internal static class TagTargetResolver
 {
     internal static ResolvedTagTarget Resolve(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath,

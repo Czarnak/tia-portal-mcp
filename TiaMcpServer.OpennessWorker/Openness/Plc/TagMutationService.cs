@@ -7,12 +7,10 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
-using Project = Siemens.Engineering.Project;
-
 public static class TagMutationService
 {
     public static TagMutationResultInfo CreateTagTable(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath)
@@ -27,7 +25,7 @@ public static class TagMutationService
     }
 
     public static TagMutationResultInfo DeleteTagTable(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath)
@@ -45,7 +43,7 @@ public static class TagMutationService
     }
 
     public static TagMutationResultInfo CreateTag(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath,
@@ -64,7 +62,7 @@ public static class TagMutationService
     }
 
     public static TagMutationResultInfo UpdateTag(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath,
@@ -131,7 +129,7 @@ public static class TagMutationService
     }
 
     public static TagMutationResultInfo DeleteTag(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath,
@@ -148,7 +146,7 @@ public static class TagMutationService
     }
 
     public static TagMutationResultInfo CreateUserConstant(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath,
@@ -170,7 +168,7 @@ public static class TagMutationService
     }
 
     public static TagMutationResultInfo UpdateUserConstant(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath,
@@ -199,7 +197,7 @@ public static class TagMutationService
     }
 
     public static TagMutationResultInfo DeleteUserConstant(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath,
@@ -217,7 +215,7 @@ public static class TagMutationService
     }
 
     private static (PlcSoftware Plc, PlcTagTable Table) ResolveTable(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string tableName,
         string? folderPath)
@@ -231,7 +229,7 @@ public static class TagMutationService
     }
 
     private static (PlcSoftware Plc, PlcTagTableGroup Group) ResolveGroup(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string? folderPath)
     {
@@ -281,7 +279,7 @@ public static class TagMutationService
 
     private static TagMutationResultInfo Result(
         string operation,
-        Project project,
+        ProjectBase project,
         string plcName,
         string tableName,
         string folderPath,

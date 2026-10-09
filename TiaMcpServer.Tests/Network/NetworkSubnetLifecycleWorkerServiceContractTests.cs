@@ -58,7 +58,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
             source,
             StringComparison.Ordinal);
         Assert.Contains("TiaPortal tiaPortal", source, StringComparison.Ordinal);
-        Assert.Contains("Project project", source, StringComparison.Ordinal);
+        Assert.Contains("ProjectBase project", source, StringComparison.Ordinal);
     }
 
     [Fact]

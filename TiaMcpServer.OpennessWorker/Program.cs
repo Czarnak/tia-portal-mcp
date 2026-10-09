@@ -647,7 +647,7 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with adding a network device.");
         }
 
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             var result = NetworkDeviceCreator.Create(project, request.TypeIdentifier!, request.DeviceName!,
                 string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!);
@@ -667,7 +667,7 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with configuring a network device.");
         }
 
-        return WithProject(request, project =>
+        return WithEngineeringRoot(request, project =>
         {
             // Capture the normalized owner while retaining supplied constraints for the final
             // pre-setter resolver. Immediate checks must not re-search a bare device namespace.
@@ -729,7 +729,7 @@ internal static class Program
 
         return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Create(
             session.TiaPortal!,
-            session.RequireStandaloneOwner().Project,
+            session.EngineeringRoot!,
             request.SubnetName!,
             request.SubnetNetworkType!,
             request.SubnetHighestAddress,
@@ -767,7 +767,7 @@ internal static class Program
 
         return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Update(
             session.TiaPortal!,
-            session.RequireStandaloneOwner().Project,
+            session.EngineeringRoot!,
             request.SubnetId!,
             request.SubnetName,
             request.SubnetHighestAddress,
@@ -790,7 +790,7 @@ internal static class Program
 
         return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Delete(
             session.TiaPortal!,
-            session.RequireStandaloneOwner().Project,
+            session.EngineeringRoot!,
             request.SubnetId!)));
     }
 
@@ -819,8 +819,8 @@ internal static class Program
 
     /// <summary>
     /// Shared session/project plumbing for the three subnet lifecycle operations: connects, selects
-    /// only an already-open standalone project, and requires both <see cref="WorkerTiaPortalSession.TiaPortal"/>
-    /// and <see cref="WorkerTiaPortalSession.Project"/> — the lifecycle service needs the portal handle
+    /// only an already-open project or local session, and requires both <see cref="WorkerTiaPortalSession.TiaPortal"/>
+    /// and an engineering root — the lifecycle service needs the portal handle
     /// for <c>ExclusiveAccess</c>/<c>Transaction</c>, not just the project.
     /// </summary>
     private static WorkerResponse WithSubnetLifecycleProject(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
@@ -841,7 +841,6 @@ internal static class Program
                     "No project or TIA Portal session is available for the subnet lifecycle operation.");
             }
 
-            session.RequireStandaloneOwner();
             return body(session);
         });
     }
@@ -904,7 +903,7 @@ internal static class Program
 
             normalizedFormat = NormalizeBlockFormat(request.Format);
 
-            var response = WithProject(request, project =>
+            var response = WithEngineeringRoot(request, project =>
             {
                 importerEntered = true;
                 var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat, request.ExpectedContentHash);
@@ -955,7 +954,7 @@ internal static class Program
 
         var format = NormalizeTypeFormat(request.Format);
 
-        return WithProject(request, project => Success(
+        return WithEngineeringRoot(request, project => Success(
             PlcTypeImporter.Import(project, request.TypePath!, request.Content!, format, request.ExpectedContentHash)));
     }
 
@@ -1007,7 +1006,7 @@ internal static class Program
 
     private static WorkerResponse CompileCheck(WorkerRequest request)
     {
-        return WithProject(request, project => Success(CompileChecker.Compile(project, request.PlcName, request.BlockPath)));
+        return WithEngineeringRoot(request, project => Success(CompileChecker.Compile(project, request.PlcName, request.BlockPath)));
     }
 
     private static WorkerResponse CreateTagTable(WorkerRequest request)
@@ -1122,7 +1121,7 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with creating a block.");
         }
 
-        return WithProject(request, project => Success(
+        return WithEngineeringRoot(request, project => Success(
             BlockMutationService.CreateBlock(
                 project,
                 request.BlockPath!,
@@ -1145,7 +1144,7 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with deleting a block.");
         }
 
-        return WithProject(request, project => Success(
+        return WithEngineeringRoot(request, project => Success(
             BlockMutationService.DeleteBlock(project, request.BlockPath!)));
     }
 
@@ -1163,7 +1162,7 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with creating a block group.");
         }
 
-        return WithProject(request, project => Success(
+        return WithEngineeringRoot(request, project => Success(
             BlockMutationService.CreateBlockGroup(project, request.BlockPath!)));
     }
 
@@ -1181,7 +1180,7 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with deleting a block group.");
         }
 
-        return WithProject(request, project => Success(
+        return WithEngineeringRoot(request, project => Success(
             BlockMutationService.DeleteBlockGroup(project, request.BlockPath!)));
     }
 
@@ -1342,7 +1341,7 @@ internal static class Program
             requiresConfirm: true);
     }
 
-    private static WorkerResponse TagMutation(WorkerRequest request, Func<Project, TagMutationResultInfo> mutate)
+    private static WorkerResponse TagMutation(WorkerRequest request, Func<ProjectBase, TagMutationResultInfo> mutate)
     {
         if (!request.Confirm)
         {
@@ -1351,7 +1350,7 @@ internal static class Program
                 "Operation not confirmed. Set confirm=true to proceed with the tag operation.");
         }
 
-        return WithProject(request, project => Success(mutate(project)));
+        return WithEngineeringRoot(request, project => Success(mutate(project)));
     }
 
     private static WorkerResponse ProjectLifecycle(
@@ -1369,11 +1368,10 @@ internal static class Program
         return WithSession(request, session => Success(operation(session)));
     }
 
-    /// <summary>Runs a standalone-only <paramref name="body"/> (writes, compile) against the active <see cref="Project"/>.</summary>
-    private static WorkerResponse WithProject(WorkerRequest request, Func<Project, WorkerResponse> body)
-        => WithActiveContext(request, session => body(session.RequireStandaloneOwner().Project));
-
-    /// <summary>Runs a content read against the common <see cref="ProjectBase"/> root of any open container.</summary>
+    /// <summary>
+    /// Runs a content read, write or compile against the common <see cref="ProjectBase"/> root of any
+    /// open container. Which container kinds reach a handler is decided by the capability gate.
+    /// </summary>
     private static WorkerResponse WithEngineeringRoot(WorkerRequest request, Func<ProjectBase, WorkerResponse> body)
         => WithActiveContext(request, session => body(session.EngineeringRoot!));
 

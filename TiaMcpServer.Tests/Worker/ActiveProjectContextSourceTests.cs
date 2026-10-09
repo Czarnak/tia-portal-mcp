@@ -13,14 +13,34 @@ public sealed class ActiveProjectContextSourceTests
     {
         var body = Method(Read("Program.cs"), "private static WorkerResponse WithActiveContext(");
         AssertOrdered(body, "ValidateExpectedAfterProjectResolution(", "return body(session)");
-        var standalone = Method(Read("Program.cs"), "private static WorkerResponse WithProject(");
-        Assert.Contains("Func<Project, WorkerResponse>", standalone);
-        Assert.Contains("WithActiveContext(request, session => body(session.RequireStandaloneOwner().Project))", standalone);
+        // Content writes and compile run on the ProjectBase root of any delivered container; the
+        // capability gate in WithSession decides which container kinds reach a handler at all.
+        Assert.DoesNotContain("WithProject(", Read("Program.cs"));
         var root = Method(Read("Program.cs"), "private static WorkerResponse WithEngineeringRoot(");
         Assert.Contains("WithActiveContext(request, session => body(session.EngineeringRoot!))", root);
         Assert.DoesNotContain("session.Project", Read("Program.cs"));
         var subnet = Method(Read("Program.cs"), "private static WorkerResponse WithSubnetLifecycleProject(");
-        AssertOrdered(subnet, "ValidateExpectedAfterProjectResolution(", "RequireStandaloneOwner()", "body(session)");
+        AssertOrdered(subnet, "ValidateExpectedAfterProjectResolution(", "body(session)");
+    }
+
+    [Fact]
+    public void QualificationProbes_RemainStandaloneOnly()
+    {
+        // Internal probes save or compile-and-revert a project; they are not delivered for local sessions.
+        var program = Read("Program.cs");
+        Assert.Equal(4, program.Split("session.RequireStandaloneOwner().Project").Length - 1);
+        Assert.Contains("SubnetLifecycleMutationProbeService.Run(", Method(program, "private static WorkerResponse ProbeSubnetLifecycleMutations("));
+    }
+
+    [Fact]
+    public void SaveProject_DispatchesLocalSessionSaveAfterFreshIdentityCheck()
+    {
+        var body = Method(Read("Openness/Project/ProjectLifecycleService.cs"), "public static ProjectLifecycleResultInfo SaveProject(");
+        AssertOrdered(body, "EnsureRequestedContext(session, projectPath)", "Owner: LocalSessionOwner",
+            "ValidateExpectedImmediatelyBeforeMutation(", "LocalSession.Save()", "LocalResult(\"save_project\"",
+            "RequireStandaloneOwner().Project", "ValidateExpectedImmediatelyBeforeMutation(", "project.Save()");
+        Assert.DoesNotContain(".Close(", body);
+        Assert.DoesNotContain(".CloseAndCommit(", body);
     }
 
     [Fact]
@@ -30,8 +50,11 @@ public sealed class ActiveProjectContextSourceTests
         var read = Method(service, "private static ActiveProjectContext? ResolveProjectForRead(");
         AssertOrdered(read, "session.EnsureConnected(", "ProjectOpenPolicy.Decide", "return session.ActiveContext");
         Assert.DoesNotContain(".Open(", read);
+        var resolve = Method(service, "private static void EnsureRequestedContext(");
+        AssertOrdered(resolve, "session.EnsureConnected(", "ProjectOpenPolicy.Decide");
+        Assert.DoesNotContain(".Open(", resolve);
         var mutation = Method(service, "private static Project EnsureProject(");
-        AssertOrdered(mutation, "session.EnsureConnected(", "ProjectOpenPolicy.Decide", "RequireStandaloneOwner().Project");
+        AssertOrdered(mutation, "EnsureRequestedContext(session, projectPath)", "RequireStandaloneOwner().Project");
         Assert.DoesNotContain(".Open(", mutation);
     }
 
@@ -53,9 +76,14 @@ public sealed class ActiveProjectContextSourceTests
             var source = File.ReadAllText(file);
             Assert.DoesNotContain(".OpenServerProject(", source);
             Assert.DoesNotContain(".CloseAndCommit(", source);
-            Assert.DoesNotContain("LocalSession.Save(", source);
             Assert.DoesNotContain("LocalSession.Close(", source);
+            // LocalSession.Save() is reachable only through the guarded save_project lifecycle call.
+            if (!file.EndsWith(Path.Combine("Openness", "Project", "ProjectLifecycleService.cs"), StringComparison.Ordinal))
+                Assert.DoesNotContain("LocalSession.Save(", source);
         }
+        var lifecycle = Read("Openness/Project/ProjectLifecycleService.cs");
+        Assert.Equal(1, lifecycle.Split("LocalSession.Save(").Length - 1);
+        Assert.Contains("LocalSession.Save(", Method(lifecycle, "public static ProjectLifecycleResultInfo SaveProject("));
         foreach (var file in new[] { "Openness/Project/ProjectLifecycleOwner.cs", "Openness/Project/LocalSessionOwner.cs" })
         {
             var owner = Read(file);

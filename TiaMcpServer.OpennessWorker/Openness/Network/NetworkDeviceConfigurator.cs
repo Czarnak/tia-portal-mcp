@@ -10,15 +10,13 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
-using Project = Siemens.Engineering.Project;
-
 /// <summary>Resolves the complete node selector and all requested subnet/IO dependencies before
 /// the first scalar setter. Bare signatures forward to the same exact owner/node resolver.
 /// Completed attempts retain sparse applied and skipped maps for recovery.</summary>
 public static class NetworkDeviceConfigurator
 {
     public static ConfigureNetworkDeviceResultInfo Configure(
-        Project project,
+        ProjectBase project,
         string deviceName,
         string nodeId,
         string? ipAddress,
@@ -30,7 +28,7 @@ public static class NetworkDeviceConfigurator
         => Configure(project, new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
             ipAddress, subnetMask, pnDeviceName, null, subnetId, ioSystemSubnetId, ioSystemNumber);
 
-    public static ConfigureNetworkDeviceResultInfo Configure(Project project, NetworkObjectSelectorInfo target,
+    public static ConfigureNetworkDeviceResultInfo Configure(ProjectBase project, NetworkObjectSelectorInfo target,
         string? ipAddress, string? subnetMask, string? pnDeviceName, bool? pnDeviceNameAutoGeneration,
         string? subnetId, string? ioSystemSubnetId, int? ioSystemNumber)
     {
@@ -182,7 +180,7 @@ public static class NetworkDeviceConfigurator
     /// the same property-then-attribute way <c>HardwareConfigReader</c> reads it (subnetId is a
     /// dynamic Openness attribute, not a CLR property). Zero or multiple matches fail closed.
     /// </summary>
-    private static Subnet FindExactlyOneSubnet(Project project, string subnetId)
+    private static Subnet FindExactlyOneSubnet(ProjectBase project, string subnetId)
     {
         Subnet? match = null;
         var count = 0;

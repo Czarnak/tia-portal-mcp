@@ -395,6 +395,21 @@ while ((line = Console.In.ReadLine()) is not null)
         }), fakeProjectPath!));
         continue;
     }
+    if (portalInventoryDeclared && IsLocalPath(fakeProjectPath) && currentMethod == "save_project")
+    {
+        // Mirrors LocalSession.Save(): the session is persisted locally and stays the same owner.
+        AttachedPortal()!.Modified = false;
+        Respond(SuccessWithResolvedPath(WorkerJson.SerializePayload(new ProjectLifecycleResultInfo
+        {
+            Operation = "save_project", ProjectPath = fakeProjectPath,
+            Project = new ProjectStatusInfo
+            {
+                IsOpen = true, Path = fakeProjectPath, IsModified = false,
+                Context = LocalContext(fakeProjectPath, AttachedPortal()?.WorkerOpened == true)
+            }
+        }), fakeProjectPath!));
+        continue;
+    }
 
     if (portalInventoryDeclared && currentMethod == "open_project"
         && Path.GetFileNameWithoutExtension(currentProjectPath)?.StartsWith("local-session-open-failed-", StringComparison.Ordinal) == true)

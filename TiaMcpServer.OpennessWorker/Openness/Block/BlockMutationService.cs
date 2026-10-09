@@ -8,12 +8,10 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
-using Project = Siemens.Engineering.Project;
-
 public static class BlockMutationService
 {
     public static BlockMutationResultInfo CreateBlock(
-        Project project,
+        ProjectBase project,
         string blockPath,
         string blockType,
         string? language,
@@ -42,7 +40,7 @@ public static class BlockMutationService
                 return new BlockMutationResultInfo
                 {
                     Operation = "create_block",
-                    ProjectPath = project.Path.FullName,
+                    ProjectPath = project.Path?.FullName,
                     PlcName = address.PlcName ?? plcSoftware.Name,
                     BlockPath = blockPath,
                     BlockType = normalizedType,
@@ -55,7 +53,7 @@ public static class BlockMutationService
     }
 
     private static BlockPostconditionEvidence VerifyCreatedBlockPostconditions(
-        Project project,
+        ProjectBase project,
         BlockAddress address,
         string blockPath)
     {
@@ -97,7 +95,7 @@ public static class BlockMutationService
             diagnosticMessage: "Created block resolved and compiled successfully.");
     }
 
-    public static BlockMutationResultInfo DeleteBlock(Project project, string blockPath)
+    public static BlockMutationResultInfo DeleteBlock(ProjectBase project, string blockPath)
     {
         var address = BlockAddress.Parse(blockPath);
         var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
@@ -115,13 +113,13 @@ public static class BlockMutationService
         return new BlockMutationResultInfo
         {
             Operation = "delete_block",
-            ProjectPath = project.Path.FullName,
+            ProjectPath = project.Path?.FullName,
             PlcName = address.PlcName ?? plcSoftware.Name,
             BlockPath = blockPath
         };
     }
 
-    public static BlockMutationResultInfo CreateBlockGroup(Project project, string blockPath)
+    public static BlockMutationResultInfo CreateBlockGroup(ProjectBase project, string blockPath)
     {
         var address = BlockAddress.Parse(blockPath);
         var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
@@ -133,13 +131,13 @@ public static class BlockMutationService
         return new BlockMutationResultInfo
         {
             Operation = "create_block_group",
-            ProjectPath = project.Path.FullName,
+            ProjectPath = project.Path?.FullName,
             PlcName = address.PlcName ?? plcSoftware.Name,
             BlockPath = blockPath
         };
     }
 
-    public static BlockMutationResultInfo DeleteBlockGroup(Project project, string blockPath)
+    public static BlockMutationResultInfo DeleteBlockGroup(ProjectBase project, string blockPath)
     {
         var address = BlockAddress.Parse(blockPath);
         var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
@@ -158,7 +156,7 @@ public static class BlockMutationService
         return new BlockMutationResultInfo
         {
             Operation = "delete_block_group",
-            ProjectPath = project.Path.FullName,
+            ProjectPath = project.Path?.FullName,
             PlcName = address.PlcName ?? plcSoftware.Name,
             BlockPath = blockPath
         };

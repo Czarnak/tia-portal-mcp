@@ -342,20 +342,40 @@ public sealed class LocalSessionContextContractTests
     }
 
     [Fact]
-    public void LocalWritesAndTerminalOperations_AreNotDelivered()
+    public void LocalTerminalAndStandaloneLifecycleOperations_AreNotDelivered()
     {
         Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "bind_project"));
         Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "open_project"));
         Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "get_project_status"));
-        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "save_project"));
-        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "close_project"));
-        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "compile_check"));
-        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, "update_block_logic"));
-        var capabilities = ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession)
-            .ToDictionary(item => item.Operation, StringComparer.Ordinal);
-        Assert.Equal(ProjectCapabilityApplicabilities.NotYetDelivered, capabilities["save_project"].Applicability);
-        Assert.Equal(ProjectCapabilityApplicabilities.StandaloneOnly, capabilities["close_project"].Applicability);
-        Assert.Equal(ProjectCapabilityApplicabilities.NotYetDelivered, capabilities["plc_write"].Applicability);
+        foreach (var operation in new[] { "close_project", "create_project", "save_project_as", "archive_project" })
+        {
+            Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, operation));
+            Assert.Equal(ProjectCapabilityApplicabilities.StandaloneOnly,
+                ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession)
+                    .Single(item => item.Operation == operation).Applicability);
+        }
+    }
+
+    [Theory]
+    [InlineData("plc_write")]
+    [InlineData("network_write")]
+    [InlineData("compile_check")]
+    [InlineData("save_project")]
+    [InlineData("update_block_logic")]
+    [InlineData("update_type_content")]
+    [InlineData("create_tag")]
+    [InlineData("delete_block_group")]
+    [InlineData("add_network_device")]
+    [InlineData("configure_network_device")]
+    [InlineData("create_subnet")]
+    [InlineData("delete_subnet")]
+    public void LocalContentWritesCompileAndSave_AreProjectContent(string operation)
+    {
+        Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, operation));
+        Assert.Equal(ProjectCapabilityApplicabilities.ProjectContent,
+            ProjectCapabilityCatalog.Describe(ProjectContainerKinds.LocalSession)
+                .Single(item => item.Operation == operation).Applicability);
+        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.ServerProject, operation));
     }
 
     [Theory]

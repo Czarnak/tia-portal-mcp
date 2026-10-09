@@ -9,8 +9,6 @@ using TiaMcpServer.OpennessWorker.Openness.Plc;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
-using Project = Siemens.Engineering.Project;
-
 public static class CompileChecker
 {
     private static readonly JsonSerializerOptions ObservationJson = new JsonSerializerOptions
@@ -18,7 +16,7 @@ public static class CompileChecker
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public static CompileCheckReport Compile(Project project, string? plcName, string? blockPath)
+    public static CompileCheckReport Compile(ProjectBase project, string? plcName, string? blockPath)
     {
         var report = CompileCore(project, plcName, blockPath, out _, out _);
         CompileReportProjection.BoundSerializedReport(report);
@@ -26,7 +24,7 @@ public static class CompileChecker
     }
 
     internal static CompileObservationInput CompileObserved(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string? blockPath)
     {
@@ -66,7 +64,7 @@ public static class CompileChecker
     }
 
     private static CompileCheckReport CompileCore(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string? blockPath,
         out bool allInvocationsAvailable,
@@ -85,7 +83,7 @@ public static class CompileChecker
                 out detailsOmitted);
 
     private static CompileCheckReport CompileBlock(
-        Project project,
+        ProjectBase project,
         string? plcName,
         string blockPath,
         out bool allInvocationsAvailable,
@@ -131,7 +129,7 @@ public static class CompileChecker
     }
 
     private static CompileCheckReport CompilePlcSoftware(
-        Project project,
+        ProjectBase project,
         string? plcName,
         out bool allInvocationsAvailable,
         out bool detailsOmitted)

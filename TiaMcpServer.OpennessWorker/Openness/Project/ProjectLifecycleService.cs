@@ -95,17 +95,20 @@ public static class ProjectLifecycleService
         session.EnsureConnected(projectPath);
         session.OpenProject(projectPath);
 
-        if (session.ActiveContext?.Owner is LocalSessionOwner)
-        {
-            var status = session.ActiveContext.ToLocalBasicStatusInfo();
-            return new ProjectLifecycleResultInfo
-            {
-                Operation = "open_project",
-                ProjectPath = status.Path,
-                Project = status
-            };
-        }
+        if (session.ActiveContext is { Owner: LocalSessionOwner } context)
+            return LocalResult("open_project", context);
         return Result("open_project", session.RequireStandaloneOwner().Project);
+    }
+
+    private static ProjectLifecycleResultInfo LocalResult(string operation, ActiveProjectContext context)
+    {
+        var status = context.ToLocalBasicStatusInfo();
+        return new ProjectLifecycleResultInfo
+        {
+            Operation = operation,
+            ProjectPath = status.Path,
+            Project = status
+        };
     }
 
     public static ProjectLifecycleResultInfo CreateProject(
@@ -163,10 +166,18 @@ public static class ProjectLifecycleService
         string? projectPath,
         WorkerSessionIdentity? expectedSessionIdentity)
     {
-        var project = EnsureProject(session, projectPath);
+        EnsureRequestedContext(session, projectPath);
+        if (session.ActiveContext is { Owner: LocalSessionOwner local } context)
+        {
+            // Persists the local session only; it never updates from or checks in to the Project Server.
+            ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
+            local.LocalSession.Save();
+            return LocalResult("save_project", context);
+        }
+
+        var project = session.RequireStandaloneOwner().Project;
         ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);
         project.Save();
-
         return Result("save_project", project);
     }
 
@@ -348,6 +359,13 @@ public static class ProjectLifecycleService
 
     private static Project EnsureProject(TiaPortalSession session, string? projectPath)
     {
+        EnsureRequestedContext(session, projectPath);
+        return session.RequireStandaloneOwner().Project;
+    }
+
+    /// <summary>Connects and refuses a divergent request; never opens, closes or switches a container.</summary>
+    private static void EnsureRequestedContext(TiaPortalSession session, string? projectPath)
+    {
         session.EnsureConnected(projectPath);
 
         switch (ProjectOpenPolicy.Decide(session.CurrentProjectPath, projectPath))
@@ -359,8 +377,6 @@ public static class ProjectLifecycleService
                 throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
                     ProjectOpenPolicy.RefusalMessage(session.CurrentProjectPath!, projectPath!, McpAccessMode.ReadWrite));
         }
-
-        return session.RequireStandaloneOwner().Project;
     }
 
     private static void ValidateExpectedImmediatelyBeforeMutation(

@@ -48,11 +48,17 @@ public sealed class LifecycleSecondIdentityValidationContractTests
 
         AssertOrdered(
             body,
-            "EnsureProject(session, projectPath)",
+            "EnsureRequestedContext(session, projectPath)",
+            "ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity)",
+            "local.LocalSession.Save();",
             "ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity)",
             "project.Save();");
         AssertAdjacent(
             body,
+            "ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);",
+            "local.LocalSession.Save();");
+        AssertAdjacent(
+            body[body.IndexOf("RequireStandaloneOwner", StringComparison.Ordinal)..],
             "ValidateExpectedImmediatelyBeforeMutation(session, expectedSessionIdentity);",
             "project.Save();");
     }
