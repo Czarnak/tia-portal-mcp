@@ -43,6 +43,12 @@ public class HmiWriteVerifierTests
         Assert.All(f.Requests, q => Assert.Equal("hmi_list_tag_tables", q.Method));
         f.Put("hmi_list_tag_tables", new HmiTagTableTreeInfo { Tables = [new() { Name = "renamed" }] });
         Assert.False((await Verify(f, [r])).Success);
+        r.GroupPath = "Outer/Inner";
+        f.Put("hmi_list_tag_tables", new HmiTagTableTreeInfo { Groups = [new() { Name = "Outer", Groups = [new() { Name = "Inner", Tables = [new() { Name = "Renamed", TagCount = 2 }] }] }] });
+        Assert.True((await Verify(f, [r])).Success);
+        r.GroupPath = "Outer/Other";
+        var mismatch = await Verify(f, [r]);
+        Assert.Contains(mismatch.Operations, o => !o.Success && o.Check == "groupPath" && o.Expected == "Outer/Other" && o.Actual == "Outer/Inner");
     }
 
     [Theory]
@@ -271,6 +277,72 @@ public class HmiWriteVerifierTests
         var last = Tag("last"); last.Comment = [new("en-us", "After")];
         f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = new() { Name = "T", Table = "Table", Comment = [new("en-US", "After")] } });
         Assert.True((await Verify(f, [first, last])).Success);
+    }
+
+    [Theory]
+    [InlineData("T.Member", false)]
+    [InlineData("U.Member", true)]
+    [InlineData(null, true)]
+    public async Task FailedDeleteRetainsTransformedTriggerWhenAlarmSurvives(string? trigger, bool success)
+    {
+        using var f = await Fixture.Create(); var alarm = Alarm(); alarm.TriggerTag = "T.Member";
+        var rename = Tag("rename"); rename.NewName = "U";
+        var delete = Alarm("delete"); delete.Operation = "delete_alarm";
+        f.Put("hmi_get_tag|U", new HmiTagDetailInfo { Tag = new() { Name = "U", Table = "Table" } });
+        if (trigger is null) f.Remove("hmi_get_alarm|A");
+        else f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "discrete", TriggerTag = trigger } });
+        var v = await Verify(f, [alarm, rename, delete], Outcome(alarm), Outcome(rename),
+            Outcome(delete, "worker_operation_failed", new() { ObjectName = "A", FailedProperty = "Delete" }));
+        Assert.Equal(success, v.Success);
+        Assert.Contains(v.Operations, o => o.OperationId == "delete" && o.Check == "observed" && o.Actual == (trigger is null ? "absent" : "present"));
+        if (trigger is not null) Assert.Contains(v.Operations, o => o.OperationId == "delete" && o.Check == "triggerTag" && o.Expected == "U.Member" && o.Actual == trigger);
+    }
+
+    [Theory]
+    [InlineData("Tag", false)]
+    [InlineData("Tag", true)]
+    [InlineData("discrete", false)]
+    [InlineData("discrete", true)]
+    [InlineData("analog", false)]
+    [InlineData("analog", true)]
+    [InlineData("TagTable", false)]
+    public async Task AppliedRenameSupersedesDeletedDestinationAndKeepsSourceFields(string kind, bool failed)
+    {
+        using var f = await Fixture.Create();
+        var delete = kind == "Tag" ? Tag("delete", "delete_tag") : kind == "TagTable" ? Table("delete", "delete_tag_table") : Alarm("delete", kind);
+        if (kind is "discrete" or "analog") delete.Operation = "delete_alarm";
+        var prior = kind == "Tag" ? Tag("prior", name: "Source") : kind == "TagTable" ? Table("prior") : Alarm("prior", kind);
+        var rename = kind == "Tag" ? Tag("rename", name: "Source") : kind == "TagTable" ? Table("rename") : Alarm("rename", kind);
+        if (kind == "Tag") { prior.AcquisitionCycle = "T1s"; rename.NewName = "T"; }
+        else if (kind == "TagTable") { prior.TableName = rename.TableName = "Source"; rename.NewName = "Table"; f.Remove("hmi_get_tag|T"); }
+        else { prior.AlarmName = rename.AlarmName = "Source"; prior.Priority = 7; rename.NewName = "A"; }
+        void Readback(bool correct)
+        {
+            if (kind == "Tag") f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = new() { Name = "T", Table = "Table", AcquisitionCycle = correct ? "T1s" : "T2s" } });
+            else if (kind == "TagTable") f.Put("hmi_list_tag_tables", new HmiTagTableTreeInfo { Tables = [new() { Name = correct ? "Table" : "table", TagCount = 2 }] });
+            else f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = kind, Priority = correct ? 7 : 8 } });
+        }
+        if (failed) { if (kind == "Tag") rename.AcquisitionCycle = "T2s"; else rename.Priority = 8; }
+        var final = failed ? Outcome(rename, "worker_operation_failed", new() { ObjectName = rename.NewName!, AppliedProperties = ["Name"], FailedProperty = kind == "Tag" ? "AcquisitionCycle" : "Priority" }) : Outcome(rename);
+        Readback(true);
+        var v = await Verify(f, [delete, prior, rename], Outcome(delete), Outcome(prior), final);
+        Assert.True(v.Success);
+        Assert.Contains(v.Operations, o => o.OperationId == "prior" && o.Check == "superseded");
+        Assert.DoesNotContain(v.Operations, o => !o.Success && o.OperationId == "delete");
+        if (kind != "TagTable") Assert.Contains(v.Operations, o => o.OperationId == "delete" && o.Check == "superseded");
+        Readback(false);
+        Assert.False((await Verify(f, [delete, prior, rename], Outcome(delete), Outcome(prior), final)).Success);
+    }
+
+    [Fact]
+    public async Task RejectedRenameDoesNotSupersedeDestinationAbsence()
+    {
+        using var f = await Fixture.Create(); var delete = Tag("delete", "delete_tag"); var rename = Tag("rename", name: "Source"); rename.NewName = "T";
+        f.Remove("hmi_get_tag|T");
+        f.Put("hmi_get_tag|Source", new HmiTagDetailInfo { Tag = new() { Name = "Source", Table = "Table" } });
+        var v = await Verify(f, [delete, rename], Outcome(delete), Outcome(rename, "worker_operation_failed", new() { ObjectName = "T", FailedProperty = "Name" }));
+        Assert.True(v.Success);
+        Assert.Contains(v.Operations, o => o.OperationId == "delete" && o.Check == "absent");
     }
     // A scripted stdio peer exercises the real client without loading or launching Siemens code.
     private sealed class Fixture : IDisposable

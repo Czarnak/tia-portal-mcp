@@ -66,15 +66,20 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         bool Applied(string field) => !failed || result?.AppliedProperties.Contains(Property(field)) == true;
         var create = item.Operation.StartsWith("create_", StringComparison.Ordinal);
         var delete = item.Operation.StartsWith("delete_", StringComparison.Ordinal);
+        void Supersede(string previousOwner)
+        {
+            if (previousOwner == item.OperationId) return;
+            foreach (var previous in owners.Where(p => p.Value == previousOwner).Select(p => p.Key).ToArray()) owners[previous] = item.OperationId;
+            owners[previousOwner] = item.OperationId;
+        }
         var entry = expectations.LastOrDefault(e => Same(e.Target, target));
         if (entry is null) { entry = new(target, item.OperationId); expectations.Add(entry); }
         else
         {
-            foreach (var previous in owners.Where(p => p.Value == entry.Owner).Select(p => p.Key).ToArray()) owners[previous] = item.OperationId;
-            owners[entry.Owner] = item.OperationId;
+            Supersede(entry.Owner);
             entry.Owner = item.OperationId;
         }
-        if (create || delete) { entry.Fields.Clear(); entry.Observed.Clear(); }
+        if (create || delete && !failed) { entry.Fields.Clear(); entry.Observed.Clear(); }
         entry.Absent = delete && !failed || create && failed;
         entry.Observe = failed;
         entry.Message = failed ? $"{outcome.Failure!.Category}: {outcome.Failure.Message}; cleanup={result?.Cleanup ?? "unknown"}; {result?.CleanupMessage}" : null;
@@ -94,6 +99,9 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         }
         if (name != oldName)
         {
+            // An applied rename replaces the deleted destination's incarnation, not the source's fields.
+            foreach (var destination in expectations.Where(e => e.Absent && e != entry && Same(e.Target, entry.Target)).ToArray())
+            { Supersede(destination.Owner); expectations.Remove(destination); }
             foreach (var other in expectations.Where(e => Names.Equals(e.Target.HmiName, target.HmiName) && !e.Absent))
             {
                 if (target.Kind == "TagTable" && other.Target.Kind == "Tag" && other.Fields.TryGetValue("table", out var table) && Names.Equals(table, oldName))
@@ -110,7 +118,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
                 var identity = new HmiTargetIdentity("Tag", target.HmiName, tag, null, target.Name, target.GroupPath);
                 var member = expectations.LastOrDefault(e => Same(e.Target, identity));
                 if (member is null) { member = new(identity, item.OperationId); expectations.Add(member); }
-                else { owners[member.Owner] = item.OperationId; member.Owner = item.OperationId; }
+                else { Supersede(member.Owner); member.Owner = item.OperationId; }
                 member.Absent = true; member.Fields.Clear(); member.Observed.Clear();
             }
         }
