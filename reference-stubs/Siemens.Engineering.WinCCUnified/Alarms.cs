@@ -30,12 +30,12 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon
         public global::Siemens.Engineering.MultilingualText EventText8 { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.MultilingualText EventText9 { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.MultilingualText InfoText { get => throw new global::System.NotSupportedException(); }
-        public string AlarmClass { get => throw new global::System.NotSupportedException(); }
+        public string AlarmClass { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         public object AlarmParameterTags { get => throw new global::System.NotSupportedException(); }
         public string Area { get => throw new global::System.NotSupportedException(); }
-        public byte Priority { get => throw new global::System.NotSupportedException(); }
+        public byte Priority { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         public string Origin { get => throw new global::System.NotSupportedException(); }
-        public string RaisedStateTag { get => throw new global::System.NotSupportedException(); }
+        public string RaisedStateTag { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
@@ -68,17 +68,20 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
     }
     public abstract class HmiDiscreteAlarm : global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase
     {
+        public void Delete() => throw new global::System.NotSupportedException();
         public string TriggerBitAddress { get => throw new global::System.NotSupportedException(); }
         public string AcknowledgmentControlTag { get => throw new global::System.NotSupportedException(); }
         public int AcknowledgmentControlTagBitNumber { get => throw new global::System.NotSupportedException(); }
         public string AcknowledgmentStateTag { get => throw new global::System.NotSupportedException(); }
         public int AcknowledgmentStateTagBitNumber { get => throw new global::System.NotSupportedException(); }
-        public string Name { get => throw new global::System.NotSupportedException(); }
-        public uint RaisedStateTagBitNumber { get => throw new global::System.NotSupportedException(); }
-        public global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.HmiDiscreteAlarmTriggerMode TriggerMode { get => throw new global::System.NotSupportedException(); }
+        public string Name { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
+        public uint RaisedStateTagBitNumber { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.HmiDiscreteAlarmTriggerMode TriggerMode { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
     }
     public abstract class HmiDiscreteAlarmComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<HmiDiscreteAlarm>
     {
+        public HmiDiscreteAlarm Create(string name) => throw new global::System.NotSupportedException();
+        public HmiDiscreteAlarm Find(string name) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<HmiDiscreteAlarm> GetEnumerator() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringComposition.Create(global::System.Type type, global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<string, object>> parameters) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
@@ -86,13 +89,16 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
     }
     public abstract class HmiAnalogAlarm : global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase
     {
+        public void Delete() => throw new global::System.NotSupportedException();
         public string TriggerAddress { get => throw new global::System.NotSupportedException(); }
-        public global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.HmiAlarmCondition Condition { get => throw new global::System.NotSupportedException(); }
-        public object ConditionValue { get => throw new global::System.NotSupportedException(); }
-        public string Name { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.HmiAlarmCondition Condition { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
+        public object ConditionValue { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
+        public string Name { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
     }
     public abstract class HmiAnalogAlarmComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<HmiAnalogAlarm>
     {
+        public HmiAnalogAlarm Create(string name) => throw new global::System.NotSupportedException();
+        public HmiAnalogAlarm Find(string name) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<HmiAnalogAlarm> GetEnumerator() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringComposition.Create(global::System.Type type, global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<string, object>> parameters) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
