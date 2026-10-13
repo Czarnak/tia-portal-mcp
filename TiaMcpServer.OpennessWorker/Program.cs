@@ -227,7 +227,7 @@ internal static class Program
         }
         catch (WorkerOperationException ex)
         {
-            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome);
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome);
         }
         catch (Exception ex)
         {
@@ -1583,13 +1583,15 @@ internal static class Program
     private static WorkerResponse RawPayload(
         string payload,
         IReadOnlyList<string>? warnings = null,
-        BlockImportOutcomeInfo? blockImportOutcome = null)
+        BlockImportOutcomeInfo? blockImportOutcome = null,
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
     {
         return new WorkerResponse
         {
             Success = true,
             Payload = payload,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
+            HmiWriteOutcome = hmiWriteOutcome,
             BlockImportOutcome = blockImportOutcome
         };
     }
@@ -1598,7 +1600,8 @@ internal static class Program
         string failureCategory,
         string error,
         IReadOnlyList<string>? warnings = null,
-        BlockImportOutcomeInfo? blockImportOutcome = null)
+        BlockImportOutcomeInfo? blockImportOutcome = null,
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
     {
         return new WorkerResponse
         {
@@ -1606,6 +1609,7 @@ internal static class Program
             Error = error,
             FailureCategory = failureCategory,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
+            HmiWriteOutcome = hmiWriteOutcome,
             BlockImportOutcome = blockImportOutcome
         };
     }

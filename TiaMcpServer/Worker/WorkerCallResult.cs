@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Hmi;
 using System.Text.Json;
 using TiaMcpServer.Json;
 using TiaMcpServer.Contracts.Block;
@@ -42,6 +43,8 @@ public sealed record WorkerCallResult(
 
     /// <summary>Typed update_block_logic evidence; absent for unrelated calls.</summary>
     public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
+
+    public HmiWriteOutcomeInfo? HmiWriteOutcome { get; init; }
 
     /// <summary>Host-observed request dispatch provenance; never serialized to callers.</summary>
     internal WorkerDispatchState DispatchState { get; init; } = WorkerDispatchState.Unknown;
