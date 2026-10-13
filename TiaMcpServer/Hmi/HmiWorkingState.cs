@@ -16,6 +16,7 @@ internal sealed class HmiWorkingState
     private readonly List<HmiAlarmRowInfo> _alarms;
     private readonly List<string> _members;
     private readonly List<HmiReference> _references;
+    private readonly List<HmiReference> _uncertainReferences = new();
     private readonly Dictionary<(string Kind, string Name, string? AlarmKind), (int Sequence, string Id)> _touches = new();
     private int _sequence;
     private sealed class ResolutionException(string category, string message) : Exception(message)
@@ -79,6 +80,11 @@ internal sealed class HmiWorkingState
         {
             if (requested is not null || derived) changes.Add(new(field, Text(current), Text(requested), derived));
         }
+        void TextChanges(string field, List<HmiText>? current, List<HmiText>? requested)
+        {
+            foreach (var text in requested ?? new())
+                changes.Add(new($"{field}[{text.Culture}]", current?.FirstOrDefault(t => Names.Equals(t.Culture, text.Culture))?.Text, text.Text, false));
+        }
         void Reference(IEnumerable<string> names, string name, string kind) => Require(names, n => Names.Equals(n, name), $"{kind} '{name}'");
         void Collision(bool collides)
         {
@@ -110,7 +116,7 @@ internal sealed class HmiWorkingState
             Change("connection", tag?.Connection, r.Connection); Change("plcTag", tag?.PlcTag, r.PlcTag);
             Change("dataType", tag?.DataType, r.DataType, !delete && bound); Change("plcName", tag?.PlcName, null, !delete && bound);
             Change("acquisitionCycle", tag?.AcquisitionCycle, r.AcquisitionCycle);
-            Change("comment", tag?.Comment, r.Comment); Change("displayName", tag?.DisplayName, r.DisplayName);
+            TextChanges("comment", tag?.Comment, r.Comment); TextChanges("displayName", tag?.DisplayName, r.DisplayName);
         }
         else
         {
@@ -128,21 +134,27 @@ internal sealed class HmiWorkingState
             Change("triggerMode", alarm?.TriggerMode, r.TriggerMode); Change("condition", alarm?.Condition, r.Condition);
             Change("conditionValue", alarm?.ConditionValue?.Value, r.ConditionValue);
             Change("alarmClass", alarm?.AlarmClass, r.AlarmClass); Change("priority", alarm?.Priority, r.Priority);
-            Change("eventText", alarm?.EventText, HmiWriteCatalog.ToWorkerRequest(r, _evidence.HmiName).EventText); Change("infoText", alarm?.InfoText, r.InfoText);
+            TextChanges("eventText", alarm?.EventText, HmiWriteCatalog.ToWorkerRequest(r, _evidence.HmiName).EventText); TextChanges("infoText", alarm?.InfoText, r.InfoText);
             if (!delete) Change(r.AlarmKind == "discrete" ? "triggerBitAddress" : "triggerAddress", r.AlarmKind == "discrete" ? alarm?.TriggerBitAddress : alarm?.TriggerAddress, null, true);
         }
         foreach (var text in new[] { r.Comment, r.DisplayName, r.EventText, r.InfoText }.Where(t => t is not null).SelectMany(t => t!))
             Reference(_evidence.Cultures, text.Culture, "project culture");
         Change("name", create ? null : target.Name, r.NewName ?? (create ? target.Name : null));
-        if (!create) dependencies.Add(target);
+        dependencies.Add(target);
+        if (r.NewName is not null) dependencies.Add(target with { Name = r.NewName });
         HmiRemoval? removes = null;
         if (delete)
         {
             var removedTags = target.Kind == "TagTable" ? _tags.Where(t => Names.Equals(t.Table, target.Name)).Select(t => t.Name).ToArray()
                 : target.Kind == "Tag" ? new[] { target.Name } : Array.Empty<string>();
+            dependencies.AddRange(removedTags.Select(t => Identity("Tag", t)));
+            if (_uncertainReferences.Any(reference => removedTags.Any(t => RefersTo(reference.Tag, t))))
+                guards.Add(Fire(StateUnverifiable, r, "An alarm trigger changed; observed references do not identify which alarm property used this tag. Fresh reference evidence is required."));
             var references = _references.Where(reference => removedTags.Any(t => RefersTo(reference.Tag, t))).ToList();
             foreach (var removed in removedTags)
                 references.AddRange(_alarms.Where(a => RefersTo(a.TriggerTag, removed)).Select(a => new HmiReference(removed, a.Name, a.Kind == "discrete" ? "HmiDiscreteAlarm" : "HmiAnalogAlarm", null)));
+            dependencies.AddRange(references.Where(reference => reference.TypeName is "HmiDiscreteAlarm" or "HmiAnalogAlarm")
+                .Select(reference => Identity("Alarm", reference.Name, reference.TypeName == "HmiDiscreteAlarm" ? "discrete" : "analog")));
             removes = new(removedTags, references.Distinct().ToArray());
             if (target.Kind == "TagTable") guards.Add(Fire(DeletesTableContents, r, $"Deleting table '{target.Name}' removes {removedTags.Length} tags."));
             if (references.Count > 0) guards.Add(Fire(DeletesReferencedTag, r, $"Deleted tags have {removes.References.Count} references; these are left dangling."));
@@ -152,7 +164,8 @@ internal sealed class HmiWorkingState
 
     private static string? Text(object? value) => value switch
     {
-        null => null, string s => s, IFormattable f => f.ToString(null, CultureInfo.InvariantCulture), _ => JsonSerializer.Serialize(value)
+        null => null, string s => s, JsonElement scalar => scalar.ToString(), IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        _ => throw new ArgumentException("A field change must contain scalar values.", nameof(value))
     };
 
     public void Apply(HmiWriteOperationRequest r)
@@ -165,7 +178,8 @@ internal sealed class HmiWorkingState
             case "create_tag_table": _tables.Add(new(r.TableName!, r.GroupPath)); break;
             case "update_tag_table":
                 var table = Table(r.TableName!); _tables[_tables.IndexOf(table)] = table with { Name = r.NewName! };
-                foreach (var member in _tags.Where(t => Names.Equals(t.Table, table.Name))) member.Table = r.NewName;
+                foreach (var member in _tags.Where(t => Names.Equals(t.Table, table.Name)))
+                { member.Table = r.NewName; Touch(Identity("Tag", member.Name), r.OperationId); }
                 break;
             case "delete_tag_table":
                 _tables.Remove(Table(r.TableName!));
@@ -178,32 +192,61 @@ internal sealed class HmiWorkingState
                 var tag = Tag(r.TagName!); ApplyTag(tag, r);
                 if (r.NewName is not null)
                 {
-                    var old = tag.Name; tag.Name = r.NewName;
+                    var old = tag.Name; TouchReferencingAlarms(old, r.OperationId); tag.Name = r.NewName;
                     for (var i = 0; i < _members.Count; i++) _members[i] = RenameReference(_members[i], old, r.NewName);
-                    for (var i = 0; i < _references.Count; i++) _references[i] = _references[i] with { Tag = RenameReference(_references[i].Tag, old, r.NewName) };
-                    foreach (var a in _alarms.Where(a => RefersTo(a.TriggerTag, old))) a.TriggerTag = RenameReference(a.TriggerTag!, old, r.NewName);
+                    foreach (var references in new[] { _references, _uncertainReferences })
+                        for (var i = 0; i < references.Count; i++) references[i] = references[i] with { Tag = RenameReference(references[i].Tag, old, r.NewName) };
+                    foreach (var a in _alarms.Where(a => RefersTo(a.TriggerTag, old)))
+                        a.TriggerTag = RenameReference(a.TriggerTag!, old, r.NewName);
                 }
                 break;
             case "delete_tag": RemoveTag(target.Name, r.OperationId); break;
             case "create_alarm":
-                var createdAlarm = new HmiAlarmRowInfo { Name = r.AlarmName!, Kind = r.AlarmKind! }; ApplyAlarm(createdAlarm, r); _alarms.Add(createdAlarm); break;
+                var createdAlarm = new HmiAlarmRowInfo { Name = r.AlarmName!, Kind = r.AlarmKind! }; ApplyAlarm(createdAlarm, r); _alarms.Add(createdAlarm); TouchAlarmReferences(createdAlarm, r.OperationId); break;
             case "update_alarm":
-                var alarm = Alarm(r.AlarmName!, r.AlarmKind); ApplyAlarm(alarm, r);
+                var alarm = Alarm(r.AlarmName!, r.AlarmKind);
+                TouchAlarmReferences(alarm, r.OperationId);
+                if (r.TriggerTag is not null && !Names.Equals(r.TriggerTag, alarm.TriggerTag))
+                {
+                    // UsedBy does not distinguish trigger, acknowledgement and parameter references.
+                    var uncertain = _references.Where(reference => IsAlarmReference(reference, alarm)
+                        && RefersTo(alarm.TriggerTag, reference.Tag)).ToArray();
+                    _uncertainReferences.AddRange(uncertain);
+                    foreach (var reference in uncertain) _references.Remove(reference);
+                }
+                ApplyAlarm(alarm, r);
                 if (r.NewName is not null)
-                    for (var i = 0; i < _references.Count; i++)
-                        if (IsAlarmReference(_references[i], alarm)) _references[i] = _references[i] with { Name = r.NewName };
-                alarm.Name = r.NewName ?? alarm.Name; break;
+                    foreach (var references in new[] { _references, _uncertainReferences })
+                        for (var i = 0; i < references.Count; i++)
+                            if (IsAlarmReference(references[i], alarm)) references[i] = references[i] with { Name = r.NewName };
+                alarm.Name = r.NewName ?? alarm.Name; TouchAlarmReferences(alarm, r.OperationId); break;
             case "delete_alarm":
                 var removedAlarm = Alarm(r.AlarmName!, r.AlarmKind);
-                _references.RemoveAll(reference => IsAlarmReference(reference, removedAlarm)); _alarms.Remove(removedAlarm); break;
+                TouchAlarmReferences(removedAlarm, r.OperationId);
+                _references.RemoveAll(reference => IsAlarmReference(reference, removedAlarm));
+                _uncertainReferences.RemoveAll(reference => IsAlarmReference(reference, removedAlarm)); _alarms.Remove(removedAlarm); break;
         }
+        if (target.Kind == "Tag" && target.TableName is not null) Touch(Identity("TagTable", target.TableName), r.OperationId);
         Touch(target, r.OperationId);
         if (r.NewName is not null) Touch(target with { Name = r.NewName }, r.OperationId);
     }
+    private void TouchAlarmReferences(HmiAlarmRowInfo alarm, string id)
+    {
+        if (alarm.TriggerTag is { } trigger) Touch(Identity("Tag", trigger.Split('.')[0]), id);
+        foreach (var reference in _references.Concat(_uncertainReferences).Where(reference => IsAlarmReference(reference, alarm)))
+            Touch(Identity("Tag", reference.Tag.Split('.')[0]), id);
+    }
     private static bool IsAlarmReference(HmiReference reference, HmiAlarmRowInfo alarm) => Names.Equals(reference.Name, alarm.Name)
         && reference.TypeName == (alarm.Kind == "discrete" ? "HmiDiscreteAlarm" : "HmiAnalogAlarm");
+    private void TouchReferencingAlarms(string tag, string id)
+    {
+        foreach (var alarm in _alarms.Where(a => RefersTo(a.TriggerTag, tag)
+            || _references.Concat(_uncertainReferences).Any(reference => RefersTo(reference.Tag, tag) && IsAlarmReference(reference, a))))
+            Touch(Identity("Alarm", alarm.Name, alarm.Kind), id);
+    }
     private void RemoveTag(string name, string id)
     {
+        TouchReferencingAlarms(name, id);
         _tags.RemoveAll(t => Names.Equals(t.Name, name)); _members.RemoveAll(m => RefersTo(m, name));
         _references.RemoveAll(r => RefersTo(r.Tag, name)); Touch(Identity("Tag", name), id);
     }
