@@ -21,6 +21,7 @@ public class HmiTagWriterTests
         Assert.Equal(new[] { "Create", "Connection", "PlcTag", "AcquisitionCycle", "Comment", "DisplayName" }, result.AppliedProperties);
         Assert.Equal(new[] { "Connection", "PlcTag", "AcquisitionCycle" }, software.Tags.Find("T")!.Writes);
         Assert.Equal("Comment", software.Tags.Find("T")!.Comment.Items.Single().Text);
+        Assert.Equal("Display", software.Tags.Find("T")!.DisplayName.Items.Single().Text);
     }
     [Fact] public void CreateTag_InternalSetsDataType()
     {
