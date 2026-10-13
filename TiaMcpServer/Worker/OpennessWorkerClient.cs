@@ -1204,6 +1204,9 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
+    public Task<WorkerCallResult> WriteHmiAsync(string method, HmiWriteRequestInfo write, string? projectPath)
+        => SendBoundProjectRequestAsync(method, projectPath, request => request.HmiWrite = write, "{}");
+
     public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
