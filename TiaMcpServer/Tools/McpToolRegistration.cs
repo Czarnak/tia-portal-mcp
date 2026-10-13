@@ -25,9 +25,9 @@ public static class McpToolRegistration
     }
 }
 
-/// <summary>The one production guard catalog: lifecycle, Network and PLC guard definitions.</summary>
+/// <summary>The one production guard catalog: lifecycle, Network, PLC and HMI guard definitions.</summary>
 public static class WriteGuardRegistration
 {
     public static WriteGuardCatalog ProductionCatalog()
-        => new(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions).Concat(PlcGuardDefinitions.Definitions));
+        => new(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions).Concat(PlcGuardDefinitions.Definitions).Concat(Hmi.HmiGuardDefinitions.Definitions));
 }
