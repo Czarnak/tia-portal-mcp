@@ -183,6 +183,8 @@ internal static class Program
                 "get_type_content"    => GetTypeContent(request),
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
+                "hmi_create_tag_table" or "hmi_update_tag_table" or "hmi_delete_tag_table"
+                    or "hmi_create_tag" or "hmi_update_tag" or "hmi_delete_tag" => WriteHmi(request),
                 "hmi_list_hmi_devices" or "hmi_get_runtime_settings" or "hmi_list_script_modules"
                     or "hmi_list_text_and_graphic_lists" or "hmi_list_project_languages" or "hmi_list_tag_tables"
                     or "hmi_list_tags" or "hmi_get_tag" or "hmi_list_system_tags" or "hmi_list_logging_tags"
@@ -997,6 +999,9 @@ internal static class Program
         return WithEngineeringRoot(request, project => Success(TagTableReader.ReadInventory(
             project, request.PlcName, request.TableName, request.FolderPath)));
     }
+
+    private static WorkerResponse WriteHmi(WorkerRequest request)
+        => WithEngineeringRoot(request, project => Success(HmiWriteDispatch.Write(project, request.Method, request.HmiWrite ?? new HmiWriteRequestInfo())));
 
     private static WorkerResponse ReadHmi(WorkerRequest request)
     {
