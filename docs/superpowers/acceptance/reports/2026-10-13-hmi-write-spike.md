@@ -153,6 +153,14 @@ order give per-property errors; `SetAttributes` gives none.
 On hmiB, 50 tags: create 2.3 s, bind (`Connection` + `PlcTag`) 4.5 s, `Validate` 0.9 s, delete 22.6 s, no
 errors. One device walk to locate the HMIs took 1.9–2.3 s on this 4-device project.
 
+### Q12 — Rename, acquisition cycle, UDT-member trigger (maintainer, 2026-10-13)
+
+A W10 probe was prepared but not run; the maintainer supplied these from the editor instead:
+
+- Renaming a tag updates the references to it (alarm triggers, screens); a rename does not dangle.
+- `AcquisitionCycle` takes `T100ms`, `T250ms`, `T500ms`, `T1s`, `T2s`, `T5s`, `T10s`.
+- A UDT member (`Tag.Member`) can be a discrete alarm's trigger tag.
+
 ## Evidence gaps
 
 - Editor rendering of `DisplayName`, and of `EventText1`–`EventText9` (not written).
