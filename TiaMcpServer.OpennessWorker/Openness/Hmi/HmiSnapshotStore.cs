@@ -31,6 +31,18 @@ public sealed class HmiSnapshotStore
 
     public static HmiSnapshotStore Shared { get; } = new(() => DateTime.UtcNow);
 
+    public void DropFor(object project, HmiSoftware software)
+    {
+        lock (gate)
+        {
+            foreach (var id in entries.Where(e => object.Equals(e.Value.Project, project)
+                && object.Equals(e.Value.Snapshot.Software, software)).Select(e => e.Key).ToList())
+            {
+                entries.Remove(id);
+            }
+        }
+    }
+
     public string Put(object project, HmiSoftware software, string operation, IReadOnlyList<object> ordered)
     {
         var id = Guid.NewGuid().ToString("N");
