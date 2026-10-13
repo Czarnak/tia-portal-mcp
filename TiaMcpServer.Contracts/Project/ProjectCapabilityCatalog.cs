@@ -1,3 +1,5 @@
+using TiaMcpServer.Contracts.Hmi;
+
 namespace TiaMcpServer.Contracts.Project;
 
 /// <summary>
@@ -31,7 +33,10 @@ public static class ProjectCapabilityCatalog
     /// </summary>
     private static readonly string[] ProjectContentOperations =
     {
-        "plc_write", "network_write", "compile_check", "save_project",
+        "plc_write", "network_write", "hmi_write", "compile_check", "save_project",
+        "hmi_create_tag_table", "hmi_update_tag_table", "hmi_delete_tag_table",
+        "hmi_create_tag", "hmi_update_tag", "hmi_delete_tag",
+        "hmi_create_alarm", "hmi_update_alarm", "hmi_delete_alarm",
         "update_block_logic", "update_type_content", "create_tag_table", "delete_tag_table",
         "create_tag", "update_tag", "delete_tag", "create_user_constant",
         "update_user_constant", "delete_user_constant", "create_block", "delete_block",
@@ -82,6 +87,7 @@ public static class ProjectCapabilityCatalog
     public static string? OperationFor(string method)
     {
         if (NonProjectMethods.Contains(method, StringComparer.Ordinal)) return null;
+        if (method == "hmi_write" || HmiWriteMethods.All.Contains(method, StringComparer.Ordinal)) return "hmi_write";
         if (method.StartsWith("hmi_", StringComparison.Ordinal) && method != "hmi_read") return "hmi_read";
         return method switch
         {

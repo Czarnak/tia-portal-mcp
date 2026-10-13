@@ -237,6 +237,15 @@ public class ReadOnlyModeTests
     [InlineData("create_subnet")]
     [InlineData("update_subnet")]
     [InlineData("delete_subnet")]
+    [InlineData("hmi_create_tag_table")]
+    [InlineData("hmi_update_tag_table")]
+    [InlineData("hmi_delete_tag_table")]
+    [InlineData("hmi_create_tag")]
+    [InlineData("hmi_update_tag")]
+    [InlineData("hmi_delete_tag")]
+    [InlineData("hmi_create_alarm")]
+    [InlineData("hmi_update_alarm")]
+    [InlineData("hmi_delete_alarm")]
     public void ReadOnlyMode_DeniesProhibitedOperations(string operation)
     {
         Assert.False(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));

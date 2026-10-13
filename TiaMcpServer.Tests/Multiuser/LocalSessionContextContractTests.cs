@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Multiuser;
 using TiaMcpServer.Contracts.Project;
@@ -324,11 +325,12 @@ public sealed class LocalSessionContextContractTests
         var publicTools = new[]
         {
             "bind_project", "get_project_status", "browse_project_tree", "plc_read", "plc_write",
-            "network_read", "network_write", "read_cross_references", "compile_check", "hmi_read",
+            "network_read", "network_write", "read_cross_references", "compile_check", "hmi_read", "hmi_write",
             "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project"
         };
         var projectItems = PlcOperationCatalog.ReadOperationNames
             .Concat(PlcOperationCatalog.WriteOperationNames)
+            .Concat(HmiWriteMethods.All)
             .Concat(NetworkOperationCatalog.ReadOperationNames)
             .Concat(NetworkOperationCatalog.WriteOperationNames)
             .Where(name => name != "search_equipment_catalog");
@@ -357,6 +359,7 @@ public sealed class LocalSessionContextContractTests
     }
 
     [Theory]
+    [InlineData("hmi_write")]
     [InlineData("plc_write")]
     [InlineData("network_write")]
     [InlineData("compile_check")]
@@ -408,6 +411,9 @@ public sealed class LocalSessionContextContractTests
     [InlineData("probe_network_object_attributes", "network_read")]
     [InlineData("probe_io_system_qualification", "network_write")]
     [InlineData("hmi_list_hmi_devices", "hmi_read")]
+    [InlineData("hmi_write", "hmi_write")]
+    [InlineData("hmi_create_tag", "hmi_write")]
+    [InlineData("hmi_delete_alarm", "hmi_write")]
     [InlineData("hmi_validate", "hmi_read")]
     [InlineData("get_block_content", "get_block_content")]
     [InlineData("search_equipment_catalog", null)]
