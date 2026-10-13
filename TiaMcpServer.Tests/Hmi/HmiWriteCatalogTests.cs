@@ -35,6 +35,19 @@ public class HmiWriteCatalogTests
     [InlineData("50.0", 50, null)]
     [InlineData("50.5", null, 50.5)]
     [InlineData("3e9", null, 3e9)]
+    [InlineData("50.000000000000000001", null, 50.0)]
+    [InlineData("2147483647.000000001", null, 2147483647.0)]
+    [InlineData("-2147483648.000000001", null, -2147483648.0)]
+    [InlineData("2147483647", 2147483647, null)]
+    [InlineData("-2147483648", -2147483648, null)]
+    [InlineData("2147483648", null, 2147483648.0)]
+    [InlineData("-2147483649", null, -2147483649.0)]
+    [InlineData("5e1", 50, null)]
+    [InlineData("500e-1", 50, null)]
+    [InlineData("50.00e+0", 50, null)]
+    [InlineData("-0.0", 0, null)]
+    [InlineData("1e-400", null, 0.0)]
+    [InlineData("-1e-400", null, -0.0)]
     public void ConditionValue_UsesSpecifiedNumericType(string json, int? integer, double? real)
     {
         var op = Read("\"operation\":\"update_alarm\",\"alarmKind\":\"analog\",\"alarmName\":\"A\",\"conditionValue\":" + json);

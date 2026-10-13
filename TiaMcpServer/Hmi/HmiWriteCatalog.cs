@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using System.Security;
 using System.Text.Json;
 using TiaMcpServer.Contracts.Hmi;
@@ -180,8 +181,10 @@ public static class HmiWriteCatalog
         if (r.ConditionValue is { } number)
         {
             if (!TryNumber(number, out var value)) throw new ArgumentException("conditionValue must be a finite JSON number.");
-            if (value >= int.MinValue && value <= int.MaxValue && Math.Truncate(value) == value)
-                result.ConditionValueInt32 = (int)value;
+            // Classify the exact token before Double rounding can hide a fractional component.
+            if (BigInteger.TryParse(number.GetRawText(), NumberStyles.Float, CultureInfo.InvariantCulture, out var integer)
+                && integer >= int.MinValue && integer <= int.MaxValue)
+                result.ConditionValueInt32 = (int)integer;
             else result.ConditionValueDouble = value;
         }
         return result;
