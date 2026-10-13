@@ -23,8 +23,8 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         public bool Observe;
         public string? AlternateName;
         public string? Message;
-        public readonly Dictionary<string, string?> Fields = new(StringComparer.Ordinal);
-        public readonly HashSet<string> Observed = new(StringComparer.Ordinal);
+        public readonly Dictionary<string, string?> Fields = new(Names);
+        public readonly HashSet<string> Observed = new(Names);
     }
 
     public async Task<HmiWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
@@ -125,7 +125,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
     private static Dictionary<string, string?> Requested(HmiWriteOperationRequest item, string hmi)
     {
         var r = HmiWriteCatalog.ToWorkerRequest(item, hmi);
-        var fields = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var fields = new Dictionary<string, string?>(Names);
         void Add(string name, object? value) { if (value is not null) fields[name] = Scalar(value); }
         void Texts(string name, List<HmiText>? texts) { foreach (var text in texts ?? []) fields[$"{name}[{text.Culture}]"] = text.Text; }
         Add("connection", r.Connection); Add("plcTag", r.PlcTag); Add("dataType", r.DataType); Add("acquisitionCycle", r.AcquisitionCycle);
@@ -189,7 +189,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
 
     private async Task<Dictionary<string, string?>?> Observe(string? path, HmiTargetIdentity target)
     {
-        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var values = new Dictionary<string, string?>(Names);
         void Add(string field, object? value) => values[field] = Scalar(value);
         void Texts(string field, List<HmiText>? texts)
         {

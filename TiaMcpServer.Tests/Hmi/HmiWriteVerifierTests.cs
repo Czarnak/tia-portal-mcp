@@ -253,6 +253,25 @@ public class HmiWriteVerifierTests
         f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", ConditionValue = new("System.Double", JsonDocument.Parse("50.50").RootElement.Clone()) } });
         Assert.True((await Verify(f, [r])).Success);
     }
+
+    [Fact]
+    public async Task CultureIdentityIsCaseInsensitiveWhileTextRemainsExact()
+    {
+        using var f = await Fixture.Create(); var r = Tag(); r.Comment = [new("en-us", "Text")];
+        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = new() { Name = "T", Table = "Table", Comment = [new("en-US", "Text")] } });
+        Assert.True((await Verify(f, [r])).Success);
+        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = new() { Name = "T", Table = "Table", Comment = [new("en-US", "text")] } });
+        Assert.False((await Verify(f, [r])).Success);
+    }
+
+    [Fact]
+    public async Task LaterCultureWriteSupersedesDifferentCultureSpelling()
+    {
+        using var f = await Fixture.Create(); var first = Tag(); first.Comment = [new("en-US", "Before")];
+        var last = Tag("last"); last.Comment = [new("en-us", "After")];
+        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = new() { Name = "T", Table = "Table", Comment = [new("en-US", "After")] } });
+        Assert.True((await Verify(f, [first, last])).Success);
+    }
     // A scripted stdio peer exercises the real client without loading or launching Siemens code.
     private sealed class Fixture : IDisposable
     {
