@@ -31,6 +31,12 @@ internal sealed class HmiWorkingState
     }
     public static HmiWorkingState Create(HmiEvidence evidence) => new(evidence);
 
+    // Only the planner may seed a newly created bound tag; dependent replans require observed members.
+    internal void AddProvisionalMemberPath(string path)
+    {
+        if (!_members.Contains(path, Names)) _members.Add(path);
+    }
+
     public HmiResolution Resolve(HmiWriteOperationRequest item)
     {
         var guards = new List<FiredGuard>();

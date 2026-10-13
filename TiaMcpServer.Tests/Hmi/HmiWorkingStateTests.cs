@@ -6,6 +6,20 @@ namespace TiaMcpServer.Tests.Hmi;
 
 public class HmiWorkingStateTests
 {
+    [Fact]
+    public void ProvisionalMemberAfterRecreationDoesNotBecomeObservedEvidence()
+    {
+        var evidence = Evidence(); var state = HmiWorkingState.Create(evidence);
+        var delete = Item("delete_tag", "delete"); delete.TagName = "T"; state.Apply(delete);
+        var create = Item("create_tag", "create"); create.TagName = "T"; create.TableName = "Table"; create.Connection = "PLC"; state.Apply(create);
+        var alarm = Item("create_alarm"); alarm.AlarmName = "New"; alarm.AlarmKind = "discrete"; alarm.TriggerTag = "T.NewMember";
+        Assert.Equal("target_not_found", state.Resolve(alarm).Error!.Category);
+        state.AddProvisionalMemberPath("T.NewMember");
+        Assert.Null(state.Resolve(alarm).Error);
+        Assert.Equal("create", state.Resolve(alarm).Effect!.DependsOn);
+        Assert.DoesNotContain("T.NewMember", evidence.MemberPaths);
+        Assert.Equal("target_not_found", HmiWorkingState.Create(evidence).Resolve(alarm).Error!.Category);
+    }
     private static HmiEvidence Evidence() => new()
     {
         HmiName = "HMI", Tables = new[] { new HmiTableEvidence("Table", null), new HmiTableEvidence("Other", "Group") },

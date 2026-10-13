@@ -165,6 +165,7 @@
     <Compile Include="..\TiaMcpServer\Hmi\HmiWriteModels.cs" Link="Host\Hmi\HmiWriteModels.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiGuardDefinitions.cs" Link="Host\Hmi\HmiGuardDefinitions.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiWorkingState.cs" Link="Host\Hmi\HmiWorkingState.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWritePlanner.cs" Link="Host\Hmi\HmiWritePlanner.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiOperationRequest.cs" Link="Host\Hmi\HmiOperationRequest.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiPageCursorCodec.cs" Link="Host\Hmi\HmiPageCursorCodec.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiPayloadContract.cs" Link="Host\Hmi\HmiPayloadContract.cs" />
