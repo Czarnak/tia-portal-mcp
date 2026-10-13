@@ -68,6 +68,7 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
     }
     public abstract class HmiDiscreteAlarm : global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase
     {
+        public string TriggerBitAddress { get => throw new global::System.NotSupportedException(); }
         public string AcknowledgmentControlTag { get => throw new global::System.NotSupportedException(); }
         public int AcknowledgmentControlTagBitNumber { get => throw new global::System.NotSupportedException(); }
         public string AcknowledgmentStateTag { get => throw new global::System.NotSupportedException(); }
@@ -85,6 +86,7 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
     }
     public abstract class HmiAnalogAlarm : global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase
     {
+        public string TriggerAddress { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.HmiAlarmCondition Condition { get => throw new global::System.NotSupportedException(); }
         public object ConditionValue { get => throw new global::System.NotSupportedException(); }
         public string Name { get => throw new global::System.NotSupportedException(); }

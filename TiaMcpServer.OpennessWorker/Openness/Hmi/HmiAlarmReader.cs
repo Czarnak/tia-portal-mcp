@@ -168,6 +168,7 @@ public static class HmiAlarmReader
 
         if (alarm is HmiDiscreteAlarm discrete)
         {
+            row.TriggerBitAddress = log.Try(() => discrete.TriggerBitAddress, What("TriggerBitAddress"));
             row.TriggerBit = log.Try(() => (long?)discrete.RaisedStateTagBitNumber, What("RaisedStateTagBitNumber"));
             row.TriggerMode = log.Try(() => discrete.TriggerMode.ToString(), What("TriggerMode"));
             row.AcknowledgmentControlTag = log.Try(() => discrete.AcknowledgmentControlTag, What("AcknowledgmentControlTag"));
@@ -177,6 +178,7 @@ public static class HmiAlarmReader
         }
         else if (alarm is HmiAnalogAlarm analog)
         {
+            row.TriggerAddress = log.Try(() => analog.TriggerAddress, What("TriggerAddress"));
             row.Condition = log.Try(() => analog.Condition.ToString(), What("Condition"));
             row.ConditionValue = log.ReadVariant(() => analog.ConditionValue, What("ConditionValue"));
         }

@@ -17,6 +17,43 @@ namespace TiaMcpServer.Tests.Hmi;
 [Collection(HmiSnapshotStoreCollection.Name)]
 public class HmiAlarmReaderTests
 {
+    [Fact]
+    public void ReadRow_UnreadableTriggerAddressesAreNullWithMessages()
+    {
+        var discrete = Discrete("d");
+        var analog = Analog("a");
+        discrete.Failures["TriggerBitAddress"] = new EngineeringNotSupportedException("unavailable");
+        analog.Failures["TriggerAddress"] = new EngineeringNotSupportedException("unavailable");
+        var info = HmiAlarmReader.ListAlarms(SoftwareWith(new[] { discrete }, new[] { analog }), null, null, Paged(0, 10), TestProject);
+
+        Assert.All(info.Alarms, row => { Assert.Null(row.TriggerBitAddress); Assert.Null(row.TriggerAddress); });
+        Assert.False(info.IsComplete);
+        Assert.Contains(info.Messages, m => m.Contains("TriggerBitAddress"));
+        Assert.Contains(info.Messages, m => m.Contains("TriggerAddress"));
+    }
+
+    [Fact]
+    public void ReadRow_DiscreteReportsTriggerBitAddress_AnalogNull()
+    {
+        var alarm = Discrete("d");
+        alarm.TriggerBitAddress = "T1.x3";
+        var row = HmiAlarmReader.GetAlarm(SoftwareWith(new[] { alarm }, Array.Empty<HmiAnalogAlarm>()), "d", "discrete", null).Alarm;
+
+        Assert.Equal("T1.x3", row.TriggerBitAddress);
+        Assert.Null(row.TriggerAddress);
+    }
+
+    [Fact]
+    public void ReadRow_AnalogReportsTriggerAddress_DiscreteNull()
+    {
+        var alarm = Analog("a");
+        alarm.TriggerAddress = "T1";
+        var row = HmiAlarmReader.GetAlarm(SoftwareWith(Array.Empty<HmiDiscreteAlarm>(), new[] { alarm }), "a", "analog", null).Alarm;
+
+        Assert.Equal("T1", row.TriggerAddress);
+        Assert.Null(row.TriggerBitAddress);
+    }
+
     private const string NoTag = "<No tag>";
 
     private static MultilingualText Texts(string en, string pl)

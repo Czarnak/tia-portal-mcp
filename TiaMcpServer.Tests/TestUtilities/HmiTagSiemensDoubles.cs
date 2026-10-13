@@ -88,6 +88,8 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
         private readonly HmiThresholdComposition thresholds = new();
 
         public MultilingualText Comment { get => Get<MultilingualText>(); set => Set(value); }
+        public MultilingualText DisplayName { get => Get<MultilingualText>(); set => Set(value); }
+        public string PlcName { get => Get<string>(); set => Set(value); }
         public LoggingTags.HmiLoggingTagComposition LoggingTags { get { Check(nameof(LoggingTags)); return loggingTags; } }
         public HmiTagComposition Members { get { Check(nameof(Members)); return members; } }
         public HmiThresholdComposition Thresholds { get { Check(nameof(Thresholds)); return thresholds; } }

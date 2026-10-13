@@ -88,6 +88,7 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
 
     public sealed class HmiDiscreteAlarm : HmiAlarmCommon.AlarmBase
     {
+        public string TriggerBitAddress { get => Get<string>(); set => Set(value); }
         public string AcknowledgmentControlTag { get => Get<string>(); set => Set(value); }
         public int AcknowledgmentControlTagBitNumber { get => Get<int>(); set => Set(value); }
         public string AcknowledgmentStateTag { get => Get<string>(); set => Set(value); }
@@ -100,6 +101,7 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
 
     public sealed class HmiAnalogAlarm : HmiAlarmCommon.AlarmBase
     {
+        public string TriggerAddress { get => Get<string>(); set => Set(value); }
         public HmiAlarmCommon.HmiAlarmCondition Condition { get => Get<HmiAlarmCommon.HmiAlarmCondition>(); set => Set(value); }
         public object ConditionValue { get => Get<object>(); set => Set(value); }
     }

@@ -186,6 +186,8 @@ public static class HmiTagReader
             Table = log.Try(() => tag.TagTableName, What("TagTableName")),
             Connection = log.Try(() => tag.Connection, What("Connection")),
             PlcTag = log.Try(() => tag.PlcTag, What("PlcTag")),
+            PlcName = log.Try(() => tag.PlcName, What("PlcName")),
+            DisplayName = log.ReadText(() => tag.DisplayName, language, What("DisplayName")),
             DataType = log.Try(() => tag.DataType, What("DataType")),
             HmiDataType = log.Try(() => tag.HmiDataType, What("HmiDataType")),
             Address = log.Try(() => tag.Address, What("Address")),

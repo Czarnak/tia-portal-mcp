@@ -28,6 +28,12 @@ public class HmiAlarmRowInfo
 
     public string? TriggerTag { get; set; }
 
+    /// <summary>Discrete only.</summary>
+    public string? TriggerBitAddress { get; set; }
+
+    /// <summary>Analog only.</summary>
+    public string? TriggerAddress { get; set; }
+
     /// <summary>Discrete only: the bit of the trigger tag.</summary>
     public long? TriggerBit { get; set; }
 

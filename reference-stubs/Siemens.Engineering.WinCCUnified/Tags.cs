@@ -33,6 +33,8 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
         public T GetService<T>() where T : global::Siemens.Engineering.IEngineeringService => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.MultilingualText Comment { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.MultilingualText DisplayName { get => throw new global::System.NotSupportedException(); }
+        public string PlcName { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HmiUnified.LoggingTags.HmiLoggingTagComposition LoggingTags { get => throw new global::System.NotSupportedException(); }
         public HmiTagComposition Members { get => throw new global::System.NotSupportedException(); }
         public HmiThresholdComposition Thresholds { get => throw new global::System.NotSupportedException(); }
