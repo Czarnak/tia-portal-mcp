@@ -1,7 +1,7 @@
 # TIA Portal HMI Operations
 
 `hmi_read` is the read-only WinCC Unified HMI tool. It is registered in every access mode (counts
-7/16/16), never writes, never compiles, and never opens, saves or closes a project. It runs up to
+7/17/17), never writes, never compiles, and never opens, saves or closes a project. It runs up to
 50 items per call on the structured JSON contract (`contractVersion:"1.1"`); items run
 independently, so a failing item does not stop later ones. Design background lives in the
 [hmi_read design spec](../superpowers/specs/2026-10-07-hmi-read-design.md), the
@@ -9,6 +9,10 @@ independently, so a failing item does not stop later ones. Design background liv
 [live acceptance report](../superpowers/acceptance/reports/2026-10-08-hmi-read-live-acceptance.md),
 the [completion spec](../superpowers/specs/2026-10-11-hmi-read-completion-design.md) and the
 [completion live acceptance report](../superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md).
+
+`hmi_write` separately provides nine tag-table, tag and alarm writes in writable modes on standalone
+projects and bound local sessions. The [write acceptance report](../superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md)
+qualifies the exact production source/package, launched side by side without global installation.
 
 ## Operations
 
@@ -48,6 +52,10 @@ have no `language` because connection comments are plain strings and alarm class
 
 ## Result conventions
 
+- **Tag and alarm rows.** `list_tags`, `get_tag` and recursive member rows include `displayName`
+  text arrays and `plcName`. `list_alarms` and `get_alarm` include `triggerBitAddress` for discrete
+  alarms and `triggerAddress` for analog alarms. Unreadable/inapplicable members are explicit nulls;
+  these additions keep the read contract at `1.1`.
 - **Paging.** Paged operations take `offset` (0 or greater, default 0) and `limit` (1-2000, default
   100) and return `page { offset, limit, total, nextOffset, nextCursor }`. Order is case-insensitive
   ordinal with a case-sensitive tie-break. A call without `cursor` re-scans the project; see
@@ -147,12 +155,113 @@ stays fully supported; a call without `cursor` behaves as before and re-scans.
 - **Never read.** `HmiTag.ConfirmationType` (it crashed TIA Portal in the spike), and
   `GmpRelevant` / `MandatoryCommenting`. These stay permanently unread; there is no probe.
 
+## Writes (`hmi_write`)
+
+`hmi_write(operations, dryRun=false)` executes by default against one verified, already-open project.
+Set `dryRun:true` for preview. Each of 1–50 caller-ordered items carries a unique `operationId`
+(at most 256 characters), `operation`, and optional `hmiName` and `projectPath`. HMI selection follows
+the read rules; all items target one project. Unknown fields and mixed explicit project paths fail
+validation before worker activity. Read-only mode neither registers the tool nor permits its nine
+worker methods.
+
+| Operation | Required | Optional |
+| --- | --- | --- |
+| `create_tag_table` | `tableName` | `groupPath` (existing group) |
+| `update_tag_table` | `tableName`, `newName` | – |
+| `delete_tag_table` | `tableName` | – |
+| `create_tag` | `tableName`, `tagName`, and either `connection` + `plcTag` or `dataType` | `comment`, `displayName`, `acquisitionCycle` |
+| `update_tag` | `tagName` | `newName`, `plcTag`, `connection` (with `plcTag`), `dataType` (internal only), `comment`, `displayName`, `acquisitionCycle` |
+| `delete_tag` | `tagName` | – |
+| `create_alarm` | `alarmKind`, `alarmName`, `triggerTag`; analog also `condition`, `conditionValue` | `alarmClass` (default `Alarm`), `priority`, `eventText`, `infoText`; discrete only `bitNumber` (default 0), `triggerMode` |
+| `update_alarm` | `alarmKind`, `alarmName` | `newName` and create fields valid for that kind |
+| `delete_alarm` | `alarmKind`, `alarmName` | – |
+
+### Fields and dependencies
+
+- **Binding.** Bound tags require an existing connection and PLC tag; binding never creates a
+  connection and their `dataType` is derived. Internal creates require `dataType`; their connection
+  reads `<Internal tag>`. Updating `plcTag` alone requires a bound tag. Quoted (`"DB".Member`) and
+  unquoted PLC paths normalize to Siemens' unquoted dotted form. A preview cannot prove PLC-source
+  existence; its setter can fail during mutation.
+- **Names.** Tags are HMI-wide, tables span all groups, alarms are scoped by kind. `tableName` places
+  a new tag; existing tags use `tagName` alone. New names cannot be blank, padded, or contain controls,
+  `.` or `"`. Existing selectors match case-insensitively; final names verify exact case.
+- **Values.** `acquisitionCycle` is `T100ms`, `T250ms`, `T500ms`, `T1s`, `T2s`, `T5s` or `T10s`.
+  Priority is 0–255. Discrete `bitNumber` is at least zero, with its native type-specific upper bound;
+  `triggerMode` is `OnRisingEdge` or `OnFallingEdge`. Analog `condition` is `LowerLimit`, `UpperLimit`,
+  `Equal`, `NotEqual`, `LowerLimitOrEqual` or `UpperLimitOrEqual`. Finite JSON `conditionValue` uses Int32
+  setter input for integral values in Int32 range (including `50.0`), otherwise Double. Verification
+  allows only exact numeric equality, including lossless Int32-request to Double-readback
+  normalization, and retains actual readback type evidence.
+- **Members.** `triggerTag` accepts a tag or recursive `Tag.Member` path. Names created or renamed
+  earlier may supply `dependsOn`; dependent items re-plan immediately before mutation. A member of
+  an earlier-created bound tag is provisional during initial planning and must be proved by fresh
+  `get_tag` evidence before alarm mutation. An existing-tag rebind introducing a previously absent
+  member followed by an alarm on it in the same call is rejected before mutation: complete the binding update, read
+  tag/members, then create the alarm in a second call.
+- **Texts.** `comment`, `displayName`, `eventText` and `infoText` are nonempty arrays of `{culture,text}`;
+  only supplied cultures change. Duplicate cultures are `validation_error`; an unconfigured language
+  is `target_not_found`. Send plain text: input starting with `<body` is rejected; EventText line
+  breaks are rejected. The server escapes XML text ampersands/angle brackets, preserves literal
+  quotes and wraps event text as `<body><p>…</p></body>`. Literal entities remain literal text.
+  Other text fields are written as given. Effects use scalar `field[culture]` values; raw readback
+  markup is not write input.
+
+### Guards and outcomes
+
+| Guard | Level | Fires when |
+| --- | --- | --- |
+| `hmi_name_collision` | block | Create/rename collides case-insensitively with another object in its name scope. |
+| `hmi_state_unverifiable` | block | Required evidence is incomplete or initial delete planning needs over 200 cross-reference queries. |
+| `hmi_deletes_table_contents` | info | Deleting a table also deletes its inventoried tags. |
+| `hmi_deletes_referenced_tag` | info | Deleted tags have inventoried alarm/screen/script users; references can remain dangling. |
+
+The 200-query cap covers initial plan-time cross-reference reads for pre-existing top-level tags
+removed by the call, including table contents. Dependent deletes re-read their consequences before
+mutation; this is not a cap on total worker dispatches or all later reads. Delete tags over separate
+calls before deleting a table whose initial evidence would exceed the cap.
+
+The shared guarded pipeline pins the binding through planning, mutation, verification and audit.
+There is no elicitation, confirmation argument, acknowledgment input or safety token. Execution stops
+at the first failing setter/item; there is no batch rollback or automatic replay. Typed results
+retain ordered `appliedProperties`, `failedProperty` and create `cleanup` (`notNeeded`, `deleted`,
+`failed`, with diagnostics). A failed create attempts identity-checked deletion; successful cleanup
+is verified absent, while failed cleanup can leave an object. A failed update keeps earlier setters.
+Inspect actual state before retrying.
+
+Public table/tag/alarm readback verifies requested values, names and cultures; name-scoped `validate`
+errors fail postconditions and warnings remain non-fatal. Derived values are reported. Deletes and
+successful cleanup are checked for absence; later-overwritten items are `superseded`. Mutations drop
+that HMI's read snapshots; planning inventories can also consume or evict the four snapshot slots.
+
+Write responses use `contractVersion:"1.0"`, phases `preview`, `applied`, `blocked`, `error`, typed
+effects/results/verification, explicit nulls and 180,000-document/60,000-value character budgets.
+Rejections have a top-level error; attempted mutation/verification failure has `success:false`,
+`error:null`, MCP `isError:false` and can retain changes. Whole-value omissions may fail delivery
+while preserving true execution summaries. Each entered call, including preview/denial, produces
+one audit v2 record with exact delivered canonical text/hash. Actual confirmation is `none` in
+read-write and `policy` in full.
+
+Standalone and local-session writes use the active engineering root; they do not implicitly save,
+compile, refresh from or check in to Project Server. Use `save_project` explicitly; a local save
+calls `LocalSession.Save()` only.
+
 ## Known limits
 
 - Whole-project scans take roughly 21-23 s per call on a large PC station regardless of `limit`;
   narrow with `screenName` or `tableName` and continue with the cursor.
-- Every item resolves its HMI again: on a large project one `validate screenItems` item costs about
-  6 s, so a batch over many screens takes minutes.
+- Every locator call, including retained-cache hits, freshly traverses for current project
+  membership and selector uniqueness. Retained entries clear on the next locator use after an
+  engineering-owner change; an omitted selector does not refill a keyed entry. The maintainer kept
+  the cache and left O1 open: the planned traversal saving is not delivered. The earlier roughly
+  6 s per `validate screenItems` item is historical baseline evidence.
+- Direct case-only tag rename can fail at the Siemens setter while preserving the original tag.
+  The self-rename collision guard permits it; table/alarm case-only success does not qualify tags.
+  Two explicit caller-owned renames through a unique intermediate name worked on an earlier
+  candidate; there is no hidden server rename. Inspect partial state before retrying.
+- Default tag-table deletion can fail natively; no public property reliably identifies it, so no
+  name-based guard is used. Plain-struct binding can apply but fail validation, requiring explicit
+  cleanup of the created tag.
 - `get_tag` with a dotted UDT member name fails `target_not_found` without the member-path hint that
   `read_cross_references` gives.
 - Floating-point values are written explicitly (`G15`, or `G17` when 15 digits do not round-trip;
@@ -163,6 +272,11 @@ stays fully supported; a call without `cursor` behaves as before and re-scans.
   validation warnings, non-default Object values.
 
 See the [improvement log](../IMPROVEMENT_LOG.md#open-hmi_read-follow-ups-2026-10-12) for follow-ups.
+The [write acceptance report](../superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md)
+qualifies both-mode functional verification on source `48f2edd`. Editor rendering remains one
+earlier-candidate maintainer check. Performance uses an archival baseline with no write tool:
+matched baseline-write comparisons and the three-repetition owner-transition gate remain
+unqualified; the single owner-transition observation failed the proposed 10% memory-return condition.
 
 ## Cross-references of HMI tags
 
@@ -173,8 +287,10 @@ Unified HMI tag; see
 ## Out of scope
 
 SiVArc, plant views, YAML or JavaScript export content, dynamizations and events, a generic attribute
-dump, HMI compile, hardware-layer connections, and reads of Classic WinCC objects. There are no HMI
-writes. `compile_check` keeps its PLC-only contract.
+dump, HMI compile, hardware-layer connections, and reads/writes of Classic WinCC objects.
+Writes also exclude connection create/edit, tag-table group changes, tag moves/unbinding,
+`accessMode`, `acquisitionMode`, acknowledgment tags, `EventText1`–`EventText9`, alarm-text parameter
+fields, logging and screen changes. `compile_check` keeps its PLC-only contract.
 
 Related: [README.md](README.md) for the operation index and
 [DEVICES_OPERATIONS_SUMMARY.md](DEVICES_OPERATIONS_SUMMARY.md) for hardware information.

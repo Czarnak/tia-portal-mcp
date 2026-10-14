@@ -9,7 +9,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 
 | Document | What you will find |
 | --- | --- |
-| [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 7/16/16 modes, and mode-derived lifecycle confirmation |
+| [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 7/17/17 modes, and mode-derived lifecycle confirmation |
 | [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, guarded Network and `plc_write` migration, and block paths |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
@@ -19,7 +19,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Architecture](ARCHITECTURE.md) | Two-process topology, tier enforcement, explicit binding/cursor invalidation, transport, canonical JSON, mode-derived confirmation/audit v2, and testing |
-| [HMI operations (`hmi_read`)](SupportedOperations/HMI_OPERATIONS_SUMMARY.md) | The 20 read-only WinCC Unified operations, offset and cursor paging, completeness rules, `validate` categories, redaction, known limits and out-of-scope areas |
+| [HMI operations (`hmi_read`, `hmi_write`)](SupportedOperations/HMI_OPERATIONS_SUMMARY.md) | The 20 read-only WinCC Unified operations and nine writes, read DTO additions, paging/completeness, guards, partial failures, verification and limits |
 | [hmi_read completion live acceptance](superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md) | Cursor paging and its failure categories, name-scoped `validate` categories, the provisional `{hmi}` cross-reference selector, runtime-settings allow-list, local-session paging, the 42-row regression, and observations O1-O6 |
 | [hmi_write live write spike](superpowers/acceptance/reports/2026-10-13-hmi-write-spike.md) | Binding recipe (`Connection` then `PlcTag`), no connection auto-creation, name scopes, cascading deletes, the undeletable default table, per-property text form (`EventText` formatted, `InfoText`/`Comment` plain), `ConditionValue` types, dangling references, `SetAttributes` atomicity and per-tag cost |
 | [hmi_write live acceptance](superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md) | Exact candidate and package provenance, offline gate, both-mode functional evidence and restoration, scoped timing/memory comparisons, native tag case-only rename limits, and cache retention with O1 open |
@@ -68,7 +68,7 @@ records implemented/offline-qualified `.amc21` adoption and `.als21` opening, wi
 maintainer acceptance on October 8. The report retains failed noninteractive offline opening
 and unexecuted matrix rows; Issue #65 and successor session operations remain open.
 
-Latest process entry: the [hmi_write design](superpowers/specs/2026-10-13-hmi-write-design.md) and its [implementation plan](superpowers/plans/2026-10-13-hmi-write.md), built on the [hmi_write live write spike](superpowers/acceptance/reports/2026-10-13-hmi-write-spike.md). Before it: the [hmi_read completion design](superpowers/specs/2026-10-11-hmi-read-completion-design.md), its [implementation plan](superpowers/plans/2026-10-11-hmi-read-completion.md) and its [installed-tool live acceptance report](superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md).
+Latest process entry: the [hmi_write design](superpowers/specs/2026-10-13-hmi-write-design.md) and its [implementation plan](superpowers/plans/2026-10-13-hmi-write.md), built on the [hmi_write live write spike](superpowers/acceptance/reports/2026-10-13-hmi-write-spike.md), with the [scoped live acceptance report](superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md). Functional verification is complete within its limits; cache retention is a maintainer decision with O1 open and partial performance gates. Before it: the [hmi_read completion design](superpowers/specs/2026-10-11-hmi-read-completion-design.md), its [implementation plan](superpowers/plans/2026-10-11-hmi-read-completion.md) and its [installed-tool live acceptance report](superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md).
 
 Previous process entries: the [`create_block` OB creation design](superpowers/specs/2026-10-08-ob-creation-design.md) (issue #75), its [Phase 0 spike report](superpowers/acceptance/reports/2026-10-08-ob-creation-spike.md), its [implementation plan](superpowers/plans/2026-10-08-ob-creation.md) and its [installed-tool live acceptance report](superpowers/acceptance/reports/2026-10-09-ob-creation-live-acceptance.md).
 

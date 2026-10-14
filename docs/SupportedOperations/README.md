@@ -21,9 +21,9 @@ Every item contains an `operationId`, an `operation` name, and the fields for th
 
 `plc_read` supports `get_block_content`, `get_type_content`, and `list_tag_tables`;
 `read_cross_references` is a standalone tool. `execute_read_batch` was retired.
-Hardware/catalog reads use `network_read`. WinCC Unified HMI reads use `hmi_read`; see [HMI_OPERATIONS_SUMMARY.md](HMI_OPERATIONS_SUMMARY.md).
+Hardware/catalog reads use `network_read`. WinCC Unified HMI reads use `hmi_read`; tag-table/tag/alarm writes use `hmi_write`. See [HMI_OPERATIONS_SUMMARY.md](HMI_OPERATIONS_SUMMARY.md).
 
-Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. Full adds no tools or operations; PLC run/stop was removed. See [Installation](../guides/installation.md#access-modes) for the 7/16/16 surfaces and confirmation policy.
+Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. Full adds no tools or operations; PLC run/stop was removed. See [Installation](../guides/installation.md#access-modes) for the 7/17/17 surfaces and confirmation policy.
 
 #### Write operations
 
@@ -32,6 +32,9 @@ Project binding, status, project-tree browsing, and compilation are separate too
 `update_block_logic`, `update_type_content`, `create_block`, `delete_block`, `create_block_group`, `delete_block_group`, `create_tag_table`, `delete_tag_table`, `create_tag`, `update_tag`, `delete_tag`, `create_user_constant`, `update_user_constant`, and `delete_user_constant`. Content updates take `content` together with `expectedContentHash` from a `plc_read`. Network provisioning/configuration uses `network_write`.
 
 ### Project lifecycle tools
+
+`hmi_write` supports create/update/delete for Unified tag tables, tags and discrete/analog alarms;
+see the [nine-operation reference](HMI_OPERATIONS_SUMMARY.md#writes-hmi_write).
 
 The server also provides six single-purpose lifecycle tools:
 
@@ -48,13 +51,14 @@ The server also provides six single-purpose lifecycle tools:
 
 ## Write safety
 
-Lifecycle, Network and PLC writes use guarded single-call writes. No tool uses safety tokens.
+Lifecycle, Network, PLC and HMI writes use guarded single-call writes. No tool uses safety tokens.
 
 - PLC writes preview with `dryRun:true`; omitted `dryRun` executes, with zero server elicitation. Collisions, existing blocks on create, the default tag table and unreadable evidence block the call in every mode; deletes and address overlaps are info. Content writes need `expectedContentHash`; stale content fails with `state_changed`. See the [PLC reference](PLC_OPERATIONS_SUMMARY.md#plc-writes-plc_write).
 - Lifecycle uses `dryRun` with operation inputs and no public confirmation array or token. Every actual read-write call asks once through form elicitation; full runs under policy without server elicitation. Block guards refuse in every mode; dry runs do not mutate or elicit. See the [lifecycle reference](PROJECT_OPERATIONS_SUMMARY.md#lifecycle-operations).
 - Network previews with `dryRun:true`; `dryRun:false` or omitted dryRun executes by default, with zero server elicitation. Exact already-open verified binding, complete guards and typed postchecks apply; stop on failure, no batch rollback or automatic replay. See the [Network contract](NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope) for pre-entry SDK rejection versus canonical entered denials.
+- HMI previews with `dryRun:true`; omitted dryRun executes tag-table/tag/alarm writes without elicitation. Existing connections, complete delete evidence and typed cleanup/partial outcomes apply on standalone and local-session roots. See the [HMI reference](HMI_OPERATIONS_SUMMARY.md#writes-hmi_write).
 - A multi-item write is sequential rather than transactional. Application stops at the first failure; completed items remain applied and later items are marked `skipped`.
-- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle, Network and PLC audit v2 record every entered call, including previews and refusals, with confirmation by `user`, `policy`, or `none`; SDK rejection before entry has no write audit. The legacy write audit stream was retired.
+- Audit JSONL lives under `%LOCALAPPDATA%\TiaMcpServer\audit`. Lifecycle, Network, PLC and HMI audit v2 record every entered call, including previews and refusals, with confirmation by `user`, `policy`, or `none`; SDK rejection before entry has no write audit. The legacy write audit stream was retired.
 
 Read responses may include `warnings` for partial or degraded data. Hardware reads also provide payload-level `messages` for unreadable members. Callers should treat these fields as part of the result contract rather than filling missing values locally.
 

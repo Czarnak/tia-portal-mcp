@@ -87,7 +87,7 @@ Below the tool surface, the host and worker also disagree about JSON:
   `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
   the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
   rebind-state readers now go through `ProjectRebindStatePayloadContract`.
-- The legacy generic-batch token audit stream was retired. Lifecycle, Network and PLC writes use one canonical guarded
+- The legacy generic-batch token audit stream was retired. Lifecycle, Network, PLC and HMI writes use one canonical guarded
   write record per call in the separate `writes-yyyy-MM-dd.jsonl` stream, with a record discriminator,
   exact response/hash, and confirmation/guard satisfaction provenance; blocked calls and dry runs are included.
 
@@ -286,7 +286,7 @@ built lifecycle tokens only for the redesign to delete them.
 `bind_project` adds explicit session selection in every mode with a typed standalone result,
 non-null before/after binding state and in-call Portal inventory. No request implicitly opens a
 project; ordinary reads never bind or switch. Project-tree cursors now reject binding changes as
-`cursor_binding_mismatch`. Mode counts are 7/16/16. The
+`cursor_binding_mismatch`. Mode counts are 7/17/17. The
 [engineering log](../IMPROVEMENT_LOG.md) records the completed human dialog observation and tracks the
 `totally-integrated-claude` plugin's `tia-portal-mcp` skill migration; installed plugin files were
 not changed by this documentation task.

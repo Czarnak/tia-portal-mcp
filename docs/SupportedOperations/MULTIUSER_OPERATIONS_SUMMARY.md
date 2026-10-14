@@ -2,7 +2,7 @@
 
 `bind_project` exposes explicit Portal discovery and five Project Server inventory actions in
 all modes. Omitted/null `action` or `action:"bind"` selects already-open standalone `.ap21`
-or typed local-session `.amc21` owners. Discovery remains **7/16/16** tools in
+or typed local-session `.amc21` owners. Discovery remains **7/17/17** tools in
 read-only/read-write/full. PR4 adds explicit existing `.als21` opening in writable modes and
 basic local status; PR5 adds local content reads and PR6 local content writes, compilation and
 `LocalSession.Save()` (see [Internal context](#internal-context)). PR1/PR2 ownership contracts remain the foundation; Issue #65 is incomplete.
@@ -137,6 +137,8 @@ use that owner. PR5 content reads (`browse_project_tree`, `plc_read`, `network_r
 `read_cross_references`, `hmi_read`) run against the session's `MultiuserProject` through the
 common `ProjectBase` root and are advertised as `projectContent`. PR6 adds `plc_write` (all
 operations), `network_write` (all operations), `compile_check` and `save_project` on the same root.
+The nine `hmi_write` operations also use this local root; see the [HMI reference](HMI_OPERATIONS_SUMMARY.md)
+and [both-mode write acceptance](../superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md).
 A local `save_project` calls `LocalSession.Save()`: it persists the local session only and never
 updates from or checks in to the Project Server; read-write confirmation states this. Create,
 save-as, archive, generic close and the internal IO-system/subnet qualification probes reject with

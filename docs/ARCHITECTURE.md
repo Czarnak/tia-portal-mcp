@@ -120,7 +120,7 @@ Tool registration is explicit and mode-dependent. The host always registers:
 The shared `McpToolRegistration.WithAccessModeTools` helper registers these in read-write and full:
 
 - `ProjectEngineeringTools` (when the mode permits `Compile`)
-- `NetworkWriteTools` and `PlcWriteTools` (when the mode permits `ProjectMutation`)
+- `NetworkWriteTools`, `PlcWriteTools` and `HmiWriteTools` (when the mode permits `ProjectMutation`)
 
 `ProjectWriteTools` is registered when the mode permits `ProjectLifecycle` (read-write and full).
 
@@ -129,8 +129,8 @@ read-only. Decorated tool classes that are not explicitly registered are not
 part of the active tool surface.
 
 `Program.cs` and production-surface protocol tests use the same registration helper, and
-`WriteGuardRegistration.ProductionCatalog()` builds the one guard catalog (lifecycle, Network and
-PLC). The generic batch tools (`preview_write_batch`, `apply_write_batch`, `execute_read_batch`),
+`WriteGuardRegistration.ProductionCatalog()` builds the one guard catalog (lifecycle, Network,
+PLC and HMI). The generic batch tools (`preview_write_batch`, `apply_write_batch`, `execute_read_batch`),
 the `BatchTools` wrapper and every token path were removed; their operations moved to `plc_read`
 and `plc_write`. The earlier registered-surface delegation and
 preview-only live V21 evidence are recorded in the
@@ -351,7 +351,7 @@ null and active connection observation `unknown` without a supported owner/endpo
 Explicit endpoint inventory has separate attachment/endpoint-scoped history; refresh timestamps
 do not create identity churn or prove an active-session reconnection. Capability descriptions
 grant no permission. Strict required-member/coherence decoding precedes existing 60,000-value
-and 180,000-document budgets. Current counts remain 7/16/16.
+and 180,000-document budgets. Current counts remain 7/17/17.
 PR4's [scoped live report](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
 retains both failed noninteractive offline opens, UI-assisted success, restoration and
 unexecuted rows. Content/session/markings/mutations remain undelivered; see the
@@ -459,7 +459,7 @@ registered tool is now structured; the three batch tools were removed rather tha
   stop decision covers `protocol_error` alongside ordinary worker failures.
   `StructuredOperationFailure.blockImportOutcome` is a conditional member on every structured
   tool's failure schema; it appears only on a failed `update_block_logic` content-import item.
-- Network and PLC read/write use version `1.0`, warnings arrays and explicit nulls.
+- Network and PLC read/write, and HMI writes, use version `1.0`, warnings arrays and explicit nulls.
   `CanonicalWriteSafety`, token preview DTOs, `WriteSafetyService`, `WriteSafetyTooling`,
   `SafetyRead` and the legacy write audit are retired.
 
@@ -579,6 +579,43 @@ Compile-time types come from a third generated stub, `ref/Siemens.Engineering.Wi
 from `reference-stubs/Siemens.Engineering.WinCCUnified/` and verified with the other two by
 `scripts/verify-reference-stubs.ps1` (one shared source hash). Operation reference:
 [HMI operations summary](SupportedOperations/HMI_OPERATIONS_SUMMARY.md).
+
+### HMI writes (`hmi_write`)
+
+`HmiWriteTools` registers nine typed create/update/delete operations for Unified tag tables, tags and
+discrete/analog alarms in writable modes. `HmiWriteCatalog` validates operation fields;
+`HmiWritePlanner` builds complete public-read evidence and `HmiWorkingState` applies caller-order
+effects. Dependent items re-plan before mutation. The initial delete-evidence cap is 200
+cross-reference queries for pre-existing removed tags, not a total-dispatch limit; dependent
+consequence rechecks are separate. Existing-tag rebinding that introduces new members cannot supply
+a later alarm in the same call: update, read tag/members, then make the alarm call separately.
+
+`HmiWriteDomain` uses `WriteExecution` under the pinned binding lease, with no server
+elicitation, stop at first failure and no batch rollback. `HmiWriteVerifier` uses public readback and
+name-scoped Validate; it retains partial-update evidence, checks cleanup/deletion absence, follows
+rename effects and marks superseded items. Typed worker outcomes retain applied properties, the
+failed property and identity-checked create-cleanup status. Failed cleanup can leave an object.
+Direct case-only tag rename exposes Siemens' setter failure; there is no hidden temporary rename.
+
+Worker requests use `WorkerRequest.HmiWrite`. The nine `hmi_*` mutation methods are ProjectMutation
+operations and map to `hmi_write` through `ProjectCapabilityCatalog.OperationFor`; reads map to
+`hmi_read`. Every handler uses `WithEngineeringRoot`, supporting standalone and local-session
+`ProjectBase` roots. Connections must already exist; no compile, save, server refresh or check-in is
+implicit. Mutations invalidate that HMI's read snapshots. Tag rows gain `displayName`/`plcName`, and
+alarm rows gain kind-specific `triggerBitAddress`/`triggerAddress`, with explicit nulls and unchanged
+read version `1.1`. The write contract is `1.0`, using shared canonical serialization, typed payload
+decoding, budgets and exact-delivery audit v2 records; attempted failures keep typed state with
+root `error:null` and MCP `isError:false`.
+
+`HmiSoftwareLocator` retains entries keyed by engineering root and explicit HMI name, but every
+locator call, including a cache hit, freshly resolves current project membership and selector
+uniqueness through strict discovery after its cached-name/device liveness check. Owner-change
+clearing occurs on the next locator use; an omitted selector does not refill a keyed entry.
+Retention does not skip traversal. The maintainer chose to retain the
+cache and leave O1 open. [Acceptance](superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md)
+records both-mode functional verification and separate archival-baseline timing/memory observations;
+matched write baselines and the strict repeated owner-transition gate remain unqualified, with the
+single-trace memory-return condition not met. No traversal-saving performance claim follows.
 
 ### Typed Network payload registry
 
@@ -855,8 +892,8 @@ after the later public acceptance work.
 
 ## 8. Write safety
 
-Lifecycle, Network and PLC writes use the guarded single-call pipeline described below.
-Lifecycle read-write confirms every actual call; Network and PLC have no server elicitation. No
+Lifecycle, Network, PLC and HMI writes use the guarded single-call pipeline described below.
+Lifecycle read-write confirms every actual call; Network, PLC and HMI have no server elicitation. No
 tool uses safety tokens. Client permission prompts and accepted elicitation do not establish that a
 human saw the consequence.
 
@@ -930,7 +967,7 @@ acceptance boundaries.
 ### Guarded write pipeline (foundation and lifecycle)
 
 `TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaced the token flow.
-The six lifecycle tools, `network_write` and `plc_write` use it. Network and PLC have no server
+The six lifecycle tools, `network_write`, `plc_write` and `hmi_write` use it. Network, PLC and HMI have no server
 elicitation; lifecycle read-write confirms every actual call.
 The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
 are recorded separately; client acceptance does not prove that a person saw the consequence.
@@ -1065,7 +1102,7 @@ The read-only test suite covers:
 - the output contract of every registered tool (§7a).
 
 Rejection of the retired `confirm` and `acknowledge` arguments is covered by the
-Network and PLC guarded-write MCP tests and `McpToolSchemaTests`, not by the read-only suite.
+Network, PLC and HMI guarded-write MCP tests and `McpToolSchemaTests`, not by the read-only suite.
 
 Lifecycle regressions cover read-write/full binding preparation and stale-revision
 refusal, all seven guards, mode-derived guard satisfaction, client elicitation outcomes, post-prompt
