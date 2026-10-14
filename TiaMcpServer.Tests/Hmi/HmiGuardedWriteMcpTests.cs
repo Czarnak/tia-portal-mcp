@@ -227,6 +227,34 @@ public class HmiGuardedWriteMcpTests
         Assert.NotNull(tool.OutputSchema);
     }
 
+    [Theory]
+    [InlineData("50.0", "System.Int32", "50", "50.5", "System.Double", "50.5")]
+    [InlineData("50.5", "System.Double", "50.5", "50.0", "System.Int32", "50")]
+    public async Task AnalogCreateAndUpdateRoundtripBothNumericRepresentations(string created, string createdType, string createdValue, string updated, string updatedType, string updatedValue)
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
+        var tag = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
+        { ["operations"] = new[] { new { operationId = "tag", operation = "create_tag", tableName = "Existing", tagName = "Signal", dataType = "Int" } } }));
+        Assert.True(tag.GetProperty("success").GetBoolean(), tag.GetRawText());
+        foreach (var (operation, input, type, value) in new[] { ("create_alarm", created, createdType, createdValue), ("update_alarm", updated, updatedType, updatedValue) })
+        {
+            var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
+            { ["operations"] = new[] { new { operationId = "alarm", operation, alarmKind = "analog", alarmName = "Analog", triggerTag = "Signal", condition = "UpperLimit", conditionValue = JsonSerializer.Deserialize<JsonElement>(input) } } });
+            var root = NetworkGuardedWriteMcpTests.Document(reply);
+            Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+            var checks = root.GetProperty("verification").GetProperty("operations").EnumerateArray().ToArray();
+            foreach (var (check, expected) in new[] { ("conditionValue.type", type), ("conditionValue", value) })
+            {
+                var result = Assert.Single(checks, c => c.GetProperty("check").GetString() == check);
+                Assert.Equal(expected, result.GetProperty("expected").GetString());
+                Assert.Equal(expected, result.GetProperty("actual").GetString());
+                Assert.True(result.GetProperty("success").GetBoolean());
+            }
+            AssertAudit(root, NetworkGuardedWriteMcpTests.AuditLines(audit.Path)[^1]);
+        }
+    }
+
     [Fact]
     public async Task ReadOnlyToolIsAbsentAndCannotDispatch()
     {

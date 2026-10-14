@@ -95,8 +95,8 @@ internal sealed class HmiWriteRoundtripScenario
                 if (w.BitNumber is not null) alarmRow.TriggerBit = w.BitNumber;
                 if (w.TriggerMode is not null) alarmRow.TriggerMode = w.TriggerMode;
                 if (w.Condition is not null) alarmRow.Condition = w.Condition;
-                if (w.ConditionValueInt32 is { } integer) alarmRow.ConditionValue = new("Int32", JsonSerializer.SerializeToElement(integer));
-                if (w.ConditionValueDouble is { } number) alarmRow.ConditionValue = new("Double", JsonSerializer.SerializeToElement(number));
+                if (w.ConditionValueInt32 is { } integer) alarmRow.ConditionValue = new("System.Int32", JsonSerializer.SerializeToElement(integer));
+                if (w.ConditionValueDouble is { } number) alarmRow.ConditionValue = new("System.Double", JsonSerializer.SerializeToElement(number));
                 if (w.AlarmClass is not null) alarmRow.AlarmClass = w.AlarmClass;
                 if (w.Priority is not null) alarmRow.Priority = w.Priority;
                 if (w.EventText is not null) alarmRow.EventText = w.EventText;
