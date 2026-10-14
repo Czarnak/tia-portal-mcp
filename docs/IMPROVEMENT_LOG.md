@@ -121,12 +121,25 @@ observations O1-O6); none blocks it. Known limits are also listed in the
 [HMI operations summary](SupportedOperations/HMI_OPERATIONS_SUMMARY.md#known-limits). Items the
 completion track closed are under "hmi_read completion" at the end.
 
-- **Every item re-locates its HMI (O1).** Each `hmi_read` item resolves its HMI software again. On a
-  large project one `validate screenItems` item costs about 6 s, so 180 screens took 20.6 min. A
-  batch-level software cache would cut this.
+- **Every item re-locates its HMI (O1, open).** The historical large-project baseline measured about
+  6 s per `validate screenItems` item and 20.6 min for 180 screens. The HMI-write track retains locator
+  entries, but cache hits still freshly traverse for current project membership and selector
+  uniqueness. Entries clear on next locator use after an owner change. The planned traversal saving
+  is not delivered; a safe invalidation/reuse design and measured benefit remain follow-ups.
+  The maintainer explicitly chose "Retain current cache; leave O1 open." The
+  [acceptance report](superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md) keeps
+  archival-baseline performance observations separate from functional acceptance; strict matched
+  write comparisons and repeated owner-transition gates remain unqualified, and the single-trace
+  10% memory-return condition was not met.
 - **`get_tag` dotted-name hint (O2).** `get_tag` with a dotted UDT member name fails
   `target_not_found` without the "UDT member paths are not supported" hint the `{hmi}`
   cross-reference selector gives.
+- **HMI-write scope follow-ups.** Connection creation/edit, acknowledgment tags, `EventText1`–`9`
+  and alarm-text parameter fields remain unsupported. Existing-tag rebinding that introduces a new
+  member followed by an alarm on that member in the same call is conservatively rejected before
+  mutation; use binding update, read tag/members, then another call. Extend update-dependent member
+  planning only with fresh proof before alarm mutation. Direct case-only tag rename can fail at the
+  Siemens setter; caller-owned intermediate-name renames are explicit operations, not server magic.
 - **`open_project` dry run misses an open project (O3, pre-existing).** A dry run while another project
   is open in the same Portal reports no guard and `willCloseSource:false`; the actual call then fails
   `worker_operation_failed` "Another project is already open."
@@ -1245,3 +1258,25 @@ PASS with recorded limits). Contract version `1.1`; tool counts unchanged at 7/1
   `cursor_binding_mismatch` after rebind, not the spec's `snapshot_unavailable`. Accepted.
 
 Remaining items are under "Open: hmi_read follow-ups (2026-10-12)" above.
+
+## hmi_write — functionally live-verified with retained limits (2026-10-14)
+
+Delivered nine guarded Unified tag-table/tag/alarm writes and additive read members
+(`displayName`, `plcName`, `triggerBitAddress`, `triggerAddress`), with mode counts 7/17/17.
+`hmi_read` remains read-only at contract 1.1; `hmi_write` uses contract 1.0. Standalone and bound
+local-session writes share the pinned pipeline, typed partial failures, create cleanup, public-read
+verification and exact-delivery audit v2; connections must already exist.
+
+The [acceptance report](superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md)
+qualifies production source `48f2edd` and the side-by-side real package, not the globally installed
+connector. Offline evidence is 6,407/6,407 tests and 1,256/1,292 changed executable production lines
+covered (97.21%). Both writable modes completed scoped functional verification, restoration/local
+save and reconciliation of 69 entered writes to 69 audit records. Editor rendering is one retained
+earlier-candidate human check; latest bound read-only content success was not qualified.
+
+Direct tag case-only setter failure and the existing-tag rebind/new-member two-call limit remain
+documented. The maintainer retained the cache with O1 open: fresh uniqueness traversal still runs.
+Archival-baseline timing/memory observations do not establish a traversal reduction or a full
+performance pass; matched baseline-write comparisons and repeated owner-transition gates remain
+unqualified, and the single-trace 10% return condition failed. See the report for candidate/package
+provenance, per-case outcomes, saved restoration and all evidence boundaries.

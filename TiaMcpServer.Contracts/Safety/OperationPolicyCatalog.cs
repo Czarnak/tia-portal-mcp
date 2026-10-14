@@ -144,6 +144,15 @@ public static class OperationPolicyCatalog
             ["close_project"] = OperationCapability.ProjectLifecycle,
 
             // ProjectMutation (NOT read-only safe)
+            ["hmi_create_tag_table"] = OperationCapability.ProjectMutation,
+            ["hmi_update_tag_table"] = OperationCapability.ProjectMutation,
+            ["hmi_delete_tag_table"] = OperationCapability.ProjectMutation,
+            ["hmi_create_tag"] = OperationCapability.ProjectMutation,
+            ["hmi_update_tag"] = OperationCapability.ProjectMutation,
+            ["hmi_delete_tag"] = OperationCapability.ProjectMutation,
+            ["hmi_create_alarm"] = OperationCapability.ProjectMutation,
+            ["hmi_update_alarm"] = OperationCapability.ProjectMutation,
+            ["hmi_delete_alarm"] = OperationCapability.ProjectMutation,
             ["update_block_logic"] = OperationCapability.ProjectMutation,
             ["update_type_content"] = OperationCapability.ProjectMutation,
             ["create_block"] = OperationCapability.ProjectMutation,

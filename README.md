@@ -12,14 +12,14 @@
 
 MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents inspect a running TIA Portal project through the Siemens Openness API.
 
-The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, read-only WinCC Unified HMI inspection, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
+The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, WinCC Unified HMI inspection and guarded tag-table/tag/alarm writes, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
 ## Tools
 
-The server exposes 7 tools in `read-only`, 16 in `read-write` (the startup default), and the same 16 in `full`.
+The server exposes 7 tools in `read-only`, 17 in `read-write` (the startup default), and the same 17 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls, asking once per actual lifecycle call.
 `full` adds no tools or operations; it only runs lifecycle calls without the prompt. Every write tool
-(`plc_write`, `network_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
+(`plc_write`, `network_write`, `hmi_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
 safety tokens and no PLC run/stop.
 
 ### PLC reads and cross-references
@@ -27,9 +27,10 @@ safety tokens and no PLC run/stop.
 - `plc_read` - run up to 50 PLC read operations in one call: `get_block_content`, `get_type_content` and `list_tag_tables`. Each item carries a unique `operationId`, an `operation` name, and that operation's parameters. Items run independently, so a failing item does not stop the others. Results are structured JSON with `contractVersion` `1.0`; a value over 60,000 characters is omitted whole with narrowing guidance, never cut.
 - `read_cross_references` - read the cross-references of one project-tree target (a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it). Arguments: `target`, `filter`, `maxResults`, `projectPath`. Both reads are available in every access mode and never open or switch a project.
 
-### HMI reads
+### HMI reads and writes
 
-- `hmi_read` - run up to 50 read-only WinCC Unified HMI operations in one call (devices, tags, connections, alarms, logs, screens and items, faceplates, navigation, runtime settings, script modules, text and graphic lists, languages and `validate`). Registered in every access mode, paged with `offset`/`limit` (default 100), structured JSON with `contractVersion` `1.0`. Classic WinCC devices are listed but not read. See the [HMI operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md).
+- `hmi_read` - run up to 50 read-only WinCC Unified HMI operations in one call (devices, tags, connections, alarms, logs, screens and items, faceplates, navigation, runtime settings, script modules, text and graphic lists, languages and `validate`). Registered in every access mode, paged with `offset`/`limit` (default 100), structured JSON with `contractVersion` `1.1`. Classic WinCC devices are listed but not read. See the [HMI operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md).
+- `hmi_write(operations, dryRun=false)` - create, update or delete WinCC Unified tag tables, tags and discrete/analog alarms: nine operations in read-write/full, up to 50 caller-ordered items on one verified standalone project or local session. Binding requires an existing connection. Set `dryRun:true` for preview; execution stops at the first failure without batch rollback or server elicitation. Read actual state before retrying. The [HMI reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md#writes-hmi_write) documents fields, guards, partial failures and member-dependency limits; the [acceptance report](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md) retains the scoped runtime and performance evidence.
 
 ### PLC writes
 
@@ -73,7 +74,7 @@ Large hardware reads can opt into cursor pagination with `pageSize` (`1..200`) o
 Local sessions use the observed typed `.amc21` path for adoption, basic status and already-open
 startup assertions; writable `open_project` accepts an exact existing `.als21` file. Content reads
 (`browse_project_tree`, `plc_read`, `network_read`, `read_cross_references`, `hmi_read`) work on a
-bound local session, and so do `plc_write`, `network_write`, `compile_check` and `save_project`.
+bound local session, and so do `plc_write`, `network_write`, `hmi_write`, `compile_check` and `save_project`.
 A local `save_project` saves the session through `LocalSession.Save()` and never checks in to the
 Project Server; create, save-as, archive, close and other terminal operations remain unavailable.
 Scoped PR4 acceptance includes online

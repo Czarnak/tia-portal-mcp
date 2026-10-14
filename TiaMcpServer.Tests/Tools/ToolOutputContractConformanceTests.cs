@@ -210,6 +210,14 @@ public sealed class ToolOutputContractConformanceTests
                     },
                 },
             }),
+        new ToolProbe("hmi_write", "rejected", true, null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe("hmi_write", "previewed", false, "hmi-write-roundtrip",
+            new Dictionary<string, object?> { ["dryRun"] = true, ["operations"] = new object[]
+            {
+                new { operationId = "table", operation = "create_tag_table", tableName = "T" },
+                new { operationId = "tag", operation = "create_tag", tableName = "T", tagName = "Tag", dataType = "Bool" },
+            } }),
         new ToolProbe(
             "plc_write",
             "rejected",

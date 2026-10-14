@@ -48,6 +48,16 @@ public static class HmiTextMapper
         return HmiPager.InNameOrder(texts, t => t.Culture).ToArray();
     }
 
+    public static void Write(MultilingualText text, IReadOnlyList<HmiText> values)
+    {
+        foreach (var value in values)
+        {
+            var item = text.Items.FirstOrDefault(i => string.Equals(i.Language.Culture.Name, value.Culture, StringComparison.OrdinalIgnoreCase))
+                ?? throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Text culture '{value.Culture}' was not found.");
+            item.Text = value.Text;
+        }
+    }
+
     /// <summary>The culture names of the project's active languages, ordered by name.</summary>
     public static IReadOnlyList<string> ProjectCultures(ProjectBase project)
     {

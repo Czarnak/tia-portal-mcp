@@ -66,7 +66,7 @@ namespace Siemens.Engineering
         public string Text
         {
             get => TextFailure is null ? text : throw TextFailure;
-            set => text = value;
+            set { if (TextFailure is not null) throw TextFailure; text = value; }
         }
         public Exception? TextFailure { get; set; }
     }

@@ -9,6 +9,25 @@ using TiaMcpServer.Contracts.Block;
 
 namespace TiaMcpServer.Tools;
 
+internal static class HmiWriteToolRegistration
+{
+    internal static IMcpServerBuilder WithHmiWriteTools(this IMcpServerBuilder builder)
+    {
+        builder.Services.AddSingleton<McpServerTool>(services => new StrictArgumentsTool(
+            McpServerTool.Create(typeof(Hmi.HmiWriteTools).GetMethod(nameof(Hmi.HmiWriteTools.HmiWrite))!,
+                target: null, options: new McpServerToolCreateOptions
+                {
+                    Services = services,
+                    SchemaCreateOptions = new AIJsonSchemaCreateOptions
+                    {
+                        TransformOptions = new AIJsonSchemaTransformOptions { DisallowAdditionalProperties = true }
+                    }
+                }), "hmi_write", new HashSet<string>(StringComparer.Ordinal) { "operations", "dryRun" },
+            new HashSet<string>(StringComparer.Ordinal) { "dryRun" }, new Dictionary<string, string>()));
+        return builder;
+    }
+}
+
 internal static class PlcWriteToolRegistration
 {
     private static readonly IReadOnlySet<string> AllowedKeys = new HashSet<string>(StringComparer.Ordinal) { "operations", "dryRun" };

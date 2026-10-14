@@ -15,6 +15,37 @@ namespace TiaMcpServer.Tests.Hmi;
 [Collection(HmiSnapshotStoreCollection.Name)]
 public class HmiTagReaderTests
 {
+    [Fact]
+    public void ReadRow_UnreadableEvidenceIsNullWithMessages()
+    {
+        var tag = Tag("T1");
+        tag.Failures["PlcName"] = new EngineeringNotSupportedException("unavailable");
+        tag.Failures["DisplayName"] = new EngineeringNotSupportedException("unavailable");
+        var info = HmiTagReader.GetTag(SoftwareWith(Table("T1", tag)), "T1", null);
+
+        Assert.Null(info.Tag.PlcName);
+        Assert.Null(info.Tag.DisplayName);
+        Assert.False(info.IsComplete);
+        Assert.Contains(info.Messages, m => m.Contains("PlcName"));
+        Assert.Contains(info.Messages, m => m.Contains("DisplayName"));
+    }
+
+    [Fact]
+    public void ReadRow_ReportsDisplayNameAndPlcName()
+    {
+        var tag = Tag("T1");
+        tag.PlcName = "PLC_1";
+        tag.DisplayName = new MultilingualText().With("en-US", "Temperature").With("pl-PL", "Temperatura");
+        var software = SoftwareWith(Table("T1", tag));
+
+        var row = HmiTagReader.GetTag(software, "T1", null).Tag;
+
+        Assert.Equal("PLC_1", row.PlcName);
+        Assert.Equal(new[] { "en-US", "pl-PL" }, row.DisplayName!.Select(t => t.Culture));
+        Assert.Equal(new[] { "Temperature", "Temperatura" }, row.DisplayName!.Select(t => t.Text));
+        Assert.Equal("Temperatura", Assert.Single(HmiTagReader.GetTag(software, "T1", "pl-PL").Tag.DisplayName!).Text);
+    }
+
     private static HmiTag Tag(string name, string table = "T1", string dataType = "Int") => new()
     {
         Name = name,

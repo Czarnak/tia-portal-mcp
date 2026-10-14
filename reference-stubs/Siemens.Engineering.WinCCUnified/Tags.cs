@@ -30,18 +30,21 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     public enum HmiThresholdMode { None, Upper, Lower }
     public abstract class HmiTag : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.HmiUnified.Common.IValidator, global::Siemens.Engineering.IEngineeringServiceProvider
     {
+        public void Delete() => throw new global::System.NotSupportedException();
         public T GetService<T>() where T : global::Siemens.Engineering.IEngineeringService => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IList<global::Siemens.Engineering.HmiUnified.Common.HmiValidationResult> Validate() => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.MultilingualText Comment { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.MultilingualText DisplayName { get => throw new global::System.NotSupportedException(); }
+        public string PlcName { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HmiUnified.LoggingTags.HmiLoggingTagComposition LoggingTags { get => throw new global::System.NotSupportedException(); }
         public HmiTagComposition Members { get => throw new global::System.NotSupportedException(); }
         public HmiThresholdComposition Thresholds { get => throw new global::System.NotSupportedException(); }
         public HmiAccessMode AccessMode { get => throw new global::System.NotSupportedException(); }
-        public string AcquisitionCycle { get => throw new global::System.NotSupportedException(); }
+        public string AcquisitionCycle { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         public HmiAcquisitionMode AcquisitionMode { get => throw new global::System.NotSupportedException(); }
         public string Address { get => throw new global::System.NotSupportedException(); }
-        public string Connection { get => throw new global::System.NotSupportedException(); }
-        public string DataType { get => throw new global::System.NotSupportedException(); }
+        public string Connection { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
+        public string DataType { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         public string HmiDataType { get => throw new global::System.NotSupportedException(); }
         public object HmiEndValue { get => throw new global::System.NotSupportedException(); }
         public object HmiStartValue { get => throw new global::System.NotSupportedException(); }
@@ -49,11 +52,11 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
         public LowerRange InitialMinValue { get => throw new global::System.NotSupportedException(); }
         public object InitialValue { get => throw new global::System.NotSupportedException(); }
         public bool LinearScaling { get => throw new global::System.NotSupportedException(); }
-        public string Name { get => throw new global::System.NotSupportedException(); }
+        public string Name { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         public bool Persistent { get => throw new global::System.NotSupportedException(); }
         public object PlcEndValue { get => throw new global::System.NotSupportedException(); }
         public object PlcStartValue { get => throw new global::System.NotSupportedException(); }
-        public string PlcTag { get => throw new global::System.NotSupportedException(); }
+        public string PlcTag { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         public HmiSubstituteValue SubstituteValue { get => throw new global::System.NotSupportedException(); }
         public string TagTableName { get => throw new global::System.NotSupportedException(); }
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
@@ -64,6 +67,7 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     }
     public abstract class HmiTagComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<HmiTag>
     {
+        public HmiTag Create(string name, string tableName) => throw new global::System.NotSupportedException();
         public HmiTag Find(string name) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<HmiTag> GetEnumerator() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringComposition.Create(global::System.Type type, global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<string, object>> parameters) => throw new global::System.NotSupportedException();
@@ -72,8 +76,9 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     }
     public abstract class HmiTagTable : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
+        public void Delete() => throw new global::System.NotSupportedException();
         public HmiTagComposition Tags { get => throw new global::System.NotSupportedException(); }
-        public string Name { get => throw new global::System.NotSupportedException(); }
+        public string Name { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
@@ -81,6 +86,8 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     }
     public abstract class HmiTagTableComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<HmiTagTable>
     {
+        public HmiTagTable Create(string name) => throw new global::System.NotSupportedException();
+        public HmiTagTable Find(string name) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<HmiTagTable> GetEnumerator() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringComposition.Create(global::System.Type type, global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<string, object>> parameters) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
@@ -97,6 +104,7 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     }
     public abstract class HmiTagTableGroupComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<HmiTagTableGroup>
     {
+        public HmiTagTableGroup Find(string name) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<HmiTagTableGroup> GetEnumerator() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringComposition.Create(global::System.Type type, global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<string, object>> parameters) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();

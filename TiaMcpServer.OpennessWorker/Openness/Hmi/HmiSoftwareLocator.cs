@@ -55,6 +55,19 @@ public static class HmiSoftwareLocator
     // The Classic runtime type is recognised by name so the worker never references Siemens.Engineering.WinCC.dll.
     private const string ClassicSoftwareTypeName = "Siemens.Engineering.Hmi.HmiTarget";
 
+    private static readonly object CacheGate = new();
+    private static readonly Dictionary<string, Found> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static ProjectBase? cachedRoot;
+
+    internal static void ResetCache()
+    {
+        lock (CacheGate)
+        {
+            Cache.Clear();
+            cachedRoot = null;
+        }
+    }
+
     /// <summary>
     /// The read-path resolver: exactly one Unified HMI whose software or device name equals
     /// <paramref name="hmiName"/> case-insensitively (any Unified HMI when null). Zero matches throw
@@ -62,6 +75,40 @@ public static class HmiSoftwareLocator
     /// A device item that cannot be read fails the call as <c>worker_operation_failed</c>, so it can never hide a second match.
     /// </summary>
     public static DiscoveredHmiSoftware FindUnique(ProjectBase project, string? hmiName)
+    {
+        lock (CacheGate)
+        {
+            if (!object.Equals(cachedRoot, project))
+            {
+                Cache.Clear();
+                cachedRoot = project;
+            }
+
+            if (hmiName is not null && Cache.TryGetValue(hmiName, out var cached))
+            {
+                var live = false;
+                try
+                {
+                    var softwareName = ((HmiSoftware)cached.Software).Name;
+                    var deviceName = cached.Device.Name;
+                    live = string.Equals(softwareName, hmiName, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(deviceName, hmiName, StringComparison.OrdinalIgnoreCase);
+                }
+                catch (Exception)
+                {
+                    // A stale Openness proxy must be relocated through the strict discovery path.
+                }
+
+                // Liveness cannot prove uniqueness after another device or software is added or renamed.
+                if (live) return Locate(project, hmiName);
+                Cache.Remove(hmiName);
+            }
+
+            return Locate(project, hmiName);
+        }
+    }
+
+    private static DiscoveredHmiSoftware Locate(ProjectBase project, string? hmiName)
     {
         Found? match = null;
         Found? classicSeen = null;
@@ -105,6 +152,11 @@ public static class HmiSoftwareLocator
             throw new WorkerOperationException(
                 WorkerFailureCategories.TargetKindUnsupported,
                 $"HMI '{match.SoftwareName}' on device '{match.DeviceName}' is a Classic (WinCC) HMI; only WinCC Unified HMIs are supported.");
+        }
+
+        if (hmiName is not null)
+        {
+            Cache[hmiName] = match;
         }
 
         return new DiscoveredHmiSoftware(match.DeviceName, unified);

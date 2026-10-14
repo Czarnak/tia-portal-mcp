@@ -54,6 +54,10 @@ public class HmiTagRowInfo
 
     public string? PlcTag { get; set; }
 
+    public string? PlcName { get; set; }
+
+    public List<HmiText>? DisplayName { get; set; } = new List<HmiText>();
+
     public string? DataType { get; set; }
 
     public string? HmiDataType { get; set; }

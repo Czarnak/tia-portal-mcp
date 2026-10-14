@@ -52,7 +52,7 @@ cursors, cannot switch an existing attachment, and rejects binding selectors eve
 Results add conditional `result.value.inspection`, with observed PID and typed nullable slots;
 `transition:"none"` and `project:null`. Whole-value omission includes the inventory. See the
 [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md) for selectors, examples, current-user scope,
-lock/error/omission limits and scoped live evidence. Tool discovery is 7/16/16.
+lock/error/omission limits and scoped live evidence. Tool discovery is 7/17/17.
 
 ### Local-session identity and basic status
 
@@ -267,7 +267,7 @@ the plain project status only — it never enumerates history or the extended me
 ## Lifecycle operations
 
 All six lifecycle tools are available in read-write and full; the complete mode counts are
-7/16/16. Read-write requires one confirmation form per actual call; full executes under policy
+7/17/17. Read-write requires one confirmation form per actual call; full executes under policy
 without server elicitation. Block guards stop a call in every mode. Ordinary reads never bind,
 switch or open; use `bind_project` for already-open projects and open/create for deliberate opening.
 
@@ -398,7 +398,7 @@ response's rejection-versus-attempted-failure classification remain intact.
 Each call appends one guarded-write audit record, including previews and refusals, to
 `%LOCALAPPDATA%\TiaMcpServer\audit\writes-yyyy-MM-dd.jsonl`. The record retains the exact returned
 canonical document/hash, requested operation, prepared binding, target, guards, and acknowledgement
-provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. No tool adds or consumes a safety token: Network and PLC writes use the same guarded pipeline and
+provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. No tool adds or consumes a safety token: Network, PLC and HMI writes use the same guarded pipeline and
 audit stream, and the legacy write audit was retired.
 
 Migration is staged for the final major release: remove client preview/token/apply loops for these

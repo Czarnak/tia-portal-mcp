@@ -52,7 +52,11 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon
 
     public abstract class AlarmBase : Common.ValidatableBag
     {
-        public MultilingualText EventText { get => Get<MultilingualText>(); set => Set(value); }
+        public new string Name { get => base.Name; set { Set(value); base.Name = value; } }
+        public Action? DeleteAction { get; set; }
+        public void Delete() => DeleteAction?.Invoke();
+        public MultilingualText EventText { get => Get<MultilingualText>() ?? eventText; set => Set(value); }
+        private readonly MultilingualText eventText = new MultilingualText().With("en-US", "");
         public MultilingualText EventText1 { get => Get<MultilingualText>(); set => Set(value); }
         public MultilingualText EventText2 { get => Get<MultilingualText>(); set => Set(value); }
         public MultilingualText EventText3 { get => Get<MultilingualText>(); set => Set(value); }
@@ -62,7 +66,8 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon
         public MultilingualText EventText7 { get => Get<MultilingualText>(); set => Set(value); }
         public MultilingualText EventText8 { get => Get<MultilingualText>(); set => Set(value); }
         public MultilingualText EventText9 { get => Get<MultilingualText>(); set => Set(value); }
-        public MultilingualText InfoText { get => Get<MultilingualText>(); set => Set(value); }
+        public MultilingualText InfoText { get => Get<MultilingualText>() ?? infoText; set => Set(value); }
+        private readonly MultilingualText infoText = new MultilingualText().With("en-US", "");
         public string AlarmClass { get => Get<string>(); set => Set(value); }
         public object AlarmParameterTags { get => Get<object>(); set => Set(value); }
         public string Area { get => Get<string>(); set => Set(value); }
@@ -88,6 +93,7 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
 
     public sealed class HmiDiscreteAlarm : HmiAlarmCommon.AlarmBase
     {
+        public string TriggerBitAddress { get => Get<string>(); set => Set(value); }
         public string AcknowledgmentControlTag { get => Get<string>(); set => Set(value); }
         public int AcknowledgmentControlTagBitNumber { get => Get<int>(); set => Set(value); }
         public string AcknowledgmentStateTag { get => Get<string>(); set => Set(value); }
@@ -96,15 +102,42 @@ namespace Siemens.Engineering.HmiUnified.HmiAlarm
         public HmiAlarmCommon.HmiDiscreteAlarmTriggerMode TriggerMode { get => Get<HmiAlarmCommon.HmiDiscreteAlarmTriggerMode>(); set => Set(value); }
     }
 
-    public sealed class HmiDiscreteAlarmComposition : Composition<HmiDiscreteAlarm> { }
+    public sealed class HmiDiscreteAlarmComposition : Composition<HmiDiscreteAlarm>
+    {
+        public Action<HmiDiscreteAlarm>? Created { get; set; }
+        public Func<string, HmiDiscreteAlarm?>? FindOverride { get; set; }
+        public new HmiDiscreteAlarm? Find(string name) => FindOverride is null ? Items.FirstOrDefault(x => x.Name == name) : FindOverride(name);
+        public HmiDiscreteAlarm Create(string name)
+        {
+            if (Items.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) throw new EngineeringException("Alarm already exists.");
+            var alarm = new HmiDiscreteAlarm { Name = name };
+            alarm.Writes.Clear();
+            alarm.DeleteAction = () => Items.Remove(alarm);
+            Items.Add(alarm); Created?.Invoke(alarm); return alarm;
+        }
+    }
 
     public sealed class HmiAnalogAlarm : HmiAlarmCommon.AlarmBase
     {
+        public string TriggerAddress { get => Get<string>(); set => Set(value); }
         public HmiAlarmCommon.HmiAlarmCondition Condition { get => Get<HmiAlarmCommon.HmiAlarmCondition>(); set => Set(value); }
         public object ConditionValue { get => Get<object>(); set => Set(value); }
     }
 
-    public sealed class HmiAnalogAlarmComposition : Composition<HmiAnalogAlarm> { }
+    public sealed class HmiAnalogAlarmComposition : Composition<HmiAnalogAlarm>
+    {
+        public Action<HmiAnalogAlarm>? Created { get; set; }
+        public Func<string, HmiAnalogAlarm?>? FindOverride { get; set; }
+        public new HmiAnalogAlarm? Find(string name) => FindOverride is null ? Items.FirstOrDefault(x => x.Name == name) : FindOverride(name);
+        public HmiAnalogAlarm Create(string name)
+        {
+            if (Items.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) throw new EngineeringException("Alarm already exists.");
+            var alarm = new HmiAnalogAlarm { Name = name };
+            alarm.Writes.Clear();
+            alarm.DeleteAction = () => Items.Remove(alarm);
+            Items.Add(alarm); Created?.Invoke(alarm); return alarm;
+        }
+    }
 }
 
 namespace Siemens.Engineering.HmiUnified.HmiAudit

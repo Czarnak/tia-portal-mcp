@@ -160,9 +160,20 @@
       Link="Host\OperationBatches\StructuredOperationBatchPayloadBudget.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiContractVersion.cs" Link="Host\Hmi\HmiContractVersion.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiOperationCatalog.cs" Link="Host\Hmi\HmiOperationCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWriteOperationRequest.cs" Link="Host\Hmi\HmiWriteOperationRequest.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWriteCatalog.cs" Link="Host\Hmi\HmiWriteCatalog.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWriteModels.cs" Link="Host\Hmi\HmiWriteModels.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiGuardDefinitions.cs" Link="Host\Hmi\HmiGuardDefinitions.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWorkingState.cs" Link="Host\Hmi\HmiWorkingState.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWritePlanner.cs" Link="Host\Hmi\HmiWritePlanner.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWriteVerifier.cs" Link="Host\Hmi\HmiWriteVerifier.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiOperationRequest.cs" Link="Host\Hmi\HmiOperationRequest.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiPageCursorCodec.cs" Link="Host\Hmi\HmiPageCursorCodec.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiPayloadContract.cs" Link="Host\Hmi\HmiPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWriteDomain.cs" Link="Host\Hmi\HmiWriteDomain.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWriteTools.cs" Link="Host\Hmi\HmiWriteTools.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWritePayloadContract.cs" Link="Host\Hmi\HmiWritePayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Hmi\HmiWritePayloadBudget.cs" Link="Host\Hmi\HmiWritePayloadBudget.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiReadTools.cs" Link="Host\Hmi\HmiReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiToolResponses.cs" Link="Host\Hmi\HmiToolResponses.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiWorkerInvoker.cs" Link="Host\Hmi\HmiWorkerInvoker.cs" />

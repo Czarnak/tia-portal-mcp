@@ -66,7 +66,9 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
             return values.TryGetValue(name, out var v) ? (T)v! : default!;
         }
 
-        protected void Set(object? value, [CallerMemberName] string name = "") => values[name] = value;
+        public List<string> Writes { get; } = new();
+        protected void Set(object? value, [CallerMemberName] string name = "") { Writes.Add(name); if (SetFailures.TryGetValue(name, out var failure)) throw failure; values[name] = value; }
+        public Dictionary<string, Exception> SetFailures { get; } = new();
 
         protected void Check(string name)
         {
@@ -83,11 +85,17 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
 
     public sealed class HmiTag : Common.ValidatableBag
     {
+        public Action? DeleteAction { get; set; }
+        public void Delete() => DeleteAction?.Invoke();
         private readonly LoggingTags.HmiLoggingTagComposition loggingTags = new();
         private readonly HmiTagComposition members = new();
         private readonly HmiThresholdComposition thresholds = new();
 
-        public MultilingualText Comment { get => Get<MultilingualText>(); set => Set(value); }
+        public MultilingualText Comment { get => Get<MultilingualText>() ?? comment; set => Set(value); }
+        private readonly MultilingualText comment = new MultilingualText().With("en-US", "");
+        public MultilingualText DisplayName { get => Get<MultilingualText>() ?? displayName; set => Set(value); }
+        private readonly MultilingualText displayName = new MultilingualText().With("en-US", "");
+        public string PlcName { get => Get<string>(); set => Set(value); }
         public LoggingTags.HmiLoggingTagComposition LoggingTags { get { Check(nameof(LoggingTags)); return loggingTags; } }
         public HmiTagComposition Members { get { Check(nameof(Members)); return members; } }
         public HmiThresholdComposition Thresholds { get { Check(nameof(Thresholds)); return thresholds; } }
@@ -115,15 +123,39 @@ namespace Siemens.Engineering.HmiUnified.HmiTags
     public sealed class HmiTagComposition : Composition<HmiTag>
     {
         /// <summary>Exact-name lookup that, like Openness, does not enumerate.</summary>
-        public new HmiTag? Find(string name) => Items.FirstOrDefault(x => x.Name == name);
+        public Func<string, HmiTag?>? FindOverride { get; set; }
+        public Action<HmiTag>? Created { get; set; }
+        public new HmiTag? Find(string name) => FindOverride is null ? Items.FirstOrDefault(x => x.Name == name) : FindOverride(name);
+        public HmiTag Create(string name, string table)
+        {
+            if (Items.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) throw new EngineeringException("Tag already exists.");
+            var tag = new HmiTag { Name = name, TagTableName = table };
+            tag.Writes.Clear();
+            tag.DeleteAction = () => Items.Remove(tag);
+            Items.Add(tag);
+            Created?.Invoke(tag);
+            return tag;
+        }
     }
 
     public sealed class HmiTagTable : NamedObject
     {
+        public Action? DeleteAction { get; set; }
+        public void Delete() => DeleteAction?.Invoke();
         public HmiTagComposition Tags { get; } = new();
     }
 
-    public sealed class HmiTagTableComposition : Composition<HmiTagTable> { }
+    public sealed class HmiTagTableComposition : Composition<HmiTagTable>
+    {
+        public HmiTagTable Create(string name)
+        {
+            if (Find(name) is not null) throw new EngineeringException("Table already exists.");
+            var table = new HmiTagTable { Name = name };
+            table.DeleteAction = () => Items.Remove(table);
+            Items.Add(table);
+            return table;
+        }
+    }
 
     public sealed class HmiTagTableGroup : Common.HmiGroupBase
     {

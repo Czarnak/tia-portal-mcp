@@ -1204,6 +1204,9 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
+    public Task<WorkerCallResult> WriteHmiAsync(string method, HmiWriteRequestInfo write, string? projectPath)
+        => SendBoundProjectRequestAsync(method, projectPath, request => request.HmiWrite = write, "{}");
+
     public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
     {
         return SendBoundProjectRequestAsync(
@@ -2214,6 +2217,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
+                HmiWriteOutcome = result.HmiWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState
             };
@@ -2232,6 +2236,7 @@ public class OpennessWorkerClient : IDisposable
                 {
                     IsPostOperationFailure = true,
                     SessionIdentity = result.SessionIdentity,
+                    HmiWriteOutcome = result.HmiWriteOutcome,
                     BlockImportOutcome = result.BlockImportOutcome,
                     DispatchState = result.DispatchState
                 };
@@ -2255,6 +2260,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
+                HmiWriteOutcome = result.HmiWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState
             };
@@ -2266,6 +2272,7 @@ public class OpennessWorkerClient : IDisposable
             result.Warnings) with
         {
             SessionIdentity = result.SessionIdentity,
+            HmiWriteOutcome = result.HmiWriteOutcome,
             BlockImportOutcome = result.BlockImportOutcome,
             DispatchState = result.DispatchState
         };
@@ -2323,6 +2330,7 @@ public class OpennessWorkerClient : IDisposable
                     ResolvedProjectPath = response.ResolvedProjectPath,
                     SessionIdentity = response.SessionIdentity,
                     PortalProcessId = response.PortalProcessId,
+                    HmiWriteOutcome = response.HmiWriteOutcome,
                     BlockImportOutcome = response.BlockImportOutcome,
                     DispatchState = WorkerDispatchState.Sent
                 };
@@ -2339,6 +2347,7 @@ public class OpennessWorkerClient : IDisposable
                 ResolvedProjectPath = response.ResolvedProjectPath,
                 SessionIdentity = response.SessionIdentity,
                 PortalProcessId = response.PortalProcessId,
+                HmiWriteOutcome = response.HmiWriteOutcome,
                 BlockImportOutcome = response.BlockImportOutcome,
                 DispatchState = WorkerDispatchState.Sent
             };

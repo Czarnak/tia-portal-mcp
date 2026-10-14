@@ -183,6 +183,9 @@ internal static class Program
                 "get_type_content"    => GetTypeContent(request),
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
+                "hmi_create_tag_table" or "hmi_update_tag_table" or "hmi_delete_tag_table"
+                    or "hmi_create_tag" or "hmi_update_tag" or "hmi_delete_tag"
+                    or "hmi_create_alarm" or "hmi_update_alarm" or "hmi_delete_alarm" => WriteHmi(request),
                 "hmi_list_hmi_devices" or "hmi_get_runtime_settings" or "hmi_list_script_modules"
                     or "hmi_list_text_and_graphic_lists" or "hmi_list_project_languages" or "hmi_list_tag_tables"
                     or "hmi_list_tags" or "hmi_get_tag" or "hmi_list_system_tags" or "hmi_list_logging_tags"
@@ -227,7 +230,7 @@ internal static class Program
         }
         catch (WorkerOperationException ex)
         {
-            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome);
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome);
         }
         catch (Exception ex)
         {
@@ -998,6 +1001,9 @@ internal static class Program
             project, request.PlcName, request.TableName, request.FolderPath)));
     }
 
+    private static WorkerResponse WriteHmi(WorkerRequest request)
+        => WithEngineeringRoot(request, project => Success(HmiWriteDispatch.Write(project, request.Method, request.HmiWrite ?? new HmiWriteRequestInfo())));
+
     private static WorkerResponse ReadHmi(WorkerRequest request)
     {
         return WithEngineeringRoot(request, project => Success(
@@ -1583,13 +1589,15 @@ internal static class Program
     private static WorkerResponse RawPayload(
         string payload,
         IReadOnlyList<string>? warnings = null,
-        BlockImportOutcomeInfo? blockImportOutcome = null)
+        BlockImportOutcomeInfo? blockImportOutcome = null,
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
     {
         return new WorkerResponse
         {
             Success = true,
             Payload = payload,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
+            HmiWriteOutcome = hmiWriteOutcome,
             BlockImportOutcome = blockImportOutcome
         };
     }
@@ -1598,7 +1606,8 @@ internal static class Program
         string failureCategory,
         string error,
         IReadOnlyList<string>? warnings = null,
-        BlockImportOutcomeInfo? blockImportOutcome = null)
+        BlockImportOutcomeInfo? blockImportOutcome = null,
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
     {
         return new WorkerResponse
         {
@@ -1606,6 +1615,7 @@ internal static class Program
             Error = error,
             FailureCategory = failureCategory,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
+            HmiWriteOutcome = hmiWriteOutcome,
             BlockImportOutcome = blockImportOutcome
         };
     }

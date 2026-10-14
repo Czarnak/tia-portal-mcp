@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
 
@@ -22,11 +23,14 @@ public sealed class WorkerOperationException : Exception
 
     public BlockImportOutcomeInfo? BlockImportOutcome { get; }
 
+    public HmiWriteOutcomeInfo? HmiWriteOutcome { get; }
+
     public WorkerOperationException(
         string failureCategory,
         string message,
         IReadOnlyList<string>? warnings = null,
-        BlockImportOutcomeInfo? blockImportOutcome = null)
+        BlockImportOutcomeInfo? blockImportOutcome = null,
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
         : base(message)
     {
         if (!WorkerFailureCategories.IsKnown(failureCategory))
@@ -39,5 +43,6 @@ public sealed class WorkerOperationException : Exception
         FailureCategory = failureCategory;
         Warnings = warnings is null ? Array.Empty<string>() : new List<string>(warnings).AsReadOnly();
         BlockImportOutcome = blockImportOutcome;
+        HmiWriteOutcome = hmiWriteOutcome;
     }
 }

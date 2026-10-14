@@ -21,6 +21,8 @@ namespace TiaMcpServer.Contracts.Worker;
 /// </summary>
 public class WorkerRequest
 {
+    public HmiWriteRequestInfo? HmiWrite { get; set; }
+
     #region Common — dispatch and write-confirmation flags
 
     /// <summary>Operation name, dispatched by the worker's switch in Program.cs.</summary>

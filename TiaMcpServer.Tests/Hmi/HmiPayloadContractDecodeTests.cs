@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Project;
@@ -14,6 +15,53 @@ namespace TiaMcpServer.Tests.Hmi;
 /// <summary>Exercises the mapped-type decode path of <see cref="HmiPayloadContract"/> for operations 1 and 16-19.</summary>
 public class HmiPayloadContractDecodeTests
 {
+    [Theory]
+    [InlineData("list_tags", "tags", "displayName")]
+    [InlineData("list_tags", "tags", "plcName")]
+    [InlineData("list_alarms", "alarms", "triggerBitAddress")]
+    [InlineData("list_alarms", "alarms", "triggerAddress")]
+    public void AdditiveRowEvidenceMembersAreRequired(string operation, string rows, string member)
+    {
+        object payload = operation == "list_tags"
+            ? new HmiTagListInfo { Tags = { new HmiTagRowInfo() } }
+            : new HmiAlarmListInfo { Alarms = { new HmiAlarmRowInfo() } };
+        var node = JsonNode.Parse(WorkerJson.SerializePayload(payload))!;
+        Assert.True(node[rows]![0]!.AsObject().Remove(member));
+
+        var item = HmiPayloadContract.Project(Op(operation), WorkerCallResult.Ok(node.ToJsonString()));
+
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AdditiveRowEvidenceDecodesWithValuesAndExplicitNulls(bool populated)
+    {
+        var tags = new HmiTagListInfo { Tags = { new HmiTagRowInfo
+        {
+            PlcName = populated ? "PLC_1" : null,
+            DisplayName = populated ? new List<HmiText> { new("en-US", "Temperature") } : null,
+        } } };
+        var alarms = new HmiAlarmListInfo { Alarms = { new HmiAlarmRowInfo
+        {
+            TriggerBitAddress = populated ? "T1.x3" : null,
+            TriggerAddress = populated ? "T1" : null,
+        } } };
+        var tagItem = HmiPayloadContract.Project(Op("list_tags"), WorkerCallResult.Ok(WorkerJson.SerializePayload(tags)));
+        var alarmItem = HmiPayloadContract.Project(Op("list_alarms"), WorkerCallResult.Ok(WorkerJson.SerializePayload(alarms)));
+
+        Assert.Equal(OperationBatchStatus.Succeeded, tagItem.Status);
+        Assert.Equal(OperationBatchStatus.Succeeded, alarmItem.Status);
+        var tag = tagItem.Result!.Value.GetProperty("tags")[0];
+        var alarm = alarmItem.Result!.Value.GetProperty("alarms")[0];
+        Assert.Equal(populated ? JsonValueKind.String : JsonValueKind.Null, tag.GetProperty("plcName").ValueKind);
+        Assert.Equal(populated ? JsonValueKind.Array : JsonValueKind.Null, tag.GetProperty("displayName").ValueKind);
+        Assert.Equal(populated ? JsonValueKind.String : JsonValueKind.Null, alarm.GetProperty("triggerBitAddress").ValueKind);
+        Assert.Equal(populated ? JsonValueKind.String : JsonValueKind.Null, alarm.GetProperty("triggerAddress").ValueKind);
+    }
+
     private static HmiOperationRequest Op(string operation) => new() { OperationId = "a", Operation = operation };
 
     public static TheoryData<string, object> Payloads => new()

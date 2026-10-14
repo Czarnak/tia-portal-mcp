@@ -18,6 +18,25 @@ public class HmiSnapshotStoreTests
 
     private HmiSnapshotStore Store() => new(() => now);
 
+    [Fact]
+    public void DropFor_RemovesOnlyThatHmisSnapshots()
+    {
+        var store = Store();
+        var project = new object();
+        var otherProject = new object();
+        var target = new HmiSoftware();
+        var other = new HmiSoftware();
+        var tags = store.Put(project, target, Op, Rows);
+        var alarms = store.Put(project, target, "hmi_list_alarms", Rows);
+        var retainedHmi = store.Put(project, other, Op, Rows);
+        var retainedProject = store.Put(otherProject, target, Op, Rows);
+        store.DropFor(project, target);
+        Assert.Equal(WorkerFailureCategories.SnapshotUnavailable, TakeFails(store, project, tags, Op).FailureCategory);
+        Assert.Equal(WorkerFailureCategories.SnapshotUnavailable, TakeFails(store, project, alarms, "hmi_list_alarms").FailureCategory);
+        Assert.Same(other, store.Take(project, retainedHmi, Op).Software);
+        Assert.Same(target, store.Take(otherProject, retainedProject, Op).Software);
+    }
+
     private static WorkerOperationException TakeFails(HmiSnapshotStore store, object project, string id, string operation)
         => Assert.Throws<WorkerOperationException>(() => store.Take(project, id, operation));
 
