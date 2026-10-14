@@ -78,9 +78,12 @@ public class HmiWriteCatalogTests
         Assert.False(HmiWriteCatalog.ValidateWrite([op]).IsValid);
     }
 
-    [Fact]
-    public void EventText_EscapesXmlSpecialCharacters() =>
-        Assert.Equal("<body><p>a&amp;b&lt;c</p></body>", HmiWriteCatalog.WrapEventText("a&b<c"));
+    [Theory]
+    [InlineData("a&b<c>", "<body><p>a&amp;b&lt;c&gt;</p></body>")]
+    [InlineData("żółć \"quoted\" 'apostrophe'", "<body><p>żółć \"quoted\" 'apostrophe'</p></body>")]
+    [InlineData("&quot; &apos; &amp; &#34; <p>", "<body><p>&amp;quot; &amp;apos; &amp;amp; &amp;#34; &lt;p&gt;</p></body>")]
+    public void EventText_EscapesOnlyXmlTextCharacters(string plain, string expected) =>
+        Assert.Equal(expected, HmiWriteCatalog.WrapEventText(plain));
 
     [Fact]
     public void EmptyTextArray_IsRejected_EmptyStringAllowed()

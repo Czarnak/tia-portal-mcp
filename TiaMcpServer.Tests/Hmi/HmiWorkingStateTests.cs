@@ -113,15 +113,15 @@ public class HmiWorkingStateTests
         var evidence = Evidence() with { Cultures = new[] { "en-US", "de-DE" } };
         evidence.Alarms[0].EventText = new() { new("en-US", "Old"), new("de-DE", "Deutsch") };
         var state = HmiWorkingState.Create(evidence); var item = Item("update_alarm", "edit");
-        item.AlarmName = "Alarm"; item.AlarmKind = "discrete"; item.EventText = new() { new("en-US", "A & B") };
+        item.AlarmName = "Alarm"; item.AlarmKind = "discrete"; item.EventText = new() { new("en-US", "A & \"B\" 'C' &quot;") };
         var document = TiaMcpServer.Json.CanonicalJson.ToElement(state.Resolve(item).Effect!);
         var change = document.GetProperty("changes").EnumerateArray().Single(c => c.GetProperty("field").GetString() == "eventText[en-US]");
         Assert.Equal(System.Text.Json.JsonValueKind.String, change.GetProperty("requested").ValueKind);
-        Assert.Equal("<body><p>A &amp; B</p></body>", change.GetProperty("requested").GetString());
+        Assert.Equal("<body><p>A &amp; \"B\" 'C' &amp;quot;</p></body>", change.GetProperty("requested").GetString());
         Assert.Equal("Old", change.GetProperty("current").GetString());
         state.Apply(item); item.EventText = new() { new("en-US", "New"), new("de-DE", "Neu") };
         var changes = state.Resolve(item).Effect!.Changes;
-        Assert.Equal("<body><p>A &amp; B</p></body>", changes.Single(c => c.Field == "eventText[en-US]").Current);
+        Assert.Equal("<body><p>A &amp; \"B\" 'C' &amp;quot;</p></body>", changes.Single(c => c.Field == "eventText[en-US]").Current);
         Assert.Equal("Deutsch", changes.Single(c => c.Field == "eventText[de-DE]").Current);
     }
     [Theory] [InlineData("comment")] [InlineData("displayName")] [InlineData("infoText")]

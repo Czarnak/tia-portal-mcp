@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Numerics;
-using System.Security;
 using System.Text.Json;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
@@ -150,7 +149,7 @@ public static class HmiWriteCatalog
             && !OperationPolicyCatalog.IsAllowed(mode, HmiOperationCatalog.WorkerMethod(r.Operation)))
             .Select(r => $"Operation '{r.Operation}' (operationId '{r.OperationId}') is not permitted in {McpAccessModeNames.ToName(mode)} mode.").ToArray();
 
-    public static string WrapEventText(string plain) => "<body><p>" + SecurityElement.Escape(plain) + "</p></body>";
+    public static string WrapEventText(string plain) => "<body><p>" + plain.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;") + "</p></body>";
 
     internal static string? NormalizePlcTag(string? value)
     {

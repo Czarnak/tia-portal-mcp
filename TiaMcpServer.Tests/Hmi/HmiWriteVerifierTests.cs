@@ -85,15 +85,41 @@ public class HmiWriteVerifierTests
         Assert.Contains(verification.Operations, c => c.Check == "plcTag" && c.Expected == "DB.Member" && c.Actual == "DB.Member" && c.Success);
     }
 
-    [Fact]
-    public async Task EventText_EscapedTextVerifiesEqual()
+    [Theory]
+    [InlineData("create_alarm", "discrete", false)]
+    [InlineData("create_alarm", "analog", true)]
+    [InlineData("update_alarm", "discrete", true)]
+    [InlineData("update_alarm", "analog", false)]
+    public async Task EventText_IndependentReadbackVerifiesDirectAndInheritedExpectations(string operation, string kind, bool inherited)
     {
-        using var f = await Fixture.Create(); var r = Alarm(); r.EventText = [new("en-US", "A & B < C\nnext")]; r.InfoText = [new("pl-PL", "Opis")];
-        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "discrete", EventText = HmiWriteCatalog.ToWorkerRequest(r, "H").EventText, InfoText = [new("pl-PL", "Opis"), new("en-US", "Other")] } });
-        var v = await Verify(f, [r]); Assert.True(v.Success);
+        using var f = await Fixture.Create(); var r = Alarm(kind: kind); r.Operation = operation;
+        r.EventText = [new("en-US", "A < & > \"quoted\" 'apostrophe' &quot; &apos;"), new("pl-PL", "Próba żółć < & > \"tekst\"")];
+        r.InfoText = [new("pl-PL", "Opis")];
+        var last = Alarm("last", kind); last.Priority = 7;
+        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = kind, Priority = 7,
+            EventText = [new("en-US", "<body><p>A &lt; &amp; &gt; \"quoted\" 'apostrophe' &amp;quot; &amp;apos;</p></body>"), new("pl-PL", "<body><p>Próba żółć &lt; &amp; &gt; \"tekst\"</p></body>")],
+            InfoText = [new("pl-PL", "Opis"), new("en-US", "Other")] } });
+        var v = await Verify(f, inherited ? [r, last] : [r]); Assert.True(v.Success);
         Assert.Contains(v.Operations, o => o.Check == "eventText[en-US]" && o.Expected == o.Actual);
+        Assert.Contains(v.Operations, o => o.Check == "eventText[pl-PL]" && o.Success && o.OperationId == (inherited ? "last" : "a"));
         Assert.Contains(v.Operations, o => o.Check == "infoText[pl-PL]" && o.Actual == "Opis");
         Assert.All(f.Requests, q => Assert.Null(q.HmiQuery!.Language));
+    }
+
+    [Theory]
+    [InlineData("en-US", "<body><p>changed &amp;quot;</p></body>")]
+    [InlineData("en-US", "<body><p>Text &quot;</p></body>")]
+    [InlineData("en-US", "<body><p>Text &amp;quot;</p><p>extra</p></body>")]
+    [InlineData("pl-PL", "<body><p>Text &amp;quot;</p></body>")]
+    [InlineData("en-US", null)]
+    public async Task EventText_ChangedTextStructureOrCultureFails(string culture, string? actual)
+    {
+        using var f = await Fixture.Create(); var r = Alarm(); r.EventText = [new("en-US", "Text &quot;")];
+        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "discrete",
+            EventText = actual is null ? [] : [new(culture, actual)] } });
+        var v = await Verify(f, [r]);
+        Assert.False(v.Success);
+        Assert.Contains(v.Operations, o => o.Check == "eventText[en-US]" && !o.Success);
     }
 
     [Theory]
