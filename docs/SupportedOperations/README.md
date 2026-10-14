@@ -31,10 +31,10 @@ Project binding, status, project-tree browsing, and compilation are separate too
 
 `update_block_logic`, `update_type_content`, `create_block`, `delete_block`, `create_block_group`, `delete_block_group`, `create_tag_table`, `delete_tag_table`, `create_tag`, `update_tag`, `delete_tag`, `create_user_constant`, `update_user_constant`, and `delete_user_constant`. Content updates take `content` together with `expectedContentHash` from a `plc_read`. Network provisioning/configuration uses `network_write`.
 
-### Project lifecycle tools
-
 `hmi_write` supports create/update/delete for Unified tag tables, tags and discrete/analog alarms;
 see the [nine-operation reference](HMI_OPERATIONS_SUMMARY.md#writes-hmi_write).
+
+### Project lifecycle tools
 
 The server also provides six single-purpose lifecycle tools:
 
