@@ -73,6 +73,7 @@ public class PayloadBudgetParserTests
 
         Assert.False(result.IsValid);
         Assert.Contains("--max-document-chars", result.Error);
+        Assert.Contains("headroom", result.Error);
     }
 
     [Theory]

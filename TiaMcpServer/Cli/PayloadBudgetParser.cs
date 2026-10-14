@@ -34,7 +34,7 @@ public static class PayloadBudgetParser
         {
             return PayloadBudgetParseResult.Fail(
                 $"The item limit ({item.Value}) exceeds the document limit ({document.Value}). "
-                + $"Raise {DocumentFlag} (or {DocumentEnvVar}) to at least the item limit.");
+                + $"Raise {DocumentFlag} (or {DocumentEnvVar}) above the item limit, with headroom for the response envelope.");
         }
 
         return PayloadBudgetParseResult.Ok(item.Value, document.Value);
