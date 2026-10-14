@@ -305,9 +305,6 @@ blocks that branch.
   returns every project subnet. The message fixes shrank the unfiltered test-project read from
   108,229 to 87,512 characters, still above the 60,000-character per-item limit. Measure before
   scoping subnets to the selected device.
-- **Live harness final-check count.** `scripts/live-test-network-guarded-write.ps1` requires an
-  exact final-check count that does not account for skipped-setting preservation checks. The user
-  asked to leave the scripts unchanged for now.
 
 ## Phase 0 — Quick wins (small-model usability; ~1 day total, all low-risk)
 
@@ -867,7 +864,7 @@ acceptance claim.
 
 ## Issue #30 PLC block header metadata — read-only live acceptance completed (2026-09-17)
 
-The separately authorized `BlockHeaders` harness passed against the already-open TIA Portal V21
+The separately authorized read-only live check passed against the already-open TIA Portal V21
 project using a fresh current-main baseline and a real-V21 candidate build. Each side completed
 three 123-node snapshots, with identical tree identity, canonical text/structured equality, valid
 ordering, and completed pagination. This fixture fits one page at `pageSize=200`; it does not add
@@ -899,7 +896,7 @@ timed out before a browse response; its evidence was retained, and the successfu
 serial rebuild against the installed real V21 assemblies. These observations do not establish the
 cause of the earlier timeout or the first-read delay.
 
-The harness ran with `--read-only` and invoked only `browse_project_tree`. No save, compile,
+The historical check ran with `--read-only` and invoked only `browse_project_tree`. No save, compile,
 import/export, project mutation, PLC control, or plant acceptance is claimed.
 
 ## Network Phase 4 current-revision public live acceptance — bounded PASS (2026-09-24)
