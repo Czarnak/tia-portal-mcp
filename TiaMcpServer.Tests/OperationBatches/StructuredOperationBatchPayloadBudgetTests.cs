@@ -72,8 +72,8 @@ public class StructuredOperationBatchPayloadBudgetTests
 
     private static StructuredOperationBatch Apply(
         StructuredOperationBatch batch,
-        int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
-        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        int maxItemChars = StructuredOperationBatchPayloadBudget.DefaultItemChars,
+        int maxDocumentChars = StructuredOperationBatchPayloadBudget.DefaultDocumentChars)
         => StructuredOperationBatchPayloadBudget.Apply(
             batch,
             Compose,
@@ -181,7 +181,7 @@ public class StructuredOperationBatchPayloadBudgetTests
     [Fact]
     public void Apply_OmitsAResultOneCharacterOverTheItemCharacterLimit()
     {
-        const int Original = StructuredOperationBatchPayloadBudget.MaxItemChars + 1;
+        const int Original = StructuredOperationBatchPayloadBudget.DefaultItemChars + 1;
 
         var bounded = Apply(Batch(Succeeded("a", Result(Original))));
 
@@ -443,7 +443,7 @@ public class StructuredOperationBatchPayloadBudgetTests
     [Fact]
     public void NetworkReadBudget_OversizedInspectionDropsTheWholeValueAndSuggestsFewerAttributes()
     {
-        const int OriginalChars = StructuredOperationBatchPayloadBudget.MaxItemChars + 1;
+        const int OriginalChars = StructuredOperationBatchPayloadBudget.DefaultItemChars + 1;
         var batch = Batch(Succeeded(
             "inspection",
             Result(OriginalChars),

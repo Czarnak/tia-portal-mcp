@@ -110,3 +110,50 @@ With an explicit project binding:
   }
 }
 ```
+
+## Response size limits
+
+Structured tool results are budgeted at **60,000 characters per value** (one `plc_read` block,
+one `network_read` result, one write effect) and **180,000 characters per complete response**.
+A value over its budget is omitted whole with `reason`, `limitChars`, `originalChars` and retry
+guidance; it is never cut. Sizes are measured on the escaped JSON the client receives, so an SCL
+or XML document counts somewhat larger than its file.
+
+A block or type export over the value budget therefore comes back without `content` or
+`contentHash`, and `update_block_logic`/`update_type_content` cannot be used on it. Raise both
+budgets at server startup:
+
+| Setting | Command line | Environment variable | Default |
+| --- | --- | --- | --- |
+| Value budget | `--max-item-chars <n>` | `TIA_MCP_MAX_ITEM_CHARS` | 60,000 |
+| Response budget | `--max-document-chars <n>` | `TIA_MCP_MAX_DOCUMENT_CHARS` | 180,000 |
+
+```json
+{
+  "mcpServers": {
+    "tia-portal": {
+      "command": "tia-mcp",
+      "args": ["--access-mode", "read-write", "--max-item-chars", "100000", "--max-document-chars", "250000"]
+    }
+  }
+}
+```
+
+The same values can be set under the client's `env` block instead; a command-line value wins
+over its environment variable. Rules:
+
+- Limits can only be raised: each value must lie between its default and 1,000,000. Both
+  `--name n` and `--name=n` forms are accepted, each at most once.
+- Set the value budget at or above the omission's `originalChars`.
+- Keep the response budget above the value budget with headroom for the response envelope
+  (operation IDs, counts, warnings). With equal limits, a value just under the limit can still be
+  omitted as `responseExceededDocumentCharLimit`. Read one large block per `plc_read` call.
+- An invalid value stops the server at startup with an error; the effective budgets are logged
+  to standard error as `TIA MCP response budget: ...`.
+- `tia-mcp install` and `tia-mcp doctor` do not write or report these settings; edit the client
+  configuration by hand.
+
+Raising the server budgets does not raise limits the MCP client enforces on its own, such as a
+maximum tool-result size, and a content write still sends the whole document as one tool
+argument. Fixed limits are unaffected: project-tree pages, `network_read` hardware pages and the
+`compile_check` report stay at 60,000 characters.

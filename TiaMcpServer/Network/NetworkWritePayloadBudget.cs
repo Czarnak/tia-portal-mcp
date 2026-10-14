@@ -14,7 +14,12 @@ public static class NetworkWritePayloadBudget
     private const int DiagnosticChars = 512;
 
     public static NetworkGuardedWriteResponse Apply(NetworkGuardedWriteResponse response,
-        int maxItemChars = 60000, int maxDocumentChars = 180000)
+        int? maxItemChars = null, int? maxDocumentChars = null)
+        => ApplyCore(response,
+            maxItemChars ?? StructuredOperationBatchPayloadBudget.MaxItemChars,
+            maxDocumentChars ?? StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+
+    private static NetworkGuardedWriteResponse ApplyCore(NetworkGuardedWriteResponse response, int maxItemChars, int maxDocumentChars)
     {
         var originalChars = Size(response);
         var current = Diagnostics(response, false, originalChars);
@@ -265,7 +270,8 @@ public static class NetworkWritePayloadBudget
             var effectChars = Size(effect);
             var evidenceChars = Size(evidence);
             var resultChars = Size(result);
-            if (effectChars > 60000 || evidenceChars > 60000 || resultChars > 60000) return int.MaxValue;
+            var itemLimit = StructuredOperationBatchPayloadBudget.MaxItemChars;
+            if (effectChars > itemLimit || evidenceChars > itemLimit || resultChars > itemLimit) return int.MaxValue;
             // Evidence occurs both inside the worker result and at verification.operations.
             chars += effectChars + resultChars + evidenceChars;
             // Known observations are included within each separately bounded shape above;
@@ -275,7 +281,7 @@ public static class NetworkWritePayloadBudget
         finalChecks.Add(Final(NetworkFinalCheck.Write("networkDeviceCountUnchanged"), int.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         finalChecks.Add(Final(NetworkFinalCheck.Write("finalHardwareState"), "readable complete inventory"));
         var finalChars = Size(finalChecks);
-        if (finalChars > 60000) return int.MaxValue;
+        if (finalChars > StructuredOperationBatchPayloadBudget.MaxItemChars) return int.MaxValue;
         chars += finalChars;
         return chars > int.MaxValue ? int.MaxValue : (int)chars;
     }

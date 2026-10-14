@@ -24,6 +24,8 @@ public class PlcReadBudgetTests
         Assert.Null(big.Result);
         Assert.Equal("plc_read", big.Omission!.RetryTool);
         Assert.Contains("plc_read", big.Omission.Guidance);
+        Assert.Contains("--max-item-chars", big.Omission.Guidance);
+        Assert.Contains("--max-document-chars", big.Omission.Guidance);
         Assert.Equal(OperationBatchStatus.Succeeded, bounded.Operations[1].Status);
         Assert.NotNull(bounded.Operations[1].Result);
     }

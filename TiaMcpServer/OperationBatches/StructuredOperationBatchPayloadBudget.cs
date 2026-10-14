@@ -22,9 +22,22 @@ namespace TiaMcpServer.OperationBatches;
 /// </summary>
 public static class StructuredOperationBatchPayloadBudget
 {
-    public const int MaxItemChars = 60_000;
+    public const int DefaultItemChars = 60_000;
 
-    public const int MaxDocumentChars = 180_000;
+    public const int DefaultDocumentChars = 180_000;
+
+    /// <summary>Per-value limit in effect; the default unless raised at startup.</summary>
+    public static int MaxItemChars { get; private set; } = DefaultItemChars;
+
+    /// <summary>Complete-response limit in effect; the default unless raised at startup.</summary>
+    public static int MaxDocumentChars { get; private set; } = DefaultDocumentChars;
+
+    /// <summary>Sets the process-wide limits once at startup, from validated --max-*-chars options.</summary>
+    public static void Configure(int maxItemChars, int maxDocumentChars)
+    {
+        MaxItemChars = maxItemChars;
+        MaxDocumentChars = maxDocumentChars;
+    }
 
     /// <summary>One result on its own exceeded the per-item character limit.</summary>
     public const string ItemLimitReason = "resultExceededItemCharLimit";
@@ -52,8 +65,18 @@ public static class StructuredOperationBatchPayloadBudget
         Func<StructuredOperationBatch, TResponse> compose,
         string retryTool,
         Func<StructuredOperationItem, string> guidance,
-        int maxItemChars = MaxItemChars,
-        int maxDocumentChars = MaxDocumentChars)
+        int? maxItemChars = null,
+        int? maxDocumentChars = null)
+        => ApplyCore(batch, compose, retryTool, guidance,
+            maxItemChars ?? MaxItemChars, maxDocumentChars ?? MaxDocumentChars);
+
+    private static StructuredOperationBatch ApplyCore<TResponse>(
+        StructuredOperationBatch batch,
+        Func<StructuredOperationBatch, TResponse> compose,
+        string retryTool,
+        Func<StructuredOperationItem, string> guidance,
+        int maxItemChars,
+        int maxDocumentChars)
     {
         var items = batch.Operations.ToList();
         var originalChars = Measure(compose, StructuredOperationBatch.FromItems(items));

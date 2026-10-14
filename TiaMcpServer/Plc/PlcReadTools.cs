@@ -51,8 +51,8 @@ public class PlcReadTools
 
     internal static StructuredOperationBatch ApplyBudget(
         StructuredOperationBatch batch,
-        int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
-        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        int? maxItemChars = null,
+        int? maxDocumentChars = null)
         => StructuredOperationBatchPayloadBudget.Apply(
             batch,
             Compose,
@@ -69,7 +69,9 @@ public class PlcReadTools
     {
         "get_block_content" or "get_type_content" =>
             "Read a smaller object or drop withDependencies, or split the batch: re-run this operationId in its own "
-                + $"{ToolName} call.",
+                + $"{ToolName} call. A single object above the limit needs the server restarted with "
+                + "--max-item-chars (or TIA_MCP_MAX_ITEM_CHARS) at or above originalChars and --max-document-chars "
+                + "(or TIA_MCP_MAX_DOCUMENT_CHARS) with headroom above it for the response envelope.",
         "list_tag_tables" =>
             "Narrow with plcName, folderPath or tableName (one table is the narrowest), or split the batch: "
                 + $"re-run this operationId in its own {ToolName} call.",

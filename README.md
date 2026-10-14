@@ -24,7 +24,7 @@ safety tokens and no PLC run/stop.
 
 ### PLC reads and cross-references
 
-- `plc_read` - run up to 50 PLC read operations in one call: `get_block_content`, `get_type_content` and `list_tag_tables`. Each item carries a unique `operationId`, an `operation` name, and that operation's parameters. Items run independently, so a failing item does not stop the others. Results are structured JSON with `contractVersion` `1.0`; a value over 60,000 characters is omitted whole with narrowing guidance, never cut.
+- `plc_read` - run up to 50 PLC read operations in one call: `get_block_content`, `get_type_content` and `list_tag_tables`. Each item carries a unique `operationId`, an `operation` name, and that operation's parameters. Items run independently, so a failing item does not stop the others. Results are structured JSON with `contractVersion` `1.0`; a value over the value budget (60,000 characters by default) is omitted whole with narrowing guidance, never cut.
 - `read_cross_references` - read the cross-references of one project-tree target (a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it). Arguments: `target`, `filter`, `maxResults`, `projectPath`. Both reads are available in every access mode and never open or switch a project.
 
 ### HMI reads and writes
@@ -36,7 +36,7 @@ safety tokens and no PLC run/stop.
 
 - `plc_write(operations, dryRun=false)` - run up to 50 PLC software writes in caller order against one verified, already-open project. Operations: `update_block_logic`, `update_type_content`, `create_block` / `delete_block`, `create_block_group` / `delete_block_group`, `create_tag_table` / `delete_tag_table`, `create_tag` / `update_tag` / `delete_tag`, `create_user_constant` / `update_user_constant` / `delete_user_constant`. Set `dryRun:true` to preview effects and guards without mutation. No confirmation prompt is sent in any mode. Phases are `preview`, `applied`, `blocked` and `error`. Execution stops at the first failure and never rolls back, so re-read with `plc_read` before retrying. Later items may use objects created earlier in the same call.
 
-Content writes (`update_block_logic`, `update_type_content`) take the document as `content` together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read is rejected with `state_changed`. A document over 60,000 characters is omitted from the read, has no hash, and cannot be updated through `plc_write`. `preview_write_batch`, `apply_write_batch` and `execute_read_batch` were retired; their operations moved to `plc_write` and `plc_read`.
+Content writes (`update_block_logic`, `update_type_content`) take the document as `content` together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read is rejected with `state_changed`. A document over the value budget is omitted from the read, has no hash, and cannot be updated through `plc_write`; the budgets default to 60,000 characters per value and 180,000 per response and can be raised at startup with `--max-item-chars`/`--max-document-chars` (see [response size limits](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/mcp-client-configuration.md#response-size-limits)). `preview_write_batch`, `apply_write_batch` and `execute_read_batch` were retired; their operations moved to `plc_write` and `plc_read`.
 
 Every operation result may carry a `warnings` array — non-fatal degradation notes captured from the TIA Openness worker. A populated `warnings` array means the payload may be partial.
 
@@ -191,7 +191,7 @@ the published tool, see [building from source](https://github.com/Czarnak/tia-po
 **Using the server**
 
 - [Installation](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md) — install, verify with `doctor`, register with a client, access modes
-- [MCP client configuration](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/mcp-client-configuration.md) — client config reference and block path addressing
+- [MCP client configuration](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/mcp-client-configuration.md) — client config reference, block path addressing and response size limits
 - [Troubleshooting](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/troubleshooting.md) — common failures and verified TIA Portal V21 behavior
 - [Supported operations](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/README.md) — every operation by area, with parameters
 

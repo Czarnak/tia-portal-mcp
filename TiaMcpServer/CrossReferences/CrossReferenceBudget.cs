@@ -15,15 +15,20 @@ internal static class CrossReferenceBudget
 {
     internal const string NarrowingMessage =
         "Narrow with maxResults, filter, a narrower target path, or a member; "
-        + "a single heavily used object may exceed the 60,000-character limit.";
+        + "a single heavily used object may exceed the item character limit (server option --max-item-chars).";
 
     // Room for root warnings that the composed document carries beside the report.
     private const int DocumentReserveChars = 1_000;
 
     internal static CrossReferenceReport Apply(
         CrossReferenceReport report,
-        int maxValueChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
-        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        int? maxValueChars = null,
+        int? maxDocumentChars = null)
+        => ApplyCore(report,
+            maxValueChars ?? StructuredOperationBatchPayloadBudget.MaxItemChars,
+            maxDocumentChars ?? StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+
+    private static CrossReferenceReport ApplyCore(CrossReferenceReport report, int maxValueChars, int maxDocumentChars)
     {
         bool Fits(CrossReferenceReport candidate) => FitsBudget(candidate, maxValueChars, maxDocumentChars);
 

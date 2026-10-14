@@ -87,8 +87,8 @@ public class NetworkReadTools
     /// </summary>
     internal static StructuredOperationBatch ApplyBudget(
         StructuredOperationBatch batch,
-        int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
-        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        int? maxItemChars = null,
+        int? maxDocumentChars = null)
         => StructuredOperationBatchPayloadBudget.Apply(
             batch,
             Compose,

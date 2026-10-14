@@ -11,7 +11,7 @@ The MCP provides a focused PLC round-trip interface through four operations (rea
 | `get_type_content` | Read | `source` | Reads one existing PLC data type. |
 | `update_type_content` | Write | `source` | Updates one existing PLC data type from supplied document content. |
 
-The `format` field accepts `xml` and `source`, case-insensitively. Block and type reads use `plc_read`; writes use `plc_write`, passing the document as `content` together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read fails with `state_changed`. A document over 60,000 characters is omitted from the read, has no hash, and cannot be written.
+The `format` field accepts `xml` and `source`, case-insensitively. Block and type reads use `plc_read`; writes use `plc_write`, passing the document as `content` together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read fails with `state_changed`. A document over the value budget (60,000 characters by default; raise it with `--max-item-chars`, see [response size limits](../guides/mcp-client-configuration.md#response-size-limits)) is omitted from the read, has no hash, and cannot be written.
 
 ## Supported formats
 

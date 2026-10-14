@@ -94,7 +94,7 @@ Then a cross-reference read of one block (copy the `path` segments from `browse_
 }
 ```
 
-A value over 60,000 characters is omitted whole with narrowing guidance: narrow `list_tag_tables` with `plcName`, `folderPath` or `tableName`, and a cross-reference sweep with `filter`, `maxResults` or a narrower `target`. For the dedicated network surface, use `network_read`:
+A value over the value budget (60,000 characters by default, `--max-item-chars`) is omitted whole with narrowing guidance: narrow `list_tag_tables` with `plcName`, `folderPath` or `tableName`, and a cross-reference sweep with `filter`, `maxResults` or a narrower `target`. For the dedicated network surface, use `network_read`:
 
 ```json
 {
