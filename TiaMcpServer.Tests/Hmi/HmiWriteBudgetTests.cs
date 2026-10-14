@@ -64,6 +64,26 @@ public class HmiWriteBudgetTests
     }
 
     [Fact]
+    public void MalformedFailureWithOversizedDiagnosticStillProducesBoundedCanonicalResponse()
+    {
+        var item = HmiWritePayloadContract.Project(HmiGuardedWriteDomainTests.Item(),
+            new TiaMcpServer.Worker.WorkerCallResult(false, "", "setter rejected", "worker_operation_failed", [new string('x', 61000)])
+            { HmiWriteOutcome = new() { ObjectName = null!, AppliedProperties = null!, CleanupMessage = "secret" } });
+        var response = Response(1) with { Batch = StructuredOperationBatch.FromItems([item]) };
+        var bounded = HmiWritePayloadBudget.Apply(response);
+        var canonical = CanonicalJson.Serialize(bounded);
+        Assert.True(canonical.Length <= 180000);
+        Assert.False(bounded.Success);
+        Assert.Equal("applied", bounded.Phase);
+        Assert.Null(bounded.Error);
+        Assert.NotNull(bounded.Omission);
+        Assert.Equal("failed", bounded.Batch!.Operations[0].Status);
+        Assert.Equal("protocol_error", bounded.Batch.Operations[0].Failure!.Category);
+        Assert.Null(bounded.Batch.Operations[0].Result);
+        Assert.DoesNotContain("secret", canonical);
+    }
+
+    [Fact]
     public void MaximalLateProtectedShapeFitsReservedCoreAndKeepsEveryIdentity()
     {
         var requests = Enumerable.Range(0, 50).Select(i => HmiGuardedWriteDomainTests.Item(new string('x', 253) + i.ToString("D3"))).ToArray();

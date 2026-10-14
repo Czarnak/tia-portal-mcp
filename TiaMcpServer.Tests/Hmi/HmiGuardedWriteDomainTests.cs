@@ -43,6 +43,33 @@ public class HmiGuardedWriteDomainTests
         Assert.Equal("T", item.Result!.Value.GetProperty("objectName").GetString());
     }
 
+    [Theory]
+    [InlineData("nullName")]
+    [InlineData("emptyName")]
+    [InlineData("nullProperties")]
+    [InlineData("nullProperty")]
+    public void MalformedFailureIsProtocolErrorWithoutOutcomeEcho(string malformed)
+    {
+        var outcome = new HmiWriteOutcomeInfo
+        {
+            ObjectName = malformed == "nullName" ? null! : malformed == "emptyName" ? "" : "secret",
+            AppliedProperties = malformed == "nullProperties" ? null! : malformed == "nullProperty" ? [null!] : ["Name"],
+            CleanupMessage = "secret"
+        };
+        var item = HmiWritePayloadContract.Project(Item(), new WorkerCallResult(false, "", "secret", "worker_operation_failed", []) { HmiWriteOutcome = outcome });
+        Assert.Equal("protocol_error", item.Failure!.Category);
+        Assert.Null(item.Result);
+        Assert.DoesNotContain("secret", CanonicalJson.Serialize(item));
+    }
+
+    [Fact]
+    public void FailureWithoutOptionalOutcomeRemainsSupported()
+    {
+        var item = HmiWritePayloadContract.Project(Item(), new WorkerCallResult(false, "", "setter rejected", "worker_operation_failed", []));
+        Assert.Equal("worker_operation_failed", item.Failure!.Category);
+        Assert.Null(item.Result);
+    }
+
     [Fact]
     public void ReadOnlyDomainDeniesBeforeAnyWorkerIsStarted()
     {

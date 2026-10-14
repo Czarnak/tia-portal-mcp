@@ -62,6 +62,12 @@ internal sealed class HmiWriteRoundtripScenario
                     row.Name = w.NewName; outcome.AppliedProperties.Add("Name");
                 }
                 if (w.Connection is not null) { row.Connection = w.Connection; outcome.AppliedProperties.Add("Connection"); }
+                if (w.PlcTag == "MalformedOutcome")
+                {
+                    outcome.ObjectName = "";
+                    outcome.CleanupMessage = "malformed evidence must not be echoed";
+                    return JsonSerializer.Serialize(new WorkerResponse { Success = false, Error = "Synthetic setter failed after create.", FailureCategory = "worker_operation_failed", HmiWriteOutcome = outcome, Warnings = [new string('x', 61000)] }, WorkerJson.Envelope);
+                }
                 if (w.PlcTag is "Missing" or "CleanupFails")
                 {
                     outcome.FailedProperty = "PlcTag";

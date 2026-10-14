@@ -12,15 +12,17 @@ public static class HmiWritePayloadContract
     public static StructuredOperationItem Project(HmiWriteOperationRequest operation, WorkerCallResult result)
     {
         var warnings = result.Warnings ?? Array.Empty<string>();
-        if (!result.Success)
-            return new(operation.OperationId, operation.Operation, OperationBatchStatus.Failed,
-                result.HmiWriteOutcome is null ? null : CanonicalJson.ToElement(result.HmiWriteOutcome),
-                new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "The HMI write failed."), null, null, warnings);
         try
         {
+            if (!result.Success)
+            {
+                if (result.HmiWriteOutcome is { } failedOutcome) Validate(failedOutcome);
+                return new(operation.OperationId, operation.Operation, OperationBatchStatus.Failed,
+                    result.HmiWriteOutcome is null ? null : CanonicalJson.ToElement(result.HmiWriteOutcome),
+                    new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "The HMI write failed."), null, null, warnings);
+            }
             var (outcome, _, element) = CanonicalJson.NormalizeWorkerPayload<HmiWriteOutcomeInfo>(result.Payload);
-            if (string.IsNullOrEmpty(outcome.ObjectName) || outcome.AppliedProperties is null || outcome.AppliedProperties.Any(p => p is null))
-                throw new JsonException();
+            Validate(outcome);
             return new(operation.OperationId, operation.Operation, OperationBatchStatus.Succeeded, element, null, null, null, warnings);
         }
         catch (JsonException)
@@ -28,5 +30,11 @@ public static class HmiWritePayloadContract
             return new(operation.OperationId, operation.Operation, OperationBatchStatus.Failed, null,
                 new(WorkerFailureCategories.ProtocolError, "The HMI worker payload did not match its declared result contract and was rejected."), null, null, warnings);
         }
+    }
+
+    private static void Validate(HmiWriteOutcomeInfo outcome)
+    {
+        if (string.IsNullOrEmpty(outcome.ObjectName) || outcome.AppliedProperties is null || outcome.AppliedProperties.Any(p => p is null))
+            throw new JsonException();
     }
 }

@@ -141,6 +141,31 @@ public class HmiGuardedWriteMcpTests
     }
 
     [Fact]
+    public async Task MalformedFailureAfterCreateKeepsCanonicalResponseAndAuditUnderDiagnosticCompaction()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
+        var operations = new[] { new { operationId = "a", operation = "create_tag", tableName = "Existing", tagName = "Malformed", connection = "Connection", plcTag = "MalformedOutcome", comment = new[] { new { culture = "en-US", text = new string('x', 61000) } } } };
+        var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations });
+        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.False(reply.IsError == true);
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal("applied", root.GetProperty("phase").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        var item = root.GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("failed", item.GetProperty("status").GetString());
+        Assert.Equal("protocol_error", item.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("result").ValueKind);
+        Assert.NotEqual(JsonValueKind.Null, root.GetProperty("omission").ValueKind);
+        Assert.DoesNotContain("malformed evidence", root.GetRawText());
+        Assert.True(CanonicalJson.Serialize(root).Length <= 180000);
+        AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        var after = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations, ["dryRun"] = true }));
+        Assert.Equal("preview", after.GetProperty("phase").GetString());
+        Assert.Contains(after.GetProperty("guards").EnumerateArray(), g => g.GetProperty("id").GetString() == "hmi_name_collision");
+    }
+
+    [Fact]
     public async Task LateChangedInfoMessagesAndBlockerRemainVisibleBeforePartialWriteGuard()
     {
         using var audit = new TempAuditDirectory();
