@@ -119,7 +119,7 @@ internal sealed class HmiWorkingState
                 throw new ResolutionException("validation_error", "plcTag requires a bound tag or an explicit connection.");
             if (r.DataType is not null && bound)
                 throw new ResolutionException("validation_error", "dataType can only be written for an internal tag.");
-            Change("connection", tag?.Connection, r.Connection); Change("plcTag", tag?.PlcTag, r.PlcTag);
+            Change("connection", tag?.Connection, r.Connection); Change("plcTag", tag?.PlcTag, HmiWriteCatalog.NormalizePlcTag(r.PlcTag));
             Change("dataType", tag?.DataType, r.DataType, !delete && bound); Change("plcName", tag?.PlcName, null, !delete && bound);
             Change("acquisitionCycle", tag?.AcquisitionCycle, r.AcquisitionCycle);
             TextChanges("comment", tag?.Comment, r.Comment); TextChanges("displayName", tag?.DisplayName, r.DisplayName);
@@ -263,7 +263,7 @@ internal sealed class HmiWorkingState
     }
     private static void ApplyTag(HmiTagRowInfo tag, HmiWriteOperationRequest r)
     {
-        tag.Connection = r.Connection ?? tag.Connection; tag.PlcTag = r.PlcTag ?? tag.PlcTag;
+        tag.Connection = r.Connection ?? tag.Connection; tag.PlcTag = HmiWriteCatalog.NormalizePlcTag(r.PlcTag) ?? tag.PlcTag;
         tag.DataType = r.DataType ?? tag.DataType; tag.AcquisitionCycle = r.AcquisitionCycle ?? tag.AcquisitionCycle;
         tag.Comment = MergeTexts(tag.Comment, r.Comment); tag.DisplayName = MergeTexts(tag.DisplayName, r.DisplayName);
     }

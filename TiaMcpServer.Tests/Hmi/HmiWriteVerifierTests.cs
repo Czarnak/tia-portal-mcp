@@ -62,6 +62,29 @@ public class HmiWriteVerifierTests
         Assert.Equal(success, (await Verify(f, [r])).Success);
     }
 
+    [Theory]
+    [InlineData("create_tag")]
+    [InlineData("update_tag")]
+    public async Task QuotedPlcTagUsesUnquotedEffectAndVerificationWithoutChangingSetterInput(string operation)
+    {
+        using var f = await Fixture.Create();
+        var r = Tag(operation: operation); r.TableName = operation == "create_tag" ? "Table" : null;
+        r.Connection = "PLC"; r.PlcTag = "\"DB\".Member";
+        var state = HmiWorkingState.Create(new HmiEvidence
+        {
+            HmiName = "H", Complete = true, Connections = ["PLC"], Tables = [new("Table", null)],
+            Tags = operation == "create_tag" ? [] : [new() { Name = "T", Table = "Table", Connection = "PLC" }]
+        });
+        var effect = state.Resolve(r).Effect!;
+        var canonical = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(effect)).RootElement;
+        Assert.Equal("DB.Member", canonical.GetProperty("changes").EnumerateArray().Single(c => c.GetProperty("field").GetString() == "plcTag").GetProperty("requested").GetString());
+        Assert.Equal("\"DB\".Member", HmiWriteCatalog.ToWorkerRequest(r, "H").PlcTag);
+        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = new() { Name = "T", Table = "Table", Connection = "PLC", PlcTag = "DB.Member" } });
+        var verification = await Verify(f, [r]);
+        Assert.True(verification.Success);
+        Assert.Contains(verification.Operations, c => c.Check == "plcTag" && c.Expected == "DB.Member" && c.Actual == "DB.Member" && c.Success);
+    }
+
     [Fact]
     public async Task EventText_EscapedTextVerifiesEqual()
     {

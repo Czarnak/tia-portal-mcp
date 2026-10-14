@@ -152,6 +152,14 @@ public static class HmiWriteCatalog
 
     public static string WrapEventText(string plain) => "<body><p>" + SecurityElement.Escape(plain) + "</p></body>";
 
+    internal static string? NormalizePlcTag(string? value)
+    {
+        if (value is null || !value.StartsWith('"')) return value;
+        var end = value.IndexOf('"', 1);
+        return end > 1 && end + 1 < value.Length && value[end + 1] == '.'
+            ? value[1..end] + value[(end + 1)..] : value;
+    }
+
     public static HmiWriteRequestInfo ToWorkerRequest(HmiWriteOperationRequest r, string resolvedHmiName)
     {
         var result = new HmiWriteRequestInfo

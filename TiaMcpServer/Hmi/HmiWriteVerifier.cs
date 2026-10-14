@@ -136,7 +136,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         var fields = new Dictionary<string, string?>(Names);
         void Add(string name, object? value) { if (value is not null) fields[name] = Scalar(value); }
         void Texts(string name, List<HmiText>? texts) { foreach (var text in texts ?? []) fields[$"{name}[{text.Culture}]"] = text.Text; }
-        Add("connection", r.Connection); Add("plcTag", r.PlcTag); Add("dataType", r.DataType); Add("acquisitionCycle", r.AcquisitionCycle);
+        Add("connection", r.Connection); Add("plcTag", HmiWriteCatalog.NormalizePlcTag(r.PlcTag)); Add("dataType", r.DataType); Add("acquisitionCycle", r.AcquisitionCycle);
         Add("triggerTag", r.TriggerTag); Add("bitNumber", r.BitNumber); Add("triggerMode", r.TriggerMode); Add("condition", r.Condition);
         Add("alarmClass", r.AlarmClass); Add("priority", r.Priority);
         if (r.ConditionValueInt32 is { } integer) { Add("conditionValue", integer); Add("conditionValue.type", "System.Int32"); }
