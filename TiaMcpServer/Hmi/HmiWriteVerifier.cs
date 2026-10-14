@@ -158,7 +158,15 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         if (actual is null)
         { Check(expected.Observe ? "observed" : "exists", expected.Observe ? null : "present", "absent", expected.Observe); return; }
         if (expected.Observe) Check("observed", null, "present", true);
-        foreach (var field in expected.Fields) Check(field.Key, field.Value, actual.GetValueOrDefault(field.Key));
+        foreach (var field in expected.Fields)
+        {
+            var found = actual.GetValueOrDefault(field.Key);
+            // Siemens can persist an Int32 setter as Double; the value must remain exactly equal.
+            if (field.Key == "conditionValue.type" && field.Value == "System.Int32" && found == "System.Double"
+                && expected.Fields.TryGetValue("conditionValue", out var value) && value is not null && value == actual.GetValueOrDefault("conditionValue"))
+                checks.Add(new(expected.Owner, true, field.Key, field.Value, found, "Accepted lossless Int32-to-Double read-back normalization; numeric value is unchanged."));
+            else Check(field.Key, field.Value, found);
+        }
         foreach (var field in expected.Observed) Check("observed." + field, null, actual.GetValueOrDefault(field), true);
         foreach (var field in target.Kind switch { "TagTable" => new[] { "tagCount" }, "Tag" => new[] { "plcName", "dataType" }, _ => new[] { "triggerBitAddress", "triggerAddress" } })
             if (!expected.Fields.ContainsKey(field)) Check(field, null, actual.GetValueOrDefault(field), true);

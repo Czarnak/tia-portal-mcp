@@ -124,14 +124,58 @@ public class HmiWriteVerifierTests
 
     [Theory]
     [InlineData("50.0", "System.Int32", "50", true)]
-    [InlineData("50", "System.Double", "50", false)]
+    [InlineData("50", "System.Double", "50", true)]
+    [InlineData("50.0", "System.Double", "50.00", true)]
+    [InlineData("-2147483648", "System.Double", "-2147483648", true)]
+    [InlineData("2147483647", "System.Double", "2147483647", true)]
+    [InlineData("50", "System.Double", "51", false)]
+    [InlineData("50", "System.Double", "50.5", false)]
+    [InlineData("50", "System.String", "50", false)]
+    [InlineData("50", "System.Decimal", "50", false)]
+    [InlineData("50", "System.Single", "50", false)]
+    [InlineData("50.000000000000000001", "System.Int32", "50", false)]
     [InlineData("50.5", "System.Double", "50.5", true)]
     [InlineData("50.5", "System.Double", "51", false)]
     public async Task ConditionValueChecksTypeAndValue(string expected, string type, string actual, bool success)
     {
         using var f = await Fixture.Create(); var r = Alarm(kind: "analog"); r.ConditionValue = JsonDocument.Parse(expected).RootElement.Clone();
         f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", ConditionValue = new(type, JsonDocument.Parse(actual).RootElement.Clone()) } });
-        Assert.Equal(success, (await Verify(f, [r])).Success);
+        var v = await Verify(f, [r]);
+        Assert.Equal(success, v.Success);
+        if (expected == "50" && type == "System.Double")
+        {
+            var check = Assert.Single(v.Operations, o => o.Check == "conditionValue.type");
+            Assert.Equal("System.Int32", check.Expected);
+            Assert.Equal("System.Double", check.Actual);
+            Assert.Equal(success, check.Success);
+            if (success) Assert.Contains("lossless", check.Message);
+        }
+    }
+
+    [Theory]
+    [InlineData("\"50\"")]
+    [InlineData("\"NaN\"")]
+    [InlineData("1e400")]
+    [InlineData("null")]
+    public async Task ConditionValue_InvalidNumericReadbackFailsClosed(string actual)
+    {
+        using var f = await Fixture.Create(); var r = Alarm(kind: "analog"); r.ConditionValue = JsonSerializer.SerializeToElement(50);
+        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog",
+            ConditionValue = new("System.Double", JsonDocument.Parse(actual).RootElement.Clone()) } });
+        Assert.False((await Verify(f, [r])).Success);
+    }
+
+    [Fact]
+    public async Task ConditionValue_NormalizationDoesNotHideValidationErrors()
+    {
+        using var f = await Fixture.Create(); var r = Alarm(kind: "analog"); r.ConditionValue = JsonSerializer.SerializeToElement(50);
+        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", ConditionValue = new("System.Double", JsonSerializer.SerializeToElement(50)) } });
+        f.Put("hmi_validate", new HmiValidationInfo { Page = new(0, 2000, 1, null), Scanned = 1,
+            Findings = [new() { Name = "A", ObjectKind = "HmiAnalogAlarm", Results = [new() { Errors = ["Invalid trigger"] }] }] });
+        var v = await Verify(f, [r]);
+        Assert.False(v.Success);
+        Assert.Contains(v.Operations, o => o.Check == "conditionValue.type" && o.Success);
+        Assert.Contains(v.Operations, o => o.Check == "postcondition_failed" && !o.Success && o.Message == "Invalid trigger");
     }
 
     [Theory]
@@ -277,13 +321,39 @@ public class HmiWriteVerifierTests
         Assert.Contains(v.Operations, o => o.OperationId == "last" && o.Check == "acquisitionCycle" && !o.Success);
     }
 
-    [Fact]
-    public async Task FailedAppliedConditionValueRetainsTypedExpectation()
+    [Theory]
+    [InlineData("System.Double", 50, true)]
+    [InlineData("System.Double", 51, false)]
+    [InlineData("System.Decimal", 50, false)]
+    public async Task FailedAppliedConditionValueRetainsTypedExpectation(string type, int actual, bool success)
     {
-        using var f = await Fixture.Create(); var r = Alarm(kind: "analog"); r.ConditionValue = JsonSerializer.SerializeToElement(50);
-        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", ConditionValue = new("System.Double", JsonSerializer.SerializeToElement(50)) } });
-        var v = await Verify(f, [r], Outcome(r, "worker_operation_failed", new() { ObjectName = "A", AppliedProperties = ["ConditionValue"], FailedProperty = "Priority" }));
-        Assert.False(v.Success);
+        using var f = await Fixture.Create(); var r = Alarm(kind: "analog"); r.ConditionValue = JsonSerializer.SerializeToElement(50); r.Priority = 7;
+        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", ConditionValue = new(type, JsonSerializer.SerializeToElement(actual)) } });
+        var batch = StructuredOperationBatch.FromItems([Outcome(r, "worker_operation_failed", new() { ObjectName = "A", AppliedProperties = ["ConditionValue"], FailedProperty = "Priority" })]);
+        var v = await new HmiWriteVerifier(f.Client, [r], new Dictionary<string, HmiWriteEffect> { [r.OperationId] = Effect(r) }).VerifyAsync(null, batch);
+        Assert.Equal(success, v.Success);
+        Assert.Contains(v.Operations, o => o.Check == "conditionValue.type" && o.Expected == "System.Int32" && o.Actual == type && o.Success == success);
+        Assert.Contains(v.Operations, o => o.Check == "observed.priority");
+        Assert.False(batch.IsFullySuccessful);
+        Assert.Equal("worker_operation_failed", Assert.Single(batch.Operations).Failure!.Category);
+    }
+
+    [Theory]
+    [InlineData(false, 51, true)]
+    [InlineData(false, 50, false)]
+    [InlineData(true, 50, true)]
+    [InlineData(true, 51, false)]
+    public async Task ConditionValue_LastAppliedExpectationSurvivesSupersessionAndFailure(bool failed, int actual, bool success)
+    {
+        using var f = await Fixture.Create(); var first = Alarm(kind: "analog"); first.ConditionValue = JsonSerializer.SerializeToElement(50);
+        var last = Alarm("last", "analog"); last.ConditionValue = JsonSerializer.SerializeToElement(51); last.Condition = "UpperLimit";
+        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", Condition = "UpperLimit", ConditionValue = new("System.Double", JsonSerializer.SerializeToElement(actual)) } });
+        var final = failed ? Outcome(last, "worker_operation_failed", new() { ObjectName = "A", AppliedProperties = ["Condition"], FailedProperty = "ConditionValue" }) : Outcome(last);
+        var v = await Verify(f, [first, last], Outcome(first), final);
+        Assert.Equal(success, v.Success);
+        Assert.Contains(v.Operations, o => o.OperationId == "a" && o.Check == "superseded");
+        Assert.Contains(v.Operations, o => o.OperationId == "last" && o.Check == "conditionValue" && o.Expected == (failed ? "50" : "51") && o.Success == success);
+        Assert.Contains(v.Operations, o => o.OperationId == "last" && o.Check == "conditionValue.type" && o.Expected == "System.Int32" && o.Actual == "System.Double" && o.Success == success);
     }
 
     [Fact]
