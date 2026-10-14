@@ -6,6 +6,7 @@ using TiaMcpServer.Cli.Install;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Hmi;
 using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety;
@@ -58,7 +59,17 @@ namespace TiaMcpServer
                 return 1;
             }
 
+            var budgetResult = PayloadBudgetParser.Parse(args);
+            if (!budgetResult.IsValid)
+            {
+                Console.Error.WriteLine($"Error: {budgetResult.Error}");
+                return 1;
+            }
+
+            StructuredOperationBatchPayloadBudget.Configure(budgetResult.ItemChars, budgetResult.DocumentChars);
+
             Console.Error.WriteLine($"TIA MCP access mode: {McpAccessModeNames.ToName(accessMode).ToUpperInvariant()}");
+            Console.Error.WriteLine($"TIA MCP response budget: {budgetResult.ItemChars} characters per value, {budgetResult.DocumentChars} per response");
             if (accessMode == McpAccessMode.ReadOnly)
             {
                 Console.Error.WriteLine("Project opening, compilation, writes, lifecycle operations, and PLC control are disabled.");

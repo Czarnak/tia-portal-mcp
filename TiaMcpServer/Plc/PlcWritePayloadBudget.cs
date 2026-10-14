@@ -18,8 +18,12 @@ public static class PlcWritePayloadBudget
     private const string DiagnosticOmissionReason = "diagnosticDetailsOmitted";
 
     public static PlcGuardedWriteResponse Apply(PlcGuardedWriteResponse response,
-        int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
-        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        int? maxItemChars = null, int? maxDocumentChars = null)
+        => ApplyCore(response,
+            maxItemChars ?? StructuredOperationBatchPayloadBudget.MaxItemChars,
+            maxDocumentChars ?? StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+
+    private static PlcGuardedWriteResponse ApplyCore(PlcGuardedWriteResponse response, int maxItemChars, int maxDocumentChars)
     {
         var originalChars = Size(response);
         var current = response;

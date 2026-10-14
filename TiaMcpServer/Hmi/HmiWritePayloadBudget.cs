@@ -12,8 +12,12 @@ public static class HmiWritePayloadBudget
     private const string DiagnosticSummary = "Diagnostic details omitted. Inspect current state with hmi_read.";
 
     public static HmiGuardedWriteResponse Apply(HmiGuardedWriteResponse response,
-        int maxItemChars = StructuredOperationBatchPayloadBudget.MaxItemChars,
-        int maxDocumentChars = StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+        int? maxItemChars = null, int? maxDocumentChars = null)
+        => ApplyCore(response,
+            maxItemChars ?? StructuredOperationBatchPayloadBudget.MaxItemChars,
+            maxDocumentChars ?? StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+
+    private static HmiGuardedWriteResponse ApplyCore(HmiGuardedWriteResponse response, int maxItemChars, int maxDocumentChars)
     {
         var current = response;
         if (Size(response) > maxDocumentChars || Oversized(response, maxItemChars)) current = Compact(response);
