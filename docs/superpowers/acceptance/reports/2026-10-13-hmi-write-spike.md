@@ -34,8 +34,8 @@ instance after the read-only W0 phase (see [Incident](#incident)); nothing in th
 
 - **Authorization.** The maintainer authorized any operation against a disposable project copy
   (name withheld). Fixture: one PLC (ET 200SP, CPU 1512SP F-1 PN),
-  hmiB (Unified Comfort, software `HMI_RT_1`, connection `HMI_Connection_1`, 348 tags,
-  155 discrete and 4 analog alarms) and `EmptyHMI` (hmiA, software `HMI_RT_2`, no connection, not on a
+  hmiB (Unified Comfort with one connection, 348 tags,
+  155 discrete and 4 analog alarms) and hmiA (empty Unified target with no connection, not on a
   subnet). Project languages: `en-US`, `pl-PL`.
 - **Harness.** A throwaway net48 x64 console outside the repository, never committed. It is reflection-only
   (references only `Siemens.Engineering.Base`), attaches only to the Portal whose open project equals the
