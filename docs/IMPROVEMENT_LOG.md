@@ -26,6 +26,26 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: large PLC block follow-ups (issue #127, 2026-10-15)
+
+The value and response budgets became startup options (`--max-item-chars`/`--max-document-chars`,
+`TIA_MCP_MAX_ITEM_CHARS`/`TIA_MCP_MAX_DOCUMENT_CHARS`; raise-only, defaults 60,000/180,000, at most
+1,000,000), so a block above 60,000 characters can be read with its `contentHash` and written back.
+Not yet live-verified; the issue reporter offered to test. Left out by design:
+
+- **Paged content reads and partial writes.** The issue's options 2 and 3 (`plc_read` slices that
+  carry the whole-document hash; a range or patch variant of `update_block_logic` reassembled on the
+  host) remain open. Revisit after VCI integration, and only if clients without file access still
+  hit their own tool-result or argument limits on real blocks.
+- **Doctor and installer.** `tia-mcp doctor` neither accepts nor reports the budget options, and
+  `tia-mcp install` does not write them; users edit the client configuration by hand.
+- **Fixed limits.** Project-tree pages, `network_read` hardware pages and the worker compile report
+  keep their own 60,000-character limits.
+- **Escaping inflation.** `CanonicalJson` uses the default encoder, so `'`, `"`, `<`, `>`, `&`, `+`
+  and non-ASCII characters count six characters each; SCL and XML exports measure noticeably larger
+  than their text. A relaxed encoder would shrink them but changes delivered-document hashes in the
+  audit; it needs a contract review.
+
 ## Open: create_block OB follow-ups (issue #75, 2026-10-09)
 
 Left out of [OB creation](superpowers/specs/2026-10-08-ob-creation-design.md) by design; none blocks

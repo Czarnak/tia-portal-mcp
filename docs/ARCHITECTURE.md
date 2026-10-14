@@ -63,6 +63,16 @@ The access mode is resolved once at startup with this precedence:
 Malformed explicit access-mode arguments are rejected instead of silently
 falling back to another mode.
 
+The structured response budgets are resolved next by `Cli/PayloadBudgetParser`, per value:
+`--max-item-chars`/`--max-document-chars`, then `TIA_MCP_MAX_ITEM_CHARS`/`TIA_MCP_MAX_DOCUMENT_CHARS`,
+then the defaults of 60,000 characters per value and 180,000 per response. Limits are raise-only
+(at most 1,000,000) and the value limit may not exceed the document limit; an invalid value exits
+with an error. `Program` passes the result to `StructuredOperationBatchPayloadBudget.Configure`
+before the host is built, so every budget reads the effective `MaxItemChars`/`MaxDocumentChars`
+properties; `DefaultItemChars`/`DefaultDocumentChars` keep the defaults. The worker is unaffected,
+and project-tree pages, hardware pages and the compile report keep their own fixed 60,000 limits.
+See [response size limits](guides/mcp-client-configuration.md#response-size-limits).
+
 ### Read-write mode
 
 Read-write exposes sixteen tools: six observation tools, `bind_project`, `compile_check`,
@@ -720,7 +730,7 @@ deletion consequences, so unexpected side effects can conservatively fail final 
 Root `project.Devices.Count` is separate from exact preservation of grouped/ungrouped devices/nodes.
 
 `NetworkWritePayloadBudget` bounds the complete canonical document at 180,000 characters and each
-value at 60,000. It omits whole effect/result/verification values, preserves IDs/guards/outcome
+value at 60,000 (the configured budgets; defaults shown). It omits whole effect/result/verification values, preserves IDs/guards/outcome
 summaries and uses shared omission metadata. Diagnostic strings over 512 canonical encoded
 characters are replaced whole, never raw prefixes; collections can be dropped whole under pressure.
 Root `omission` is explicitly null when complete. Incomplete evidence delivery makes root success
@@ -944,14 +954,14 @@ fires guards:
 Content writes require `expectedContentHash`. The planner compares it with a fresh export in the
 write's format: a mismatch fails the call as `state_changed` at plan time, and the worker re-checks
 the hash immediately before import, failing the item with `state_changed` if the content changed
-in between. Content over the 60,000-character value is omitted from `plc_read`, has no hash, and
+in between. Content over the value budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and
 cannot be written. A content preview may include a bounded `contentDiff` (40 excerpt lines and
 8,192 characters per side, 32,768 characters per call).
 
 Later items may use objects created earlier in the same call; such items carry `DependsOn` and are
 re-planned just before their own mutation. `PlcWriteVerifier` re-reads every attempted item and
 marks an item whose object a later item changed again as `superseded`. `PlcWritePayloadBudget`
-applies the 60,000-character value and 180,000-character document budgets and omits whole values.
+applies the configured value and document budgets (60,000/180,000 by default) and omits whole values.
 Worker resolution uses `PlcSoftwareLocator.FindUnique`, which considers every PLC including grouped
 devices and fails `target_ambiguous` on several matches; the shared target resolvers make
 `plc_read` content reads unique-PLC as well. The
@@ -1058,7 +1068,7 @@ again. A failed append is reported on stderr and never hides the write result.
 `plc_read` returns `contentHash` on each succeeded `get_block_content` and `get_type_content` read:
 `xml:sha256:<hex>` or `source:sha256:<hex>` over the exact served text (`PlcContentHashes`,
 `ContentHashes.Compute`). It is an explicit `null` on `withDependencies` reads, and a result over the
-60,000-character value is omitted whole, so no hash is reported for it. `plc_write`
+configured value budget is omitted whole, so no hash is reported for it. `plc_write`
 compares an expected hash with a fresh read through `ContentHashes.Check` (hashing is shared with
 the worker through Contracts `ContentHashRules`): a malformed hash or a
 format that differs from the write's format is `validation_error`, content that no longer matches

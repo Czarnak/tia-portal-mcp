@@ -48,12 +48,15 @@ rejection before anything ran.
 - A `projectPath` that differs from the bound project fails only that item with `binding_conflict`.
   Reads never bind, switch or open a project.
 
-Budget: a value over 60,000 characters or a document over 180,000 characters is never cut. The
-affected item `result` is omitted whole with an omission record and narrowing guidance, so it has no
-hash. A single block or type export over 60,000 characters therefore cannot be read through
-`plc_read`, and cannot be updated through `plc_write`, which needs the hash. One PLC of
-roughly 400 tags already exceeds the value: narrow `list_tag_tables` with `plcName`, `folderPath` or
-`tableName`.
+Budget: a value over the value budget or a document over the response budget (60,000 and 180,000
+characters by default) is never cut. The affected item `result` is omitted whole with an omission
+record and narrowing guidance, so it has no hash. A single block or type export over the value budget
+therefore cannot be read through `plc_read`, and cannot be updated through `plc_write`, which needs
+the hash, until the server is restarted with `--max-item-chars` at or above the omission's
+`originalChars` and `--max-document-chars` above that with headroom; read such a block in its own
+call. See [response size limits](../guides/mcp-client-configuration.md#response-size-limits). One PLC
+of roughly 400 tags already exceeds the default value budget: narrow `list_tag_tables` with
+`plcName`, `folderPath` or `tableName`.
 
 ## Compiler diagnostics (`compile_check`)
 
@@ -203,8 +206,8 @@ devices; several matches are `target_ambiguous`.
 `update_block_logic` and `update_type_content` take the whole document as `content`, together with
 `expectedContentHash`: the `contentHash` from a `plc_read` of the same object in the same format.
 If the object changed since that read, the call fails with `state_changed` before anything runs; a
-change between planning and import fails that item with `state_changed`. A document over the
-60,000-character value is omitted from `plc_read`, has no hash, and cannot be updated through
+change between planning and import fails that item with `state_changed`. A document over the value
+budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and cannot be updated through
 `plc_write`. A source declaring more than one object (a `withDependencies` read) is refused.
 Block updates import into the existing block, compile the affected PLC scope, and verify the result
 by re-export; type updates require a declaration whose name matches the target. Import/update never
@@ -240,7 +243,7 @@ later items are `skipped`. There is no rollback or automatic replay: re-read aff
 `plc_read` before retrying. Phases are `preview`, `applied`, `blocked` and `error`; `isError` is true
 only for a rejection before anything ran, and a call that ran and failed returns `success:false` with
 `error:null`. Verification re-reads every attempted item; an item whose object a later item changed
-again is reported `superseded`. Budgets are 60,000 characters per value and 180,000 per document;
+again is reported `superseded`. Budgets are 60,000 characters per value and 180,000 per document by default;
 whole values are omitted, never cut. Every entered call appends one audit v2 record to
 `writes-yyyy-MM-dd.jsonl`, with confirmation `none` in read-write and `policy` in full.
 

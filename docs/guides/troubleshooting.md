@@ -12,6 +12,7 @@ installation that are surprising but expected.
 - Access denied or attach failure: confirm the Windows user belongs to the `Siemens TIA Openness` user group, then sign out and back in.
 - `dotnet` selects the wrong SDK: install a stable .NET 10 SDK (`10.0.400` or newer in the .NET 10 feature bands), or update `global.json` to a locally installed stable .NET 10 feature band.
 - `get_block_content` on an S7-300/S7-400 CPU returns a warning that the s7dcl rung text is unavailable: expected. Those CPU families do not support Siemens document export at all. The Simatic ML XML document is exported by a separate API and is present, so the payload is complete for reading and for `update_block_logic`; only the supplementary human-readable rung text is missing.
+- `get_block_content` or `get_type_content` returns `status:omitted` with `reason:"resultExceededItemCharLimit"`: the export is larger than the value budget (60,000 characters by default), so it has no `contentHash` and cannot be updated. Restart the server with `--max-item-chars` (or `TIA_MCP_MAX_ITEM_CHARS`) at or above the reported `originalChars`, raise `--max-document-chars` above that with headroom, and read the block in its own call. See [response size limits](mcp-client-configuration.md#response-size-limits).
 
 ### Hardware pagination cursor failures
 
@@ -26,8 +27,8 @@ An omitted hardware page has not advanced. For `hardwarePageDiagnosticsExceededI
 `hardwarePageEntityExceededItemCharLimit`, retry the unchanged request at the same cursor, or
 start a new sequence with narrower filters or fewer detail options. A page may contain fewer
 entities than `pageSize` because the host keeps only the largest complete canonical prefix at or
-below 60,000 characters; continue until `nextCursor` is absent. The independent 180,000-character
-batch limit can also omit a complete page, so place large hardware reads in their own call.
+below 60,000 characters; continue until `nextCursor` is absent. The independent response budget (180,000 characters by default)
+can also omit a complete page, so place large hardware reads in their own call.
 
 ## Verified TIA Portal V21 behavior
 
