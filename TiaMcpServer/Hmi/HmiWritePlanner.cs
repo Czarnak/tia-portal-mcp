@@ -270,10 +270,12 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
     {
         foreach (var member in members)
         {
-            // Public rows already carry full paths; never invent a path by prefixing an unrelated row.
-            if (!member.Tag.Name.StartsWith(parent + ".", StringComparison.OrdinalIgnoreCase)) continue;
-            yield return member.Tag.Name;
-            foreach (var nested in MemberPaths(member.Members, member.Tag.Name)) yield return nested;
+            // Local member names derive their path from containment; qualified rows must belong to that parent.
+            var name = member.Tag.Name;
+            var path = name.Contains('.') ? name : parent + "." + name;
+            if (!path.StartsWith(parent + ".", StringComparison.OrdinalIgnoreCase)) continue;
+            yield return path;
+            foreach (var nested in MemberPaths(member.Members, path)) yield return nested;
         }
     }
     private async Task<T> Read<T>(string? path, string operation, HmiQueryInfo query, bool optional = false) where T : class

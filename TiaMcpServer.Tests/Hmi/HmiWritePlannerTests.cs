@@ -93,6 +93,48 @@ public class HmiWritePlannerTests
         Assert.Single(f.Requests, r => r.Method == "hmi_get_tag");
     }
 
+    [Theory]
+    [InlineData("T.Member", "discrete")]
+    [InlineData("T.Member.Nested", "analog")]
+    public async Task LocalMemberNamesResolveFromObservedContainment(string trigger, string kind)
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag("Member"), Members = [new() { Tag = Tag("Nested") }] }] });
+        var alarm = Alarm("a", trigger); alarm.AlarmKind = kind;
+        var planner = new HmiWritePlanner(f.Client);
+        var result = await planner.PlanAsync(null, [alarm]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Contains(result.Plan.Items[0].Effect!.Changes, c => c.Field == "triggerTag" && c.Requested == trigger);
+        var fresh = await planner.ReplanAsync(null, alarm);
+        Assert.True(fresh.Replan.Success, fresh.Replan.Error?.Message);
+    }
+
+    [Theory]
+    [InlineData("Other.Nested", "target_not_found")]
+    [InlineData("Nested", "target_ambiguous")]
+    public async Task NestedMemberEvidenceCannotBeReparentedOrDeduplicated(string second, string category)
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag("T.Member"), Members = [new() { Tag = Tag(second) }, new() { Tag = Tag(second) }] }] });
+        var result = await new HmiWritePlanner(f.Client).PlanAsync(null, [Alarm("a", "T.Member.Nested")]);
+        Assert.Equal(category, result.Plan.Error!.Category);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task IncompleteOrTruncatedMembersStillBlockInitialAndFreshPlans(bool complete, bool truncated)
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), IsComplete = complete, MembersTruncated = truncated, Members = [new() { Tag = Tag("Member") }] });
+        var alarm = Alarm("a", "T.Member");
+        var planner = new HmiWritePlanner(f.Client);
+        var result = await planner.PlanAsync(null, [alarm]);
+        Assert.Contains(result.Guards["a"], g => g.Id == "hmi_state_unverifiable");
+        var fresh = await planner.ReplanAsync(null, alarm);
+        Assert.Contains(fresh.Guards, g => g.Id == "hmi_state_unverifiable");
+    }
+
     [Fact]
     public async Task RenamedExistingTagQueriesOriginalThenCurrentAtReplan()
     {
@@ -126,14 +168,16 @@ public class HmiWritePlannerTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task BoundCreatedMemberIsProvisionalUntilFreshProof(bool recreated)
+    [InlineData(false, "Member")]
+    [InlineData(false, "Member.Nested")]
+    [InlineData(true, "Member")]
+    [InlineData(true, "Member.Nested")]
+    public async Task BoundCreatedMemberIsProvisionalUntilFreshProof(bool recreated, string member)
     {
         using var f = await Fixture.Create();
         var tag = recreated ? "T" : "U";
         var create = Item("create_tag", "create", tag); create.TableName = "Table"; create.Connection = "Connection"; create.PlcTag = "Struct";
-        var alarm = Alarm("alarm", tag + ".Member");
+        var alarm = Alarm("alarm", tag + "." + member);
         var planner = new HmiWritePlanner(f.Client);
         var result = await planner.PlanAsync(null, recreated ? [Item("delete_tag", "delete"), create, alarm] : [create, alarm]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
@@ -143,7 +187,7 @@ public class HmiWritePlannerTests
         f.Put("hmi_get_tag|" + tag, new HmiTagDetailInfo { Tag = Tag(tag) });
         var late = await planner.ReplanAsync(null, alarm);
         Assert.Equal("target_not_found", late.Replan.Error!.Category);
-        f.Put("hmi_get_tag|" + tag, new HmiTagDetailInfo { Tag = Tag(tag), Members = [new() { Tag = Tag(tag + ".Member") }] });
+        f.Put("hmi_get_tag|" + tag, new HmiTagDetailInfo { Tag = Tag(tag), Members = [new() { Tag = Tag("Member"), Members = [new() { Tag = Tag("Nested") }] }] });
         var proved = await planner.ReplanAsync(null, alarm);
         Assert.True(proved.Replan.Success, proved.Replan.Error?.Message);
     }
