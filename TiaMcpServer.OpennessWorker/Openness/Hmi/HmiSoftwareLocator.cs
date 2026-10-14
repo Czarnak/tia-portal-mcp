@@ -86,21 +86,21 @@ public static class HmiSoftwareLocator
 
             if (hmiName is not null && Cache.TryGetValue(hmiName, out var cached))
             {
+                var live = false;
                 try
                 {
                     var softwareName = ((HmiSoftware)cached.Software).Name;
                     var deviceName = cached.Device.Name;
-                    if (string.Equals(softwareName, hmiName, StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(deviceName, hmiName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return new DiscoveredHmiSoftware(deviceName, (HmiSoftware)cached.Software);
-                    }
+                    live = string.Equals(softwareName, hmiName, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(deviceName, hmiName, StringComparison.OrdinalIgnoreCase);
                 }
                 catch (Exception)
                 {
                     // A stale Openness proxy must be relocated through the strict discovery path.
                 }
 
+                // Liveness cannot prove uniqueness after another device or software is added or renamed.
+                if (live) return Locate(project, hmiName);
                 Cache.Remove(hmiName);
             }
 

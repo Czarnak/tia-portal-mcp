@@ -14,14 +14,46 @@ public class HmiSoftwareLocatorTests
     public HmiSoftwareLocatorTests() => HmiSoftwareLocator.ResetCache();
 
     [Fact]
-    public void CachedHit_SkipsDeviceWalk()
+    public void CachedHit_RechecksDeviceWalkForUniqueness()
     {
         var software = Unified("Runtime");
         var project = ProjectWith(DeviceWith("Panel", software));
         HmiSoftwareLocator.FindUnique(project, "Runtime");
         var walked = project.Devices.YieldedItemCount;
         Assert.Same(software, HmiSoftwareLocator.FindUnique(project, "runtime").Software);
-        Assert.Equal(walked, project.Devices.YieldedItemCount);
+        Assert.True(project.Devices.YieldedItemCount > walked);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WarmSelectorRejectsNewDeviceNameAmbiguity(bool rename)
+    {
+        var second = DeviceWith("Other", Unified("SoftwareB"));
+        var project = ProjectWith(DeviceWith("DeviceA", Unified("Shared")));
+        if (rename) project.Devices.Items.Add(second);
+        HmiSoftwareLocator.FindUnique(project, "Shared");
+        second.Name = "shared";
+        if (!rename) project.Devices.Items.Add(second);
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous,
+            Assert.Throws<WorkerOperationException>(() => HmiSoftwareLocator.FindUnique(project, "Shared")).FailureCategory);
+        HmiSoftwareLocator.ResetCache();
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous,
+            Assert.Throws<WorkerOperationException>(() => HmiSoftwareLocator.FindUnique(project, "Shared")).FailureCategory);
+    }
+
+    [Fact]
+    public void WarmSelectorUsesReplacementEvenWhenRemovedProxyNamesRemainReadable()
+    {
+        var project = ProjectWith(DeviceWith("Panel", Unified("Runtime")));
+        HmiSoftwareLocator.FindUnique(project, "Runtime");
+        project.Devices.Items.Clear();
+        var replacement = Unified("Runtime");
+        project.Devices.Items.Add(DeviceWith("NewPanel", replacement));
+        Assert.Same(replacement, HmiSoftwareLocator.FindUnique(project, "Runtime").Software);
+        project.Devices.Items.Clear();
+        Assert.Equal(WorkerFailureCategories.TargetNotFound,
+            Assert.Throws<WorkerOperationException>(() => HmiSoftwareLocator.FindUnique(project, "Runtime")).FailureCategory);
     }
 
     [Theory]
@@ -70,7 +102,9 @@ public class HmiSoftwareLocatorTests
         var first = new EqualRoot();
         first.Devices.Items.Add(DeviceWith("Panel", software));
         HmiSoftwareLocator.FindUnique(first, "Runtime");
-        Assert.Same(software, HmiSoftwareLocator.FindUnique(new EqualRoot(), "Runtime").Software);
+        var equivalent = new EqualRoot();
+        equivalent.Devices.Items.Add(first.Devices.Items[0]);
+        Assert.Same(software, HmiSoftwareLocator.FindUnique(equivalent, "Runtime").Software);
     }
 
     private sealed class EqualRoot : ProjectBase
