@@ -118,28 +118,28 @@ public static class VciWriter
                         try
                         {
                             using (var access = portal.ExclusiveAccess("Import VCI workspace scope"))
-                            using (var transaction = access.Transaction(project, "Import VCI workspace scope"))
                             {
-                                var allSucceeded = true;
-                                foreach (var candidate in candidates)
+                                var commitRequested = false;
+                                using (var transaction = access.Transaction(project, "Import VCI workspace scope"))
                                 {
-                                    Attempt(candidate.Attempt);
-                                    try { FindMapping(workspace, candidate.Key).Synchronize(SynchronizationMode.WorkspaceToProject); }
-                                    catch (NonRecoverableException) { throw; }
-                                    catch (EngineeringException) { allSucceeded = false; }
-                                    catch (Exception) { allSucceeded = false; }
+                                    var allSucceeded = true;
+                                    foreach (var candidate in candidates)
+                                    {
+                                        Attempt(candidate.Attempt);
+                                        try { FindMapping(workspace, candidate.Key).Synchronize(SynchronizationMode.WorkspaceToProject); }
+                                        catch (NonRecoverableException) { throw; }
+                                        catch (EngineeringException) { allSucceeded = false; }
+                                        catch (Exception) { allSucceeded = false; }
+                                    }
+                                    if (allSucceeded && transaction.CanCommit)
+                                    {
+                                        transaction.CommitOnDispose();
+                                        commitRequested = true;
+                                    }
                                 }
-                                if (allSucceeded && transaction.CanCommit)
-                                {
-                                    transaction.CommitOnDispose();
-                                    committed = true;
-                                }
+                                // Commit is known only after transaction disposal, independently of access release.
+                                committed = commitRequested;
                             }
-                        }
-                        catch
-                        {
-                            committed = false;
-                            throw;
                         }
                         finally
                         {

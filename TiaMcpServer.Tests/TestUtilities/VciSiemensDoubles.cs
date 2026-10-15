@@ -6,6 +6,11 @@ namespace Siemens.Engineering
     public interface IEngineeringService : IEngineeringObject { }
     public interface ITransactionSupport { }
 
+    public sealed partial class TiaPortal
+    {
+        public Exception? VciExclusiveAccessDisposeFailure { get; set; }
+    }
+
     public sealed class ExclusiveAccess : IDisposable
     {
         private readonly TiaPortal portal;
@@ -17,7 +22,11 @@ namespace Siemens.Engineering
             portal.Transactions.Add(transaction);
             return transaction;
         }
-        public void Dispose() => Disposed = true;
+        public void Dispose()
+        {
+            Disposed = true;
+            if (portal.VciExclusiveAccessDisposeFailure is not null) throw portal.VciExclusiveAccessDisposeFailure;
+        }
     }
 
     // shortcut: records commit intent only; model rollback when a test needs engineering-state restoration.
@@ -30,12 +39,17 @@ namespace Siemens.Engineering
         public bool CommitRequested { get; private set; }
         public bool Disposed { get; private set; }
         public bool Committed => Disposed && CommitRequested && CanCommit;
+        public Exception? DisposeFailure { get; set; }
         public void CommitOnDispose()
         {
             if (!CanCommit) throw new EngineeringException("Transaction cannot commit.");
             CommitRequested = true;
         }
-        public void Dispose() => Disposed = true;
+        public void Dispose()
+        {
+            if (DisposeFailure is not null) throw DisposeFailure;
+            Disposed = true;
+        }
     }
 }
 

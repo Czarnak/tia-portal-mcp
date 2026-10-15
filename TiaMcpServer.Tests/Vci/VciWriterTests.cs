@@ -81,6 +81,51 @@ public class VciWriterTests
         Assert.False(Assert.Single(f.Portal.Transactions).CommitRequested);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SyncToProject_AccessReleaseFailure_PreservesConfirmedCommit(bool fatal)
+    {
+        using var f = new Fixture();
+        f.MapBoth();
+        f.Portal.VciExclusiveAccessDisposeFailure = fatal
+            ? new NonRecoverableException("Lost on access release.") : new EngineeringException("Access release failed.");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => f.Run("sync_to_project"));
+
+        Assert.Equal(fatal ? WorkerFailureCategories.PortalLost : WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        var outcome = Assert.IsType<VciWriteOutcomeInfo>(ex.VciWriteOutcome);
+        Assert.True(Assert.Single(f.Portal.Transactions).Committed);
+        Assert.Equal(2, outcome.Succeeded);
+        Assert.Equal(0, outcome.Failed);
+        Assert.True(outcome.ProjectModified);
+        Assert.Contains(VciNotes.SaveProject, outcome.Notes);
+        Assert.Equal(fatal, outcome.LastAttempted is not null);
+        Assert.False(File.Exists(f.Request.BreadcrumbPath));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SyncToProject_TransactionDisposeFailure_DoesNotClaimCommit(bool fatal)
+    {
+        using var f = new Fixture();
+        f.MapBoth()[1].OnSynchronize = _ => f.Portal.Transactions[0].DisposeFailure = fatal
+            ? new NonRecoverableException("Lost on transaction disposal.") : new EngineeringException("Transaction disposal failed.");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => f.Run("sync_to_project"));
+
+        Assert.Equal(fatal ? WorkerFailureCategories.PortalLost : WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        var outcome = Assert.IsType<VciWriteOutcomeInfo>(ex.VciWriteOutcome);
+        Assert.True(Assert.Single(f.Portal.Transactions).CommitRequested);
+        Assert.False(f.Portal.Transactions[0].Committed);
+        Assert.Equal(0, outcome.Succeeded);
+        Assert.Equal(2, outcome.Failed);
+        Assert.False(outcome.ProjectModified);
+        Assert.DoesNotContain(VciNotes.SaveProject, outcome.Notes);
+        Assert.False(File.Exists(f.Request.BreadcrumbPath));
+    }
+
     [Fact]
     public void SyncToProject_CommitsOneTransactionAndResolvesFreshMapping()
     {
