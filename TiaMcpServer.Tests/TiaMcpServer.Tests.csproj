@@ -57,6 +57,8 @@
       Link="Plc\PlcSoftwareLocator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Hmi\*.cs"
       Link="Linked\Openness\Hmi\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Vci\*.cs"
+      Link="Linked\Openness\Vci\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcWritePreconditions.cs"
       Link="Plc\PlcWritePreconditions.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagMutationService.cs"
