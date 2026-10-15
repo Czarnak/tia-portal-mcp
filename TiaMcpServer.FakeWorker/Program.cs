@@ -474,6 +474,16 @@ while ((line = Console.In.ReadLine()) is not null)
 
     switch (scenario)
     {
+        case "portal-lost":
+            Respond(currentMethod == "get_project_status"
+                ? Success("{}")
+                : JsonSerializer.Serialize(new WorkerResponse
+                {
+                    Success = false,
+                    FailureCategory = WorkerFailureCategories.PortalLost,
+                    Error = "The Portal connection was lost."
+                }, WorkerJson.Envelope));
+            break;
         case "ok":
             // seq proves whether two requests hit the same process (2.1 reuse/restart tests).
             Respond($$"""{"success":true,"payload":"{\"seq\":{{seq}}}"}""");

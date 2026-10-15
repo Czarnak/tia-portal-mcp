@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.Contracts.Project;
 
@@ -17,6 +18,11 @@ public static class ProjectCapabilityCatalog
     private static readonly string[] StandaloneLifecycleOperations =
     {
         "create_project", "save_project_as", "archive_project", "close_project"
+    };
+
+    private static readonly string[] StandaloneVciOperations =
+    {
+        "vci_read", "vci_write"
     };
 
     /// <summary>Reads that run against the common <c>ProjectBase</c> root of any open container.</summary>
@@ -89,6 +95,8 @@ public static class ProjectCapabilityCatalog
         if (NonProjectMethods.Contains(method, StringComparer.Ordinal)) return null;
         if (method == "hmi_write" || HmiWriteMethods.All.Contains(method, StringComparer.Ordinal)) return "hmi_write";
         if (method.StartsWith("hmi_", StringComparison.Ordinal) && method != "hmi_read") return "hmi_read";
+        if (VciMethods.Read.Contains(method, StringComparer.Ordinal)) return "vci_read";
+        if (method == VciMethods.Plan || VciMethods.Write.Contains(method, StringComparer.Ordinal)) return "vci_write";
         return method switch
         {
             "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
@@ -134,7 +142,7 @@ public static class ProjectCapabilityCatalog
                     ? ProjectCapabilityApplicabilities.NotYetDelivered
                     : ProjectCapabilityApplicabilities.ProjectContent
             });
-        foreach (var operation in StandaloneLifecycleOperations)
+        foreach (var operation in StandaloneLifecycleOperations.Concat(StandaloneVciOperations))
             result.Add(new ProjectCapabilityInfo
             {
                 Operation = operation,

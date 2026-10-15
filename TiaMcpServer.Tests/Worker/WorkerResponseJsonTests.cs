@@ -58,6 +58,7 @@ public class WorkerResponseJsonTests
     [Theory]
     [InlineData("validation_error")]
     [InlineData("binding_conflict")]
+    [InlineData("portal_lost")]
     [InlineData("state_changed")]
     [InlineData("worker_operation_failed")]
     [InlineData("worker_timeout")]
@@ -65,6 +66,7 @@ public class WorkerResponseJsonTests
     [InlineData("postcondition_failed")]
     public void WorkerResponse_RoundTripsFailureCategory(string category)
     {
+        Assert.True(WorkerFailureCategories.IsKnown(category));
         var response = new WorkerResponse
         {
             Success = false,

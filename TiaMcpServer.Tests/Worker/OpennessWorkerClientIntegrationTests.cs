@@ -516,6 +516,22 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task PortalLost_InvalidatesBindingImmediately()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "portal-lost");
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
+
+        var result = await client.ListTagTablesAsync(null, null);
+
+        Assert.False(result.Success);
+        Assert.Equal("portal_lost", result.FailureCategory);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+    }
+
+    [Fact]
     public async Task ExistingSafeReadTimeout_UsesSafeGuidance_InvalidatesBinding_AndDoesNotRetry()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");

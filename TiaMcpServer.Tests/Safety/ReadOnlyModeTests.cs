@@ -203,6 +203,10 @@ public class ReadOnlyModeTests
     [InlineData("get_type_content")]
     [InlineData("list_network_objects")]
     [InlineData("inspect_network_object")]
+    [InlineData("vci_list_workspaces")]
+    [InlineData("vci_list_mappings")]
+    [InlineData("vci_supported_formats")]
+    [InlineData("vci_plan")]
     public void ReadOnlyMode_AllowsApprovedOperations(string operation)
     {
         Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
@@ -246,6 +250,12 @@ public class ReadOnlyModeTests
     [InlineData("hmi_create_alarm")]
     [InlineData("hmi_update_alarm")]
     [InlineData("hmi_delete_alarm")]
+    [InlineData("vci_create_workspace")]
+    [InlineData("vci_delete_workspace")]
+    [InlineData("vci_export")]
+    [InlineData("vci_sync_to_workspace")]
+    [InlineData("vci_sync_to_project")]
+    [InlineData("vci_delete_mapping")]
     public void ReadOnlyMode_DeniesProhibitedOperations(string operation)
     {
         Assert.False(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));

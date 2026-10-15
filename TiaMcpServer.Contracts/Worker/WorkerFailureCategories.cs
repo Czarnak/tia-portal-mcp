@@ -15,6 +15,9 @@ public static class WorkerFailureCategories
     /// <summary>The requested project conflicts with what this session/worker is already bound to or has open.</summary>
     public const string BindingConflict = "binding_conflict";
 
+    /// <summary>The Portal connection was lost; the verified project binding is no longer usable.</summary>
+    public const string PortalLost = "portal_lost";
+
     /// <summary>The object or project state no longer matches what the caller last read (for example a content hash mismatch).</summary>
     public const string StateChanged = "state_changed";
 
@@ -92,6 +95,7 @@ public static class WorkerFailureCategories
     {
         ValidationError,
         BindingConflict,
+        PortalLost,
         StateChanged,
         TargetNotFound,
         TargetAmbiguous,

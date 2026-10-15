@@ -2352,7 +2352,8 @@ public class OpennessWorkerClient : IDisposable
                 BlockImportOutcome = response.BlockImportOutcome,
                 DispatchState = WorkerDispatchState.Sent
             };
-            if (failureCategory == WorkerFailureCategories.BindingConflict && _projectSessionBinding.IsVerified)
+            if ((failureCategory is WorkerFailureCategories.BindingConflict or WorkerFailureCategories.PortalLost)
+                && _projectSessionBinding.IsVerified)
             {
                 _projectSessionBinding.Invalidate(failure.Error ?? "worker rejected the expected session identity");
             }
