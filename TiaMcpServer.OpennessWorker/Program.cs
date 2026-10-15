@@ -9,6 +9,7 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Block;
 using TiaMcpServer.OpennessWorker.Openness.CrossReferences;
@@ -18,6 +19,7 @@ using TiaMcpServer.OpennessWorker.Openness.Multiuser;
 using TiaMcpServer.OpennessWorker.Openness.Network;
 using TiaMcpServer.OpennessWorker.Openness.Plc;
 using TiaMcpServer.OpennessWorker.Openness.Project;
+using TiaMcpServer.OpennessWorker.Openness.Vci;
 using TiaMcpServer.OpennessWorker.Worker;
 using WorkerTiaPortalSession = TiaMcpServer.OpennessWorker.Openness.Project.TiaPortalSession;
 
@@ -192,6 +194,7 @@ internal static class Program
                     or "hmi_list_connections" or "hmi_list_alarms" or "hmi_get_alarm" or "hmi_list_alarm_classes"
                     or "hmi_list_logs" or "hmi_list_screens" or "hmi_list_screen_items" or "hmi_list_faceplate_instances"
                     or "hmi_get_screen_navigation" or "hmi_validate" => ReadHmi(request),
+                "vci_list_workspaces" or "vci_list_mappings" or "vci_supported_formats" => ReadVci(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -1014,6 +1017,10 @@ internal static class Program
     {
         return WithEngineeringRoot(request, project => Success(CompileChecker.Compile(project, request.PlcName, request.BlockPath)));
     }
+
+    private static WorkerResponse ReadVci(WorkerRequest request)
+        => WithEngineeringRoot(request, project => Success(
+            VciDispatch.Read(project, request.Method, request.VciQuery ?? new VciQueryInfo())));
 
     private static WorkerResponse CreateTagTable(WorkerRequest request)
     {
