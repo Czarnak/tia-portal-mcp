@@ -1,10 +1,11 @@
+using TiaMcpServer.Cli;
 using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Diagnostics;
 
 public static class DoctorTextRenderer
 {
-    public static void Render(DoctorReport report, bool verbose, TextWriter writer, McpAccessMode? accessMode = null)
+    public static void Render(DoctorReport report, bool verbose, TextWriter writer, McpAccessMode? accessMode = null, WorkerTimeoutParseResult? workerTimeout = null)
     {
         writer.WriteLine("TIA Portal MCP Environment Doctor");
         writer.WriteLine();
@@ -12,6 +13,12 @@ public static class DoctorTextRenderer
         {
             var modeLabel = McpAccessModeNames.ToName(accessMode.Value).ToUpperInvariant();
             writer.WriteLine($"Access mode: {modeLabel}");
+            writer.WriteLine();
+        }
+
+        if (workerTimeout is not null)
+        {
+            writer.WriteLine($"Worker timeout: {workerTimeout.Minutes} minutes ({WorkerTimeoutParseResult.SourceName(workerTimeout.Source)})");
             writer.WriteLine();
         }
 

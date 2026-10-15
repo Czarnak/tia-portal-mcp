@@ -8,6 +8,50 @@ namespace TiaMcpServer.Tests.Diagnostics;
 public class DoctorCommandTests
 {
     [Fact]
+    public async Task RunAsync_InvalidWorkerTimeout_ReturnsTwoWithSharedErrorWithoutRunningChecks()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DoctorCommand.RunAsync(
+            new[] { "--worker-timeout-minutes", "61" },
+            _ => throw new InvalidOperationException("Checks must not run for invalid arguments."),
+            output,
+            error);
+
+        Assert.Equal(2, exitCode);
+        Assert.Empty(output.ToString());
+        Assert.StartsWith($"error: Invalid --worker-timeout-minutes value '61'. Expected a whole number of minutes from 5 to 60.{Environment.NewLine}", error.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_WorkerTimeout_ReportsResolvedValueAndSource(bool json)
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var args = json
+            ? new[] { "--json", "--worker-timeout-minutes", "10" }
+            : new[] { "--worker-timeout-minutes", "10" };
+
+        var exitCode = await DoctorCommand.RunAsync(args, _ => PassedReport(), output, error);
+
+        Assert.Equal(0, exitCode);
+        Assert.Empty(error.ToString());
+        if (json)
+        {
+            using var document = JsonDocument.Parse(output.ToString());
+            Assert.Equal(10, document.RootElement.GetProperty("workerTimeoutMinutes").GetInt32());
+            Assert.Equal("option", document.RootElement.GetProperty("workerTimeoutSource").GetString());
+        }
+        else
+        {
+            Assert.Contains("Worker timeout: 10 minutes (option)", output.ToString());
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_Help_WritesUsageToStandardOutputAndReturnsZero()
     {
         var output = new StringWriter();
@@ -21,6 +65,7 @@ public class DoctorCommandTests
 
         Assert.Equal(0, exitCode);
         Assert.Contains("Usage: tia-mcp doctor", output.ToString());
+        Assert.Contains("--worker-timeout-minutes", output.ToString());
         Assert.Empty(error.ToString());
     }
 
