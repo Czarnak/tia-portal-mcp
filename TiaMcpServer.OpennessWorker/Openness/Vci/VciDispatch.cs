@@ -10,6 +10,10 @@ using Project = Siemens.Engineering.Project;
 
 public static class VciDispatch
 {
+    public static VciWriteOutcomeInfo Write(TiaPortal portal, ProjectBase root, string method, VciWriteRequestInfo write)
+        => VciWriter.Write(portal, root as Project ?? throw new WorkerOperationException(
+            WorkerFailureCategories.UnsupportedCapability, "VCI writes require a standalone project."), method, write);
+
     public static VciPlanInfo Plan(ProjectBase root, VciWriteRequestInfo write)
     {
         try

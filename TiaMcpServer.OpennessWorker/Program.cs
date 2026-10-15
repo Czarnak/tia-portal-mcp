@@ -196,6 +196,8 @@ internal static class Program
                     or "hmi_get_screen_navigation" or "hmi_validate" => ReadHmi(request),
                 "vci_list_workspaces" or "vci_list_mappings" or "vci_supported_formats" => ReadVci(request),
                 "vci_plan" => PlanVci(request),
+                "vci_create_workspace" or "vci_delete_workspace" or "vci_export" or "vci_sync_to_workspace"
+                    or "vci_sync_to_project" or "vci_delete_mapping" => WriteVci(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -1026,6 +1028,10 @@ internal static class Program
     private static WorkerResponse PlanVci(WorkerRequest request)
         => WithEngineeringRoot(request, project => Success(
             VciDispatch.Plan(project, request.VciWrite ?? new VciWriteRequestInfo())));
+
+    private static WorkerResponse WriteVci(WorkerRequest request)
+        => WithActiveContext(request, session => Success(VciDispatch.Write(session.TiaPortal!,
+            session.EngineeringRoot!, request.Method, request.VciWrite ?? new VciWriteRequestInfo())));
 
     private static WorkerResponse CreateTagTable(WorkerRequest request)
     {

@@ -182,12 +182,14 @@ namespace Siemens.Engineering.VersionControl
         public Exception? SynchronizeFailure { get; set; }
         public Exception? DeleteFailure { get; set; }
         public Action<SynchronizationMode>? OnSynchronize { get; set; }
+        public Action? OnGetStatus { get; set; }
         public int GetStatusCalls { get; private set; }
         public List<SynchronizationMode> SynchronizeCalls { get; } = new();
         public int DeleteCalls { get; private set; }
         public IndividualObjectCompareResult GetStatus()
         {
             GetStatusCalls++;
+            OnGetStatus?.Invoke();
             if (EngineeringObject is not null) Workspace?.CheckLeaf(EngineeringObject);
             if (StatusFailure is not null) throw StatusFailure;
             return StatusResult;
