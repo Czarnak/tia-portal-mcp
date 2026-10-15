@@ -141,7 +141,9 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
                         ? builder.WithPlcWriteTools()
                         : typeof(TTools) == typeof(TiaMcpServer.Hmi.HmiWriteTools)
                             ? builder.WithHmiWriteTools()
-                            : builder.WithTools<TTools>();
+                            : typeof(TTools) == typeof(TiaMcpServer.Vci.VciReadTools)
+                                ? builder.WithVciReadTools()
+                                : builder.WithTools<TTools>();
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,

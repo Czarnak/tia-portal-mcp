@@ -353,5 +353,8 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\ConnectionModeledAttributeCatalog.cs"
       Link="Network\ConnectionModeledAttributeCatalog.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\TiaMcpServer\Vci\*.cs" Link="Vci\%(Filename)%(Extension)" />
+  </ItemGroup>
   <Import Project="TestUtilities\WorkerSerializationHarness.targets" />
 </Project>

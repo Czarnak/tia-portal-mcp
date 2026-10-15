@@ -1195,6 +1195,10 @@ public class OpennessWorkerClient : IDisposable
             "[]");
     }
 
+    /// <summary>Runs one standalone VCI read through the verified binding and capability gates.</summary>
+    public Task<WorkerCallResult> ReadVciAsync(string method, TiaMcpServer.Contracts.Vci.VciQueryInfo query, string? projectPath)
+        => SendBoundProjectRequestAsync(method, projectPath, request => request.VciQuery = query, "{}");
+
     /// <summary>Runs one hmi_read operation; <paramref name="method"/> is the hmi_-prefixed worker method.</summary>
     public Task<WorkerCallResult> ReadHmiAsync(string method, HmiQueryInfo query, string? projectPath)
     {

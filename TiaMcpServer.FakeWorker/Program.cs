@@ -819,6 +819,9 @@ while ((line = Console.In.ReadLine()) is not null)
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
             break;
+        case "vci-read-roundtrip":
+            Respond(TiaMcpServer.FakeWorker.Vci.VciReadRoundtripScenario.Handle(line));
+            break;
         case "hmi-read-roundtrip":
             Respond(ReadMethod(line) switch
             {

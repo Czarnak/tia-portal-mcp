@@ -529,11 +529,11 @@ public class ReadOnlyModeTests
     #region Tool Discovery Tests
 
     [Fact]
-    public void ReadOnlyMode_HasExactlySevenTools()
+    public void ReadOnlyMode_HasExactlyEightTools()
     {
         var networkReadType = typeof(NetworkOperationRequest).Assembly.GetType("TiaMcpServer.Network.NetworkReadTools");
         Assert.NotNull(networkReadType);
-        var toolNames = new[] { typeof(ProjectBindingTools), typeof(ProjectReadTools), networkReadType!, typeof(TiaMcpServer.Plc.PlcReadTools), typeof(TiaMcpServer.Hmi.HmiReadTools), typeof(TiaMcpServer.CrossReferences.CrossReferenceReadTools) }
+        var toolNames = new[] { typeof(ProjectBindingTools), typeof(ProjectReadTools), networkReadType!, typeof(TiaMcpServer.Plc.PlcReadTools), typeof(TiaMcpServer.Hmi.HmiReadTools), typeof(TiaMcpServer.CrossReferences.CrossReferenceReadTools), typeof(TiaMcpServer.Vci.VciReadTools) }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
             .Where(attribute => attribute is not null)
@@ -542,12 +542,12 @@ public class ReadOnlyModeTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "bind_project", "browse_project_tree", "get_project_status", "hmi_read", "network_read", "plc_read", "read_cross_references" },
+            new[] { "bind_project", "browse_project_tree", "get_project_status", "hmi_read", "network_read", "plc_read", "read_cross_references", "vci_read" },
             toolNames);
     }
 
     [Fact]
-    public void FullSurface_HasExactlySeventeenDistinctTools()
+    public void FullSurface_HasExactlyEighteenDistinctTools()
     {
         var toolNames = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -565,7 +565,7 @@ public class ReadOnlyModeTests
                 "archive_project", "bind_project", "browse_project_tree", "close_project",
                 "compile_check", "create_project", "get_project_status", "hmi_read", "hmi_write",
                 "network_read", "network_write", "open_project", "plc_read", "plc_write", "read_cross_references",
-                "save_project", "save_project_as"
+                "save_project", "save_project_as", "vci_read"
             },
             toolNames);
     }

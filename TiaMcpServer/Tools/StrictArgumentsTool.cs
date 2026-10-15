@@ -9,6 +9,25 @@ using TiaMcpServer.Contracts.Block;
 
 namespace TiaMcpServer.Tools;
 
+internal static class VciReadToolRegistration
+{
+    internal static IMcpServerBuilder WithVciReadTools(this IMcpServerBuilder builder)
+    {
+        builder.Services.AddSingleton<McpServerTool>(services => new StrictArgumentsTool(
+            McpServerTool.Create(typeof(Vci.VciReadTools).GetMethod(nameof(Vci.VciReadTools.VciRead))!,
+                target: null, options: new McpServerToolCreateOptions
+                {
+                    Services = services,
+                    SchemaCreateOptions = new AIJsonSchemaCreateOptions
+                    {
+                        TransformOptions = new AIJsonSchemaTransformOptions { DisallowAdditionalProperties = true }
+                    }
+                }), "vci_read", new HashSet<string>(StringComparer.Ordinal) { "operations" },
+            new HashSet<string>(StringComparer.Ordinal), new Dictionary<string, string>()));
+        return builder;
+    }
+}
+
 internal static class HmiWriteToolRegistration
 {
     internal static IMcpServerBuilder WithHmiWriteTools(this IMcpServerBuilder builder)
