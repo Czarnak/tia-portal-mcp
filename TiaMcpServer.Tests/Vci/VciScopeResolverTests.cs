@@ -218,8 +218,8 @@ public class VciScopeResolverTests
         };
         block.Name = "FixtureTypedBlock";
         f.Plc.BlockGroup.Blocks.Items.Add(block);
-        var leaf = Assert.Single(VciScopeResolver.Expand(f.Project, f.PlcScope)
-            .Where(x => Equals(x.Object, block)));
+        var leaf = Assert.Single(VciScopeResolver.Expand(f.Project, f.PlcScope),
+            x => Equals(x.Object, block));
         Assert.Equal(kind, leaf.Path.Last().NodeType);
         Assert.Equal(kind, VciScopeResolver.PathOf(block)!.Last().NodeType);
     }
