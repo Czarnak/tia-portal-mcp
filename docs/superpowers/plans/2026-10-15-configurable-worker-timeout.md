@@ -39,7 +39,7 @@ contract or tool change.
 
 ### Task 0: Branch
 
-- [ ] Create `feat/configurable-worker-timeout` from the current `feature/vci` HEAD, so the VCI spike report, the spec and this plan ship with PR 1. PR 2 is planned after PR 1 merges.
+- [x] Work on `feat/configurable-worker-timeout` (renamed from `feature/vci` on 2026-10-15, locally and on `origin`), so the VCI spike report, the spec and this plan ship with PR 1. PR 2 is planned after PR 1 merges.
 
 ### Task 1: `WorkerTimeoutParser` and the shared option reader
 
