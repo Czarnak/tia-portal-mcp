@@ -88,6 +88,35 @@ public class VciReadMcpTests
         Assert.True(result.IsError);
     }
 
+    [Theory]
+    [InlineData("SoftwareUnit")]
+    [InlineData("SystemBlockFolder")]
+    public async Task UnsupportedScopePreservesKindCategoryBeforeWorker(string nodeType)
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<VciReadTools>(accessMode: McpAccessMode.ReadOnly);
+        var result = await harness.Client.CallToolAsync("vci_read", new Dictionary<string, object?>
+        {
+            ["operations"] = new[]
+            {
+                new { operationId = "r", operation = "list_mappings", workspaceName = "Fixture", scope = new[]
+                {
+                    new { nodeType = "Device", name = "Fixture" },
+                    new { nodeType = "PlcSoftware", name = "Fixture" },
+                    new { nodeType, name = "Fixture" },
+                } },
+            },
+        });
+        Assert.True(result.IsError);
+        Assert.Empty(StructuredContractInspector.FindViolations(result));
+        var root = result.StructuredContent!.Value;
+        Assert.Equal("target_kind_unsupported", root.GetProperty("error").GetProperty("category").GetString());
+        Assert.Contains("scope", root.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("batch").ValueKind);
+        Assert.Null(typeof(TiaMcpServer.Worker.OpennessWorkerClient)
+            .GetField("_transport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(harness.WorkerClient));
+    }
+
     [Fact]
     public void OversizedResultIsOmittedWithVciRetryGuidance()
     {

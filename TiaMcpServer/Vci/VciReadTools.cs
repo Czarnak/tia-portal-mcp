@@ -29,7 +29,7 @@ public class VciReadTools
         var validation = VciReadCatalog.ValidateRead(operations);
         if (!validation.IsValid)
         {
-            return Error(WorkerFailureCategories.ValidationError, validation.Error);
+            return Error(validation.Category, validation.Error);
         }
 
         var mode = workerClient.AccessPolicy?.Mode ?? McpAccessMode.ReadWrite;

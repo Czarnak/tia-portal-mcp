@@ -1,6 +1,7 @@
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Vci;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Vci;
 
@@ -13,12 +14,13 @@ public static class VciReadCatalog
         ["supported_formats"] = ["workspaceName", "scope"],
     };
 
-    public static (bool IsValid, string Error) ValidateRead(IReadOnlyList<VciOperationRequest>? operations)
+    public static (bool IsValid, string Error, string Category) ValidateRead(IReadOnlyList<VciOperationRequest>? operations)
     {
         if (operations is null || operations.Count is < 1 or > 50)
-            return (false, "Batch must contain 1 to 50 operations.");
+            return (false, "Batch must contain 1 to 50 operations.", WorkerFailureCategories.ValidationError);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var errors = new List<string>();
+        string? scopeCategory = null;
         foreach (var item in operations)
         {
             if (item is null) { errors.Add("Batch contains a null operation."); continue; }
@@ -46,14 +48,19 @@ public static class VciReadCatalog
             if (item.Offset < 0) errors.Add("offset must be nonnegative.");
             if (item.Limit is < 1 or > 200) errors.Add("limit must be 1 to 200.");
             try { VciScope.Validate(item.Scope); }
-            catch (ProjectTreeSelectionException exception) { errors.Add($"scope: {exception.Message}"); }
+            catch (ProjectTreeSelectionException exception)
+            {
+                errors.Add($"scope: {exception.Message}");
+                scopeCategory ??= exception.Category;
+            }
             if (item.Operation == "supported_formats" && (item.Scope is not { Count: > 0 } || item.Scope[^1] is null || !VciScope.IsLeaf(item.Scope[^1].NodeType)))
                 errors.Add("supported_formats requires scope naming one terminal leaf.");
         }
         if (operations.Where(item => item is not null && !string.IsNullOrWhiteSpace(item.ProjectPath))
             .Select(item => item.ProjectPath!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
             errors.Add("All operations must target the same project path.");
-        return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
+        return errors.Count == 0 ? (true, string.Empty, string.Empty)
+            : (false, string.Join("\n", errors), scopeCategory ?? WorkerFailureCategories.ValidationError);
     }
 
     public static IReadOnlyList<string> ValidateAccessMode(IReadOnlyList<VciOperationRequest> operations, McpAccessMode mode)
