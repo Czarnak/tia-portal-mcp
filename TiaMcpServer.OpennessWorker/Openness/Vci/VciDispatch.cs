@@ -10,6 +10,21 @@ using Project = Siemens.Engineering.Project;
 
 public static class VciDispatch
 {
+    public static VciPlanInfo Plan(ProjectBase root, VciWriteRequestInfo write)
+    {
+        try
+        {
+            var project = root as Project ?? throw new WorkerOperationException(WorkerFailureCategories.UnsupportedCapability,
+                "VCI planning requires a standalone project.");
+            return VciPlanner.Plan(project, write);
+        }
+        catch (NonRecoverableException ex)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.PortalLost,
+                $"TIA Portal was lost during VCI planning: {ex.Message}");
+        }
+    }
+
     public static object Read(ProjectBase root, string method, VciQueryInfo query)
     {
         try

@@ -61,7 +61,7 @@ public static class VciReader
         return new VciSupportedFormatsInfo { Formats = workspace.GetSupportedFileFormats(leaves[0].Object).ToList() };
     }
 
-    private static Workspace FindWorkspace(VersionControlInterface service, string? name, bool useFirst = false)
+    internal static Workspace FindWorkspace(VersionControlInterface service, string? name, bool useFirst = false)
     {
         if (useFirst && name is null)
             return service.WorkspaceGroup.Workspaces.FirstOrDefault()

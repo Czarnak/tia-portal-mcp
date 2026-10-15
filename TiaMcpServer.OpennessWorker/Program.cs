@@ -195,6 +195,7 @@ internal static class Program
                     or "hmi_list_logs" or "hmi_list_screens" or "hmi_list_screen_items" or "hmi_list_faceplate_instances"
                     or "hmi_get_screen_navigation" or "hmi_validate" => ReadHmi(request),
                 "vci_list_workspaces" or "vci_list_mappings" or "vci_supported_formats" => ReadVci(request),
+                "vci_plan" => PlanVci(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -1021,6 +1022,10 @@ internal static class Program
     private static WorkerResponse ReadVci(WorkerRequest request)
         => WithEngineeringRoot(request, project => Success(
             VciDispatch.Read(project, request.Method, request.VciQuery ?? new VciQueryInfo())));
+
+    private static WorkerResponse PlanVci(WorkerRequest request)
+        => WithEngineeringRoot(request, project => Success(
+            VciDispatch.Plan(project, request.VciWrite ?? new VciWriteRequestInfo())));
 
     private static WorkerResponse CreateTagTable(WorkerRequest request)
     {
