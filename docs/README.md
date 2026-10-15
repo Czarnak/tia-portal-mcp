@@ -10,7 +10,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Installation](guides/installation.md) | Requirements, installation/doctor, explicit binding, 7/17/17 modes, and mode-derived lifecycle confirmation |
-| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, guarded Network and `plc_write` migration, block paths, and response size limits |
+| [MCP client configuration](guides/mcp-client-configuration.md) | Client configuration, bind/open migration, lifecycle confirmation, guarded Network and `plc_write` migration, block paths, response size limits, and worker timeout |
 | [Troubleshooting](guides/troubleshooting.md) | Common failures, and TIA Portal V21 behaviors verified against a real installation |
 | [Supported operations](SupportedOperations/README.md) | Every operation by area — project, PLC, devices, network, HMI, and more |
 
@@ -69,7 +69,7 @@ records implemented/offline-qualified `.amc21` adoption and `.als21` opening, wi
 maintainer acceptance on October 8. The report retains failed noninteractive offline opening
 and unexecuted matrix rows; Issue #65 and successor session operations remain open.
 
-Latest process entry: the [VCI tools and configurable worker timeout design](superpowers/specs/2026-10-15-vci-tools-design.md), its [configurable worker timeout implementation plan](superpowers/plans/2026-10-15-configurable-worker-timeout.md), and the [VCI live spike](superpowers/acceptance/reports/2026-10-15-vci-spike.md). Worker timeout implementation is complete through offline verification; live verification and its dependent user documentation remain pending. VCI tools are not yet implemented.
+Latest process entry: the [VCI tools and configurable worker timeout design](superpowers/specs/2026-10-15-vci-tools-design.md), its [configurable worker timeout implementation plan](superpowers/plans/2026-10-15-configurable-worker-timeout.md), and the [VCI live spike](superpowers/acceptance/reports/2026-10-15-vci-spike.md). Worker timeout implementation, offline verification, scoped live smoke, and user documentation are complete. The smoke verified the 15-minute startup setting, doctor output, status, and a healthy compile; it did not exercise timeout expiry or a hung worker. VCI tools are not yet implemented.
 
 Previous process entry: the [hmi_write design](superpowers/specs/2026-10-13-hmi-write-design.md) and its [implementation plan](superpowers/plans/2026-10-13-hmi-write.md), built on the [hmi_write live write spike](superpowers/acceptance/reports/2026-10-13-hmi-write-spike.md), with the [scoped live acceptance report](superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md). Functional verification is complete within its limits; cache retention is a maintainer decision with O1 open and partial performance gates. Before it: the [hmi_read completion design](superpowers/specs/2026-10-11-hmi-read-completion-design.md), its [implementation plan](superpowers/plans/2026-10-11-hmi-read-completion.md) and its [installed-tool live acceptance report](superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md).
 

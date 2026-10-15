@@ -73,6 +73,15 @@ properties; `DefaultItemChars`/`DefaultDocumentChars` keep the defaults. The wor
 and project-tree pages, hardware pages and the compile report keep their own fixed 60,000 limits.
 See [response size limits](guides/mcp-client-configuration.md#response-size-limits).
 
+`Cli/WorkerTimeoutParser` resolves `--worker-timeout-minutes` (separate or `=` form), then
+`TIA_MCP_WORKER_TIMEOUT_MINUTES`, then the default of 5 minutes, once at startup. Whole minutes
+from 5 (the floor) to 60 are accepted; invalid values reject startup. `Program` passes the
+effective value to the existing `OpennessWorkerClient(requestTimeout:)` parameter for every
+worker request, including `hello`. Startup stderr reports the minutes; `doctor` reports both
+the minutes and their source (`default`, `option`, or `environment`). Raising the timeout also
+delays detection of a hung worker startup. See [worker timeout](guides/mcp-client-configuration.md#worker-timeout)
+for client limits and mutation recovery.
+
 ### Read-write mode
 
 Read-write exposes sixteen tools: six observation tools, `bind_project`, `compile_check`,

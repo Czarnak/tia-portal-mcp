@@ -57,6 +57,7 @@ The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`
 - Host communicates with worker via newline-delimited JSON over stdin/stdout
 - The host builds the worker and copies it to `openness-worker/` subdirectory automatically
 - The worker restarts automatically after crash or timeout
+- Worker request timeout is parsed once at startup from `--worker-timeout-minutes` or `TIA_MCP_WORKER_TIMEOUT_MINUTES` (CLI > environment > default), accepts whole minutes 5–60 with default/floor 5, applies to every request including `hello`, and is reported with its source by `doctor`.
 - `ref/` contains compile-time Siemens stubs (`Siemens.Engineering.Base`, `.Step7` and `.WinCCUnified`) so CI can build without TIA Portal installed
 
 **Do not try to run Openness code directly from the host process** — always go through the worker.
