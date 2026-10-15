@@ -43,35 +43,11 @@ public static class PayloadBudgetParser
     private static (int Value, string? Error) Resolve(
         string[] args, string flag, string envVar, int defaultValue, Func<string, string?> getEnvironmentVariable)
     {
-        string? cliValue = null;
-        var prefix = flag + "=";
-        for (var i = 0; i < args.Length; i++)
-        {
-            string? candidate;
-            if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase))
-            {
-                if (i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))
-                    return (0, $"{flag} requires a value.");
-                candidate = args[++i];
-            }
-            else if (args[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                candidate = args[i].Substring(prefix.Length);
-            }
-            else
-            {
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(candidate))
-                return (0, $"{flag} requires a value.");
-            if (cliValue is not null)
-                return (0, $"{flag} may be specified only once.");
-            cliValue = candidate;
-        }
-
-        if (cliValue is not null)
-            return Validate(cliValue, flag, defaultValue);
+        var option = StartupOptionReader.ReadSingle(args, flag);
+        if (option.Error is not null)
+            return (0, option.Error);
+        if (option.Value is not null)
+            return Validate(option.Value, flag, defaultValue);
 
         var envValue = getEnvironmentVariable(envVar);
         return string.IsNullOrWhiteSpace(envValue) ? (defaultValue, null) : Validate(envValue, envVar, defaultValue);
