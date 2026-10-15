@@ -1,4 +1,6 @@
 using System.Text.Json;
+using TiaMcpServer.Cli;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Diagnostics;
 using Xunit;
 
@@ -6,6 +8,37 @@ namespace TiaMcpServer.Tests.Diagnostics;
 
 public class DoctorJsonRendererTests
 {
+    [Fact]
+    public void Render_WorkerTimeout_WritesValueAndSourceImmediatelyAfterAccessMode()
+    {
+        var report = CreateReport(DiagnosticStatus.Passed, Array.Empty<DiagnosticCheckResult>());
+
+        var json = DoctorJsonRenderer.Render(report, false, McpAccessMode.ReadWrite,
+            new WorkerTimeoutParseResult(true, 10, WorkerTimeoutSource.Option, null));
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal(10, root.GetProperty("workerTimeoutMinutes").GetInt32());
+        Assert.Equal("option", root.GetProperty("workerTimeoutSource").GetString());
+        var names = root.EnumerateObject().Select(property => property.Name).ToArray();
+        var accessModeIndex = Array.IndexOf(names, "accessMode");
+        Assert.True(accessModeIndex >= 0);
+        Assert.Equal("workerTimeoutMinutes", names[accessModeIndex + 1]);
+        Assert.Equal("workerTimeoutSource", names[accessModeIndex + 2]);
+    }
+
+    [Fact]
+    public void Render_NullWorkerTimeout_OmitsTimeoutMembers()
+    {
+        var report = CreateReport(DiagnosticStatus.Passed, Array.Empty<DiagnosticCheckResult>());
+
+        var json = DoctorJsonRenderer.Render(report, false, McpAccessMode.ReadWrite, workerTimeout: null);
+        using var document = JsonDocument.Parse(json);
+
+        Assert.False(document.RootElement.TryGetProperty("workerTimeoutMinutes", out _));
+        Assert.False(document.RootElement.TryGetProperty("workerTimeoutSource", out _));
+    }
+
     [Fact]
     public void Render_ProducesValidJsonWithCorrectStructure()
     {

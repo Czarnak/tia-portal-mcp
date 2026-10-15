@@ -7,7 +7,7 @@ namespace TiaMcpServer.Cli;
 public static class DoctorCommand
 {
     private const string UsageText = """
-        Usage: tia-mcp doctor [--json] [--verbose] [--project <path>] [--access-mode <mode>] [--help]
+        Usage: tia-mcp doctor [--json] [--verbose] [--project <path>] [--access-mode <mode>] [--worker-timeout-minutes <n>] [--help]
 
         Options:
           --json          Emit a single JSON document to stdout.
@@ -16,6 +16,7 @@ public static class DoctorCommand
           --access-mode   Report diagnostics for read-only, read-write, or full mode.
           --read-only     Alias for --access-mode read-only.
           --read-write    Alias for --access-mode read-write.
+          --worker-timeout-minutes  Report worker timeout in whole minutes (5-60).
           --help          Show command usage and exit.
 
         Exit codes:
@@ -63,11 +64,11 @@ public static class DoctorCommand
 
             if (options.Json)
             {
-                output.WriteLine(DoctorJsonRenderer.Render(report, options.Verbose, options.AccessMode));
+                output.WriteLine(DoctorJsonRenderer.Render(report, options.Verbose, options.AccessMode, options.WorkerTimeout));
             }
             else
             {
-                DoctorTextRenderer.Render(report, options.Verbose, output, options.AccessMode);
+                DoctorTextRenderer.Render(report, options.Verbose, output, options.AccessMode, options.WorkerTimeout);
             }
 
             return Task.FromResult(report.HasUnexpectedCheckFailure ? 2 : report.Status == DiagnosticStatus.Failed ? 1 : 0);

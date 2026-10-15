@@ -68,8 +68,16 @@ namespace TiaMcpServer
 
             StructuredOperationBatchPayloadBudget.Configure(budgetResult.ItemChars, budgetResult.DocumentChars);
 
+            var workerTimeout = WorkerTimeoutParser.Parse(args);
+            if (!workerTimeout.IsValid)
+            {
+                Console.Error.WriteLine($"Error: {workerTimeout.Error}");
+                return 1;
+            }
+
             Console.Error.WriteLine($"TIA MCP access mode: {McpAccessModeNames.ToName(accessMode).ToUpperInvariant()}");
             Console.Error.WriteLine($"TIA MCP response budget: {budgetResult.ItemChars} characters per value, {budgetResult.DocumentChars} per response");
+            Console.Error.WriteLine($"TIA MCP worker timeout: {workerTimeout.Minutes} minutes");
             if (accessMode == McpAccessMode.ReadOnly)
             {
                 Console.Error.WriteLine("Project opening, compilation, writes, lifecycle operations, and PLC control are disabled.");
@@ -86,6 +94,7 @@ namespace TiaMcpServer
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>(),
+                requestTimeout: workerTimeout.Timeout,
                 accessPolicy: sp.GetRequiredService<OperationAccessPolicy>()));
             builder.Services.AddSingleton(sp => new WriteExecution(
                 new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),

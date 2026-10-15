@@ -9,7 +9,10 @@ public sealed record DoctorCliOptions(
     bool Help,
     string? ProjectPath,
     McpAccessMode AccessMode,
-    string? ParseError);
+    string? ParseError)
+{
+    public WorkerTimeoutParseResult? WorkerTimeout { get; init; }
+}
 
 public static class DoctorCliParser
 {
@@ -23,8 +26,9 @@ public static class DoctorCliParser
     private const string ReadOnlyFlag = "--read-only";
     private const string ReadWriteFlag = "--read-write";
 
-    public static DoctorCliOptions Parse(string[] args)
+    public static DoctorCliOptions Parse(string[] args, Func<string, string?>? getEnvironmentVariable = null)
     {
+        getEnvironmentVariable ??= Environment.GetEnvironmentVariable;
         bool json = args.Any(arg => string.Equals(arg, JsonFlag, StringComparison.OrdinalIgnoreCase));
         bool verbose = false;
         bool help = false;
@@ -33,7 +37,7 @@ public static class DoctorCliParser
         var hasCliAccessMode = args.Any(IsAccessModeArgument);
         var accessModeResult = hasCliAccessMode
             ? AccessModeParser.Parse(args)
-            : AccessModeParseResult.Ok(ResolveAccessMode());
+            : AccessModeParseResult.Ok(ResolveAccessMode(getEnvironmentVariable));
         if (!accessModeResult.IsValid)
         {
             return new DoctorCliOptions(
@@ -47,6 +51,11 @@ public static class DoctorCliParser
         }
 
         var accessMode = accessModeResult.Mode;
+        var workerTimeout = WorkerTimeoutParser.Parse(args, getEnvironmentVariable);
+        if (!workerTimeout.IsValid)
+        {
+            return new DoctorCliOptions(false, json, verbose, help, null, accessMode, workerTimeout.Error);
+        }
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -80,6 +89,18 @@ public static class DoctorCliParser
             if (string.Equals(arg, AccessModeFlag, StringComparison.OrdinalIgnoreCase))
             {
                 // AccessModeParser already validated the value above.
+                i++;
+                continue;
+            }
+
+            if (arg.StartsWith(WorkerTimeoutParser.Flag + "=", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (string.Equals(arg, WorkerTimeoutParser.Flag, StringComparison.OrdinalIgnoreCase))
+            {
+                // WorkerTimeoutParser already validated the value above.
                 i++;
                 continue;
             }
@@ -124,7 +145,10 @@ public static class DoctorCliParser
             return new DoctorCliOptions(false, json, verbose, help, projectPath, accessMode, $"Unknown doctor argument: '{arg}'.");
         }
 
-        return new DoctorCliOptions(true, json, verbose, help, projectPath, accessMode, null);
+        return new DoctorCliOptions(true, json, verbose, help, projectPath, accessMode, null)
+        {
+            WorkerTimeout = workerTimeout
+        };
     }
 
     private static bool IsAccessModeArgument(string arg)
@@ -133,9 +157,9 @@ public static class DoctorCliParser
            || string.Equals(arg, AccessModeFlag, StringComparison.OrdinalIgnoreCase)
            || arg.StartsWith(AccessModePrefix, StringComparison.OrdinalIgnoreCase);
 
-    private static McpAccessMode ResolveAccessMode()
+    private static McpAccessMode ResolveAccessMode(Func<string, string?> getEnvironmentVariable)
     {
-        var envValue = Environment.GetEnvironmentVariable("TIA_MCP_ACCESS_MODE");
+        var envValue = getEnvironmentVariable("TIA_MCP_ACCESS_MODE");
         if (!string.IsNullOrWhiteSpace(envValue) &&
             AccessModeParser.ParseValue(envValue) is { IsValid: true } result)
         {

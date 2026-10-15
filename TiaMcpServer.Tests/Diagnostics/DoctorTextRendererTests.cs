@@ -1,3 +1,5 @@
+using TiaMcpServer.Cli;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Diagnostics;
 using Xunit;
 
@@ -5,6 +7,29 @@ namespace TiaMcpServer.Tests.Diagnostics;
 
 public class DoctorTextRendererTests
 {
+    [Fact]
+    public void Render_WorkerTimeout_ShowsValueAndSourceImmediatelyAfterAccessModeBlock()
+    {
+        var report = CreateReport(DiagnosticStatus.Passed, Array.Empty<DiagnosticCheckResult>());
+        var writer = new StringWriter();
+
+        DoctorTextRenderer.Render(report, false, writer, McpAccessMode.ReadWrite,
+            new WorkerTimeoutParseResult(true, 10, WorkerTimeoutSource.Option, null));
+
+        Assert.Contains($"Access mode: READ-WRITE{Environment.NewLine}{Environment.NewLine}Worker timeout: 10 minutes (option){Environment.NewLine}", writer.ToString());
+    }
+
+    [Fact]
+    public void Render_NullWorkerTimeout_OmitsTimeoutLine()
+    {
+        var report = CreateReport(DiagnosticStatus.Passed, Array.Empty<DiagnosticCheckResult>());
+        var writer = new StringWriter();
+
+        DoctorTextRenderer.Render(report, false, writer, McpAccessMode.ReadWrite, workerTimeout: null);
+
+        Assert.DoesNotContain("Worker timeout:", writer.ToString());
+    }
+
     [Fact]
     public void Render_AllPassed_ShowsPassTagsAndReady()
     {

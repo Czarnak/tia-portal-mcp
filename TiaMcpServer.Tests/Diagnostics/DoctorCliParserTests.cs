@@ -5,6 +5,79 @@ namespace TiaMcpServer.Tests.Diagnostics;
 
 public class DoctorCliParserTests
 {
+    [Theory]
+    [InlineData("--worker-timeout-minutes", "10")]
+    [InlineData("--worker-timeout-minutes=10")]
+    [InlineData("--WORKER-TIMEOUT-MINUTES=10")]
+    public void Parse_WorkerTimeoutOption_ResolvesTimeoutAndFollowingProject(params string[] timeoutArgs)
+    {
+        var result = DoctorCliParser.Parse(
+            timeoutArgs.Concat(new[] { "--project", "test.ap21" }).ToArray(), _ => "abc");
+
+        Assert.True(result.Valid);
+        Assert.Equal("test.ap21", result.ProjectPath);
+        Assert.NotNull(result.WorkerTimeout);
+        Assert.Equal(10, result.WorkerTimeout.Minutes);
+        Assert.Equal(WorkerTimeoutSource.Option, result.WorkerTimeout.Source);
+    }
+
+    [Theory]
+    [InlineData(null, 5, WorkerTimeoutSource.Default)]
+    [InlineData("30", 30, WorkerTimeoutSource.Environment)]
+    public void Parse_WorkerTimeoutEnvironment_ResolvesTimeout(string? environmentValue, int minutes, WorkerTimeoutSource source)
+    {
+        var result = DoctorCliParser.Parse(Array.Empty<string>(),
+            name => name == WorkerTimeoutParser.EnvVar ? environmentValue : null);
+
+        Assert.True(result.Valid);
+        Assert.NotNull(result.WorkerTimeout);
+        Assert.Equal(minutes, result.WorkerTimeout.Minutes);
+        Assert.Equal(source, result.WorkerTimeout.Source);
+    }
+
+    [Theory]
+    [InlineData("61")]
+    [InlineData("abc")]
+    public void Parse_InvalidWorkerTimeoutOption_ReturnsSharedError(string value)
+    {
+        var result = DoctorCliParser.Parse(new[] { "--worker-timeout-minutes", value }, _ => null);
+
+        Assert.False(result.Valid);
+        Assert.Equal($"Invalid --worker-timeout-minutes value '{value}'. Expected a whole number of minutes from 5 to 60.", result.ParseError);
+    }
+
+    [Fact]
+    public void Parse_InvalidWorkerTimeoutEnvironment_ReturnsSharedError()
+    {
+        var result = DoctorCliParser.Parse(new[] { "--json" },
+            name => name == WorkerTimeoutParser.EnvVar ? "abc" : null);
+
+        Assert.False(result.Valid);
+        Assert.True(result.Json);
+        Assert.Equal("Invalid TIA_MCP_WORKER_TIMEOUT_MINUTES value 'abc'. Expected a whole number of minutes from 5 to 60.", result.ParseError);
+    }
+
+    [Theory]
+    [InlineData("--worker-timeout-minutes")]
+    [InlineData("--worker-timeout-minutes", "--project", "test.ap21")]
+    [InlineData("--worker-timeout-minutes=")]
+    public void Parse_MissingWorkerTimeoutValue_ReturnsSharedError(params string[] args)
+    {
+        var result = DoctorCliParser.Parse(args, _ => null);
+
+        Assert.False(result.Valid);
+        Assert.Equal("--worker-timeout-minutes requires a value.", result.ParseError);
+    }
+
+    [Fact]
+    public void Parse_DuplicateWorkerTimeoutOption_ReturnsSharedError()
+    {
+        var result = DoctorCliParser.Parse(new[] { "--worker-timeout-minutes", "10", "--worker-timeout-minutes=20" }, _ => null);
+
+        Assert.False(result.Valid);
+        Assert.Equal("--worker-timeout-minutes may be specified only once.", result.ParseError);
+    }
+
     [Fact]
     public void Parse_EmptyArgs_ReturnsValidDefaults()
     {

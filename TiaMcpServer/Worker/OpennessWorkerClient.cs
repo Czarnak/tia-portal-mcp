@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using TiaMcpServer.Cli;
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Contracts.Block;
@@ -54,7 +55,7 @@ internal static class WorkerTransportFailureGuidance
 
 public class OpennessWorkerClient : IDisposable
 {
-    private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromMinutes(WorkerTimeoutParser.DefaultMinutes);
 
     private readonly ProjectSessionBinding _projectSessionBinding;
     private readonly ILogger<OpennessWorkerClient>? _logger;

@@ -157,3 +157,34 @@ Raising the server budgets does not raise limits the MCP client enforces on its 
 maximum tool-result size, and a content write still sends the whole document as one tool
 argument. Fixed limits are unaffected: project-tree pages, `network_read` hardware pages and the
 `compile_check` report stay at 60,000 characters.
+
+## Worker timeout
+
+The host waits up to five minutes for each worker request by default. Raise this at server
+startup for operations that need more time:
+
+| Setting | Command line | Environment variable | Default |
+| --- | --- | --- | --- |
+| Worker timeout (minutes) | `--worker-timeout-minutes <n>` | `TIA_MCP_WORKER_TIMEOUT_MINUTES` | 5 |
+
+Use whole minutes from **5 to 60 inclusive**; the setting is raise-only. Both
+`--worker-timeout-minutes 15` and `--worker-timeout-minutes=15` are accepted. The value is
+parsed once at startup: command line wins over environment, then the default applies.
+Invalid values reject startup with an error instead of silently falling back.
+
+One value applies to every worker request, including the startup `hello`. Startup stderr
+reports `TIA MCP worker timeout: <n> minutes`; `doctor` reports
+`Worker timeout: <n> minutes (<source>)`, where the source is `default`, `option`, or
+`environment`. Raising the value also delays detection of a worker hung during `hello` or
+startup. There is no per-method override or progress-notification feature.
+
+The server setting cannot override the MCP client's own limits. The
+[MCP TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/v2/api/index/@modelcontextprotocol/client/)
+defaults to a 60-second request timeout unless the caller raises it; this is not a universal
+MCP-client default. Claude Code exposes
+[`MCP_TOOL_TIMEOUT`](https://code.claude.com/docs/en/env-vars) in milliseconds. Give the client
+headroom above the server timeout and check any separate transport or idle limits.
+
+A call already dispatched to the worker can keep running after the client abandons it.
+The lifecycle/write audit retains its outcome; inspect the audit and current project state
+before retrying a mutation.

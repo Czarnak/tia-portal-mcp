@@ -1,12 +1,13 @@
 using System.Text;
 using System.Text.Json;
+using TiaMcpServer.Cli;
 using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Diagnostics;
 
 public static class DoctorJsonRenderer
 {
-    public static string Render(DoctorReport report, bool verbose, McpAccessMode? accessMode = null)
+    public static string Render(DoctorReport report, bool verbose, McpAccessMode? accessMode = null, WorkerTimeoutParseResult? workerTimeout = null)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -18,6 +19,12 @@ public static class DoctorJsonRenderer
             if (accessMode.HasValue)
             {
                 writer.WriteString("accessMode", McpAccessModeNames.ToName(accessMode.Value));
+            }
+
+            if (workerTimeout is not null)
+            {
+                writer.WriteNumber("workerTimeoutMinutes", workerTimeout.Minutes);
+                writer.WriteString("workerTimeoutSource", WorkerTimeoutParseResult.SourceName(workerTimeout.Source));
             }
 
             writer.WritePropertyName("summary");
