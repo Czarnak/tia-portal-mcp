@@ -140,6 +140,14 @@ public class VciScopeResolverTests
     }
 
     [Fact]
+    public void PathOf_UnreadableParentPropagatesInsteadOfHidingMapping()
+    {
+        var failure = new EngineeringException("Synthetic unreadable parent.");
+        var leaf = new FC { ParentFailure = failure };
+        Assert.Same(failure, Assert.Throws<EngineeringException>(() => VciScopeResolver.PathOf(leaf)));
+    }
+
+    [Fact]
     public void PortalLoss_PropagatesDuringExpansionAndPathLookup()
     {
         var f = new Fixture();

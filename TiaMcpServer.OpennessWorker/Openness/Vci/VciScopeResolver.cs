@@ -93,7 +93,7 @@ public static class VciScopeResolver
             return null;
         }
         catch (NonRecoverableException) { throw; }
-        catch (EngineeringException) { return null; }
+        catch (EngineeringObjectDisposedException) { return null; }
     }
 
     private static void ExpandNode(IEngineeringObject node, List<ProjectTreeSelectorSegment> path,
