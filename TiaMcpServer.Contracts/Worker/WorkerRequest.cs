@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.CrossReferences;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.Contracts.Worker;
 
@@ -212,6 +213,20 @@ public class WorkerRequest
 
     /// <summary>Forwarded by: every hmi_* method. Offset and Limit are concrete for paged operations.</summary>
     public HmiQueryInfo? HmiQuery { get; set; }
+
+    #endregion
+
+    #region VCI reads
+
+    /// <summary>Forwarded by: vci_list_workspaces, vci_list_mappings, vci_supported_formats.</summary>
+    public VciQueryInfo? VciQuery { get; set; }
+
+    #endregion
+
+    #region VCI writes and planning
+
+    /// <summary>Forwarded by: vci_plan and the six vci_* mutation methods. Breadcrumb transport stays domain-local.</summary>
+    public VciWriteRequestInfo? VciWrite { get; set; }
 
     #endregion
 

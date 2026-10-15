@@ -10,8 +10,8 @@ public sealed class VciFileKey : IEquatable<VciFileKey>
         FileName = fileName;
     }
 
-    public string Directory { get; }
-    public string FileName { get; }
+    public string Directory { get; init; }
+    public string FileName { get; init; }
     // Keep engineering-name boundaries so a separator in a name cannot become a valid directory.
     internal IReadOnlyList<string>? MirroredSegments { get; set; }
 

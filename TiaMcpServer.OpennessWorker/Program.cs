@@ -230,7 +230,7 @@ internal static class Program
         }
         catch (WorkerOperationException ex)
         {
-            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome);
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome, ex.VciWriteOutcome);
         }
         catch (Exception ex)
         {
@@ -1590,7 +1590,8 @@ internal static class Program
         string payload,
         IReadOnlyList<string>? warnings = null,
         BlockImportOutcomeInfo? blockImportOutcome = null,
-        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null,
+        TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo? vciWriteOutcome = null)
     {
         return new WorkerResponse
         {
@@ -1598,6 +1599,7 @@ internal static class Program
             Payload = payload,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
             HmiWriteOutcome = hmiWriteOutcome,
+            VciWriteOutcome = vciWriteOutcome,
             BlockImportOutcome = blockImportOutcome
         };
     }
@@ -1607,7 +1609,8 @@ internal static class Program
         string error,
         IReadOnlyList<string>? warnings = null,
         BlockImportOutcomeInfo? blockImportOutcome = null,
-        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null,
+        TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo? vciWriteOutcome = null)
     {
         return new WorkerResponse
         {
@@ -1616,6 +1619,7 @@ internal static class Program
             FailureCategory = failureCategory,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
             HmiWriteOutcome = hmiWriteOutcome,
+            VciWriteOutcome = vciWriteOutcome,
             BlockImportOutcome = blockImportOutcome
         };
     }

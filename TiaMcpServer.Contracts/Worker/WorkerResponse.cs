@@ -1,6 +1,7 @@
 using TiaMcpServer.Contracts.Hmi;
 using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.Contracts.Worker;
 
@@ -32,6 +33,10 @@ public class WorkerResponse
     /// <summary>Partial HMI mutation evidence; omitted for unrelated methods.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public HmiWriteOutcomeInfo? HmiWriteOutcome { get; set; }
+
+    /// <summary>Typed VCI mutation evidence; omitted for unrelated methods.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public VciWriteOutcomeInfo? VciWriteOutcome { get; set; }
 
     /// <summary>
     /// Non-fatal degradation notes captured from the worker's Console.Error while THIS

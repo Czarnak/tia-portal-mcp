@@ -2219,6 +2219,7 @@ public class OpennessWorkerClient : IDisposable
                 IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
                 HmiWriteOutcome = result.HmiWriteOutcome,
+                VciWriteOutcome = result.VciWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState
             };
@@ -2238,6 +2239,7 @@ public class OpennessWorkerClient : IDisposable
                     IsPostOperationFailure = true,
                     SessionIdentity = result.SessionIdentity,
                     HmiWriteOutcome = result.HmiWriteOutcome,
+                    VciWriteOutcome = result.VciWriteOutcome,
                     BlockImportOutcome = result.BlockImportOutcome,
                     DispatchState = result.DispatchState
                 };
@@ -2262,6 +2264,7 @@ public class OpennessWorkerClient : IDisposable
                 IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
                 HmiWriteOutcome = result.HmiWriteOutcome,
+                VciWriteOutcome = result.VciWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState
             };
@@ -2274,6 +2277,7 @@ public class OpennessWorkerClient : IDisposable
         {
             SessionIdentity = result.SessionIdentity,
             HmiWriteOutcome = result.HmiWriteOutcome,
+            VciWriteOutcome = result.VciWriteOutcome,
             BlockImportOutcome = result.BlockImportOutcome,
             DispatchState = result.DispatchState
         };
@@ -2332,6 +2336,7 @@ public class OpennessWorkerClient : IDisposable
                     SessionIdentity = response.SessionIdentity,
                     PortalProcessId = response.PortalProcessId,
                     HmiWriteOutcome = response.HmiWriteOutcome,
+                    VciWriteOutcome = response.VciWriteOutcome,
                     BlockImportOutcome = response.BlockImportOutcome,
                     DispatchState = WorkerDispatchState.Sent
                 };
@@ -2349,6 +2354,7 @@ public class OpennessWorkerClient : IDisposable
                 SessionIdentity = response.SessionIdentity,
                 PortalProcessId = response.PortalProcessId,
                 HmiWriteOutcome = response.HmiWriteOutcome,
+                VciWriteOutcome = response.VciWriteOutcome,
                 BlockImportOutcome = response.BlockImportOutcome,
                 DispatchState = WorkerDispatchState.Sent
             };
