@@ -6,6 +6,13 @@ namespace Siemens.Engineering
 {
     public abstract class NamedObject : IEngineeringServiceProvider, IEngineeringObject
     {
+        private IEngineeringObject? parent;
+        public Exception? ParentFailure { get; set; }
+        public IEngineeringObject? Parent
+        {
+            get => ParentFailure is null ? parent : throw ParentFailure;
+            set => parent = value;
+        }
         public virtual object GetAttribute(string attributeName) => attributeName == "Name"
             ? Name
             : throw new EngineeringException($"Attribute '{attributeName}' is not modeled.");
@@ -30,6 +37,7 @@ namespace Siemens.Engineering
 
     public class Composition<T> : IEnumerable<T> where T : NamedObject
     {
+        public IEngineeringObject? Parent { get; set; }
         public List<T> Items { get; } = new();
         public Exception? EnumerationFailure { get; set; }
         public int YieldedItemCount { get; private set; }
@@ -40,6 +48,7 @@ namespace Siemens.Engineering
         {
             foreach (var item in Items)
             {
+                if (Parent is not null && item.Parent is null) item.Parent = Parent;
                 YieldedItemCount++;
                 yield return item;
             }
@@ -94,6 +103,7 @@ namespace Siemens.Engineering
 
     public interface IEngineeringObject
     {
+        IEngineeringObject? Parent { get; }
         object GetAttribute(string name);
     }
 }
@@ -199,6 +209,7 @@ namespace Siemens.Engineering.HW
 {
     public sealed class Device : NamedObject
     {
+        public Device() => DeviceItems.Parent = this;
         public DeviceItemComposition DeviceItems { get; } = new();
         public Exception? TypeIdentifierFailure { get; set; }
         private string? typeIdentifier;
@@ -226,6 +237,7 @@ namespace Siemens.Engineering.HW
     public sealed class DeviceItemComposition : Composition<DeviceItem> { }
     public sealed class DeviceItem : NamedObject
     {
+        public DeviceItem() => DeviceItems.Parent = this;
         public DeviceItemComposition DeviceItems { get; } = new();
         public Features.SoftwareContainer? Container { get; set; }
         public Exception? ServiceFailure { get; set; }
@@ -255,8 +267,15 @@ namespace Siemens.Engineering.HW.Features
 
 namespace Siemens.Engineering.SW
 {
-    public sealed class PlcSoftware : NamedObject, IEngineeringServiceProvider
+    public sealed partial class PlcSoftware : NamedObject, IEngineeringServiceProvider
     {
+        public PlcSoftware()
+        {
+            blockGroup.Parent = this;
+            tagTableGroup.Parent = this;
+            TypeGroup.Parent = this;
+            TechnologicalObjectGroup.Parent = this;
+        }
         private readonly Blocks.PlcBlockSystemGroup blockGroup = new();
         private readonly Tags.PlcTagTableGroup tagTableGroup = new();
         public Exception? TagTableGroupFailure { get; set; }
@@ -275,6 +294,7 @@ namespace Siemens.Engineering.SW.Tags
 {
     public sealed class PlcTagTableGroup : NamedObject
     {
+        public PlcTagTableGroup() { TagTables.Parent = this; Groups.Parent = this; }
         public PlcTagTableComposition TagTables { get; } = new();
         public Composition<PlcTagTableGroup> Groups { get; } = new();
     }
@@ -377,7 +397,7 @@ namespace Siemens.Engineering.SW.Blocks
     public sealed class FB : PlcBlock { }
     public sealed class FC : PlcBlock { }
     public sealed class GlobalDB : PlcBlock { }
-    public sealed class InstanceDB : PlcBlock { }
+    public class InstanceDB : PlcBlock { }
     public sealed class ArrayDB : PlcBlock { }
     public sealed class PlcBlockComposition : Composition<PlcBlock>
     {
@@ -405,6 +425,7 @@ namespace Siemens.Engineering.SW.Blocks
     }
     public class PlcBlockGroup : NamedObject
     {
+        public PlcBlockGroup() { Blocks.Parent = this; Groups.Parent = this; }
         public PlcBlockComposition Blocks { get; } = new();
         public PlcBlockUserGroupComposition Groups { get; } = new();
     }
@@ -419,6 +440,7 @@ namespace Siemens.Engineering.SW.Blocks
     }
     public sealed class PlcSystemBlockGroup : NamedObject
     {
+        public PlcSystemBlockGroup() { Blocks.Parent = this; Groups.Parent = this; }
         public Composition<PlcBlock> Blocks { get; } = new();
         public Composition<PlcSystemBlockGroup> Groups { get; } = new();
     }
@@ -429,6 +451,7 @@ namespace Siemens.Engineering.SW.Types
     public sealed class PlcType : NamedObject { }
     public sealed class PlcTypeGroup : NamedObject
     {
+        public PlcTypeGroup() { Types.Parent = this; Groups.Parent = this; }
         public Composition<PlcType> Types { get; } = new();
         public Composition<PlcTypeGroup> Groups { get; } = new();
     }

@@ -104,6 +104,7 @@ namespace Siemens.Engineering.HmiUnified
 {
     public sealed partial class HmiSoftware : HW.Software
     {
+        public HmiSoftware() => Scripts.Parent = this;
         public Scripts.HmiScriptModuleComposition Scripts { get; } = new();
         public TextGraphicList.HmiTextListComposition HmiTextLists { get; } = new();
         public TextGraphicList.HmiGraphicListComposition HmiGraphicLists { get; } = new();
