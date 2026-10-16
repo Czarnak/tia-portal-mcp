@@ -2,17 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix the demonstrated HMI mapping-path defect and investigate/fix reproducible export-cost and crash-recovery defects without live testing.
+**Goal:** Fix the demonstrated HMI mapping-path defect and investigate/fix reproducible export-cost and crash-recovery defects offline, then perform the subsequently authorized live follow-up.
 
 **Architecture:** Retain the existing host/worker split and guarded operations. Resolve HMI mapping paths through verified project ownership when the native parent chain omits software. Investigate export cost with counting doubles and recovery with FakeWorker/session doubles before changing either behavior.
 
 **Tech Stack:** C# net10.0 host/tests, net48 worker, netstandard2.0 contracts, Siemens V21 references/stubs, xunit and FakeWorker.
 
-**Spec:** [VCI design](../specs/2026-10-15-vci-tools-design.md), its [implementation decisions](2026-10-15-vci-tools.md), and findings D1/O1/O2 in the [frozen-candidate live report](../acceptance/reports/2026-10-16-vci-tools-live-acceptance.md). The latest user instruction requires the current checkout on `feat/vci-tools`, a commit per fix, and a stop before live testing.
+**Spec:** [VCI design](../specs/2026-10-15-vci-tools-design.md), its [implementation decisions](2026-10-15-vci-tools.md), and findings D1/O1/O2 in the [frozen-candidate live report](../acceptance/reports/2026-10-16-vci-tools-live-acceptance.md). The original instruction required the current checkout on `feat/vci-tools`, a commit per fix, and a stop before live testing. On 2026-10-16 the maintainer resumed work and explicitly authorized proceeding directly to live testing after implementation. Tasks 1–3 and their offline gates retain the boundaries below; live checks follow them and preserve the disposable fixture.
 
 ## Global Constraints
 
-- No TIA/Openness attachment or live calls, installed-server launches, fixture mutations, tool reinstall, push, PR, or merge. Real-reference compilation and static API metadata/documentation inspection are offline.
+- During implementation and offline gates: no TIA/Openness attachment or live calls, installed-server launches, fixture mutations or tool reinstall. No push, PR or merge is authorized. Real-reference compilation and static API metadata/documentation inspection are offline.
 - Stay on `feat/vci-tools` in the current checkout. Preserve unrelated work and the earlier plan's private acceptance/recovery material.
 - Both roots use `contractVersion:"1.0"` (`VciContractVersion.Current`), are canonical JSON, and have no nested JSON strings.
 - Counts remain **8/19/19**; no new public tool, operation, argument, status bucket, confirmation flow, timeout policy, or automatic retry.
@@ -75,4 +75,4 @@
 - [ ] Run serial reference-stub and installed-real-reference solution builds; run the final full suite and meaningful changed-logic coverage. Do not repeat a suite already run on the identical final code without a new concern.
 - [ ] Task reviewers receive the task brief, implementer report and BASE..HEAD review package; one spec+quality gate per task. Final whole-branch review uses the most capable available model and the branch merge-base package. Handle findings through the skill's bounded fix loops.
 - [ ] Add a concise dated offline follow-up to the existing live report and update its index/history text. Preserve the original candidate's failed live verdict; record new fix commits, offline evidence and required live rechecks. No broad Task 14 user-documentation migration yet.
-- [ ] Verify diff/privacy/whitespace and clean Git state, record all rulings and evidence, and stop before live testing or installation.
+- [ ] Verify diff/privacy/whitespace and clean Git state, record all rulings and evidence, then perform the separately authorized live follow-up through the final real-reference built candidate. Revalidate the current disposable target, save/archive before mutations or controlled restart, and verify restoration. Do not repeat the known native exporter crash without fresh explicit approval at that moment. Keep the installed tool unchanged.

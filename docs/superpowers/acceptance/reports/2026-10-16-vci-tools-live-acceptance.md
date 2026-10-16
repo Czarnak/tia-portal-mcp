@@ -65,3 +65,26 @@ After the approved crash, the TIA GUI was restarted locally because this server 
 **O2 — whole-scope performance:** neither the 5-minute nor the 15-minute export completed. Source review found two scans of the growing `MappedObjects` collection per new export leaf, in addition to lookup work; that can produce quadratic native enumeration. It is a plausible performance contributor, not a profiled explanation of the observed duration or variance from the spike. Completion at a higher timeout and a controlled performance comparison were not attempted.
 
 Full acceptance is blocked by D1; O1 and O2 remain follow-ups. HMI runtime execution/compilation, local sessions, STL/GRAPH, unknown native status, and thrown-leaf transaction rollback are not qualified by this report. Current user documentation remains deferred until the live findings are resolved or explicitly accepted by the maintainer. No application-code fix, candidate reinstall, push or pull request was performed during this live run.
+
+## Follow-up implementation and offline gate — 2026-10-16
+
+**Code candidate:** `d10f1e3dcf384e587874c40a6a677b24d0dce557`, still on `feat/vci-tools`. The original frozen-candidate verdict above remains unchanged. The maintainer subsequently authorized live rechecks after implementation; those rechecks are pending at this offline checkpoint. The installed tool has not been updated.
+
+| Finding | Follow-up change and evidence |
+| --- | --- |
+| D1 | `fb6a812` resolves Unified script mappings through project/device/software ownership, compares native identities and resolves emitted selectors back to the same object. Reader/resolver regressions passed 67/67, including skipped software parent, scoped round trip, equal wrappers and ambiguous/unreadable ownership. |
+| O1 | `d10f1e3` permits forced invalidated-source recovery only after successful coherent Portal-only status and the existing fresh zero-owner proof. Normal complete-project promotion remains strict. Atomic compare-and-clear preserves the exact source revision. New-PID preview/actual recovery reproduced the old failure before the fix; malformed evidence, owners, identity drift and in-flight same-path binding changes are covered offline. Native disposal/restart timing remains to be checked. |
+| O2 | `327d1cd` adds count characterization and late-collision regressions; production export is unchanged. For two new leaves and 20 existing mappings, four explicit fresh key scans visit 82 mappings and read each key property 82 times. Two native-API-shaped `Find` calls are counted separately; the double's linear traversal does not establish native `Find` complexity. Removing the final check made both late mapping/file collision regressions fail. No safe scan reduction or live speedup was demonstrated. |
+
+The explicit writer key checks scale with leaves × mappings; they remain before and after directory creation. An existing-directory shortcut was also assessed and left unimplemented because a concurrent directory-to-file change alters its pre-export refusal barrier; native behavior in that race was not qualified. Filesystem call counts are source control-flow estimates, not measured OS-call or latency evidence.
+
+The final source passed **6,894/6,894 tests**, zero failures/skips, with serialized test collections. A focused corrected coverage run passed **778/778**. Against the follow-up production diff, coverage was **68/72 changed executable lines (94.44%)**, or **68/79 (86.08%)** when counting unrepresented substantive changed lines conservatively. Against the branch merge-base it was **1,457/1,494 (97.52%)**, conservatively **1,457/1,760 (82.78%)**. The conservative denominator includes declarations and continuations without sequence points; these are line metrics, not branch coverage. The initial collector omitted linked host/worker source; it was corrected with test-assembly inclusion before deriving these percentages.
+
+Clean serialized solution rebuilds against both reference stubs and installed V21 assemblies passed with zero errors and five existing nullable warnings in unchanged HMI tests. The copied real-reference worker hash matches its build output, and no Siemens DLL was copied into the worker directory. Independent task reviews approved all three tasks; broad final review remains the next gate.
+
+| Follow-up binary | SHA-256 |
+| --- | --- |
+| Built host | `cc2af97ce8b535e5ca0c1cf2015e253c4e34240a6d609bcb2a10fbc6275b54b1` |
+| Built worker | `d27cdcbc4e2c70abfcd50a70412a0d69938b74a4804ba9d53a0b9a8d22f1745e` |
+
+The HMI fix was committed after its focused gate while a broader diagnostic run was unresolved; subsequent serialized full runs closed that gap. The temporary process ruling risked a broader regression requiring rework, not an acceptance claim. No live follow-up, reinstall, push or pull request had occurred at this checkpoint. Current VCI user-documentation migration remains deferred.
