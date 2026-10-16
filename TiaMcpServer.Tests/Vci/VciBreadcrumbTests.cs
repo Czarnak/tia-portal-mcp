@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Vci;
+using TiaMcpServer.Vci;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Vci;
@@ -8,6 +9,51 @@ public sealed class VciBreadcrumbTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "tia-mcp-vci-breadcrumb", Guid.NewGuid().ToString("N"));
     private string FilePath => Path.Combine(_root, "nested", "breadcrumb.json");
+
+    [Fact]
+    public void DefaultLocations_AreDistinctWithinThePerUserDirectory()
+    {
+        var first = new VciBreadcrumbLocation();
+        var second = new VciBreadcrumbLocation();
+
+        Assert.NotEqual(first.Path, second.Path);
+        Assert.Equal(Path.GetDirectoryName(VciBreadcrumbFile.DefaultPath), Path.GetDirectoryName(first.Path));
+        Assert.Equal(Path.GetDirectoryName(first.Path), Path.GetDirectoryName(second.Path));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IndependentLocations_InterleavedCompletionPreservesOtherHostsEvidence(bool takeCompleted)
+    {
+        var firstPath = Path.Combine(_root, Path.GetFileName(new VciBreadcrumbLocation().Path));
+        var secondPath = Path.Combine(_root, Path.GetFileName(new VciBreadcrumbLocation().Path));
+        var first = new VciBreadcrumbLocation(firstPath);
+        var second = new VciBreadcrumbLocation(secondPath);
+        Assert.Equal(firstPath, first.Path);
+        Assert.Equal(secondPath, second.Path);
+        Assert.True(VciBreadcrumbFile.TryWrite(first.Path, new VciBreadcrumb("request-a", "item-a", "export",
+            new() { new() { NodeType = "FB", Name = "LeafA" } }, "SimaticML")));
+        Assert.True(VciBreadcrumbFile.TryWrite(second.Path, new VciBreadcrumb("request-b", "item-b", "sync_to_workspace",
+            new() { new() { NodeType = "FC", Name = "LeafB" } }, "SCL")));
+
+        if (takeCompleted)
+        {
+            var completed = VciBreadcrumbFile.Take(second.Path, "request-b");
+            Assert.NotNull(completed);
+            Assert.Equal("LeafB", Assert.Single(completed.Path).Name);
+        }
+        else VciBreadcrumbFile.TryDelete(second.Path);
+
+        Assert.False(File.Exists(second.Path));
+        Assert.True(File.Exists(first.Path));
+        var pending = VciBreadcrumbFile.Take(first.Path, "request-a");
+        Assert.NotNull(pending);
+        Assert.Equal("LeafA", Assert.Single(pending.Path).Name);
+        Assert.Equal("export", pending.Operation);
+        Assert.Equal("SimaticML", pending.Format);
+        Assert.False(File.Exists(first.Path));
+    }
 
     [Fact]
     public void MatchingId_ReturnsValueAndDeletesFile()
