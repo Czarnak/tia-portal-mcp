@@ -1,6 +1,6 @@
 # VCI live findings fixes implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Fix the demonstrated HMI mapping-path defect and investigate/fix reproducible export-cost and crash-recovery defects offline, then perform the subsequently authorized live follow-up.
 
@@ -39,11 +39,11 @@
 
 **Interfaces:** consumes `VciReader.ListMappings(VersionControlInterface, Project, VciQueryInfo)` and `VciScopeResolver.PathOf(IEngineeringObject)`/`Expand(ProjectBase, scope)`. Preserve public wire DTOs and existing non-HMI path behavior. Any project-aware internal helper must have explicit ownership and be reused by the reader rather than duplicate traversal.
 
-- [ ] Inspect every caller of changed helpers and the test double's artificial parent assignment; identify why it masked the observed topology.
-- [ ] Add an offline HMI mapping whose parent chain skips `HmiSoftware` while project/device/software discovery still owns the module. Assert unscoped output is `Device -> HmiSoftware -> ScriptModule`, a scoped query finds it, and the emitted selector resolves back to the same native identity.
-- [ ] Cover same module names on different HMIs, equality across distinct native wrappers where feasible, ambiguous/unreadable ownership, gone/library paths and preserved excluded PLC mappings. Use existing focused coverage where it already answers a case.
-- [ ] Observe the relevant failure, implement the smallest owner-proven path repair, and run focused reader/resolver tests followed by the full offline suite once before the fix commit.
-- [ ] Self-review and commit `fix: normalize HMI VCI mapping paths`. Report exact commands/results, changed files, root-cause evidence and remaining live limits.
+- [x] Inspect every caller of changed helpers and the test double's artificial parent assignment; identify why it masked the observed topology.
+- [x] Add an offline HMI mapping whose parent chain skips `HmiSoftware` while project/device/software discovery still owns the module. Assert unscoped output is `Device -> HmiSoftware -> ScriptModule`, a scoped query finds it, and the emitted selector resolves back to the same native identity.
+- [x] Cover same module names on different HMIs, equality across distinct native wrappers where feasible, ambiguous/unreadable ownership, gone/library paths and preserved excluded PLC mappings. Use existing focused coverage where it already answers a case.
+- [x] Observe the relevant failure, implement the smallest owner-proven path repair, and run focused reader/resolver tests followed by the full offline suite once before the fix commit.
+- [x] Self-review and commit `fix: normalize HMI VCI mapping paths`. Report exact commands/results, changed files, root-cause evidence and remaining live limits.
 
 ## Task 2: Investigate and reduce export enumeration cost without weakening collisions
 
@@ -51,12 +51,12 @@
 
 **Interfaces:** consumes `VciWriter.Write`, relative `VciFileKey`, `Workspace.MappedObjects.Find` and current `ExportDirectory` checks. Preserve outcome/guard contracts and exact native behavior boundaries.
 
-- [ ] Establish costs using counting offline doubles: object lookup, mapping enumerations/property reads, file/directory scans and native export calls as the workspace grows. Inspect actual installed API signatures or primary Siemens docs before assuming a native key lookup exists.
-- [ ] Confirm a reproducible avoidable cost before proposing a fix. Add a deterministic regression on operation/enumeration growth; avoid timing thresholds or a benchmark app.
-- [ ] Choose the smallest safe reduction supported by the API. Do not replace fresh collision checks with an unvalidated snapshot, count-only freshness check, or persistent object cache. Preserve the checks before and after directory creation, or demonstrate an equally strong replacement with late-state regressions.
-- [ ] Retain/extend late mapping/file collision, duplicate key, already-mapped, refused leaf, fatal exception, breadcrumb and typed-count tests. Show RED/GREEN for any behavior/performance change and compare measured offline native-operation counts before/after.
-- [ ] If the API forces a remaining scan for safety, record that evidence and the remaining complexity instead of claiming linear scaling or a live speedup. If no safe code change is demonstrated, report the investigation with supporting evidence rather than invent a fix.
-- [ ] Run focused tests and the full offline suite once before each fix commit. Commit each proven fix separately, for example `fix: reduce VCI export mapping scans`.
+- [x] Establish costs using counting offline doubles: object lookup, mapping enumerations/property reads, file/directory scans and native export calls as the workspace grows. Inspect actual installed API signatures or primary Siemens docs before assuming a native key lookup exists.
+- [x] Confirm a reproducible avoidable cost before proposing a fix. Add a deterministic regression on operation/enumeration growth; avoid timing thresholds or a benchmark app.
+- [x] Choose the smallest safe reduction supported by the API. Do not replace fresh collision checks with an unvalidated snapshot, count-only freshness check, or persistent object cache. Preserve the checks before and after directory creation, or demonstrate an equally strong replacement with late-state regressions.
+- [x] Retain/extend late mapping/file collision, duplicate key, already-mapped, refused leaf, fatal exception, breadcrumb and typed-count tests. Show RED/GREEN for any behavior/performance change and compare measured offline native-operation counts before/after.
+- [x] If the API forces a remaining scan for safety, record that evidence and the remaining complexity instead of claiming linear scaling or a live speedup. If no safe code change is demonstrated, report the investigation with supporting evidence rather than invent a fix.
+- [x] Run focused tests and the full offline suite once before each fix commit. Commit each proven fix separately, for example `fix: reduce VCI export mapping scans`.
 
 ## Task 3: Investigate and repair same-session recovery after Portal restart
 
@@ -64,18 +64,18 @@
 
 **Interfaces:** consumes `RegroundInvalidatedSourceForOpenAsync`, existing empty-Portal recovery state, invalidated binding snapshots and lifecycle leases. Opening remains explicit and guarded; inspection never adopts or opens.
 
-- [ ] Trace the observed old-session failure through lifecycle preparation and worker identity promotion. Reproduce an invalidated old Portal/project, a restarted new-PID empty Portal, and explicit `open_project(..., forceRebind:true)` in the same host with offline FakeWorker/session doubles.
-- [ ] Add RED coverage showing recovery reaches the guarded opener only after a fresh empty observation. Test same-PID empty recovery, healthy source continuity, unknown/failed inventory, a foreign or local-session owner, concurrent owner/PID/generation/revision drift, and refusal without required force-rebind.
-- [ ] Implement the smallest repair to the existing recovery seam; never clear a binding merely because status has `projectPath:null`, or weaken complete-project identity validation globally. Preserve read-only denial, no implicit adoption, lifecycle confirmation, audit and pinned checks.
-- [ ] Demonstrate GREEN on recovery and adjacent identity/lifecycle tests, then the full offline suite once before the fix commit. Commit the confirmed fix, for example `fix: recover explicit opens after Portal restart`.
-- [ ] Document proved causes and offline evidence, and distinguish investigation limits if the exact native behavior cannot be modeled. Do not replay the crash or open a real project.
+- [x] Trace the observed old-session failure through lifecycle preparation and worker identity promotion. Reproduce an invalidated old Portal/project, a restarted new-PID empty Portal, and explicit `open_project(..., forceRebind:true)` in the same host with offline FakeWorker/session doubles.
+- [x] Add RED coverage showing recovery reaches the guarded opener only after a fresh empty observation. Test same-PID empty recovery, healthy source continuity, unknown/failed inventory, a foreign or local-session owner, concurrent owner/PID/generation/revision drift, and refusal without required force-rebind.
+- [x] Implement the smallest repair to the existing recovery seam; never clear a binding merely because status has `projectPath:null`, or weaken complete-project identity validation globally. Preserve read-only denial, no implicit adoption, lifecycle confirmation, audit and pinned checks.
+- [x] Demonstrate GREEN on recovery and adjacent identity/lifecycle tests, then the full offline suite once before the fix commit. Commit the confirmed fix, for example `fix: recover explicit opens after Portal restart`.
+- [x] Document proved causes and offline evidence, and distinguish investigation limits if the exact native behavior cannot be modeled. Do not replay the crash or open a real project.
 
 ## Final offline gate and handoff
 
-- [ ] Run serial reference-stub and installed-real-reference solution builds; run the final full suite and meaningful changed-logic coverage. Do not repeat a suite already run on the identical final code without a new concern.
-- [ ] Task reviewers receive the task brief, implementer report and BASE..HEAD review package; one spec+quality gate per task. Final whole-branch review uses the most capable available model and the branch merge-base package. Handle findings through the skill's bounded fix loops.
-- [ ] Add a concise dated offline follow-up to the existing live report and update its index/history text. Preserve the original candidate's failed live verdict; record new fix commits, offline evidence and required live rechecks. No broad Task 14 user-documentation migration yet.
-- [ ] Verify diff/privacy/whitespace and clean Git state, record all rulings and evidence, then perform the separately authorized live follow-up through the final real-reference built candidate. Revalidate the current disposable target, save/archive before mutations or controlled restart, and verify restoration. Do not repeat the known native exporter crash without fresh explicit approval at that moment. Keep the installed tool unchanged.
+- [x] Run serial reference-stub and installed-real-reference solution builds; run the final full suite and meaningful changed-logic coverage. Do not repeat a suite already run on the identical final code without a new concern.
+- [x] Task reviewers receive the task brief, implementer report and BASE..HEAD review package; one spec+quality gate per task. Final whole-branch review uses the most capable available model and the branch merge-base package. Handle findings through the skill's bounded fix loops.
+- [x] Add a concise dated offline follow-up to the existing live report and update its index/history text. Preserve the original candidate's failed live verdict; record new fix commits, offline evidence and required live rechecks. No broad Task 14 user-documentation migration yet.
+- [x] Verify diff/privacy/whitespace and clean Git state, record all rulings and evidence, then perform the separately authorized live follow-up through the final real-reference built candidate. Revalidate the current disposable target, save/archive before mutations or controlled restart, and verify restoration. Do not repeat the known native exporter crash without fresh explicit approval at that moment. Keep the installed tool unchanged.
 
 ## Execution checkpoint — 2026-10-16
 
@@ -87,7 +87,11 @@ This carries forward original plan Task 14 and design §9; it adds no applicatio
 
 **Ownership/files:** create `docs/SupportedOperations/VCI_OPERATIONS_SUMMARY.md`; modify `docs/README.md`, `README.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md`, `docs/IMPROVEMENT_LOG.md`.
 
-- [ ] Document the three read/six write operations, every current limit and E1–E14 as confirmed or changed, current counts 8/19/19, native crash-report location, sync ownership/current-status safeguards and retained evidence limits. Preserve historical candidate counts/verdicts.
-- [ ] Record follow-ups for library scopes, connect, workspace groups/settings, MCP progress, local sessions, software units/system blocks, portal_lost in other domains and path-policy consolidation. State remaining export scan growth rather than imply a performance fix.
-- [ ] Follow the existing documentation layout and index the new reference. README cross-document links must be absolute GitHub URLs; other docs use relative links. Keep all fixture identities/paths private.
-- [ ] Run documentation-only whitespace/link/count/privacy validation; do not rerun unchanged application suites/builds. Commit `docs: document vci tools`, then obtain independent spec/quality review of this documentation delta.
+- [x] Document the three read/six write operations, every current limit and E1–E14 as confirmed or changed, current counts 8/19/19, native crash-report location, sync ownership/current-status safeguards and retained evidence limits. Preserve historical candidate counts/verdicts.
+- [x] Record follow-ups for library scopes, connect, workspace groups/settings, MCP progress, local sessions, software units/system blocks, portal_lost in other domains and path-policy consolidation. State remaining export scan growth rather than imply a performance fix.
+- [x] Follow the existing documentation layout and index the new reference. README cross-document links must be absolute GitHub URLs; other docs use relative links. Keep all fixture identities/paths private.
+- [x] Run documentation-only whitespace/link/count/privacy validation; do not rerun unchanged application suites/builds. Commit `docs: document vci tools`, then obtain independent spec/quality review of this documentation delta.
+
+## Completion — 2026-10-16
+
+All follow-up stages are complete. Reference documentation committed in `b81d5c6` and connected current-guide count corrections in `477ef7d` received independent spec-compliant/quality-approved review. The tested application source and binary hashes remain unchanged. The checklists include the permitted investigation-only outcome for export cost and the recorded Task 1 process exception: its focused fix commit preceded the subsequently successful full-suite gate. Documentation followed the affected live gate while retaining the broader acceptance limits; this does not change the original candidate's verdict. The branch remains local on `feat/vci-tools`.
