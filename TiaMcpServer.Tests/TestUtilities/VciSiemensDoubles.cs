@@ -173,20 +173,51 @@ namespace Siemens.Engineering.VersionControl
     {
         public List<MappedObject> Items { get; } = new();
         public Exception? EnumerationFailure { get; set; }
+        public Action<int>? OnEnumerationStart { get; set; }
+        public int FindCalls { get; private set; }
+        public int EnumerationStarts { get; private set; }
+        public int EnumeratedMappings { get; private set; }
         public int Count => Items.Count;
-        public MappedObject? Find(IEngineeringObject engineeringObject) => this.FirstOrDefault(x => object.Equals(x.EngineeringObject, engineeringObject));
+        public MappedObject? Find(IEngineeringObject engineeringObject)
+        {
+            FindCalls++;
+            return this.FirstOrDefault(x => object.Equals(x.EngineeringObject, engineeringObject));
+        }
         public IEnumerator<MappedObject> GetEnumerator()
         {
             if (EnumerationFailure is not null) throw EnumerationFailure;
-            return Items.GetEnumerator();
+            EnumerationStarts++;
+            OnEnumerationStart?.Invoke(EnumerationStarts);
+            return Enumerate().GetEnumerator();
         }
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        private IEnumerable<MappedObject> Enumerate()
+        {
+            foreach (var mapping in Items)
+            {
+                EnumeratedMappings++;
+                yield return mapping;
+            }
+        }
     }
 
     public sealed class MappedObject : NamedObject
     {
-        public DirectoryInfo DirectoryPath { get; set; } = new(Path.GetTempPath());
-        public string FileNameWithoutExtension { get; set; } = "";
+        private DirectoryInfo _directoryPath = new(Path.GetTempPath());
+        private string _fileNameWithoutExtension = "";
+        public int DirectoryPathReads { get; private set; }
+        public int FileNameReads { get; private set; }
+        public DirectoryInfo DirectoryPath
+        {
+            get { DirectoryPathReads++; return _directoryPath; }
+            set => _directoryPath = value;
+        }
+        public string FileNameWithoutExtension
+        {
+            get { FileNameReads++; return _fileNameWithoutExtension; }
+            set => _fileNameWithoutExtension = value;
+        }
         public string FileFormat { get; set; } = "SimaticML";
         public IEngineeringObject? EngineeringObject { get; set; }
         public Workspace? Workspace { get; set; }

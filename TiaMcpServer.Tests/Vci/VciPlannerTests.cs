@@ -96,6 +96,27 @@ public class VciPlannerTests
         Assert.Null(plan.Unverifiable);
     }
 
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(20, 40, 20)]
+    public void ExportPlan_MapsEachExistingKeyOnce(int backgroundMappings, int enumerated, int propertyReads)
+    {
+        using var f = new Fixture();
+        for (var i = 0; i < backgroundMappings; i++)
+            f.AddMapping(new FC { Name = "Background" + i }).FileNameWithoutExtension = "Background" + i;
+
+        var plan = VciPlanner.Plan(f.Project, f.Write());
+
+        Assert.Null(plan.Unverifiable);
+        Assert.Empty(plan.KeyCollisions);
+        Assert.Equal(1, f.Workspace.MappedObjects.FindCalls);
+        Assert.Equal(2, f.Workspace.MappedObjects.EnumerationStarts);
+        Assert.Equal(enumerated, f.Workspace.MappedObjects.EnumeratedMappings);
+        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.DirectoryPathReads));
+        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.FileNameReads));
+        Assert.Empty(f.Workspace.ExportCalls);
+    }
+
     [Fact]
     public void DuplicateKeyWithinItem_IsCollision()
     {

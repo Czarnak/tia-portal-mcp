@@ -305,6 +305,48 @@ public class VciWriterTests
         if (!mapping) Assert.Equal("retained", File.ReadAllText(Path.Combine(f.Target, f.Second.Name + ".xml")));
     }
 
+    [Theory]
+    [InlineData(0, 3, 2)]
+    [InlineData(20, 123, 82)]
+    public void Export_MappingWorkGrowsWithExistingMappings(int backgroundMappings, int enumerated, int propertyReads)
+    {
+        using var f = new Fixture();
+        for (var i = 0; i < backgroundMappings; i++) f.Map(new FC { Name = "Background" + i });
+
+        var outcome = f.Run("export");
+
+        Assert.Equal(2, outcome.Succeeded);
+        Assert.Equal(2, f.Workspace.MappedObjects.FindCalls);
+        Assert.Equal(6, f.Workspace.MappedObjects.EnumerationStarts);
+        Assert.Equal(enumerated, f.Workspace.MappedObjects.EnumeratedMappings);
+        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.DirectoryPathReads));
+        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.FileNameReads));
+        Assert.Equal(2, f.Workspace.ExportCalls.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Export_CollisionAfterDirectoryCreation_IsRefused(bool mapping)
+    {
+        using var f = new Fixture();
+        f.Plc.BlockGroup.Blocks.Items.Remove(f.Second);
+        f.Workspace.MappedObjects.OnEnumerationStart = scan =>
+        {
+            if (scan != 3) return;
+            if (mapping) f.Map(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.First.Name;
+            else File.WriteAllText(Path.Combine(f.Target, f.First.Name + ".xml"), "retained");
+        };
+
+        var outcome = f.Failure("export");
+
+        Assert.Equal(1, outcome.Leaves);
+        Assert.Equal(1, outcome.Failed);
+        Assert.Empty(f.Workspace.ExportCalls);
+        Assert.Equal(3, f.Workspace.MappedObjects.EnumerationStarts);
+        if (!mapping) Assert.Equal("retained", File.ReadAllText(Path.Combine(f.Target, f.First.Name + ".xml")));
+    }
+
     [Fact]
     public void LateMirroredDirectoryFile_RefusesBeforeExport()
     {
