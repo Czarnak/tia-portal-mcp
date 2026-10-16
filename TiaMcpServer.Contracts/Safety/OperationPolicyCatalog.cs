@@ -1,3 +1,5 @@
+using TiaMcpServer.Contracts.Vci;
+
 namespace TiaMcpServer.Contracts.Safety;
 
 /// <summary>
@@ -180,6 +182,12 @@ public static class OperationPolicyCatalog
             ["probe_open_project_rebind"] = OperationCapability.ProjectLifecycle,
             ["get_basic_project_status"] = OperationCapability.ProjectLifecycle,
         };
+
+        foreach (var method in VciMethods.Read)
+            dict[method] = OperationCapability.Observe;
+        dict[VciMethods.Plan] = OperationCapability.Observe;
+        foreach (var method in VciMethods.Write)
+            dict[method] = OperationCapability.ProjectMutation;
 
         return dict;
     }

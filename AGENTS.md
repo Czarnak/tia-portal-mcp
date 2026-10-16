@@ -1,12 +1,12 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 7 tools in read-only, 17 in read-write (startup default), and the same 17 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 8 tools in read-only, 19 in read-write (startup default), and the same 19 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
 
 ## Two-process architecture (critical to understand)
 
 `bind_project` retains default/null/explicit `bind` behavior and adds six explicit inspections:
 `list_portals`, `list_server_connections`, `list_server_groups`, `list_server_projects`,
-`list_local_sessions`, `get_lock_state`. Counts are 7/17/17. Discovery never adopts; inventory
+`list_local_sessions`, `get_lock_state`. Current counts are 8/19/19; PR3 had 7/17/17. Discovery never adopts; inventory
 uses persistent Portal-only attachment, never switches/adopts/opens a project. Selectors are exact
 raw-key validated; root group requires `{isRoot:true,name:null}`. Verified foreign-PID refusal is
 local/NotSent and preserves binding/cursors; genuine context/transport loss still invalidates.
@@ -100,10 +100,10 @@ are denied in every mode. `SessionSelection` is permitted in every mode: `bind_p
 switches to an already-open project without opening, creating, saving or closing. Ordinary reads
 never bind or switch. Only `open_project` and `create_project` open a project; there are no implicit
 opens. Worker ownership does not survive detach. Read-only never opens, creates, saves or closes.
-Lifecycle confirmation follows access mode. `plc_write`, `network_write` and `hmi_write` use guarded writes with no server elicitation; no tool uses safety tokens.
+Lifecycle confirmation follows access mode. `plc_write`, `network_write`, `hmi_write` and `vci_write` use guarded writes with no server elicitation; no tool uses safety tokens.
 
-Lifecycle, Network, PLC and HMI writes use the guarded single-call pipeline. Lifecycle confirms every
-actual read-write call; Network, PLC and HMI have `ConfirmsEveryCall=false`, no acknowledge guards, and
+Lifecycle, Network, PLC, HMI and VCI writes use the guarded single-call pipeline. Lifecycle confirms every
+actual read-write call; Network, PLC, HMI and VCI have `ConfirmsEveryCall=false`, no acknowledge guards, and
 zero server elicitation in read-write, full, or dry runs. The generic batch tools
 (`preview_write_batch`/`apply_write_batch`), safety tokens, the token core and the legacy write audit
 stream were removed.
@@ -112,6 +112,7 @@ stream were removed.
 - **Network writes**: `network_write(operations, dryRun=false)` executes by default; explicitly set `dryRun:true` for preview. Require exact already-open verified binding and one project; process up to 50 unique-ID items in caller order, stop at first failure, never roll back or replay. Connected deletion is informational; incomplete consequence inventory blocks every mode. Reject legacy `confirm`, `acknowledge`, unknown roots and nonboolean `dryRun` at SDK/wrapper entry: normal MCP error, no write audit. Entered validation/binding/guard denials use a canonical root error and one audit v2 record. Read-write actual confirmation is `none`, full actual is `policy`; previews/denials use `none`, and info/block satisfaction is null.
 - **Project lifecycle writes** (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`): available in read-write and full. `dryRun=true` resolves targets, effects, and guards without mutation or elicitation. Every actual read-write call requires one form elicitation `accept` plus boolean `confirm:true`, even with only info guards or none. Missing capability, decline, cancel, timeout, or transport failure denies with `access_denied`. Full runs without server elicitation and satisfies acknowledge guards by policy. Block guards stop the call in every mode. Public confirmation arguments and safety tokens are absent.
 - **HMI writes**: `hmi_write(operations, dryRun=false)` provides nine create/update/delete operations for Unified tag tables, tags and discrete/analog alarms, on standalone and bound local-session roots. Same 50-item, ordered, stop-at-first-failure/no-batch-rollback pipeline; existing connections only. Guards block collisions/incomplete evidence and inform about deleted contents/references. Initial delete planning caps cross-reference queries at 200; dependent rechecks are separate. Failed creates attempt identity-checked cleanup; failed updates retain applied properties. Public reads/Validate verify results; mutations invalidate the HMI's snapshots. Read contract remains 1.1, write contract 1.0. Existing-tag rebinding that introduces a new alarm member requires update, read, then a second write call. Direct tag case-only rename can fail natively. See [HMI reference](docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md) and [scoped acceptance](docs/superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md). Retained locator entries still require fresh uniqueness traversal and clear on next locator use after owner change; maintainer chose to retain them and leave O1 open.
+- **VCI**: `vci_read` (three operations, all modes) and `vci_write` (six operations, writable modes) require a verified standalone project. Writes execute by default, preview with `dryRun:true`, use 1–50 unique-ID items and stop after the first failed item without batch rollback or server elicitation. Scope expansion calls native VCI only on leaves. Planning never reads status; sync uses `GetStatus()`, fresh owner checks and a plain adjacent recheck for workspace sync. Import prefilters before one ExclusiveAccess transaction and needs `compile_check` after success; saving the project persists workspaces and mappings. Export safety scans grow with leaves × mappings; `SimaticSD` export can crash Portal. A matching timeout breadcrumb and `portal_lost` retain attempted-leaf context, invalidate binding and require explicit recovery. See the [VCI reference](docs/SupportedOperations/VCI_OPERATIONS_SUMMARY.md) and [scoped live report](docs/superpowers/acceptance/reports/2026-10-16-vci-tools-live-acceptance.md).
 - Planning, mutation, verification, and audit run under one pinned project-binding lease. Lifecycle uses explicit preparation and the same lease, re-resolving state after elicitation so an accepted consequence cannot silently change.
 - Lifecycle returns one canonical document with typed `result` and `verification`; rejection has top-level `error` and `isError:true`, while attempted mutation/verification failure has `success:false`, `error:null`, and `isError:false`. Inspect possible mutation before retrying.
 - Lifecycle calls append one audit v2 record, including dry runs and blocked calls, under `%LOCALAPPDATA%\TiaMcpServer\audit`; confirmation records `user`, `policy`, or `none`, and guard satisfaction is `user`, `policy`, or null. Client-returned acceptance does not prove a human saw a prompt.
@@ -120,7 +121,7 @@ stream were removed.
 - **No token-bound write surfaces.** Tokens are retired in favor of one guarded single-call
   pipeline (validate, verified binding, resolve targets, guards, `dryRun`, mutate, verify, audit).
   A new write domain builds on that pipeline (`Safety/Pipeline`), as `plc_write` and
-  `network_write` and `hmi_write` do; do not reintroduce a snapshot reader, `SafetyRead` catalog, or token.
+  `network_write`, `hmi_write` and `vci_write` do; do not reintroduce a snapshot reader, `SafetyRead` catalog, or token.
 
 Network read/write roots declare `contractVersion:"1.0"`, warnings arrays and explicit nulls.
 Write phases are `preview`, `applied`, `blocked`, `error`; attempted failures have `error:null`

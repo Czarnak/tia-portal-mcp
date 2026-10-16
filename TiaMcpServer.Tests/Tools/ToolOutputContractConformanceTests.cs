@@ -103,6 +103,10 @@ public sealed class ToolOutputContractConformanceTests
                     },
                 },
             }),
+        new ToolProbe("vci_read", "rejected", true, null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe("vci_read", "succeeded", false, null,
+            new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w", operation = "list_workspaces", projectPath = "vci-read-roundtrip" } } }),
         new ToolProbe(
             "plc_read",
             "rejected",
@@ -210,6 +214,11 @@ public sealed class ToolOutputContractConformanceTests
                     },
                 },
             }),
+        new ToolProbe("vci_write", "rejected", true, null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe("vci_write", "previewed", false, "vci-write-roundtrip",
+            new Dictionary<string, object?> { ["dryRun"] = true, ["operations"] = new object[]
+            { new { operationId = "v", operation = "export", workspaceName = "Fixture", scope = new[] { new { nodeType = "Device", name = "Fixture" } } } } }),
         new ToolProbe("hmi_write", "rejected", true, null,
             new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
         new ToolProbe("hmi_write", "previewed", false, "hmi-write-roundtrip",
@@ -363,6 +372,7 @@ public sealed class ToolOutputContractConformanceTests
             "get_project_status/omitted" => "status-oversized",
             "network_read/succeeded" => "network-roundtrip",
             "plc_read/succeeded" => "plc-read-roundtrip",
+            "vci_read/succeeded" => "vci-read-roundtrip",
             "hmi_read/succeeded" => "hmi-read-roundtrip",
             "plc_write/previewed" => "plc-write-roundtrip",
             "read_cross_references/succeeded" => "xref-roundtrip",
@@ -379,7 +389,7 @@ public sealed class ToolOutputContractConformanceTests
             _ => null
         };
         using var uiOpen = probe.Name is "get_project_status/malformed" or
-            "get_project_status/omitted" or "network_read/succeeded" or "plc_read/succeeded" or "hmi_read/succeeded" or
+            "get_project_status/omitted" or "network_read/succeeded" or "plc_read/succeeded" or "vci_read/succeeded" or "hmi_read/succeeded" or
             "read_cross_references/succeeded" or "read_cross_references/omittedSources" or
             "browse_project_tree/succeeded"
             ? FakeWorkerUiOpenProject.ForWorkerRelativePath(sourcePath!)
@@ -423,7 +433,7 @@ public sealed class ToolOutputContractConformanceTests
                 Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
             }
         }
-        if (probe.Tool == "plc_read")
+        if (probe.Tool is "plc_read" or "vci_read")
         {
             var document = result.StructuredContent!.Value;
             Assert.Equal("1.0", document.GetProperty("contractVersion").GetString());

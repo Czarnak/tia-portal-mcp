@@ -109,6 +109,20 @@ public sealed class PersistentWorkerTransport : IDisposable
         WorkerResponse? response;
         try
         {
+            using var document = JsonDocument.Parse(responseLine);
+            try
+            {
+                Vci.VciWritePayloadContract.ValidateEnvelopeOutcome(document.RootElement);
+            }
+            catch (JsonException)
+            {
+                return new WorkerResponse
+                {
+                    Success = false,
+                    FailureCategory = WorkerFailureCategories.ProtocolError,
+                    Error = "The worker VCI outcome did not match its declared contract. Inspect current state before retrying."
+                };
+            }
             response = JsonSerializer.Deserialize<WorkerResponse>(responseLine, WorkerJson.Envelope);
         }
         catch (JsonException)

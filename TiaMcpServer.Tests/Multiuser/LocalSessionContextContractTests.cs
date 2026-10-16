@@ -326,6 +326,7 @@ public sealed class LocalSessionContextContractTests
         {
             "bind_project", "get_project_status", "browse_project_tree", "plc_read", "plc_write",
             "network_read", "network_write", "read_cross_references", "compile_check", "hmi_read", "hmi_write",
+            "vci_read", "vci_write",
             "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project"
         };
         var projectItems = PlcOperationCatalog.ReadOperationNames
@@ -415,12 +416,30 @@ public sealed class LocalSessionContextContractTests
     [InlineData("hmi_create_tag", "hmi_write")]
     [InlineData("hmi_delete_alarm", "hmi_write")]
     [InlineData("hmi_validate", "hmi_read")]
+    [InlineData("vci_list_mappings", "vci_read")]
+    [InlineData("vci_plan", "vci_write")]
+    [InlineData("vci_export", "vci_write")]
     [InlineData("get_block_content", "get_block_content")]
     [InlineData("search_equipment_catalog", null)]
     [InlineData("list_server_connections", null)]
     [InlineData("hello", null)]
     public void OperationFor_MapsWorkerMethodToCapability(string method, string? expected)
         => Assert.Equal(expected, ProjectCapabilityCatalog.OperationFor(method));
+
+    [Theory]
+    [InlineData("vci_read")]
+    [InlineData("vci_write")]
+    public void VciOperations_AreStandaloneOnly(string operation)
+    {
+        Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.StandaloneProject, operation));
+        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, operation));
+        Assert.False(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.ServerProject, operation));
+        foreach (var containerKind in new[] { ProjectContainerKinds.StandaloneProject,
+                     ProjectContainerKinds.LocalSession, ProjectContainerKinds.ServerProject })
+            Assert.Equal(ProjectCapabilityApplicabilities.StandaloneOnly,
+                ProjectCapabilityCatalog.Describe(containerKind)
+                    .Single(item => item.Operation == operation).Applicability);
+    }
 
     [Theory]
     [InlineData(ProjectContainerKinds.StandaloneProject)]

@@ -1,8 +1,13 @@
 // Executable boundary doubles only. Tests never load the compile-only Siemens references.
 namespace Siemens.Engineering
 {
-    public abstract partial class ProjectBase
+    public abstract partial class ProjectBase : IEngineeringObject, IEngineeringServiceProvider, ITransactionSupport
     {
+        public IEngineeringObject? Parent { get; set; }
+        public VersionControl.VersionControlInterface? VersionControlInterface { get; set; }
+        public Exception? ServiceFailure { get; set; }
+        public T? GetService<T>() where T : class => ServiceFailure is null ? VersionControlInterface as T : throw ServiceFailure;
+        public object GetAttribute(string name) => throw new EngineeringException($"Attribute '{name}' is not modeled.");
         private FileInfo? path;
         private bool isModified;
         public Exception? PathFailure { get; set; }
@@ -78,6 +83,14 @@ namespace Siemens.Engineering
 
     public sealed partial class TiaPortal : IDisposable
     {
+        public List<string> ExclusiveAccessCalls { get; } = new();
+        public List<Transaction> Transactions { get; } = new();
+        public bool TransactionCanCommit { get; set; } = true;
+        public ExclusiveAccess ExclusiveAccess(string description)
+        {
+            ExclusiveAccessCalls.Add(description);
+            return new ExclusiveAccess(this);
+        }
         public static List<TiaPortalProcess> Processes { get; } = new();
         public static IEnumerable<TiaPortalProcess> GetProcesses() => Processes;
         public TiaPortalProcess Process { get; set; } = null!;

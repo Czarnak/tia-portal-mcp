@@ -414,6 +414,19 @@ public sealed class ProjectSessionBinding
         }
     }
 
+    /// <summary>Clears only the proved revision and returns that exact transition under the same lock.</summary>
+    public bool TryClear(ProjectBindingSnapshot expected, out ProjectBindingSnapshot? cleared)
+    {
+        lock (_gate)
+        {
+            cleared = null;
+            if (!expected.SameBinding(SnapshotNoLock())) return false;
+            Clear(expected.ProjectPath, out _);
+            cleared = SnapshotNoLock();
+            return true;
+        }
+    }
+
     public bool Clear(string? projectPath, out string? error)
     {
         lock (_gate)

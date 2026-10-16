@@ -104,6 +104,7 @@ namespace Siemens.Engineering.HmiUnified
 {
     public sealed partial class HmiSoftware : HW.Software
     {
+        public HmiSoftware() => Scripts.Parent = this;
         public Scripts.HmiScriptModuleComposition Scripts { get; } = new();
         public TextGraphicList.HmiTextListComposition HmiTextLists { get; } = new();
         public TextGraphicList.HmiGraphicListComposition HmiGraphicLists { get; } = new();
@@ -120,7 +121,14 @@ namespace Siemens.Engineering.HmiUnified
 
 namespace Siemens.Engineering.HmiUnified.Scripts
 {
-    public sealed class HmiScriptModule : NamedObject { }
+    public sealed class HmiScriptModule : NamedObject
+    {
+        public string? NativeIdentity { get; set; }
+        public override bool Equals(object? obj) => NativeIdentity is not null && obj is HmiScriptModule other
+            ? string.Equals(NativeIdentity, other.NativeIdentity, StringComparison.Ordinal)
+            : ReferenceEquals(this, obj);
+        public override int GetHashCode() => NativeIdentity?.GetHashCode() ?? base.GetHashCode();
+    }
     public sealed class HmiScriptModuleComposition : Composition<HmiScriptModule> { }
 }
 

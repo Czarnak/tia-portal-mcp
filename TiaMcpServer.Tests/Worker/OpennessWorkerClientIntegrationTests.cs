@@ -363,6 +363,45 @@ public class OpennessWorkerClientIntegrationTests
         Assert.True(after.Revision > invalidated.Revision);
     }
 
+    [Theory]
+    [InlineData("pause-status", false)]
+    [InlineData("pause-status", true)]
+    [InlineData("pause-proof", false)]
+    [InlineData("pause-proof", true)]
+    public async Task InvalidatedOpenRecovery_ConcurrentSamePathRevisionIsPreserved(string pause, bool invalidate)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        var source = Path.Combine(audit.Path, "discovery-portal-restarted.ap21");
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, source));
+        using var ui = new FakeWorkerUiOpenProject(source);
+        using var log = new FakeWorkerRequestLog(audit.Path);
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
+        await client.InspectPortalAsync(new WorkerRequest { Method = "list_tia_portal_processes" });
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        File.WriteAllText(source + ".recovery", pause);
+        var recovery = client.RegroundInvalidatedSourceForOpenAsync(true);
+        ProjectBindingSnapshot concurrent;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            while (!File.Exists(source + ".observed")) await Task.Delay(10, timeout.Token);
+            if (invalidate) binding.Invalidate("Concurrent context loss");
+            else Assert.True(binding.Bind(source, true, out _));
+            concurrent = binding.CaptureSnapshot();
+        }
+        finally { File.WriteAllText(source + ".release", "continue"); }
+
+        var result = await recovery;
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.Failure!.FailureCategory);
+        Assert.True(concurrent.SameBinding(binding.CaptureSnapshot()));
+        Assert.DoesNotContain("open_project", log.Methods());
+    }
+
     [Fact]
     public async Task InvalidatedOpenRecovery_NoForceDoesNotGroundOrAdvanceRevision()
     {
@@ -513,6 +552,22 @@ public class OpennessWorkerClientIntegrationTests
         // A fresh process restarts its request counter — proves the crashed/lost worker was
         // restarted for the NEXT call only, never replayed for the one that was lost.
         Assert.Equal("{\"seq\":1}", recovered.Payload);
+    }
+
+    [Fact]
+    public async Task PortalLost_InvalidatesBindingImmediately()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "portal-lost");
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
+
+        var result = await client.ListTagTablesAsync(null, null);
+
+        Assert.False(result.Success);
+        Assert.Equal("portal_lost", result.FailureCategory);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
     }
 
     [Fact]

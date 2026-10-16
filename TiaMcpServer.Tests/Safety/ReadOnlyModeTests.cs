@@ -203,6 +203,10 @@ public class ReadOnlyModeTests
     [InlineData("get_type_content")]
     [InlineData("list_network_objects")]
     [InlineData("inspect_network_object")]
+    [InlineData("vci_list_workspaces")]
+    [InlineData("vci_list_mappings")]
+    [InlineData("vci_supported_formats")]
+    [InlineData("vci_plan")]
     public void ReadOnlyMode_AllowsApprovedOperations(string operation)
     {
         Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
@@ -246,6 +250,12 @@ public class ReadOnlyModeTests
     [InlineData("hmi_create_alarm")]
     [InlineData("hmi_update_alarm")]
     [InlineData("hmi_delete_alarm")]
+    [InlineData("vci_create_workspace")]
+    [InlineData("vci_delete_workspace")]
+    [InlineData("vci_export")]
+    [InlineData("vci_sync_to_workspace")]
+    [InlineData("vci_sync_to_project")]
+    [InlineData("vci_delete_mapping")]
     public void ReadOnlyMode_DeniesProhibitedOperations(string operation)
     {
         Assert.False(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
@@ -519,11 +529,11 @@ public class ReadOnlyModeTests
     #region Tool Discovery Tests
 
     [Fact]
-    public void ReadOnlyMode_HasExactlySevenTools()
+    public void ReadOnlyMode_HasExactlyEightTools()
     {
         var networkReadType = typeof(NetworkOperationRequest).Assembly.GetType("TiaMcpServer.Network.NetworkReadTools");
         Assert.NotNull(networkReadType);
-        var toolNames = new[] { typeof(ProjectBindingTools), typeof(ProjectReadTools), networkReadType!, typeof(TiaMcpServer.Plc.PlcReadTools), typeof(TiaMcpServer.Hmi.HmiReadTools), typeof(TiaMcpServer.CrossReferences.CrossReferenceReadTools) }
+        var toolNames = new[] { typeof(ProjectBindingTools), typeof(ProjectReadTools), networkReadType!, typeof(TiaMcpServer.Plc.PlcReadTools), typeof(TiaMcpServer.Hmi.HmiReadTools), typeof(TiaMcpServer.CrossReferences.CrossReferenceReadTools), typeof(TiaMcpServer.Vci.VciReadTools) }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
             .Where(attribute => attribute is not null)
@@ -532,12 +542,12 @@ public class ReadOnlyModeTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "bind_project", "browse_project_tree", "get_project_status", "hmi_read", "network_read", "plc_read", "read_cross_references" },
+            new[] { "bind_project", "browse_project_tree", "get_project_status", "hmi_read", "network_read", "plc_read", "read_cross_references", "vci_read" },
             toolNames);
     }
 
     [Fact]
-    public void FullSurface_HasExactlySeventeenDistinctTools()
+    public void FullSurface_HasExactlyNineteenDistinctTools()
     {
         var toolNames = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -555,7 +565,7 @@ public class ReadOnlyModeTests
                 "archive_project", "bind_project", "browse_project_tree", "close_project",
                 "compile_check", "create_project", "get_project_status", "hmi_read", "hmi_write",
                 "network_read", "network_write", "open_project", "plc_read", "plc_write", "read_cross_references",
-                "save_project", "save_project_as"
+                "save_project", "save_project_as", "vci_read", "vci_write"
             },
             toolNames);
     }

@@ -2,7 +2,7 @@
 
 `bind_project` exposes explicit Portal discovery and five Project Server inventory actions in
 all modes. Omitted/null `action` or `action:"bind"` selects already-open standalone `.ap21`
-or typed local-session `.amc21` owners. Discovery remains **7/17/17** tools in
+or typed local-session `.amc21` owners. Current discovery is **8/19/19** tools in
 read-only/read-write/full. PR4 adds explicit existing `.als21` opening in writable modes and
 basic local status; PR5 adds local content reads and PR6 local content writes, compilation and
 `LocalSession.Save()` (see [Internal context](#internal-context)). PR1/PR2 ownership contracts remain the foundation; Issue #65 is incomplete.

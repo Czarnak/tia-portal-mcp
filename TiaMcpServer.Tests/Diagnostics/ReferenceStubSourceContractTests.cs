@@ -104,7 +104,7 @@ public class ReferenceStubSourceContractTests
     [Fact]
     public void NamespaceOwnershipAndNonExecutablePurposeAreExplicit()
     {
-        foreach (var file in new[] { "AssemblyInfo", "Core", "Compiler", "CrossReference", "Hardware", "HardwareConnections", "Online", "Multiuser" })
+        foreach (var file in new[] { "AssemblyInfo", "Core", "Compiler", "CrossReference", "Hardware", "HardwareConnections", "Online", "Multiuser", "VersionControl" })
             Assert.True(File.Exists(StubPath("Siemens.Engineering.Base", file + ".cs")), $"Missing Base source: {file}");
         foreach (var file in new[] { "AssemblyInfo", "Software", "Blocks", "ExternalSources", "Tags", "Types", "Units" })
             Assert.True(File.Exists(StubPath("Siemens.Engineering.Step7", file + ".cs")), $"Missing Step7 source: {file}");
@@ -117,5 +117,30 @@ public class ReferenceStubSourceContractTests
         Assert.DoesNotContain("namespace Siemens.Engineering.Multiuser", step7Source, StringComparison.Ordinal);
         var readme = File.ReadAllText(StubPath("README.md"));
         foreach (var text in new[] { "compile-only", "public-only", "29bfe5fdf4ba5d3b", "unverified", "cannot sign Siemens implementation code" }) Assert.Contains(text, readme, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VciAndTechnologyObjectDeclarationsMatchStaticV21Metadata()
+    {
+        var path = StubPath("Siemens.Engineering.Base", "VersionControl.cs");
+        Assert.True(File.Exists(path), "Missing VCI compile-only declarations.");
+        var vci = File.ReadAllText(path);
+        foreach (var signature in new[] {
+            "WorkspaceSystemGroup WorkspaceGroup", "class WorkspaceSystemGroup : global::Siemens.Engineering.VersionControl.WorkspaceGroup",
+            "global::System.IO.DirectoryInfo RootPath", "global::System.IO.DirectoryInfo DirectoryPath",
+            "MappedObject ExportObject(", "string fileNameWithoutExtension, string fileFormat)",
+            "IEnumerable<string> GetSupportedFileFormats(", "IndividualObjectCompareResult GetStatus()",
+            "[global::System.Flags]", "ProjectObjectChanged = 1", "WorkspaceFileChanged = 2",
+            "ProjectToWorkspace = 0", "WorkspaceToProject = 1", "WorkspaceFileMissing = 2", "Unknown = 3" })
+            Assert.Contains(signature, vci, StringComparison.Ordinal);
+        var software = File.ReadAllText(StubPath("Siemens.Engineering.Step7", "Software.cs"));
+        foreach (var signature in new[] {
+            "TechnologicalInstanceDBGroup TechnologicalObjectGroup", "namespace Siemens.Engineering.SW.TechnologicalObjects",
+            "TechnologicalInstanceDBUserGroupComposition Groups", "TechnologicalInstanceDBComposition TechnologicalObjects",
+            "class TechnologicalInstanceDB : global::Siemens.Engineering.SW.Blocks.InstanceDB" })
+            Assert.Contains(signature, software, StringComparison.Ordinal);
+        var core = File.ReadAllText(StubPath("Siemens.Engineering.Base", "Core.cs"));
+        Assert.Contains("public bool CanCommit", core, StringComparison.Ordinal);
+        Assert.Contains("public bool CommitRequested", core, StringComparison.Ordinal);
     }
 }

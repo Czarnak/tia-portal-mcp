@@ -141,7 +141,11 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
                         ? builder.WithPlcWriteTools()
                         : typeof(TTools) == typeof(TiaMcpServer.Hmi.HmiWriteTools)
                             ? builder.WithHmiWriteTools()
-                            : builder.WithTools<TTools>();
+                            : typeof(TTools) == typeof(TiaMcpServer.Vci.VciReadTools)
+                                ? builder.WithVciReadTools()
+                                : typeof(TTools) == typeof(TiaMcpServer.Vci.VciWriteTools)
+                                    ? builder.WithVciWriteTools()
+                                    : builder.WithTools<TTools>();
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,
@@ -173,6 +177,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         collection.AddSingleton(binding);
         collection.AddSingleton(accessPolicy);
         collection.AddSingleton(workerClient);
+        collection.AddSingleton(new TiaMcpServer.Vci.VciBreadcrumbLocation(Path.Combine(Path.GetTempPath(), "vci-test-" + Guid.NewGuid().ToString("N") + ".json")));
         collection.AddSingleton(sp => new WriteExecution(
             new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
             new JsonlWriteAuditSink(auditDirectory), WriteGuardRegistration.ProductionCatalog(), TimeProvider.System));
@@ -224,6 +229,8 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             workerClient);
     }
 
+    internal TiaMcpServer.Vci.VciBreadcrumbLocation BreadcrumbLocation => _services.GetRequiredService<TiaMcpServer.Vci.VciBreadcrumbLocation>();
+
     public async ValueTask DisposeAsync()
     {
         _cancellation.Cancel();
@@ -238,6 +245,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
         }
 
         WorkerClient.Dispose();
+        TiaMcpServer.Contracts.Vci.VciBreadcrumbFile.TryDelete(BreadcrumbLocation.Path);
         _clientWrites.Dispose();
         _serverReads.Dispose();
         _serverWrites.Dispose();

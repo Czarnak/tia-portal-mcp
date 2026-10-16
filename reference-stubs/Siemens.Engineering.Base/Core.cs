@@ -258,6 +258,8 @@ namespace Siemens.Engineering
     }
     public abstract class Transaction : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::System.IDisposable
     {
+        public bool CanCommit { get => throw new global::System.NotSupportedException(); }
+        public bool CommitRequested { get => throw new global::System.NotSupportedException(); }
         public void CommitOnDispose() => throw new global::System.NotSupportedException();
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();

@@ -57,6 +57,8 @@
       Link="Plc\PlcSoftwareLocator.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Hmi\*.cs"
       Link="Linked\Openness\Hmi\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Vci\*.cs"
+      Link="Linked\Openness\Vci\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcWritePreconditions.cs"
       Link="Plc\PlcWritePreconditions.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagMutationService.cs"
@@ -350,6 +352,9 @@
       Link="Network\NetworkModeledAttributeCatalog.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\ConnectionModeledAttributeCatalog.cs"
       Link="Network\ConnectionModeledAttributeCatalog.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\TiaMcpServer\Vci\*.cs" Link="Vci\%(Filename)%(Extension)" />
   </ItemGroup>
   <Import Project="TestUtilities\WorkerSerializationHarness.targets" />
 </Project>

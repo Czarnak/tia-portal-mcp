@@ -4,6 +4,7 @@ using TiaMcpServer.Json;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.Worker;
 
@@ -45,6 +46,8 @@ public sealed record WorkerCallResult(
     public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
 
     public HmiWriteOutcomeInfo? HmiWriteOutcome { get; init; }
+
+    public VciWriteOutcomeInfo? VciWriteOutcome { get; init; }
 
     /// <summary>Host-observed request dispatch provenance; never serialized to callers.</summary>
     internal WorkerDispatchState DispatchState { get; init; } = WorkerDispatchState.Unknown;

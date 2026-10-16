@@ -1,7 +1,7 @@
 # TIA Portal HMI Operations
 
 `hmi_read` is the read-only WinCC Unified HMI tool. It is registered in every access mode (counts
-7/17/17), never writes, never compiles, and never opens, saves or closes a project. It runs up to
+8/19/19), never writes, never compiles, and never opens, saves or closes a project. It runs up to
 50 items per call on the structured JSON contract (`contractVersion:"1.1"`); items run
 independently, so a failing item does not stop later ones. Design background lives in the
 [hmi_read design spec](../superpowers/specs/2026-10-07-hmi-read-design.md), the

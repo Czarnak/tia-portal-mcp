@@ -41,6 +41,8 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.BlockImportOutcome",
         // hmi_write: present on a worker failure after a mutation attempt.
         "WorkerResponse.HmiWriteOutcome",
+        // vci_write: present when the worker reports a typed mutation outcome.
+        "WorkerResponse.VciWriteOutcome",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
         // Only explicit bind_project inspection actions add this host value; default binding omits it.

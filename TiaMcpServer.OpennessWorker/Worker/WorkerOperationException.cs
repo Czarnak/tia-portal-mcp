@@ -1,6 +1,7 @@
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.OpennessWorker.Worker;
 
@@ -25,12 +26,15 @@ public sealed class WorkerOperationException : Exception
 
     public HmiWriteOutcomeInfo? HmiWriteOutcome { get; }
 
+    public VciWriteOutcomeInfo? VciWriteOutcome { get; }
+
     public WorkerOperationException(
         string failureCategory,
         string message,
         IReadOnlyList<string>? warnings = null,
         BlockImportOutcomeInfo? blockImportOutcome = null,
-        HmiWriteOutcomeInfo? hmiWriteOutcome = null)
+        HmiWriteOutcomeInfo? hmiWriteOutcome = null,
+        VciWriteOutcomeInfo? vciWriteOutcome = null)
         : base(message)
     {
         if (!WorkerFailureCategories.IsKnown(failureCategory))
@@ -44,5 +48,6 @@ public sealed class WorkerOperationException : Exception
         Warnings = warnings is null ? Array.Empty<string>() : new List<string>(warnings).AsReadOnly();
         BlockImportOutcome = blockImportOutcome;
         HmiWriteOutcome = hmiWriteOutcome;
+        VciWriteOutcome = vciWriteOutcome;
     }
 }
