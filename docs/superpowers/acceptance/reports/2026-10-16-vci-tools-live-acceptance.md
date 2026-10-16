@@ -88,3 +88,47 @@ Clean serialized solution rebuilds against both reference stubs and installed V2
 | Built worker | `d27cdcbc4e2c70abfcd50a70412a0d69938b74a4804ba9d53a0b9a8d22f1745e` |
 
 The HMI fix was committed after its focused gate while a broader diagnostic run was unresolved; subsequent serialized full runs closed that gap. The temporary process ruling risked a broader regression requiring rework, not an acceptance claim. No live follow-up, reinstall, push or pull request had occurred at this checkpoint. Current VCI user-documentation migration remains deferred.
+
+## Completed follow-up checks — 2026-10-16
+
+**Tested source:** `a26b45fea8a2ee47623a90b72e21b4edaf8f0fb9` on `feat/vci-tools`. **Verdict: the affected follow-up checks passed, within the limits below.** The original frozen candidate's failed verdict and partial bulk-export evidence remain unchanged.
+
+Broad final review found two additional synchronization defects. Separate fixes `ac919aa` and `a26b45f` now re-resolve the original selected leaf and check mapping ownership with `object.Equals` in both directions, and read plain workspace-sync status once immediately before each leaf's synchronization. Deterministic regressions first reproduced both failures. The one scoped final re-review approved both fixes, with no remaining Critical/Important finding in that delta. Import retains its specified status prefilter outside ExclusiveAccess and its single transaction.
+
+The combined source passed **6,906/6,906 tests**, zero failures/skips, in **8m31s**. Corrected linked-source coverage passed **790/790**. Follow-up coverage is **90/94 changed executable lines (95.74%)**, conservatively **90/104 (86.54%)**; feature-branch coverage is **1,469/1,503 (97.74%)**, conservatively **1,469/1,770 (82.99%)**. The conservative measure includes substantive added lines without sequence points, including declarations and continuations. These are line measures rather than branch coverage.
+
+Clean serialized stub and installed-V21-reference rebuilds passed with zero errors and five unchanged HMI nullable warnings. The real worker build and host copy have identical hashes, with no Siemens DLL copies. No application source changed during these live checks.
+
+| Tested binary | SHA-256 |
+| --- | --- |
+| Host | `b118b9d4c131ec9972e93c6ecf6ae4804eaf45f21754094f74d251a1da17738a` |
+| Worker | `3c05d48406ace3618661262b1ae7fd17e1a51f94c5f4ca72108132aee6b37cfe` |
+
+### Native observations
+
+The rebuilt candidate ran through private stdio clients, using the net48 worker, against the sole currently open disposable standalone fixture. Writes used `read-write`; the HMI read comparison also used `full`. Both writable discovery lists contained 19 tools. The installed connector's binaries and configuration were unchanged. A human approved the initial Openness access dialog.
+
+| Check | Result |
+| --- | --- |
+| Recoverable baseline | The fixture was initially open/unmodified, with workspace counts **676, 3, 0, 1**. The first archive destination was rejected by native TIA because its 153-character path exceeded the 143-character limit. Inspection found no archive files and an unmodified project; a separate shorter-path archive succeeded. Its **67,656,195 bytes**, SHA-256 `a2b507e7cd10860537f8fba9062be8f33f9fd726832eab7f05114b7615941869`, and all **1,550 ZIP entries** passed integrity checking. |
+| D1 HMI mapping | One existing Unified script exported successfully with one format fallback. Scoped and unscoped inventories each returned exactly one mapping with **Device → HmiSoftware → ScriptModule**, identical to the requested selector, and `Equal` status. `supported_formats` accepted the emitted selector and returned `SimaticSD`. The same checks passed in both writable modes. The two status-bearing inventory reads took **34.051s** in read-write and **33.802s** in full. Existing HMI source content was untouched. |
+| O2 bounded export | A three-leaf group preview completed in **1.119s**. Actual export completed **3/3** in **11.108s**, with three SCL-to-SimaticML fallbacks. A deliberate healthy repeat skipped all three as `alreadyMapped` in **1.583s**, with no content change. These are complete MCP-call timings, including planning/verification, rather than isolated native API timings. |
+| Sync fixture | A fresh temporary PLC tag table contained one unaddressed `Int` constant. Its supported format was `SimaticML`; export succeeded **1/1** in **4.584s**. Equal mappings skipped one leaf in each direction. |
+| Project-only change | Updating the temporary constant produced `Unequal` / `ProjectObjectChanged`. Import skipped `targetChanged:1`; workspace sync succeeded once. Exported XML readback contained the updated value. |
+| Workspace-only change | Editing only the temporary exported XML produced `Unequal` / `WorkspaceFileChanged`. Workspace sync skipped `targetChanged:1`; import succeeded once in a combined **8.618s** call. Project readback contained the imported value and the mapping remained selectable with fresh `Equal` status. The selected PLC compiled successfully with **zero errors and warnings** in **28.028s**. |
+| Conflict preservation | Different temporary values on both sides produced both native change flags. Each direction skipped `conflict:1`, with zero synchronized leaves. Fresh project readback and the unchanged workspace-file hash proved that both targets were preserved. |
+| Cleanup before recovery | All acceptance mappings/workspaces and the temporary table were removed. Fresh reads matched the original workspace names, roots and counts exactly and reported `target_not_found` for the temporary table. Explicit save succeeded; status was open/unmodified. Exported files and the archive were retained privately. |
+| O1 same-host recovery | The exact observed Portal closed gracefully while the same MCP host stayed running. Its next status read was refused with `binding_conflict`; non-adopting inventory after restart showed one new PID with no project path and retained `invalidated` binding. One actual `open_project` of the exact saved fixture with `forceRebind:true` then succeeded in that original host in **22.460s**, including successful lifecycle verification. No recovery call was replayed. |
+| Final restoration | The reopened fixture was open/unmodified, the binding was verified against the new Portal, the original workspace names/roots/counts matched, and the temporary table remained absent. The installed connector was explicitly rebound and independently reported open/unmodified after both auxiliary clients shut down. |
+
+All **58 captured tool responses** (56 candidate calls and two installed-connector restoration calls) had identical text and structured documents. The **12 VCI write calls** each matched exactly one audit-v2 record and its delivered response text/hash; the same held for all **20 audited write calls** across VCI, PLC and lifecycle. VCI confirmation was `none` / `not_requested`. Four lifecycle form requests each received client `accept` plus boolean `confirm:true` under the maintainer's standing authorization; this is protocol evidence, not proof of a displayed human prompt.
+
+### Retained limits
+
+- Production export retains its safety scans. The bounded timings establish neither a speedup nor completed whole-project export. Native `Find` complexity remains unknown; the original bulk timeouts remain relevant evidence limits.
+- Recovery was checked after a graceful saved-fixture restart. The known native SimaticSD SCL-OB crash was not repeated or fixed, and abrupt-crash timing on this candidate remains unexecuted.
+- Remapped-key and inter-leaf status races were reproduced deterministically offline. Live concurrent races were not forced; sequential identity/status/native calls are not atomic against external edits. Import's prescribed prefilter window remains.
+- Native thrown-leaf transaction rollback, Unknown status, current-candidate HMI import/runtime behavior, other unexecuted formats and local-session contexts retain their earlier limitations. The successful PLC compile qualifies the temporary import scenario only.
+- The broad tag-table read correctly omitted a 63,605-character value under the 60,000-character budget; narrowed reads supplied the fixture evidence. A partial or omitted response was never counted as a complete inventory.
+
+The remaining original user-documentation task follows this live gate. No installation, push, pull request or merge occurred.

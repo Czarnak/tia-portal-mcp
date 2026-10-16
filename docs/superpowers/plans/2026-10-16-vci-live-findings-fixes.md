@@ -76,3 +76,18 @@
 - [ ] Task reviewers receive the task brief, implementer report and BASE..HEAD review package; one spec+quality gate per task. Final whole-branch review uses the most capable available model and the branch merge-base package. Handle findings through the skill's bounded fix loops.
 - [ ] Add a concise dated offline follow-up to the existing live report and update its index/history text. Preserve the original candidate's failed live verdict; record new fix commits, offline evidence and required live rechecks. No broad Task 14 user-documentation migration yet.
 - [ ] Verify diff/privacy/whitespace and clean Git state, record all rulings and evidence, then perform the separately authorized live follow-up through the final real-reference built candidate. Revalidate the current disposable target, save/archive before mutations or controlled restart, and verify restoration. Do not repeat the known native exporter crash without fresh explicit approval at that moment. Keep the installed tool unchanged.
+
+## Execution checkpoint — 2026-10-16
+
+Tasks 1–3 and the final synchronization fix wave are implemented and independently reviewed. Candidate `a26b45f` passed 6,906 tests, corrected linked-source coverage, stub/real builds and the affected live checks. HMI selectors work in both writable modes; normal sync decisions/import/compile and same-host new-PID recovery passed. Temporary objects were removed, baseline workspace identities/counts restored, the fixture saved/reopened unmodified, and the installed connector rebound without replacing it. The public live report records candidate provenance, exact scope, audit evidence, the original failed verdict and retained bulk-export/native-crash limits. No broad live-acceptance claim is made from the bounded follow-up.
+
+## Task 4: Complete original VCI documentation task after the affected live gate
+
+This carries forward original plan Task 14 and design §9; it adds no application behavior or live scope.
+
+**Ownership/files:** create `docs/SupportedOperations/VCI_OPERATIONS_SUMMARY.md`; modify `docs/README.md`, `README.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/SupportedOperations/PROJECT_OPERATIONS_SUMMARY.md`, `docs/IMPROVEMENT_LOG.md`.
+
+- [ ] Document the three read/six write operations, every current limit and E1–E14 as confirmed or changed, current counts 8/19/19, native crash-report location, sync ownership/current-status safeguards and retained evidence limits. Preserve historical candidate counts/verdicts.
+- [ ] Record follow-ups for library scopes, connect, workspace groups/settings, MCP progress, local sessions, software units/system blocks, portal_lost in other domains and path-policy consolidation. State remaining export scan growth rather than imply a performance fix.
+- [ ] Follow the existing documentation layout and index the new reference. README cross-document links must be absolute GitHub URLs; other docs use relative links. Keep all fixture identities/paths private.
+- [ ] Run documentation-only whitespace/link/count/privacy validation; do not rerun unchanged application suites/builds. Commit `docs: document vci tools`, then obtain independent spec/quality review of this documentation delta.
