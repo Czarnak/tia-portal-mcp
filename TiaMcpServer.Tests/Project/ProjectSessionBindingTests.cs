@@ -290,6 +290,39 @@ public class ProjectSessionBindingTests
         Assert.Null(binding.BoundProjectPath);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RecoveryClear_RejectsSamePathRevisionOrStateChange(bool invalidate)
+    {
+        var binding = new ProjectSessionBinding(@"C:\Projects\A.ap21");
+        var expected = binding.CaptureSnapshot();
+        if (invalidate) binding.Invalidate("Concurrent context loss");
+        else Assert.True(binding.Bind(expected.ProjectPath!, true, out _));
+        var concurrent = binding.CaptureSnapshot();
+
+        Assert.False(binding.TryClear(expected, out var cleared));
+        Assert.Null(cleared);
+        Assert.True(concurrent.SameBinding(binding.CaptureSnapshot()));
+    }
+
+    [Fact]
+    public void RecoveryClear_ReturnsExactUnboundRevision()
+    {
+        var binding = new ProjectSessionBinding(@"C:\Projects\A.ap21");
+        var expected = binding.CaptureSnapshot();
+
+        Assert.True(binding.TryClear(expected, out var cleared));
+
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, cleared!.State);
+        Assert.Null(cleared.ProjectPath);
+        Assert.Equal(expected.Revision + 1, cleared.Revision);
+        Assert.True(cleared.SameBinding(binding.CaptureSnapshot()));
+        Assert.True(binding.Bind(expected.ProjectPath!, true, out _));
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, cleared.State);
+        Assert.False(cleared.SameBinding(binding.CaptureSnapshot()));
+    }
+
     [Fact]
     public void ClearWithNullPath_ClearsAnyBinding()
     {

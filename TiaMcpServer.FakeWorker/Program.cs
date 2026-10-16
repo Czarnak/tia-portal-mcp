@@ -208,14 +208,20 @@ while ((line = Console.In.ReadLine()) is not null)
     {
         // Script external loss observed while stamping a successful discovery response.
         var observation = fakePortals.Select(portal => Path.GetFileNameWithoutExtension(portal.ProjectPath))
-            .FirstOrDefault(key => key is "discovery-project-closed" or "discovery-portal-lost" or "discovery-missing-identity");
-        if (observation is "discovery-project-closed" or "discovery-portal-lost")
+            .FirstOrDefault(key => key is "discovery-project-closed" or "discovery-portal-lost" or "discovery-missing-identity" or "discovery-portal-restarted");
+        if (observation is "discovery-project-closed" or "discovery-portal-lost" or "discovery-portal-restarted")
         {
             recoveryClosedSource = fakeProjectPath;
             var portal = AttachedPortal();
             if (portal is not null) portal.ProjectPath = null;
             fakeProjectPath = null;
             fakeSessionGeneration++;
+            if (observation == "discovery-portal-restarted")
+            {
+                if (portal is not null) fakePortals.Remove(portal);
+                fakePortals.Add(new FakePortalState { ProcessId = 44, HasUserInterface = true });
+                fakePortalProcessId = 44;
+            }
             if (observation == "discovery-portal-lost")
             {
                 if (portal is not null) fakePortals.Remove(portal);
@@ -282,20 +288,38 @@ while ((line = Console.In.ReadLine()) is not null)
                 ? File.ReadAllText(recoveryClosedSource + ".recovery") : null;
             if (currentMethod == "get_project_status" && recoveryClosedSource is not null)
             {
+                if (recoveryFault == "pause-status" && currentExpectedSessionIdentity is null
+                    || recoveryFault == "pause-proof" && currentExpectedSessionIdentity is not null)
+                {
+                    File.WriteAllText(recoveryClosedSource + ".observed", "status in flight");
+                    if (!SpinWait.SpinUntil(() => File.Exists(recoveryClosedSource + ".release"), TimeSpan.FromSeconds(10)))
+                        throw new InvalidOperationException("Recovery test did not release the status response.");
+                }
+                if (recoveryFault == "failed-status" || recoveryFault == "failed-proof" && currentExpectedSessionIdentity is not null)
+                {
+                    Respond(JsonSerializer.Serialize(new WorkerResponse
+                    {
+                        Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed,
+                        Error = "Scripted owner inventory unavailable."
+                    }, WorkerJson.Envelope));
+                    continue;
+                }
                 var identity = new WorkerSessionIdentity
                 {
                     WorkerSessionId = recoveryFault == "worker" ? "changed-worker" : workerSessionId,
                     PortalProcessId = recoveryFault == "portal" ? 999 : fakePortalProcessId,
-                    SessionGeneration = fakeSessionGeneration + (recoveryFault == "generation" ? 1 : 0),
+                    SessionGeneration = recoveryFault == "negative-generation" ? -1 : fakeSessionGeneration + (recoveryFault == "generation" ? 1 : 0),
                     Context = recoveryFault == "context" ? LocalContext(recoveryClosedSource, false) : null
                 };
                 Respond(JsonSerializer.Serialize(new WorkerResponse
                 {
                     Success = true, SessionIdentity = recoveryFault == "missing" ? null : identity,
-                    PortalProcessId = fakePortalProcessId,
+                    ResolvedProjectPath = recoveryFault == "resolved-owner" ? "C:/Projects/Other.ap21" : null,
+                    PortalProcessId = recoveryFault == "missing-pid" ? null : fakePortalProcessId,
                     Payload = recoveryFault == "malformed" ? "{}" : WorkerJson.SerializePayload(new ProjectStatusResultInfo
                     {
-                        Operation = "get_project_status",
+                        Operation = recoveryFault == "wrong-operation" ? "open_project" : "get_project_status",
+                        Success = recoveryFault != "payload-failed",
                         ProjectPath = recoveryFault == "owner" ? "C:/Projects/Other.amc21" : null,
                         Project = new ProjectStatusInfo
                         {

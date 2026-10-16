@@ -432,20 +432,11 @@ public class OpennessWorkerClient : IDisposable
             }
 
             if (_emptyPortalRecovery is { } recovery && recovery.Binding.SameBinding(invalidated))
-            {
-                var empty = await RevalidateRecoveredEmptyPortalAsync(invalidated).ConfigureAwait(false);
-                if (!empty.Success) return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(empty);
-                if (!invalidated.SameBinding(BindingSnapshot) || !_projectSessionBinding.Clear(source, out _))
-                    return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
-                        WorkerFailureCategories.BindingConflict, "The source binding changed during empty-Portal recovery."));
-                var unbound = BindingSnapshot;
-                _emptyPortalRecovery = (unbound, recovery.Identity);
-                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(unbound);
-            }
+                return await RecoverEmptyPortalAsync(invalidated, recovery.Identity).ConfigureAwait(false);
 
             // Reasserting retained A creates a fresh configured revision. The only request that
-            // follows is the existing read-only status route; it must promote a complete,
-            // matching worker/Portal/project identity before any rebind probe can be sent.
+            // follows is the existing read-only status route. It must prove either the complete
+            // matching source identity or an empty attachment before preparing the guarded open.
             if (!_projectSessionBinding.Bind(source, forceRebind: true, out var bindError))
             {
                 return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
@@ -454,7 +445,33 @@ public class OpennessWorkerClient : IDisposable
             }
 
             var reasserted = _projectSessionBinding.CaptureSnapshot();
-            var status = await GetProjectStatusAsync(source).ConfigureAwait(false);
+            var status = await InvokeWorkerAsync(new WorkerRequest
+            {
+                Method = "get_project_status", ProjectPath = source
+            }).ConfigureAwait(false);
+            if (!reasserted.SameBinding(BindingSnapshot))
+                return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                    WorkerFailureCategories.BindingConflict, "The source binding changed while its status was being verified."));
+            // A restarted Portal can be attached without a project. Keep project promotion strict;
+            // only a successful, coherent empty status may seed the separate zero-owner proof.
+            if (status.Success && status.ResolvedProjectPath is null
+                && status.SessionIdentity is { ProjectPath: null, Context: null, PortalProcessId: > 0, SessionGeneration: >= 0 } emptyIdentity
+                && !string.IsNullOrWhiteSpace(emptyIdentity.WorkerSessionId)
+                && status.PortalProcessId == emptyIdentity.PortalProcessId)
+            {
+                var decoded = Tools.StandalonePayloadContract.DecodeStatus(status);
+                if (decoded.Value is { IsOpen: false, Path: null, Context: null })
+                {
+                    _emptyPortalRecovery = (reasserted, emptyIdentity);
+                    var empty = await RecoverEmptyPortalAsync(reasserted, emptyIdentity).ConfigureAwait(false);
+                    if (empty.Success) return empty;
+                    status = empty.Failure!;
+                }
+                else status = WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError,
+                    Tools.StandalonePayloadContract.ProtocolFailureMessage, status.Warnings);
+            }
+            else if (status.Success)
+                status = ValidateOrPromoteSessionIdentity(status, reasserted);
             if (!status.Success)
             {
                 // Status may already have invalidated the binding (for example an incomplete
@@ -493,6 +510,18 @@ public class OpennessWorkerClient : IDisposable
 
             return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(promoted);
         });
+
+    private async Task<PinnedBindingExecutionResult<ProjectBindingSnapshot>> RecoverEmptyPortalAsync(
+        ProjectBindingSnapshot expected, WorkerSessionIdentity identity)
+    {
+        var empty = await RevalidateRecoveredEmptyPortalAsync(expected).ConfigureAwait(false);
+        if (!empty.Success) return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(empty);
+        if (!_projectSessionBinding.TryClear(expected, out var unbound))
+            return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Fail(WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict, "The source binding changed during empty-Portal recovery."));
+        _emptyPortalRecovery = (unbound!, identity);
+        return PinnedBindingExecutionResult<ProjectBindingSnapshot>.Ok(unbound!);
+    }
 
     /// <summary>
     /// Rechecks only a previously observed empty attachment; ordinary unbound sessions stay unchanged.
