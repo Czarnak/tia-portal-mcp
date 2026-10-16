@@ -26,6 +26,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | [VCI live spike](superpowers/acceptance/reports/2026-10-15-vci-spike.md) | Leaf-only Openness VCI, container rejections and the Portal crashes with their cause, scope timing, transactional import, silent overwrite and silent malformed import, status semantics, persistence, and what was not executed |
 | [VCI tools live acceptance](superpowers/acceptance/reports/2026-10-16-vci-tools-live-acceptance.md) | Frozen-candidate functional, timeout and crash evidence; follow-up fixes, offline gates, scoped live passes, recovery/restoration and retained export limits |
 | [VCI live findings fix plan](superpowers/plans/2026-10-16-vci-live-findings-fixes.md) | HMI mapping repair, export-cost and recovery investigations, per-fix commits, offline gates and the subsequently authorized live follow-up |
+| [Codebase simplification review plan](superpowers/plans/2026-10-17-codebase-simplification-review.md) | Agreed decisions Q1–Q6 (bound-project-only content tools, canonical argument rejection, worker-wide `portal_lost`), six workstreams of dead code, defects, tool consistency and consolidation, PR order; [verified findings appendix](superpowers/plans/2026-10-17-codebase-simplification-review-findings.md) |
 | [hmi_write live acceptance](superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md) | Exact candidate and package provenance, offline gate, both-mode functional evidence and restoration, scoped timing/memory comparisons, native tag case-only rename limits, and cache retention with O1 open |
 | [Multiuser local sessions, inventory and acceptance boundary](SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md) | Exact AMC adoption, ALS opening/basic status, persistent inventory, preservation guards and remaining session limits |
 | [OB creation live acceptance (issue #75)](superpowers/acceptance/reports/2026-10-09-ob-creation-live-acceptance.md) | All 15 `obEventClass` values on an S7-1500 with planned equal to actual numbers, duplicate singleton blocked in `dryRun` and actual, S7-1200 refusal text, STL FB/FC/OB, clean full compile apart from the HardwareInterrupt trigger warning |
@@ -48,6 +49,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | [Packaging](development/packaging.md) | Build the NuGet package and install a local branch build as the `tia-mcp` global tool |
 | [Bug-fix wave orchestration](development/bug-fix-wave-orchestration.md) | Branch/worktree ownership, wave barriers, offline/live gates, PR creation, and merge protocol |
 | [Wave 2 I2/T2 orchestration handoff](development/bug-fix-wave2-i2-t2-orchestration.md) | Current-scope ownership, independent merge policy, I2 live gate, and future-session dispatch instructions |
+| [Codebase review runbook](development/codebase-review.md) | How to review the whole repository across several runs: written design rules as tests, domain reviews end to end, rule sweeps, reviews of changes since the baseline, findings ledger, verification order and rotation |
 
 Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 
