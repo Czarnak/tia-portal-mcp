@@ -26,6 +26,28 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: VCI follow-ups (2026-10-16)
+
+The [VCI reference](SupportedOperations/VCI_OPERATIONS_SUMMARY.md) documents the delivered
+standalone-only surface and the [live report](superpowers/acceptance/reports/2026-10-16-vci-tools-live-acceptance.md)
+keeps the frozen candidate's failed verdict separate from the repaired candidate's scoped pass.
+The following remain open:
+
+- Library scopes and `connect` for unlinked workspace files; workspace groups and VCI settings.
+- Local-session support, software units and system blocks. Mapping inventory may show excluded
+  mappings, but current write scopes cannot select those owners.
+- MCP progress notifications for long operations and `portal_lost` propagation/recovery in
+  other domains.
+- Consolidating the VCI path policy with the existing private path guards only after their
+  reserved-name and containment rules can be reconciled without weakening them.
+- Export scan growth: the explicit collision checks scale with leaves × mappings, and native
+  `Find` complexity is unknown. The bounded three-leaf follow-up passed; there is no established
+  whole-project throughput or scan-reduction fix. Preserve the late-collision barrier while
+  investigating performance.
+- Native `SimaticSD` exporter crash, abrupt-crash recovery timing, Unknown status, thrown-leaf
+  rollback, concurrent live remapping/status races and current-candidate HMI import/runtime
+  behavior remain unqualified within the live report's stated scope.
+
 ## Open: large PLC block follow-ups (issue #127, 2026-10-15)
 
 The value and response budgets became startup options (`--max-item-chars`/`--max-document-chars`,

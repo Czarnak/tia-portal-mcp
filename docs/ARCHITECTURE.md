@@ -135,11 +135,12 @@ Tool registration is explicit and mode-dependent. The host always registers:
 - `PlcReadTools`
 - `CrossReferenceReadTools`
 - `HmiReadTools`
+- `VciReadTools`
 
 The shared `McpToolRegistration.WithAccessModeTools` helper registers these in read-write and full:
 
 - `ProjectEngineeringTools` (when the mode permits `Compile`)
-- `NetworkWriteTools`, `PlcWriteTools` and `HmiWriteTools` (when the mode permits `ProjectMutation`)
+- `NetworkWriteTools`, `PlcWriteTools`, `HmiWriteTools` and `VciWriteTools` (when the mode permits `ProjectMutation`)
 
 `ProjectWriteTools` is registered when the mode permits `ProjectLifecycle` (read-write and full).
 
@@ -149,7 +150,7 @@ part of the active tool surface.
 
 `Program.cs` and production-surface protocol tests use the same registration helper, and
 `WriteGuardRegistration.ProductionCatalog()` builds the one guard catalog (lifecycle, Network,
-PLC and HMI). The generic batch tools (`preview_write_batch`, `apply_write_batch`, `execute_read_batch`),
+PLC, HMI and VCI). The generic batch tools (`preview_write_batch`, `apply_write_batch`, `execute_read_batch`),
 the `BatchTools` wrapper and every token path were removed; their operations moved to `plc_read`
 and `plc_write`. The earlier registered-surface delegation and
 preview-only live V21 evidence are recorded in the
@@ -166,6 +167,7 @@ preview-only live V21 evidence are recorded in the
 | `read_cross_references` | Read the cross-references of one project-tree target (leaf object, member, or container sweep) on the structured contract. |
 | `network_read` | Execute up to 50 validated network observation operations. |
 | `hmi_read` | Execute up to 50 validated read-only WinCC Unified HMI operations on the structured contract. |
+| `vci_read` | Inspect standalone VCI workspaces, mappings and supported leaf formats. |
 
 `execute_read_batch` was retired; its four operations moved to `plc_read` (`get_block_content`,
 `get_type_content`, `list_tag_tables`) and the standalone `read_cross_references`. See the
@@ -216,6 +218,8 @@ A deeper direct-Openness selector resolver and depth-pruned traversal remains a 
 | `compile_check` | Compile a PLC or selected block and return compiler messages in read-write or full. |
 | `network_write` | Preview or apply an ordered dedicated-network write request. |
 | `plc_write` | Preview or apply up to 50 ordered PLC software writes (blocks, types, block groups, tag tables, tags, user constants) through the guarded pipeline. |
+| `hmi_write` | Preview or apply ordered Unified HMI tag and alarm writes. |
+| `vci_write` | Preview or apply ordered standalone VCI workspace, export, sync and mapping writes. |
 
 ### Lifecycle tools in read-write and full
 
@@ -370,7 +374,7 @@ null and active connection observation `unknown` without a supported owner/endpo
 Explicit endpoint inventory has separate attachment/endpoint-scoped history; refresh timestamps
 do not create identity churn or prove an active-session reconnection. Capability descriptions
 grant no permission. Strict required-member/coherence decoding precedes existing 60,000-value
-and 180,000-document budgets. Current counts remain 7/17/17.
+and 180,000-document budgets. Current counts are 8/19/19 (read-only/read-write/full).
 PR4's [scoped live report](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
 retains both failed noninteractive offline opens, UI-assisted success, restoration and
 unexecuted rows. Content/session/markings/mutations remain undelivered; see the
@@ -635,6 +639,37 @@ cache and leave O1 open. [Acceptance](superpowers/acceptance/reports/2026-10-14-
 records both-mode functional verification and separate archival-baseline timing/memory observations;
 matched write baselines and the strict repeated owner-transition gate remain unqualified, with the
 single-trace memory-return condition not met. No traversal-saving performance claim follows.
+
+### VCI reads and writes
+
+`VciReadCatalog` and `VciWriteCatalog` validate separate strict per-operation fields. Both tools
+share the canonical `1.0` batch contract, typed worker payload decoding and effective response
+budgets. The worker's `VciScopeResolver` expands Device-rooted PLC and Unified HMI selectors to
+leaves; it resolves HMI mapping paths through Device, `HmiSoftware` and `ScriptModule` ownership.
+Live Openness identities use `object.Equals`; ambiguous or unreadable owners never become guessed
+selectors. The public VCI capability is standalone-only: reads and `vci_plan` enter through
+`WithEngineeringRoot`, while all six writes use `WithActiveContext` for Portal access during import.
+
+`VciWritePlanner` uses one Observe `vci_plan` per independent item and re-plans an item after the
+nearest earlier same-workspace item. It never reads status. The guarded pipeline pins binding,
+executes items in order, stops after a failed item and records audit v2. The worker expands scopes,
+rejects occupied relative file keys and unsafe paths, then invokes native VCI only on leaves.
+Export checks mapping keys and target files again near the native call; the explicit scans grow
+with leaves × mappings. `sync_to_workspace` resolves current mapping/selector ownership and takes
+one plain `GetStatus()` reading immediately before each native synchronization. Import status
+prefiltering precedes one ExclusiveAccess transaction; each candidate's mapping and owner are
+re-resolved before native use, since import may recreate engineering objects. Sequential calls
+cannot make external remapping or status changes atomic; the import prefilter window remains.
+
+`VciWriteVerifier` checks mapping/workspace existence or absence, marks earlier same-workspace
+items `superseded`, and labels sync results `notStatusVerified`; it does not fetch status again.
+Before each leaf the worker writes a request-matched breadcrumb. `portal_lost` invalidates binding
+immediately, while timeout/crash may attach the matching `lastAttempted` to the failure and audit.
+After context loss, explicit opening requires fresh zero-owner Portal evidence and exact target
+identity; no projectless response promotes to a verified project binding. The
+[VCI reference](SupportedOperations/VCI_OPERATIONS_SUMMARY.md) details operation fields, status
+decisions, path policy and retry limits; the [scoped report](superpowers/acceptance/reports/2026-10-16-vci-tools-live-acceptance.md)
+retains the failed frozen verdict and repaired-candidate evidence.
 
 ### Typed Network payload registry
 

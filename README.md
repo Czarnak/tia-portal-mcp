@@ -12,14 +12,14 @@
 
 MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents inspect a running TIA Portal project through the Siemens Openness API.
 
-The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, WinCC Unified HMI inspection and guarded tag-table/tag/alarm writes, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
+The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, WinCC Unified HMI inspection and guarded tag-table/tag/alarm writes, standalone VCI workspace operations, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
 ## Tools
 
-The server exposes 7 tools in `read-only`, 17 in `read-write` (the startup default), and the same 17 in `full`.
+The server exposes 8 tools in `read-only`, 19 in `read-write` (the startup default), and the same 19 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls, asking once per actual lifecycle call.
 `full` adds no tools or operations; it only runs lifecycle calls without the prompt. Every write tool
-(`plc_write`, `network_write`, `hmi_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
+(`plc_write`, `network_write`, `hmi_write`, `vci_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
 safety tokens and no PLC run/stop.
 
 ### PLC reads and cross-references
@@ -31,6 +31,11 @@ safety tokens and no PLC run/stop.
 
 - `hmi_read` - run up to 50 read-only WinCC Unified HMI operations in one call (devices, tags, connections, alarms, logs, screens and items, faceplates, navigation, runtime settings, script modules, text and graphic lists, languages and `validate`). Registered in every access mode, paged with `offset`/`limit` (default 100), structured JSON with `contractVersion` `1.1`. Classic WinCC devices are listed but not read. See the [HMI operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md).
 - `hmi_write(operations, dryRun=false)` - create, update or delete WinCC Unified tag tables, tags and discrete/analog alarms: nine operations in read-write/full, up to 50 caller-ordered items on one verified standalone project or local session. Binding requires an existing connection. Set `dryRun:true` for preview; execution stops at the first failure without batch rollback or server elicitation. Read actual state before retrying. The [HMI reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/HMI_OPERATIONS_SUMMARY.md#writes-hmi_write) documents fields, guards, partial failures and member-dependency limits; the [acceptance report](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md) retains the scoped runtime and performance evidence.
+
+### Version Control Interface
+
+- `vci_read` - inspect standalone-project workspaces, paged mappings, optional raw status and supported leaf formats in every mode.
+- `vci_write(operations, dryRun=false)` - create/delete workspaces, export leaf scopes, sync in either direction and delete mappings in read-write/full. It executes by default, previews with `dryRun:true`, and stops after the first failed item without rollback across items or server elicitation. Save the project to persist workspaces and mappings; inspect current state before retrying. The [VCI reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/VCI_OPERATIONS_SUMMARY.md) gives formats, path guards, sync decisions, Portal-loss recovery and scoped acceptance limits.
 
 ### PLC writes
 
@@ -88,7 +93,7 @@ Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and ba
 ## Write safety
 
 Every write tool validates input, prepares the exact binding, resolves targets, evaluates guards,
-mutates, verifies, and audits in one call. `plc_write` and `network_write` register only block and
+mutates, verifies, and audits in one call. `plc_write`, `network_write`, `hmi_write` and `vci_write` register only block and
 info guards, so they never prompt. On every write tool `dryRun:true` returns `phase:preview`
 without mutation or a confirmation prompt. In read-write every actual lifecycle call requires one form elicitation
 with explicit acceptance and boolean `confirm:true`, including calls with only info guards or no
@@ -100,15 +105,15 @@ for guards, requests, responses, and recovery.
 
 **Consent depends on the MCP client.** Elicitation proves that the client returned an accepted
 answer, not that a person saw it. Project mutation and lifecycle tools retain conservative destructive hints; keep them
-out of client auto-approve lists if you want permission prompts on every call. `plc_write` and
-`network_write` use `dryRun:true` for preview and execute by default, with no token and no server
+out of client auto-approve lists if you want permission prompts on every call. `plc_write`,
+`network_write`, `hmi_write` and `vci_write` use `dryRun:true` for preview and execute by default, with no token and no server
 elicitation. Client permission prompts remain independent.
 
 Lifecycle uses pinned binding and transition checks;
 open/create can start unbound, save-as binds the resulting copy, and close clears the binding.
 Lifecycle audits every call, including dry runs and refusals, in `writes-yyyy-MM-dd.jsonl` under
 `%LOCALAPPDATA%\TiaMcpServer\audit`; audit v2 records confirmation by `user`, `policy`, or `none`.
-`plc_write` and `network_write` also record one audit v2 per entered call, including previews and denials, with confirmation `none` in read-write and `policy` in full; SDK argument rejection before entry has no write audit. The legacy write audit stream was retired.
+`plc_write`, `network_write`, `hmi_write` and `vci_write` also record one audit v2 per entered call, including previews and denials, with confirmation `none` in read-write and `policy` in full; SDK argument rejection before entry has no write audit. The legacy write audit stream was retired.
 
 The worker never attaches to the first enumerated TIA Portal or selects the first open project. It
 requires an exact path match or a genuinely sole candidate; multiple possible targets fail with
