@@ -11,13 +11,13 @@ namespace TiaMcpServer.Tests.Tools;
 public class AccessModeDiscoveryTests
 {
     private static readonly string[] Reads = { "bind_project", "browse_project_tree", "get_project_status", "hmi_read", "network_read", "plc_read", "read_cross_references", "vci_read" };
-    private static readonly string[] Edits = { "compile_check", "network_write", "plc_write", "hmi_write" };
+    private static readonly string[] Edits = { "compile_check", "network_write", "plc_write", "hmi_write", "vci_write" };
     private static readonly string[] Lifecycle = { "archive_project", "close_project", "create_project", "open_project", "save_project", "save_project_as" };
 
     [Theory]
     [InlineData(McpAccessMode.ReadOnly, 8)]
-    [InlineData(McpAccessMode.ReadWrite, 18)]
-    [InlineData(McpAccessMode.Full, 18)]
+    [InlineData(McpAccessMode.ReadWrite, 19)]
+    [InlineData(McpAccessMode.Full, 19)]
     public async Task ToolsList_AdvertisesOnlyTheModeSurface(McpAccessMode mode, int count)
     {
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);

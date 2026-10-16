@@ -18,7 +18,7 @@ public static class McpToolRegistration
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.Compile))
             builder.WithTools<ProjectEngineeringTools>();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectMutation))
-            builder.WithNetworkWriteTools().WithPlcWriteTools().WithHmiWriteTools();
+            builder.WithNetworkWriteTools().WithPlcWriteTools().WithHmiWriteTools().WithVciWriteTools();
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectLifecycle))
             builder.WithTools<ProjectWriteTools>();
         return builder;

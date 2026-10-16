@@ -91,6 +91,7 @@ namespace TiaMcpServer
             builder.Logging.AddConsole(opts => opts.LogToStandardErrorThreshold = LogLevel.Trace);
             builder.Services.AddSingleton(new ProjectSessionBinding(startupProjectPath));
             builder.Services.AddSingleton(accessPolicy);
+            builder.Services.AddSingleton(new Vci.VciBreadcrumbLocation());
             builder.Services.AddSingleton(sp => new OpennessWorkerClient(
                 sp.GetRequiredService<ProjectSessionBinding>(),
                 sp.GetRequiredService<ILogger<OpennessWorkerClient>>(),

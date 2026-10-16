@@ -547,7 +547,7 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void FullSurface_HasExactlyEighteenDistinctTools()
+    public void FullSurface_HasExactlyNineteenDistinctTools()
     {
         var toolNames = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -565,7 +565,7 @@ public class ReadOnlyModeTests
                 "archive_project", "bind_project", "browse_project_tree", "close_project",
                 "compile_check", "create_project", "get_project_status", "hmi_read", "hmi_write",
                 "network_read", "network_write", "open_project", "plc_read", "plc_write", "read_cross_references",
-                "save_project", "save_project_as", "vci_read"
+                "save_project", "save_project_as", "vci_read", "vci_write"
             },
             toolNames);
     }

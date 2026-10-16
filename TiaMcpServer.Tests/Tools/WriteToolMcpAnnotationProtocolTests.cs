@@ -37,7 +37,7 @@ public class WriteToolMcpAnnotationProtocolTests
         "read_cross_references",
         "save_project",
         "save_project_as",
-        "vci_read",
+        "vci_read", "vci_write",
     };
 
     private static readonly (string Name, bool ReadOnly, bool Destructive, bool? Idempotent, bool OpenWorld)[] ExpectedWriteToolAnnotations =
@@ -51,6 +51,7 @@ public class WriteToolMcpAnnotationProtocolTests
         ("close_project", false, true, null, false),
         ("plc_write", false, true, null, false),
         ("hmi_write", false, true, null, false),
+        ("vci_write", false, true, null, false),
     };
 
     [Fact]
@@ -61,7 +62,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
         Assert.Equal(FullToolNames, tools.Select(tool => tool.Name));
-        Assert.Equal(18, tools.Length);
+        Assert.Equal(19, tools.Length);
         Assert.All(
             tools,
             tool => Assert.Equal(

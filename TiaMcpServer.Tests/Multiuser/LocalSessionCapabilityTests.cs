@@ -253,6 +253,7 @@ public sealed class LocalSessionCapabilityTests
     [InlineData("archive_project")]
     [InlineData("close_project")]
     [InlineData("vci_read")]
+    [InlineData("vci_write")]
     public async Task LocalUnsupportedOperation_DeniesBeforeWorkerDispatch(string operation)
     {
         using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, Amc));
@@ -267,6 +268,7 @@ public sealed class LocalSessionCapabilityTests
         var before = log.Methods().Length;
         var arguments = operation switch
         {
+            "vci_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "delete_workspace", workspaceName = "Fixture" } } },
             "vci_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_workspaces" } } },
             "create_project" => new Dictionary<string, object?> { ["projectDirectory"] = audit.Path, ["projectName"] = "New", ["dryRun"] = true },
             "save_project_as" => new Dictionary<string, object?> { ["targetDirectory"] = audit.Path, ["targetName"] = "Copy", ["dryRun"] = true },

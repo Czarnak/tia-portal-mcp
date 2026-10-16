@@ -26,6 +26,7 @@ public sealed class VciLastAttemptedInfo
 {
     public List<ProjectTreeSelectorSegment> Path { get; set; } = new();
     public string Operation { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Format { get; set; }
 }
 

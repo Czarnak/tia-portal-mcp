@@ -28,6 +28,25 @@ internal static class VciReadToolRegistration
     }
 }
 
+internal static class VciWriteToolRegistration
+{
+    internal static IMcpServerBuilder WithVciWriteTools(this IMcpServerBuilder builder)
+    {
+        builder.Services.AddSingleton<McpServerTool>(services => new StrictArgumentsTool(
+            McpServerTool.Create(typeof(Vci.VciWriteTools).GetMethod(nameof(Vci.VciWriteTools.VciWrite))!,
+                target: null, options: new McpServerToolCreateOptions
+                {
+                    Services = services,
+                    SchemaCreateOptions = new AIJsonSchemaCreateOptions
+                    {
+                        TransformOptions = new AIJsonSchemaTransformOptions { DisallowAdditionalProperties = true }
+                    }
+                }), "vci_write", new HashSet<string>(StringComparer.Ordinal) { "operations", "dryRun" },
+            new HashSet<string>(StringComparer.Ordinal) { "dryRun" }, new Dictionary<string, string>()));
+        return builder;
+    }
+}
+
 internal static class HmiWriteToolRegistration
 {
     internal static IMcpServerBuilder WithHmiWriteTools(this IMcpServerBuilder builder)

@@ -214,6 +214,11 @@ public sealed class ToolOutputContractConformanceTests
                     },
                 },
             }),
+        new ToolProbe("vci_write", "rejected", true, null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe("vci_write", "previewed", false, "vci-write-roundtrip",
+            new Dictionary<string, object?> { ["dryRun"] = true, ["operations"] = new object[]
+            { new { operationId = "v", operation = "export", workspaceName = "Fixture", scope = new[] { new { nodeType = "Device", name = "Fixture" } } } } }),
         new ToolProbe("hmi_write", "rejected", true, null,
             new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
         new ToolProbe("hmi_write", "previewed", false, "hmi-write-roundtrip",

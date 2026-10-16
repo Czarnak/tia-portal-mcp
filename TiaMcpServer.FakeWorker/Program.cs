@@ -117,6 +117,7 @@ var localOwnerStatusReads = 0;
 var localConfirmationDriftApplied = false;
 string? recoveryClosedSource = null;
 // Stateful PLC write fixture: reads in the same process observe earlier writes.
+var vciWriteRoundtrip = new TiaMcpServer.FakeWorker.Vci.VciWriteRoundtripScenario();
 var hmiWriteRoundtrip = new TiaMcpServer.FakeWorker.Hmi.HmiWriteRoundtripScenario();
 var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
 var plcWriteIncomplete = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), inventoryIncomplete: true);
@@ -818,6 +819,13 @@ while ((line = Console.In.ReadLine()) is not null)
                 "add_network_device" or "configure_network_device" => HandleGuardedNetwork(line, roundtripNetworkState, scenario),
                 _ => $$"""{"success":false,"error":"unexpected network method '{{ReadMethod(line)}}'"}"""
             });
+            break;
+        case "vci-write-roundtrip":
+        case "vci-portal-lost":
+        case "vci-timeout":
+        case "vci-timeout-silent":
+        case "vci-crash":
+            Respond(vciWriteRoundtrip.Handle(line, scenario));
             break;
         case "vci-read-roundtrip":
             Respond(TiaMcpServer.FakeWorker.Vci.VciReadRoundtripScenario.Handle(line));

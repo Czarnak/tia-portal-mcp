@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Project;
+using System.Text.Json.Serialization;
 
 namespace TiaMcpServer.Contracts.Vci;
 
@@ -60,6 +61,7 @@ public sealed class VciWriteOutcomeInfo
     public int Failed { get; set; }
     public VciSkipCountsInfo Skipped { get; set; } = new();
     public int FormatFallbacks { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public VciLastAttemptedInfo? LastAttempted { get; set; }
     public bool ProjectModified { get; set; }
     public List<string> Notes { get; set; } = new();
