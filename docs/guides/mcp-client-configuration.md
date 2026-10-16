@@ -30,13 +30,13 @@ Configure your MCP client to launch the tool command:
 }
 ```
 
-Without explicit access arguments the server starts in `read-write` with sixteen tools: edits,
+Without explicit access arguments the server starts in `read-write` with nineteen tools: edits,
 compilation, and all six lifecycle tools. Each actual lifecycle call asks once through form
 elicitation `accept` with boolean `confirm:true`, even with no guards or only info guards. A client
 without that capability receives `access_denied`; decline, cancel, timeout, or transport failure
-also denies. Set `"args": ["--access-mode", "full"]` for the same sixteen tools with lifecycle
+also denies. Set `"args": ["--access-mode", "full"]` for the same nineteen tools with lifecycle
 policy confirmation and no server elicitation; full adds no tools or operations.
-`tia-mcp install` defaults separately to read-only with seven tools, including `bind_project`.
+`tia-mcp install` defaults separately to read-only with eight tools, including `bind_project`.
 Block guards stop the call in every mode. See [Installation](installation.md#access-modes).
 
 Remove the old startup confirmation switch; it is rejected with:

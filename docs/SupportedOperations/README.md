@@ -23,7 +23,7 @@ Every item contains an `operationId`, an `operation` name, and the fields for th
 `read_cross_references` is a standalone tool. `execute_read_batch` was retired.
 Hardware/catalog reads use `network_read`. WinCC Unified HMI reads use `hmi_read`; tag-table/tag/alarm writes use `hmi_write`. See [HMI_OPERATIONS_SUMMARY.md](HMI_OPERATIONS_SUMMARY.md).
 
-Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. Full adds no tools or operations; PLC run/stop was removed. See [Installation](../guides/installation.md#access-modes) for the 7/17/17 surfaces and confirmation policy.
+Project binding, status, project-tree browsing, and compilation are separate tools: `bind_project`, `get_project_status`, `browse_project_tree`, and `compile_check`. The first three are available in every mode; compile and lifecycle are available in read-write and full. Full adds no tools or operations; PLC run/stop was removed. See [Installation](../guides/installation.md#access-modes) for the 8/19/19 surfaces and confirmation policy.
 
 #### Write operations
 

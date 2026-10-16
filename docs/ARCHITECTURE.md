@@ -84,15 +84,15 @@ for client limits and mutation recovery.
 
 ### Read-write mode
 
-Read-write exposes sixteen tools: six observation tools, `bind_project`, `compile_check`,
-`network_write`, `plc_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
-`SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`. `plc_write` and
-`network_write` never elicit; every actual lifecycle call asks once through client form elicitation.
+Read-write exposes nineteen tools: seven observation tools, `bind_project`, `compile_check`,
+`network_write`, `plc_write`, `hmi_write`, `vci_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
+`SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`. The four domain write tools
+never elicit; every actual lifecycle call asks once through client form elicitation.
 Reads never bind, switch, or open; `bind_project` selects an already-open project.
 
 ### Full mode
 
-Full exposes the same sixteen tools and permits the same capabilities; it adds no tools or
+Full exposes the same nineteen tools and permits the same capabilities; it adds no tools or
 operations. Lifecycle runs under policy without server elicitation. Block guards stop the call in
 every mode. PLC run/stop (`start_plc`/`stop_plc`) was removed; `OperationCapability.OnlineControl`
 remains as a reserved value with no operation and is permitted in no mode.
@@ -103,8 +103,8 @@ Confirmation derives from the binding gate's access mode. Read-write asks once f
 lifecycle call, even with no guards or only info guards; form acceptance needs `accept` and boolean
 `confirm:true`. Unsupported capability, decline, cancel, timeout, or transport failure denies with
 `access_denied`. Full uses policy satisfaction without server elicitation. Dry runs and block guards
-never elicit. Lifecycle has no agent confirmation list, and no tool uses safety tokens. `plc_write`
-and `network_write` use guarded execution without server elicitation.
+never elicit. Lifecycle has no agent confirmation list, and no tool uses safety tokens. `plc_write`,
+`network_write`, `hmi_write` and `vci_write` use guarded execution without server elicitation.
 The removed startup switch is rejected by `RemovedCliOptions` with:
 
 ```text
@@ -119,7 +119,7 @@ archives, or closes a project; never compiles;
 and never performs project-data mutations. It operates only on a project that
 is already open in the attached TIA Portal instance.
 
-The read-only surface contains seven tools: six observations and `bind_project` for explicit
+The read-only surface contains eight tools: seven observations and `bind_project` for explicit
 session selection. Binding can switch the selected Portal/project without project mutation.
 
 A supplied `projectPath` on ordinary observation/read tools in read-only mode is an assertion.
@@ -564,7 +564,7 @@ release remains a later gate.
 
 ### HMI reads (`hmi_read`)
 
-`hmi_read` is the seventh read-only tool, registered in every mode through `HmiReadTools`. It builds on the
+`hmi_read` is registered in every mode through `HmiReadTools`. It builds on the
 structured seam (`StructuredToolResult`/`StructuredOperationBatch`): `HmiOperationCatalog` (pure, Siemens-free) whitelists the 20
 operations, validates the batch (1-50 items, unique `operationId`, per-operation field lists, paging
 `limit` 1-2000 default 100) and owns the single public-operation to worker-method map. Worker methods

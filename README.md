@@ -183,9 +183,9 @@ structured results. This custom-integration requirement is separate from the `br
 v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
-**read-only** mode by default (seven tools); add `--access-mode read-write` for edits, compilation,
-and lifecycle with one prompt per actual call (sixteen tools). Select `--access-mode full` for
-lifecycle without server elicitation (the same sixteen tools).
+**read-only** mode by default (eight tools); add `--access-mode read-write` for edits, compilation,
+and lifecycle with one prompt per actual call (nineteen tools). Select `--access-mode full` for
+lifecycle without server elicitation (the same nineteen tools).
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing
