@@ -32,6 +32,35 @@ public sealed class VciLeaf
 
 public static class VciScopeResolver
 {
+    public static List<ProjectTreeSelectorSegment>? PathOf(ProjectBase project, IEngineeringObject @object)
+    {
+        if (@object is not HmiScriptModule script) return PathOf(@object);
+        try
+        {
+            List<ProjectTreeSelectorSegment>? path = null;
+            foreach (var device in ProjectDeviceEnumerator.Enumerate(project))
+            foreach (var hmi in SoftwareIn(device.DeviceItems).OfType<HmiSoftware>())
+            foreach (HmiScriptModule candidate in hmi.Scripts)
+            {
+                if (!object.Equals(candidate, script)) continue;
+                if (path is not null) return null;
+                path = new List<ProjectTreeSelectorSegment> { Segment(device)!, Segment(hmi)!, Segment(candidate)! };
+            }
+            if (path is null) return null;
+            try
+            {
+                var resolved = Expand(project, path);
+                return resolved.Count == 1 && object.Equals(resolved[0].Object, script) ? path : null;
+            }
+            catch (WorkerOperationException ex) when (ex.FailureCategory is WorkerFailureCategories.TargetNotFound or WorkerFailureCategories.TargetAmbiguous)
+            {
+                return null;
+            }
+        }
+        catch (NonRecoverableException) { throw; }
+        catch (EngineeringObjectDisposedException) { return null; }
+    }
+
     public static IReadOnlyList<VciLeaf> Expand(ProjectBase project, IReadOnlyList<ProjectTreeSelectorSegment> scope)
     {
         try

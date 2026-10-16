@@ -32,7 +32,7 @@ public static class VciReader
         var workspace = FindWorkspace(service, query.WorkspaceName);
         // Resolve the scope even when empty, but retain excluded unit/system mappings by matching paths, not expanded leaves.
         if (query.Scope is not null) VciScopeResolver.Expand(project, query.Scope);
-        var mappings = workspace.MappedObjects.Select(mapping => new { Mapping = mapping, Path = MappingPath(mapping) })
+        var mappings = workspace.MappedObjects.Select(mapping => new { Mapping = mapping, Path = MappingPath(project, mapping) })
             .Where(entry => query.Scope is null || StartsWith(entry.Path, query.Scope)).ToList();
 
         return new VciMappingListInfo
@@ -78,12 +78,12 @@ public static class VciReader
         return matches[0];
     }
 
-    private static List<ProjectTreeSelectorSegment>? MappingPath(MappedObject mapping)
+    private static List<ProjectTreeSelectorSegment>? MappingPath(Project project, MappedObject mapping)
     {
         try
         {
             var engineeringObject = mapping.EngineeringObject;
-            return engineeringObject is null ? null : VciScopeResolver.PathOf(engineeringObject);
+            return engineeringObject is null ? null : VciScopeResolver.PathOf(project, engineeringObject);
         }
         catch (NonRecoverableException) { throw; }
         catch (EngineeringObjectDisposedException) { return null; }

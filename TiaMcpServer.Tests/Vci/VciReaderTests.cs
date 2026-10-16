@@ -2,6 +2,8 @@ using System.Text.Json;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
+using Siemens.Engineering.HmiUnified;
+using Siemens.Engineering.HmiUnified.Scripts;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Units;
@@ -127,6 +129,120 @@ public class VciReaderTests
         f.AddMapping(disposed ? new FC { ParentFailure = new EngineeringObjectDisposedException("Gone.") } : null);
 
         Assert.Null(Assert.Single(VciReader.ListMappings(f.Service, f.Project, f.Query()).Mappings).Path);
+    }
+
+    [Fact]
+    public void HmiMapping_WithDeviceParent_ListsAndResolvesOwnerPath()
+    {
+        var f = new Fixture();
+        var device = Assert.Single(f.Project.Devices);
+        var hmi = new HmiSoftware { Name = "FixtureHmi" };
+        device.DeviceItems.Items.Add(new DeviceItem { Parent = device, Container = new SoftwareContainer { Software = hmi } });
+        var script = new HmiScriptModule { Name = "FixtureScript", Parent = device };
+        hmi.Scripts.Items.Add(script);
+        f.AddMapping(script);
+        var expected = Scope(("Device", device.Name), ("HmiSoftware", hmi.Name), ("ScriptModule", script.Name));
+
+        var mapping = Assert.Single(VciReader.ListMappings(f.Service, f.Project, f.Query()).Mappings);
+        var path = Assert.IsType<List<ProjectTreeSelectorSegment>>(mapping.Path);
+        Assert.Equal(expected.Select(x => (x.NodeType, x.Name)), path.Select(x => (x.NodeType, x.Name)));
+        var query = f.Query(); query.Scope = expected;
+        Assert.Equal(1, VciReader.ListMappings(f.Service, f.Project, query).Total);
+        Assert.Same(script, Assert.Single(VciScopeResolver.Expand(f.Project, path)).Object);
+    }
+
+    [Fact]
+    public void HmiMappings_WithSameModuleNames_KeepDistinctDeviceSelectors()
+    {
+        var f = new Fixture();
+        foreach (var deviceName in new[] { "HmiA", "HmiB" })
+        {
+            var device = new Device { Name = deviceName };
+            f.Project.Devices.Items.Add(device);
+            var hmi = new HmiSoftware { Name = "Software" };
+            device.DeviceItems.Items.Add(new DeviceItem { Parent = device, Container = new SoftwareContainer { Software = hmi } });
+            var script = new HmiScriptModule { Name = "Shared", Parent = device };
+            hmi.Scripts.Items.Add(script);
+            f.AddMapping(script);
+        }
+
+        var mappings = VciReader.ListMappings(f.Service, f.Project, f.Query()).Mappings;
+        Assert.Equal(new[] { "HmiA", "HmiB" }, mappings.Select(m => m.Path![0].Name));
+        foreach (var mapping in mappings)
+        {
+            var path = Assert.IsType<List<ProjectTreeSelectorSegment>>(mapping.Path);
+            var query = f.Query(); query.Scope = path;
+            Assert.Single(VciReader.ListMappings(f.Service, f.Project, query).Mappings);
+        }
+    }
+
+    [Fact]
+    public void HmiMapping_AcceptsEqualDistinctNativeWrappers()
+    {
+        var f = new Fixture();
+        var device = Assert.Single(f.Project.Devices);
+        var hmi = new HmiSoftware { Name = "FixtureHmi" };
+        device.DeviceItems.Items.Add(new DeviceItem { Parent = device, Container = new SoftwareContainer { Software = hmi } });
+        var discovered = new HmiScriptModule { Name = "FixtureScript", Parent = device, NativeIdentity = "native-script" };
+        hmi.Scripts.Items.Add(discovered);
+        var mapped = new HmiScriptModule { Name = discovered.Name, Parent = device, NativeIdentity = discovered.NativeIdentity };
+        f.AddMapping(mapped);
+
+        var path = Assert.IsType<List<ProjectTreeSelectorSegment>>(
+            Assert.Single(VciReader.ListMappings(f.Service, f.Project, f.Query()).Mappings).Path);
+        Assert.Equal("FixtureHmi", path[1].Name);
+        Assert.True(object.Equals(discovered, Assert.Single(VciScopeResolver.Expand(f.Project, path)).Object));
+        Assert.False(ReferenceEquals(discovered, mapped));
+    }
+
+    [Fact]
+    public void HmiMapping_WithAmbiguousOrUnreadableOwnership_HasNoInventedPath()
+    {
+        var f = new Fixture();
+        var device = Assert.Single(f.Project.Devices);
+        var script = new HmiScriptModule { Name = "FixtureScript", Parent = device };
+        foreach (var name in new[] { "HmiA", "HmiB" })
+        {
+            var hmi = new HmiSoftware { Name = name };
+            device.DeviceItems.Items.Add(new DeviceItem { Parent = device, Container = new SoftwareContainer { Software = hmi } });
+            hmi.Scripts.Items.Add(script);
+        }
+        f.AddMapping(script);
+        Assert.Null(Assert.Single(VciReader.ListMappings(f.Service, f.Project, f.Query()).Mappings).Path);
+
+        var g = new Fixture();
+        var otherDevice = Assert.Single(g.Project.Devices);
+        var otherHmi = new HmiSoftware { Name = "ReadableHmi" };
+        otherDevice.DeviceItems.Items.Add(new DeviceItem { Parent = otherDevice,
+            Container = new SoftwareContainer { Software = otherHmi } });
+        var otherScript = new HmiScriptModule { Name = "ReadableScript", Parent = otherDevice };
+        otherHmi.Scripts.Items.Add(otherScript);
+        g.AddMapping(otherScript);
+        var unreadable = new EngineeringException("Synthetic unreadable owner.");
+        otherDevice.DeviceItems.Items.Add(new DeviceItem { ServiceFailure = unreadable });
+        Assert.Same(unreadable, Assert.Throws<EngineeringException>(
+            () => VciReader.ListMappings(g.Service, g.Project, g.Query())));
+    }
+
+    [Fact]
+    public void HmiMapping_OutsideProjectOrAmbiguousSoftwareName_HasNullPath()
+    {
+        var f = new Fixture();
+        var device = Assert.Single(f.Project.Devices);
+        var libraryScript = new HmiScriptModule { Name = "LibraryScript" };
+        f.AddMapping(libraryScript);
+        Assert.Null(Assert.Single(VciReader.ListMappings(f.Service, f.Project, f.Query()).Mappings).Path);
+
+        var script = new HmiScriptModule { Name = "FixtureScript", Parent = device };
+        for (var i = 0; i < 2; i++)
+        {
+            var hmi = new HmiSoftware { Name = "DuplicateHmi" };
+            device.DeviceItems.Items.Add(new DeviceItem { Parent = device,
+                Container = new SoftwareContainer { Software = hmi } });
+            if (i == 0) hmi.Scripts.Items.Add(script);
+        }
+        f.AddMapping(script);
+        Assert.Null(VciReader.ListMappings(f.Service, f.Project, f.Query()).Mappings.Last().Path);
     }
 
     [Fact]
