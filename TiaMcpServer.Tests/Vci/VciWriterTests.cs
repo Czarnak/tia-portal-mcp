@@ -135,7 +135,10 @@ public class VciWriterTests
         maps[0].OnSynchronize = _ =>
         {
             f.Workspace.MappedObjects.Items.Remove(maps[1]);
-            replacement = f.Map(new FC { Name = f.Second.Name });
+            var recreated = new FC { Name = f.Second.Name };
+            f.Plc.BlockGroup.Blocks.Items.Remove(f.Second);
+            f.Plc.BlockGroup.Blocks.Items.Add(recreated);
+            replacement = f.Map(recreated);
             maps[1].SynchronizeFailure = new EngineeringException("Stale mapping used.");
         };
         var outcome = f.Run("sync_to_project");
@@ -146,6 +149,42 @@ public class VciWriterTests
         Assert.Empty(maps[1].SynchronizeCalls);
         Assert.Contains(VciNotes.ImportedNotValidated, outcome.Notes);
         Assert.Contains(VciNotes.SaveProject, outcome.Notes);
+    }
+
+    [Theory]
+    [InlineData("sync_to_project", false)]
+    [InlineData("sync_to_project", true)]
+    [InlineData("sync_to_workspace", false)]
+    [InlineData("sync_to_workspace", true)]
+    public void Synchronize_RemappedKeyOutsideSelectedScope_RefusesReplacement(string operation, bool sameName)
+    {
+        using var f = new Fixture();
+        var maps = f.MapBoth(CompareState.Unequal, operation == "sync_to_project"
+            ? IndividualObjectCompareDetails.WorkspaceFileChanged : IndividualObjectCompareDetails.ProjectObjectChanged);
+        var other = new FC { Name = sameName ? f.Second.Name : "OtherFixture" };
+        var otherPlc = new PlcSoftware { Name = "OtherSoftware" };
+        otherPlc.BlockGroup.Blocks.Items.Add(other);
+        var otherDevice = new Device { Name = "OtherDevice" };
+        otherDevice.DeviceItems.Items.Add(new DeviceItem { Container = new SoftwareContainer { Software = otherPlc } });
+        f.Project.Devices.Items.Add(otherDevice);
+        MappedObject? replacement = null;
+        maps[0].OnSynchronize = _ =>
+        {
+            f.Workspace.MappedObjects.Items.Remove(maps[1]);
+            replacement = f.Map(other);
+            replacement.FileNameWithoutExtension = f.Second.Name;
+        };
+
+        var outcome = f.Failure(operation);
+
+        Assert.Equal(2, outcome.Leaves);
+        Assert.Equal(operation == "sync_to_project" ? 2 : 1, outcome.Failed);
+        Assert.Equal(operation == "sync_to_project" ? 0 : 1, outcome.Succeeded);
+        Assert.False(outcome.ProjectModified);
+        Assert.Empty(replacement!.SynchronizeCalls);
+        Assert.Empty(maps[1].SynchronizeCalls);
+        if (operation == "sync_to_project") Assert.False(Assert.Single(f.Portal.Transactions).CommitRequested);
+        else Assert.Empty(f.Portal.ExclusiveAccessCalls);
     }
 
     [Theory]

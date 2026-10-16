@@ -1,5 +1,6 @@
 using Siemens.Engineering;
 using Siemens.Engineering.VersionControl;
+using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
@@ -126,7 +127,7 @@ public static class VciWriter
                                     foreach (var candidate in candidates)
                                     {
                                         Attempt(candidate.Attempt);
-                                        try { FindMapping(workspace, candidate.Key).Synchronize(SynchronizationMode.WorkspaceToProject); }
+                                        try { FindMapping(project, workspace, candidate.Key, candidate.Attempt.Path).Synchronize(SynchronizationMode.WorkspaceToProject); }
                                         catch (NonRecoverableException) { throw; }
                                         catch (EngineeringException) { allSucceeded = false; }
                                         catch (Exception) { allSucceeded = false; }
@@ -154,7 +155,7 @@ public static class VciWriter
                             Attempt(candidate.Attempt);
                             try
                             {
-                                FindMapping(workspace, candidate.Key).Synchronize(SynchronizationMode.ProjectToWorkspace);
+                                FindMapping(project, workspace, candidate.Key, candidate.Attempt.Path).Synchronize(SynchronizationMode.ProjectToWorkspace);
                                 outcome.Succeeded++;
                             }
                             catch (NonRecoverableException) { throw; }
@@ -211,10 +212,16 @@ public static class VciWriter
         return directory.CanonicalPath!;
     }
 
-    private static MappedObject FindMapping(Workspace workspace, VciFileKey key)
+    private static MappedObject FindMapping(Project project, Workspace workspace, VciFileKey key,
+        IReadOnlyList<ProjectTreeSelectorSegment> selector)
     {
         var matches = workspace.MappedObjects.Where(mapping => key.Equals(VciFileKey.FromMapping(
             workspace.RootPath.FullName, mapping.DirectoryPath.FullName, mapping.FileNameWithoutExtension))).ToList();
-        return matches.Count == 1 ? matches[0] : throw new InvalidOperationException("The VCI mapping changed or is ambiguous.");
+        if (matches.Count != 1) throw new InvalidOperationException("The VCI mapping changed or is ambiguous.");
+        // Imports can recreate objects; prove ownership against the current selector, not a stale handle.
+        var selected = VciScopeResolver.Expand(project, selector);
+        if (selected.Count != 1 || !object.Equals(matches[0].EngineeringObject, selected[0].Object))
+            throw new InvalidOperationException("The VCI mapping no longer belongs to the selected leaf.");
+        return matches[0];
     }
 }
