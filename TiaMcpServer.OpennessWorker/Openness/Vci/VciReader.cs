@@ -17,7 +17,7 @@ public static class VciReader
             Workspaces = service.WorkspaceGroup.Workspaces.Select(workspace => new VciWorkspaceInfo
             {
                 Name = workspace.Name,
-                RootPath = workspace.RootPath.FullName,
+                RootPath = workspace.RootPath?.FullName,
                 MappingCount = workspace.MappedObjects.Count
             }).ToList()
         };

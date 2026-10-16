@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -6,6 +7,7 @@ using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Units;
 using Siemens.Engineering.VersionControl;
 using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Vci;
@@ -28,6 +30,26 @@ public class VciReaderTests
         Assert.Equal(new[] { f.Workspace.Name, "EmptyFixture" }, result.Workspaces.Select(x => x.Name));
         Assert.Equal(f.Workspace.RootPath.FullName, result.Workspaces[0].RootPath);
         Assert.Equal(new[] { 1, 0 }, result.Workspaces.Select(x => x.MappingCount));
+        Assert.Equal(0, Assert.Single(f.Workspace.MappedObjects).GetStatusCalls);
+    }
+
+    [Fact]
+    public void ListWorkspaces_RootlessEntryPreservesHealthySiblingsAndExplicitNull()
+    {
+        var f = new Fixture();
+        f.AddMapping(f.Leaf);
+        f.Service.WorkspaceGroup.Workspaces.Items.Add(new Workspace { Name = "RootlessFixture", RootPath = null! });
+        f.Service.WorkspaceGroup.Workspaces.Create("EmptyFixture", new DirectoryInfo(Path.GetTempPath()));
+
+        var result = VciReader.ListWorkspaces(f.Service);
+
+        Assert.Equal(new[] { f.Workspace.Name, "RootlessFixture", "EmptyFixture" }, result.Workspaces.Select(x => x.Name));
+        Assert.Equal(f.Workspace.RootPath.FullName, result.Workspaces[0].RootPath);
+        Assert.Null(result.Workspaces[1].RootPath);
+        Assert.Equal(Path.GetFullPath(Path.GetTempPath()), result.Workspaces[2].RootPath);
+        Assert.Equal(new[] { 1, 0, 0 }, result.Workspaces.Select(x => x.MappingCount));
+        using var json = JsonDocument.Parse(WorkerJson.SerializePayload(result));
+        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("workspaces")[1].GetProperty("rootPath").ValueKind);
         Assert.Equal(0, Assert.Single(f.Workspace.MappedObjects).GetStatusCalls);
     }
 
