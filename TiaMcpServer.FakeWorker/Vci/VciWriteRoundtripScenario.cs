@@ -9,9 +9,10 @@ namespace TiaMcpServer.FakeWorker.Vci;
 internal sealed class VciWriteRoundtripScenario
 {
     private readonly Dictionary<string, VciWorkspaceInfo> _workspaces = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _mutated = new(StringComparer.OrdinalIgnoreCase);
     public VciWriteRoundtripScenario()
     {
-        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure" })
+        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure", "Unverifiable", "EmptyUnverifiable", "PartialCollision" })
             _workspaces[name] = new() { Name = name, RootPath = Path.Combine(Path.GetTempPath(), "vci-" + name) };
     }
     private static string Ok(object value) => JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = WorkerJson.SerializePayload(value) }, WorkerJson.Envelope);
@@ -29,10 +30,12 @@ internal sealed class VciWriteRoundtripScenario
         if (r.Method == "vci_plan")
         {
             if (w.Operation != "create_workspace" && workspace is null) return Fail("target_not_found");
-            return Ok(new VciPlanInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" ? 0 : 2,
+            if (_mutated.Contains(w.WorkspaceName!) && w.WorkspaceName is "Unverifiable" or "EmptyUnverifiable")
+                return Ok(new VciPlanInfo { Unverifiable = "Synthetic mapping inventory failed.", WorkspaceRootPath = workspace!.RootPath });
+            return Ok(new VciPlanInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" || w.WorkspaceName == "EmptyUnverifiable" ? 0 : 2,
                 MappedLeaves = workspace?.MappingCount ?? 0, WorkspaceRootPath = workspace?.RootPath ?? w.RootPath,
                 WorkspaceConflict = w.Operation == "create_workspace" && (workspace is not null || _workspaces.Values.Any(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase))) ? "Workspace exists." : null,
-                KeyCollisions = w.WorkspaceName == "Blocked" ? ["Fixture/leaf"] : [] });
+                KeyCollisions = w.WorkspaceName == "Blocked" || w.WorkspaceName == "PartialCollision" && _mutated.Contains(w.WorkspaceName) ? ["Fixture/leaf"] : [] });
         }
         var outcome = new VciWriteOutcomeInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" ? 1 : 2 };
         if (w.WorkspaceName != "Healthy" && scenario is "vci-timeout" or "vci-timeout-silent" or "vci-crash")
@@ -55,12 +58,14 @@ internal sealed class VciWriteRoundtripScenario
             case "delete_workspace": _workspaces.Remove(w.WorkspaceName!); outcome.Succeeded = 1; outcome.ProjectModified = true; break;
             case "export":
                 outcome.Skipped.AlreadyMapped = workspace!.MappingCount;
-                outcome.Failed = w.WorkspaceName == "Fail" ? 1 : 0;
-                outcome.Succeeded = 2 - outcome.Skipped.AlreadyMapped - outcome.Failed;
+                if (w.WorkspaceName == "EmptyUnverifiable") outcome.Leaves = 0;
+                outcome.Failed = w.WorkspaceName is "Fail" or "PartialCollision" ? 1 : 0;
+                outcome.Succeeded = outcome.Leaves - outcome.Skipped.AlreadyMapped - outcome.Failed;
                 workspace.MappingCount += outcome.Succeeded; outcome.ProjectModified = outcome.Succeeded > 0; break;
             case "delete_mapping": outcome.Leaves = outcome.Succeeded = workspace!.MappingCount; workspace.MappingCount = 0; outcome.ProjectModified = outcome.Succeeded > 0; break;
             case "sync_to_workspace": case "sync_to_project": outcome.Skipped.Equal = 2; break;
         }
+        _mutated.Add(w.WorkspaceName!);
         return outcome.Failed > 0 ? Fail("worker_operation_failed", outcome) : Ok(outcome);
     }
 }

@@ -11,6 +11,41 @@ namespace TiaMcpServer.Tests.Vci;
 [Collection("Mcp protocol serial")]
 public class VciWriteVerifierTests
 {
+    [Theory]
+    [InlineData("delete_mapping", "Unverifiable")]
+    [InlineData("export", "EmptyUnverifiable")]
+    public async Task SuccessShapedUnverifiableInventoryDoesNotVerifyZeroMappings(string operation, string workspace)
+    {
+        using var audit = new TempAuditDirectory();
+        await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, "vci-write-roundtrip");
+        var root = Document(await h.Client.CallToolAsync("vci_write", Args(Item(operation, workspace: workspace))));
+        Assert.Equal("succeeded", root.GetProperty("batch").GetProperty("operations")[0].GetProperty("status").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        var verification = root.GetProperty("verification");
+        Assert.False(verification.GetProperty("success").GetBoolean());
+        var check = Assert.Single(verification.GetProperty("operations").EnumerateArray());
+        Assert.Equal("notVerified", check.GetProperty("check").GetString());
+        Assert.Contains("Synthetic mapping inventory failed", check.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task PartialExportWithKnownFailedLeafCollisionStillVerifiesMappedCount()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, "vci-write-roundtrip");
+        var root = Document(await h.Client.CallToolAsync("vci_write", Args(Item(workspace: "PartialCollision"))));
+        Assert.False(root.GetProperty("success").GetBoolean());
+        var outcome = root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        Assert.Equal(1, outcome.GetProperty("failed").GetInt32());
+        Assert.Equal(1, outcome.GetProperty("succeeded").GetInt32());
+        var verification = root.GetProperty("verification");
+        Assert.True(verification.GetProperty("success").GetBoolean(), root.GetRawText());
+        var check = Assert.Single(verification.GetProperty("operations").EnumerateArray());
+        Assert.Equal("mappedLeaves", check.GetProperty("check").GetString());
+        Assert.Equal("1", check.GetProperty("expected").GetString());
+        Assert.Equal("1", check.GetProperty("actual").GetString());
+    }
+
     [Fact]
     public async Task DeleteMappingOnUnmappedScopeVerifiesZeroWithoutCountingUnmappedLeaves()
     {

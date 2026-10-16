@@ -47,6 +47,8 @@ public sealed class VciWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
                 {
                     var plan = await new VciWritePlanner(client).ReplanAsync(projectPath, item).ConfigureAwait(false);
                     if (!plan.Replan.Success) { Check(false, "notVerified", message: plan.Replan.Error!.Message); continue; }
+                    if (plan.Guards.FirstOrDefault(g => g.Id == VciGuardDefinitions.StateUnverifiable) is { } unverifiable)
+                    { Check(false, "notVerified", message: unverifiable.Message); continue; }
                     var effect = plan.Replan.Plan!.Effect!;
                     var value = outcome.Result is { } payload ? CanonicalJson.DeserializeWorkerPayload<VciWriteOutcomeInfo>(payload.GetRawText()) : null;
                     if (value is null) { Check(false, "notVerified", message: "No trusted write counts are available."); continue; }
