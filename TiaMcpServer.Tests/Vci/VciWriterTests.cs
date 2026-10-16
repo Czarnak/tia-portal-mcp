@@ -495,6 +495,82 @@ public class VciWriterTests
         Assert.False(File.Exists(f.Request.BreadcrumbPath));
     }
 
+    [Theory]
+    [InlineData(CompareState.Unequal, IndividualObjectCompareDetails.ProjectObjectChanged | IndividualObjectCompareDetails.WorkspaceFileChanged, "conflict")]
+    [InlineData(CompareState.Unequal, IndividualObjectCompareDetails.WorkspaceFileChanged, "target")]
+    [InlineData(CompareState.WorkspaceFileMissing, IndividualObjectCompareDetails.None, "target")]
+    [InlineData(CompareState.Unknown, IndividualObjectCompareDetails.None, "conflict")]
+    [InlineData(CompareState.Equal, IndividualObjectCompareDetails.None, "equal")]
+    public void SyncToWorkspace_EarlierSyncChangesLaterStatus_UsesCurrentDecision(
+        CompareState state, IndividualObjectCompareDetails details, string bucket)
+    {
+        using var f = new Fixture();
+        var maps = f.MapBoth(CompareState.Unequal, IndividualObjectCompareDetails.ProjectObjectChanged);
+        maps[0].OnSynchronize = _ => maps[1].StatusResult = new()
+        {
+            CompareState = state, IndividualObjectCompareDetails = details
+        };
+
+        var outcome = f.Run("sync_to_workspace");
+
+        Assert.Equal(2, outcome.Leaves);
+        Assert.Equal(1, outcome.Succeeded);
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(bucket == "conflict" ? 1 : 0, outcome.Skipped.Conflict);
+        Assert.Equal(bucket == "target" ? 1 : 0, outcome.Skipped.TargetChanged);
+        Assert.Equal(bucket == "equal" ? 1 : 0, outcome.Skipped.Equal);
+        Assert.Empty(maps[1].SynchronizeCalls);
+        Assert.All(maps, mapping => Assert.Equal(1, mapping.GetStatusCalls));
+        Assert.Empty(f.Portal.ExclusiveAccessCalls);
+        Assert.Empty(f.Portal.Transactions);
+    }
+
+    [Fact]
+    public void SyncToWorkspace_StatusRunsOnceAdjacentToEachSync_WithCurrentBreadcrumb()
+    {
+        using var f = new Fixture();
+        var maps = f.MapBoth(CompareState.Unequal, IndividualObjectCompareDetails.ProjectObjectChanged);
+        var seen = new List<string>();
+        foreach (var mapping in maps)
+        {
+            mapping.OnGetStatus = () =>
+            {
+                var breadcrumb = VciBreadcrumbFile.Take(f.Request.BreadcrumbPath!, f.Request.RequestId!);
+                Assert.Equal(mapping.FileNameWithoutExtension, breadcrumb!.Path.Last().Name);
+                Assert.Equal("sync_to_workspace", breadcrumb.Operation);
+                seen.Add("status:" + mapping.FileNameWithoutExtension);
+            };
+            mapping.OnSynchronize = _ => seen.Add("sync:" + mapping.FileNameWithoutExtension);
+        }
+
+        Assert.Equal(2, f.Run("sync_to_workspace").Succeeded);
+
+        Assert.Equal(new[] { "status:FixtureA", "sync:FixtureA", "status:FixtureB", "sync:FixtureB" }, seen);
+        Assert.All(maps, mapping => Assert.Equal(1, mapping.GetStatusCalls));
+        Assert.False(File.Exists(f.Request.BreadcrumbPath));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SyncToWorkspace_LaterStatusFails_PreservesEarlierSuccess(bool fatal)
+    {
+        using var f = new Fixture();
+        var maps = f.MapBoth(CompareState.Unequal, IndividualObjectCompareDetails.ProjectObjectChanged);
+        maps[1].StatusFailure = fatal ? new NonRecoverableException("Lost during status.")
+            : new EngineeringException("Status unavailable.");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => f.Run("sync_to_workspace"));
+
+        Assert.Equal(fatal ? WorkerFailureCategories.PortalLost : WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        var outcome = Assert.IsType<VciWriteOutcomeInfo>(ex.VciWriteOutcome);
+        Assert.Equal(1, outcome.Succeeded);
+        Assert.Equal(1, outcome.Failed);
+        Assert.Empty(maps[1].SynchronizeCalls);
+        if (fatal) Assert.Equal(f.Second.Name, outcome.LastAttempted!.Path.Last().Name);
+        Assert.False(File.Exists(f.Request.BreadcrumbPath));
+    }
+
     [Fact]
     public void FormatFallbacks_AreCountedAndSupportedSpellingIsUsed()
     {

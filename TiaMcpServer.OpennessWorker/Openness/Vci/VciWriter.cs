@@ -93,19 +93,9 @@ public static class VciWriter
                                 outcome.ProjectModified = true;
                                 continue;
                             }
-                            var status = mapping.GetStatus();
-                            var direction = write.Operation == "sync_to_project" ? VciSyncDirection.ToProject : VciSyncDirection.ToWorkspace;
-                            switch (VciStatusFilter.Decide(direction, status.CompareState.ToString(), status.IndividualObjectCompareDetails.ToString()))
-                            {
-                                case VciSyncDecision.SkipEqual: outcome.Skipped.Equal++; break;
-                                case VciSyncDecision.SkipConflict: outcome.Skipped.Conflict++; break;
-                                case VciSyncDecision.SkipTargetChanged: outcome.Skipped.TargetChanged++; break;
-                                case VciSyncDecision.FailMissing: outcome.Failed++; break;
-                                case VciSyncDecision.Sync:
-                                    candidates.Add((VciFileKey.FromMapping(workspace.RootPath.FullName,
-                                        mapping.DirectoryPath.FullName, mapping.FileNameWithoutExtension), lastAttempted!));
-                                    break;
-                            }
+                            if (write.Operation == "sync_to_workspace" || ShouldSynchronize(mapping, VciSyncDirection.ToProject))
+                                candidates.Add((VciFileKey.FromMapping(workspace.RootPath.FullName,
+                                    mapping.DirectoryPath.FullName, mapping.FileNameWithoutExtension), lastAttempted!));
                         }
                         catch (NonRecoverableException) { throw; }
                         catch (EngineeringException) { outcome.Failed++; }
@@ -155,7 +145,9 @@ public static class VciWriter
                             Attempt(candidate.Attempt);
                             try
                             {
-                                FindMapping(project, workspace, candidate.Key, candidate.Attempt.Path).Synchronize(SynchronizationMode.ProjectToWorkspace);
+                                var mapping = FindMapping(project, workspace, candidate.Key, candidate.Attempt.Path);
+                                if (!ShouldSynchronize(mapping, VciSyncDirection.ToWorkspace)) continue;
+                                mapping.Synchronize(SynchronizationMode.ProjectToWorkspace);
                                 outcome.Succeeded++;
                             }
                             catch (NonRecoverableException) { throw; }
@@ -188,6 +180,20 @@ public static class VciWriter
         {
             if (outcome.ProjectModified) outcome.Notes.Add(VciNotes.SaveProject);
             if (write.BreadcrumbPath is not null) VciBreadcrumbFile.TryDelete(write.BreadcrumbPath);
+        }
+
+        bool ShouldSynchronize(MappedObject mapping, VciSyncDirection direction)
+        {
+            var status = mapping.GetStatus();
+            switch (VciStatusFilter.Decide(direction, status.CompareState.ToString(), status.IndividualObjectCompareDetails.ToString()))
+            {
+                case VciSyncDecision.SkipEqual: outcome.Skipped.Equal++; break;
+                case VciSyncDecision.SkipConflict: outcome.Skipped.Conflict++; break;
+                case VciSyncDecision.SkipTargetChanged: outcome.Skipped.TargetChanged++; break;
+                case VciSyncDecision.FailMissing: outcome.Failed++; break;
+                case VciSyncDecision.Sync: return true;
+            }
+            return false;
         }
 
         void Attempt(VciLastAttemptedInfo attempt)
