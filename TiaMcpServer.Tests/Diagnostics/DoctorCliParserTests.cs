@@ -210,6 +210,28 @@ public class DoctorCliParserTests
         Assert.True(result.Help);
     }
 
+    [Theory]
+    [InlineData("TIA_MCP_ACCESS_MODE")]
+    [InlineData(WorkerTimeoutParser.EnvVar)]
+    public void Parse_HelpWithInvalidEnvironment_StillReportsHelp(string invalidVariable)
+    {
+        var result = DoctorCliParser.Parse(
+            new[] { "--help" }, name => name == invalidVariable ? "bogus" : null);
+
+        Assert.False(result.Valid);
+        Assert.True(result.Help);
+    }
+
+    [Fact]
+    public void Parse_HelpAsExplicitProjectValue_IsNotHelp()
+    {
+        var result = DoctorCliParser.Parse(new[] { "--project=--help" }, _ => null);
+
+        Assert.True(result.Valid);
+        Assert.False(result.Help);
+        Assert.Equal("--help", result.ProjectPath);
+    }
+
     [Fact]
     public void Parse_CaseInsensitive_FlagsWork()
     {

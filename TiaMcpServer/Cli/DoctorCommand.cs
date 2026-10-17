@@ -35,6 +35,14 @@ public static class DoctorCommand
         TextWriter error)
     {
         var options = DoctorCliParser.Parse(args);
+        if (options.Help)
+        {
+            output.WriteLine(options.Json
+                ? JsonSerializer.Serialize(new { usage = UsageText })
+                : UsageText);
+            return Task.FromResult(0);
+        }
+
         if (!options.Valid)
         {
             if (options.Json)
@@ -48,14 +56,6 @@ public static class DoctorCommand
             }
 
             return Task.FromResult(2);
-        }
-
-        if (options.Help)
-        {
-            output.WriteLine(options.Json
-                ? JsonSerializer.Serialize(new { usage = UsageText })
-                : UsageText);
-            return Task.FromResult(0);
         }
 
         try

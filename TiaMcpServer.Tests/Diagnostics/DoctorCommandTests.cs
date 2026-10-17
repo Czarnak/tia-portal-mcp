@@ -69,6 +69,52 @@ public class DoctorCommandTests
         Assert.Empty(error.ToString());
     }
 
+    [Theory]
+    [InlineData("--bogus", "--help")]
+    [InlineData("--help", "--bogus")]
+    [InlineData("--worker-timeout-minutes", "61", "--help")]
+    [InlineData("--help", "--access-mode", "nope")]
+    [InlineData("--read-only", "--read-write", "--help")]
+    [InlineData("--project", "--help")]
+    [InlineData("--access-mode", "--help")]
+    [InlineData("--worker-timeout-minutes", "--help")]
+    [InlineData("--HELP", "--bogus")]
+    public async Task RunAsync_HelpWithInvalidArguments_WritesUsageAndReturnsZero(params string[] args)
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DoctorCommand.RunAsync(
+            args,
+            _ => throw new InvalidOperationException("Checks must not run for --help."),
+            output,
+            error);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Usage: tia-mcp doctor", output.ToString());
+        Assert.Empty(error.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_JsonHelpWithInvalidArguments_WritesUsageDocument()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DoctorCommand.RunAsync(
+            new[] { "--json", "--bogus", "--help" },
+            _ => throw new InvalidOperationException("Checks must not run for --help."),
+            output,
+            error);
+
+        var plainHelp = new StringWriter();
+        await DoctorCommand.RunAsync(new[] { "--json", "--help" }, _ => PassedReport(), plainHelp, new StringWriter());
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(plainHelp.ToString(), output.ToString());
+        Assert.Empty(error.ToString());
+    }
+
     [Fact]
     public async Task RunAsync_JsonHelp_WritesOneParseableUsageDocumentToStandardOutput()
     {
