@@ -24,7 +24,7 @@ public class NetworkToolsTests
 
     /// <summary>A FakeWorker scenario whose hardware read AND write payloads both satisfy their
     /// declared Phase 2 result contracts, and whose hardware state is stable across requests so a
-    /// preview/apply round trip binds.</summary>
+    /// dry-run/apply round trip binds.</summary>
     private const string StableScenario = "network-roundtrip";
 
     private static Type RequiredToolType(string name)

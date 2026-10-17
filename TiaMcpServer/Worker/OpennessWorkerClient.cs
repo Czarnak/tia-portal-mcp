@@ -19,16 +19,16 @@ namespace TiaMcpServer.Worker;
 internal static class WorkerTransportFailureGuidance
 {
     public const string SafeReadTimeout =
-        "The TIA Openness worker did not complete the read before the timeout. No project or PLC runtime mutation was requested. The worker session was discarded; retrying the read is safe.";
+        "The TIA Openness worker did not complete the read before the timeout. No project mutation was requested. The worker session was discarded; retrying the read is safe.";
 
     public const string SafeReadCrash =
-        "The TIA Openness worker stopped before returning the read result. No project or PLC runtime mutation was requested. The worker will restart on the next worker call; retrying the read is safe.";
+        "The TIA Openness worker stopped before returning the read result. No project mutation was requested. The worker will restart on the next worker call; retrying the read is safe.";
 
     public const string StateAffectingTimeout =
-        "The TIA Openness worker timed out before completion was confirmed. The project or PLC runtime state may have changed. Inspect current state before retrying.";
+        "The TIA Openness worker timed out before completion was confirmed. The project state may have changed. Inspect current state before retrying.";
 
     public const string StateAffectingCrash =
-        "The TIA Openness worker stopped before completion was confirmed. The project or PLC runtime state may have changed. Inspect current state before retrying.";
+        "The TIA Openness worker stopped before completion was confirmed. The project state may have changed. Inspect current state before retrying.";
 
     public const string SessionSelectionTimeout =
         "The TIA Openness worker timed out during session selection. The Openness dialog may need an answer in TIA Portal. The previous binding was invalidated; bind_project can be retried.";
@@ -82,8 +82,7 @@ public class OpennessWorkerClient : IDisposable
         _accessPolicy = accessPolicy ?? new Safety.OperationAccessPolicy(McpAccessMode.ReadWrite);
     }
 
-    /// <summary>The current access mode policy. Used by batch tools to validate
-    /// operations before worker invocation.</summary>
+    /// <summary>The current access mode policy; every worker request is authorized against it.</summary>
     public Safety.OperationAccessPolicy AccessPolicy => _accessPolicy;
 
     /// <summary>Current immutable host binding snapshot, used by the guarded write pipeline.</summary>
@@ -291,7 +290,7 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>
-    /// Runs a guarded write or legacy preview/apply critical section against an exact host binding
+    /// Runs a guarded write critical section against an exact host binding
     /// revision. Nested worker requests inherit that pinned identity, and other requests on this
     /// client wait until the section completes. Cancellation can end a wait without dispatching.
     /// </summary>
@@ -370,7 +369,7 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>
-    /// Fail-closed gate for every project-mutating preview/apply path. A startup --project value is
+    /// Fail-closed gate for every project-mutating write path. A startup --project value is
     /// first grounded by one read-only status request; an ordinary unbound session is never
     /// adopted implicitly and must use bind_project, or open_project in read-write/full mode.
     /// </summary>

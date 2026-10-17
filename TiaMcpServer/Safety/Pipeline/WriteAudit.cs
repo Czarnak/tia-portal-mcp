@@ -93,7 +93,7 @@ public interface IWriteAuditSink
 
 /// <summary>
 /// Appends each record as one canonical JSON line to <c>writes-yyyy-MM-dd.jsonl</c> (UTC date,
-/// UTF-8 without a byte-order mark) beside the legacy daily audit files, which it never touches.
+/// UTF-8 without a byte-order mark) in the audit directory.
 /// A failed append is reported on stderr and swallowed so it cannot hide the write result.
 /// </summary>
 public sealed class JsonlWriteAuditSink : IWriteAuditSink
@@ -103,7 +103,7 @@ public sealed class JsonlWriteAuditSink : IWriteAuditSink
 
     private readonly string _directory;
 
-    /// <param name="directory">Audit directory; null resolves the same default as the legacy audit.</param>
+    /// <param name="directory">Audit directory; null resolves the default audit directory.</param>
     public JsonlWriteAuditSink(string? directory = null)
     {
         _directory = directory ?? Path.Combine(

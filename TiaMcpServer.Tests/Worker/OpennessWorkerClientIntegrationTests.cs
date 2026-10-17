@@ -55,16 +55,16 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     private const string SafeReadTimeout =
-        "The TIA Openness worker did not complete the read before the timeout. No project or PLC runtime mutation was requested. The worker session was discarded; retrying the read is safe.";
+        "The TIA Openness worker did not complete the read before the timeout. No project mutation was requested. The worker session was discarded; retrying the read is safe.";
 
     private const string SafeReadCrash =
-        "The TIA Openness worker stopped before returning the read result. No project or PLC runtime mutation was requested. The worker will restart on the next worker call; retrying the read is safe.";
+        "The TIA Openness worker stopped before returning the read result. No project mutation was requested. The worker will restart on the next worker call; retrying the read is safe.";
 
     private const string StateAffectingTimeout =
-        "The TIA Openness worker timed out before completion was confirmed. The project or PLC runtime state may have changed. Inspect current state before retrying.";
+        "The TIA Openness worker timed out before completion was confirmed. The project state may have changed. Inspect current state before retrying.";
 
     private const string StateAffectingCrash =
-        "The TIA Openness worker stopped before completion was confirmed. The project or PLC runtime state may have changed. Inspect current state before retrying.";
+        "The TIA Openness worker stopped before completion was confirmed. The project state may have changed. Inspect current state before retrying.";
 
     private static async Task<WorkerSessionIdentity> BindVerifiedAsync(
         OpennessWorkerClient client,
