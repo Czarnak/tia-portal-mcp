@@ -12,7 +12,8 @@ public class DoctorCliParserTests
     public void Parse_WorkerTimeoutOption_ResolvesTimeoutAndFollowingProject(params string[] timeoutArgs)
     {
         var result = DoctorCliParser.Parse(
-            timeoutArgs.Concat(new[] { "--project", "test.ap21" }).ToArray(), _ => "abc");
+            timeoutArgs.Concat(new[] { "--project", "test.ap21" }).ToArray(),
+            name => name == WorkerTimeoutParser.EnvVar ? "abc" : null);
 
         Assert.True(result.Valid);
         Assert.Equal("test.ap21", result.ProjectPath);

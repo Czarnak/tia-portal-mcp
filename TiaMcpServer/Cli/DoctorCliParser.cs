@@ -34,10 +34,7 @@ public static class DoctorCliParser
         bool help = false;
         string? projectPath = null;
 
-        var hasCliAccessMode = args.Any(IsAccessModeArgument);
-        var accessModeResult = hasCliAccessMode
-            ? AccessModeParser.Parse(args)
-            : AccessModeParseResult.Ok(ResolveAccessMode(getEnvironmentVariable));
+        var accessModeResult = AccessModeParser.Parse(args, getEnvironmentVariable);
         if (!accessModeResult.IsValid)
         {
             return new DoctorCliOptions(
@@ -149,23 +146,5 @@ public static class DoctorCliParser
         {
             WorkerTimeout = workerTimeout
         };
-    }
-
-    private static bool IsAccessModeArgument(string arg)
-        => string.Equals(arg, ReadOnlyFlag, StringComparison.OrdinalIgnoreCase)
-           || string.Equals(arg, ReadWriteFlag, StringComparison.OrdinalIgnoreCase)
-           || string.Equals(arg, AccessModeFlag, StringComparison.OrdinalIgnoreCase)
-           || arg.StartsWith(AccessModePrefix, StringComparison.OrdinalIgnoreCase);
-
-    private static McpAccessMode ResolveAccessMode(Func<string, string?> getEnvironmentVariable)
-    {
-        var envValue = getEnvironmentVariable("TIA_MCP_ACCESS_MODE");
-        if (!string.IsNullOrWhiteSpace(envValue) &&
-            AccessModeParser.ParseValue(envValue) is { IsValid: true } result)
-        {
-            return result.Mode;
-        }
-
-        return McpAccessMode.ReadWrite;
     }
 }
