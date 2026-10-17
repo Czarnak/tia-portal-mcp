@@ -559,7 +559,7 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "C:\\bound\\Session.ap21":
             // Used by the "already bound but worker reports a different project" test: the
-            // session is pre-bound to this literal path (see IsSameProject/TryResolve), so a
+            // session is pre-bound to this literal path (see IsSameProject/TryResolveWithSnapshot), so a
             // request without an explicit projectPath forwards this exact string as the
             // scenario key. Reports a DIFFERENT resolvedProjectPath to simulate divergence.
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\actual\\Other.ap21"}""");

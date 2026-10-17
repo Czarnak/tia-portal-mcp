@@ -1046,7 +1046,7 @@ public class OpennessWorkerClient : IDisposable
         string? filter,
         int? maxResults)
     {
-        // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
+        // Validate the filter before TryResolveWithSnapshot so an invalid filter fails fast without a worker round-trip.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
         {
             return Task.FromResult(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, filterError!));
@@ -1597,7 +1597,7 @@ public class OpennessWorkerClient : IDisposable
                 ProjectPathNormalization.Canonicalize(projectPath), StringComparison.OrdinalIgnoreCase))
             return WorkerCallResult.Ok("{}");
 
-        // Upfront gate: the generic helper's TryResolve has no forceRebind concept, so open keeps
+        // Upfront gate: the generic helper's TryResolveWithSnapshot has no forceRebind concept, so open keeps
         // its own binding-policy check against the CALLER's requested path before doing any work.
         if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
         {

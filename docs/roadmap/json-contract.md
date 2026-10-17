@@ -298,9 +298,9 @@ not changed by this documentation task.
 
 - Network alignment delivered with guarded writes: version `1.0`, warnings/explicit nulls, effects and typed immediate/final verification; actual-by-default `dryRun=false`, no server elicitation. SDK/wrapper legacy/unknown-root/nonboolean rejection before entry is a normal MCP error with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
-- Remaining legacy text pieces (`StandaloneToolResultFormatter`, `WorkerCallResult.ToText` and
-  `ToEnvelopeText`) were deleted in the 2026-10-17 dead-code cleanup.
-  Lifecycle, Network and generic-batch token paths are retired.
+- Lifecycle, Network and generic-batch token paths are retired. The remaining legacy text pieces
+  (`StandaloneToolResultFormatter`, `WorkerCallResult.ToText` and `ToEnvelopeText`) were deleted
+  in the 2026-10-17 dead-code cleanup.
 - Token core retired with `plc_write`: `CanonicalWriteSafety` went with Network; the batch tools,
   the `WriteSafetyService` token core (including the presentation token binding), the legacy audit
   record, `WriteSafetyTooling`, and `SafetyRead` went with the PLC delivery instead of a later
