@@ -99,16 +99,10 @@ public static class BlockMutationService
     {
         var address = BlockAddress.Parse(blockPath);
         var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
-        var target = BlockTargetResolver.ResolveForExport(project, address);
+        // ResolveForExport throws target_not_found on a miss, so Block is set here.
+        var target = BlockTargetResolver.ResolveForExport(plcSoftware, address);
 
-        if (target.Block is null)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.TargetNotFound,
-                $"Block '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
-        }
-
-        target.Block.Delete();
+        target.Block!.Delete();
 
         return new BlockMutationResultInfo
         {

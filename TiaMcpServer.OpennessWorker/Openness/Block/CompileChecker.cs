@@ -97,16 +97,12 @@ public static class CompileChecker
 
         var selectedPlc = PlcSoftwareLocator.FindAll(project, address.PlcName).FirstOrDefault()
             ?? throw new InvalidOperationException("No matching PLC software was found in the project.");
+        // ResolveForExport throws target_not_found on a miss, so Block is set here.
         var target = BlockTargetResolver.ResolveForExport(selectedPlc.Software, address);
-
-        if (target.Block == null)
-        {
-            throw new InvalidOperationException($"Block '{address.BlockName}' not found.");
-        }
 
         var plc = CompileTarget(
             selectedPlc,
-            target.Block,
+            target.Block!,
             new CompileReportProjection.Budget(),
             out allInvocationsAvailable,
             out detailsOmitted);
