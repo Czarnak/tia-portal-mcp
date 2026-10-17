@@ -9,15 +9,11 @@ public static class ProjectServerConnectionObservationSources
     public const string SessionBind = "sessionBind";
 
     public const string ExplicitRead = "explicitRead";
-    public const string OperationPreflight = "operationPreflight";
-    public const string PostFailure = "postFailure";
 
     public static readonly IReadOnlyCollection<string> All = Array.AsReadOnly(new[]
     {
         SessionOpen,
         SessionBind,
         ExplicitRead,
-        OperationPreflight,
-        PostFailure,
     });
 }

@@ -31,7 +31,7 @@ public sealed class MultiuserFoundationContractTests
             new[]
             {
                 "projectContent", "standaloneOnly", "localSessionConditional",
-                "serverProjectOnly", "notYetDelivered", "unsupported",
+                "notYetDelivered", "unsupported",
             },
             ProjectCapabilityApplicabilities.All.ToArray());
     }
@@ -48,7 +48,7 @@ public sealed class MultiuserFoundationContractTests
     public void ProjectServerConnectionObservationSources_KeepSessionBindDistinctFromSessionOpen()
     {
         Assert.Equal(
-            new[] { "sessionOpen", "sessionBind", "explicitRead", "operationPreflight", "postFailure" },
+            new[] { "sessionOpen", "sessionBind", "explicitRead" },
             ProjectServerConnectionObservationSources.All.ToArray());
     }
 
@@ -142,7 +142,7 @@ public sealed class MultiuserFoundationContractTests
             {
                 State = ProjectServerConnectionStates.Unavailable,
                 ObservedAt = new DateTimeOffset(2026, 10, 3, 12, 0, 0, TimeSpan.Zero),
-                ObservationSource = ProjectServerConnectionObservationSources.PostFailure,
+                ObservationSource = ProjectServerConnectionObservationSources.ExplicitRead,
                 PreviousState = ProjectServerConnectionStates.Connected,
                 Transition = true,
             }));
@@ -150,7 +150,7 @@ public sealed class MultiuserFoundationContractTests
 
         Assert.Equal("unavailable", root.GetProperty("state").GetString());
         Assert.Equal("connected", root.GetProperty("previousState").GetString());
-        Assert.Equal("postFailure", root.GetProperty("observationSource").GetString());
+        Assert.Equal("explicitRead", root.GetProperty("observationSource").GetString());
         Assert.True(root.GetProperty("transition").GetBoolean());
     }
 
