@@ -21,17 +21,8 @@ internal sealed class OpenCodeInstaller : IMcpClientInstaller
         McpLaunchSpec spec,
         Func<string, ExecutableResolutionResult> resolveClientExe)
     {
-        var args = new List<string> { "mcp", "add", spec.ServerName, "--" };
-        args.Add(spec.ExecutablePath);
-        args.Add("--access-mode");
-        args.Add(options.AccessMode);
-
-        if (!string.IsNullOrWhiteSpace(options.TiaProject))
-        {
-            args.Add("--project");
-            args.Add(options.TiaProject);
-        }
-
+        var args = new List<string> { "mcp", "add", spec.ServerName, "--", spec.ExecutablePath };
+        args.AddRange(spec.Arguments);
         return new NativeCommand("opencode", args, false);
     }
 

@@ -5,9 +5,9 @@ namespace TiaMcpServer.Tests.Cli;
 
 public class ClientInstallerTests
 {
-    private static McpLaunchSpec CreateSpec(string name = "tia-portal", string? project = null)
+    private static McpLaunchSpec CreateSpec(string name = "tia-portal", string? project = null, string accessMode = "read-only")
     {
-        var args = new List<string> { "--access-mode", "read-only" };
+        var args = new List<string> { "--access-mode", accessMode };
         if (project is not null)
         {
             args.Add("--project");
@@ -43,7 +43,7 @@ public class ClientInstallerTests
     public void ClaudeCode_ReadWrite_BuildsCorrectCommand()
     {
         var installer = new ClaudeCodeInstaller();
-        var spec = CreateSpec();
+        var spec = CreateSpec(accessMode: "read-write");
         var options = CreateOptions("read-write");
 
         var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
@@ -110,7 +110,7 @@ public class ClientInstallerTests
     public void Codex_ReadWrite_BuildsCorrectCommand()
     {
         var installer = new CodexInstaller();
-        var spec = CreateSpec();
+        var spec = CreateSpec(accessMode: "read-write");
         var options = CreateOptions("read-write");
 
         var cmd = installer.BuildInstallCommand(options, spec, DefaultResolve);
@@ -216,6 +216,27 @@ public class ClientInstallerTests
         Assert.NotNull(cmd);
         Assert.Equal("mimo", cmd!.Executable);
         Assert.Equal(new[] { "mcp", "list" }, cmd.Arguments);
+    }
+
+    [Theory]
+    [InlineData("claude-code")]
+    [InlineData("codex")]
+    [InlineData("opencode")]
+    public void NonInteractiveInstallers_LaunchServerWithSpecArguments(string client)
+    {
+        // The launch spec is the single source of the server arguments.
+        IMcpClientInstaller installer = client switch
+        {
+            "claude-code" => new ClaudeCodeInstaller(),
+            "codex" => new CodexInstaller(),
+            _ => new OpenCodeInstaller()
+        };
+        var spec = new McpLaunchSpec("tia-portal", @"C:\tools\tia-mcp.exe", new[] { "--access-mode", "full", "--project", @"C:\P\Line.ap21" });
+
+        var cmd = installer.BuildInstallCommand(CreateOptions(), spec, DefaultResolve);
+
+        var serverArgs = cmd.Arguments.SkipWhile(a => a != "--").Skip(1).ToArray();
+        Assert.Equal(new[] { spec.ExecutablePath }.Concat(spec.Arguments), serverArgs);
     }
 
     [Fact]

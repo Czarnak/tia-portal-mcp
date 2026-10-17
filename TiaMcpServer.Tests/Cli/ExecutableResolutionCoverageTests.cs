@@ -352,6 +352,37 @@ public sealed class ExecutableResolutionCoverageTests
     }
 
     [Fact]
+    public void PrintInteractiveGuide_MiMoCode_PrintsEverySpecArgument()
+    {
+        // The guide used to print only --access-mode and drop the requested --project.
+        var method = typeof(InstallCommand).GetMethod(
+            "PrintInteractiveGuide",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var output = new StringWriter();
+        var spec = new McpLaunchSpec(
+            "tia-portal",
+            @"C:\tools\tia-mcp.exe",
+            new[] { "--access-mode", "read-write", "--project", @"C:\My Projects\Line.ap21" });
+        var options = new InstallOptions(
+            true,
+            ClientKind.MiMoCode,
+            "tia-portal",
+            "read-write",
+            @"C:\My Projects\Line.ap21",
+            null,
+            false,
+            false,
+            false,
+            null);
+
+        method.Invoke(null, new object[] { output, ClientKind.MiMoCode, spec, options });
+
+        Assert.Contains(@"Server args:     --access-mode read-write --project ""C:\My Projects\Line.ap21""", output.ToString());
+    }
+
+    [Fact]
     public void GetClientCommand_FormatsMiMoAndUnknownValues()
     {
         var method = typeof(InstallCommand).GetMethod(

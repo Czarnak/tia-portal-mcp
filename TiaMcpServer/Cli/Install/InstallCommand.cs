@@ -384,7 +384,7 @@ public static class InstallCommand
             case ClientKind.MiMoCode:
                 output.WriteLine($"  Server name:     {spec.ServerName}");
                 output.WriteLine($"  Server command:  {spec.ExecutablePath}");
-                output.WriteLine($"  Server args:     --access-mode {options.AccessMode}");
+                output.WriteLine($"  Server args:     {string.Join(" ", spec.Arguments.Select(QuoteIfSpaced))}");
                 output.WriteLine($"  Transport type:  stdio");
                 break;
             default:
@@ -392,6 +392,9 @@ public static class InstallCommand
                 break;
         }
     }
+
+    private static string QuoteIfSpaced(string argument) =>
+        argument.Any(char.IsWhiteSpace) ? $"\"{argument}\"" : argument;
 
     private static string FormatClientName(ClientKind client) => client switch
     {
