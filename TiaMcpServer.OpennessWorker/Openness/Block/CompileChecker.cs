@@ -5,7 +5,9 @@ using Siemens.Engineering;
 using Siemens.Engineering.Compiler;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Plc;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Plc;
+using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
@@ -95,8 +97,8 @@ public static class CompileChecker
             address = BlockAddress.Parse(plcName + "/" + blockPath);
         }
 
-        var selectedPlc = PlcSoftwareLocator.FindAll(project, address.PlcName).FirstOrDefault()
-            ?? throw new InvalidOperationException("No matching PLC software was found in the project.");
+        // Without a PLC qualifier this requires a single PLC in the project (target_ambiguous otherwise).
+        var selectedPlc = PlcSoftwareLocator.FindUnique(project, address.PlcName);
         // ResolveForExport throws target_not_found on a miss, so Block is set here.
         var target = BlockTargetResolver.ResolveForExport(selectedPlc.Software, address);
 
@@ -106,10 +108,6 @@ public static class CompileChecker
             new CompileReportProjection.Budget(),
             out allInvocationsAvailable,
             out detailsOmitted);
-        if (address.PlcName == null)
-        {
-            plc.DiagnosticNotes.Add("No PLC qualifier was specified; compiled using the first PLC found.");
-        }
 
         var report = new CompileCheckReport
         {
@@ -139,7 +137,17 @@ public static class CompileChecker
         allInvocationsAvailable = true;
         detailsOmitted = false;
 
-        foreach (var plc in PlcSoftwareLocator.FindAll(project, plcName))
+        // Discover every PLC before compiling any: an unreadable device item could hide one.
+        var discoveryFailures = new List<string>();
+        var plcs = PlcSoftwareLocator.FindEveryPlc(project, plcName, discoveryFailures).ToList();
+        if (discoveryFailures.Count > 0)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.WorkerOperationFailed,
+                discoveryFailures[0] + " Nothing was compiled.");
+        }
+
+        foreach (var plc in plcs)
         {
             report.Plcs.Add(CompileTarget(
                 plc,
