@@ -139,7 +139,7 @@ Verification: unit tests, then a live regression of each touched domain against 
 
 ## Suggested PR order
 
-1. **A** (dead code) and **B-1, B-2, B-3** (CLI and compile defects). Small and safe; B-2 needs a short live check.
+1. **A** (dead code) as one PR, then **B-1**, **B-2** and **B-3** (CLI and compile defects) as three separate PRs, so each fix gets its own release-notes line. Small and safe; B-2 needs a short live check.
 2. **E-3 + B-4 + B-16 + Q3** (network read helpers, unreadable candidates, worker-wide `portal_lost`). Needs live verification.
 3. **B-5 to B-15**, grouped by area.
 4. **C** (tool surface contract), after Q4 and Q6. Docs last, after live acceptance.
