@@ -25,32 +25,6 @@ public sealed class ProjectSessionBinding
             : ProjectBindingSnapshot.ConfiguredUnverifiedState;
     }
 
-    /// <summary>
-    /// Effective path used for request routing. This may be an explicitly configured but not yet
-    /// worker-verified path; use <see cref="TryGetVerified"/> before any guarded write.
-    /// </summary>
-    public string? BoundProjectPath
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _verifiedIdentity?.ProjectPath ?? _configuredProjectPath;
-            }
-        }
-    }
-
-    public string BindingState
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _state;
-            }
-        }
-    }
-
     public bool IsVerified
     {
         get
@@ -106,16 +80,6 @@ public sealed class ProjectSessionBinding
             return false;
         }
     }
-
-    /// <summary>
-    /// Resolves request routing without adopting a caller path. Invalidated bindings fail closed.
-    /// </summary>
-    public bool TryResolve(string? requestedProjectPath, out string? effectiveProjectPath, out string? error)
-        => TryResolveWithSnapshot(
-            requestedProjectPath,
-            out _,
-            out effectiveProjectPath,
-            out error);
 
     /// <summary>
     /// Atomically captures the binding revision and resolves the request path against that same
@@ -402,15 +366,6 @@ public sealed class ProjectSessionBinding
             _verifiedIdentity = null;
             TransitionTo(ProjectBindingSnapshot.InvalidatedState, reason);
             return true;
-        }
-    }
-
-    public bool IsBoundTo(string? projectPath)
-    {
-        lock (_gate)
-        {
-            var current = _verifiedIdentity?.ProjectPath ?? _configuredProjectPath;
-            return current is not null && projectPath is not null && IsSameProject(current, projectPath);
         }
     }
 

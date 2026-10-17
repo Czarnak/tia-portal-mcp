@@ -160,7 +160,7 @@ public class ReadWriteModeCeilingTests
             await FakeWorkerBinding.BindVerifiedAsync(client, binding, "ok");
             var crash = await InvokeRawCrash(client);
             Assert.Equal(WorkerFailureCategories.WorkerCrashed, crash.FailureCategory);
-            Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+            Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
             Assert.True(binding.Bind("ok", forceRebind: true, out var error), error);
             await FakeWorkerBinding.BindVerifiedAsync(client, binding, "ok");
             Assert.True(File.Exists(log), "FakeWorker must record its actual launch arguments.");

@@ -233,7 +233,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var rebound = await rebindTask.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(rebound.Success, rebound.Error);
-        Assert.Equal("C:\\open\\Line.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\open\\Line.ap21", binding.CaptureSnapshot().ProjectPath);
         Assert.False(projectA.SameBinding(binding.CaptureSnapshot()));
     }
 
@@ -254,7 +254,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.True(result.Success, result.Error);
         Assert.Equal("{\"seq\":2}", result.Payload);
         Assert.True(binding.IsVerified);
-        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.CaptureSnapshot().State);
         Assert.Equal(ProjectBindingSnapshot.VerifiedState, call.HostBinding.State);
         Assert.NotNull(call.HostBinding.ToWorkerIdentity());
         Assert.True(call.HostBinding.SameBinding(binding.CaptureSnapshot()));
@@ -278,7 +278,7 @@ public class OpennessWorkerClientIntegrationTests
         var document = LifecycleTestCalls.Document(applied);
         Assert.Equal("open_project", document.GetProperty("tool").GetString());
         LifecycleTestCalls.Succeeded(document);
-        Assert.Equal(path, binding.BoundProjectPath);
+        Assert.Equal(path, binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -380,7 +380,7 @@ public class OpennessWorkerClientIntegrationTests
         using var client = CreateClient(binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         await client.InspectPortalAsync(new WorkerRequest { Method = "list_tia_portal_processes" });
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         File.WriteAllText(source + ".recovery", pause);
         var recovery = client.RegroundInvalidatedSourceForOpenAsync(true);
         ProjectBindingSnapshot concurrent;
@@ -560,13 +560,13 @@ public class OpennessWorkerClientIntegrationTests
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "portal-lost");
-        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.CaptureSnapshot().State);
 
         var result = await client.ListTagTablesAsync(null, null);
 
         Assert.False(result.Success);
         Assert.Equal("portal_lost", result.FailureCategory);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
     }
 
@@ -585,7 +585,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerTimeout, result.FailureCategory);
         Assert.Equal(SafeReadTimeout, result.Error);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         await AssertWorkerRestartedForNextCallerAsync(client);
     }
 
@@ -608,7 +608,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerCrashed, result.FailureCategory);
         Assert.Equal(SafeReadCrash, result.Error);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         await AssertWorkerRestartedForNextCallerAsync(client);
     }
 
@@ -631,7 +631,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerTimeout, result.FailureCategory);
         Assert.Equal(StateAffectingTimeout, result.Error);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         await AssertWorkerRestartedForNextCallerAsync(client);
     }
 
@@ -654,7 +654,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerCrashed, result.FailureCategory);
         Assert.Equal(StateAffectingCrash, result.Error);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         await AssertWorkerRestartedForNextCallerAsync(client);
     }
 
@@ -683,7 +683,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerTimeout, result.FailureCategory);
         Assert.Equal(StateAffectingTimeout, result.Error);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         await AssertWorkerRestartedForNextCallerAsync(client);
     }
 
@@ -940,7 +940,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await boundClient.GetProjectStatusAsync("ok-with-resolved-path");
 
         Assert.True(result.Success);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -956,7 +956,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.GetProjectStatusAsync("worker-error");
 
         Assert.False(result.Success);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -971,7 +971,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.GetProjectStatusAsync("ok");
 
         Assert.True(result.Success);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -991,8 +991,8 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
-        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.BindingState);
-        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.CaptureSnapshot().State);
+        Assert.Equal("C:\\bound\\Session.ap21", binding.CaptureSnapshot().ProjectPath);
         Assert.Contains("C:\\bound\\Session.ap21", result.Error);
         Assert.Contains("C:\\actual\\Other.ap21", result.Error);
     }
@@ -1015,8 +1015,8 @@ public class OpennessWorkerClientIntegrationTests
         Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
         Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
         Assert.Equal(divergent, result.SessionIdentity!.ProjectPath);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
-        Assert.Equal(source, binding.BoundProjectPath);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
+        Assert.Equal(source, binding.CaptureSnapshot().ProjectPath);
 
         var blocked = await client.GetProjectStatusAsync(null);
         Assert.False(blocked.Success);
@@ -1028,7 +1028,7 @@ public class OpennessWorkerClientIntegrationTests
         var recovered = await client.GetProjectStatusAsync(null);
         Assert.True(recovered.Success, recovered.Error);
         Assert.True(binding.IsVerified);
-        Assert.Equal(source, binding.BoundProjectPath);
+        Assert.Equal(source, binding.CaptureSnapshot().ProjectPath);
         Assert.Equal(new[] { "hello", "get_project_status", "get_project_status" }, transport.Requests);
     }
 
@@ -1048,7 +1048,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.True(result.Success);
-        Assert.Equal("C:\\stable\\Project.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\stable\\Project.ap21", binding.CaptureSnapshot().ProjectPath);
         Assert.Empty(result.Warnings);
         Assert.True(binding.IsVerified);
     }
@@ -1066,12 +1066,12 @@ public class OpennessWorkerClientIntegrationTests
 
         // Finding 2 regression: the divergence check used a raw string.Equals, which would treat
         // a forward-vs-back-slash spelling of the identical path as a different project and warn
-        // on every call. ProjectSessionBinding.IsBoundTo canonicalizes both sides (matching
-        // TryResolve/Bind's own "same project?" logic) so an equivalent spelling must NOT warn.
+        // on every call. the binding canonicalizes both sides (matching
+        // TryResolveWithSnapshot/Bind's own "same project?" logic) so an equivalent spelling must NOT warn.
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.True(result.Success);
-        Assert.Equal("C:\\equivalent\\Project.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\equivalent\\Project.ap21", binding.CaptureSnapshot().ProjectPath);
         Assert.Empty(result.Warnings);
         Assert.True(binding.IsVerified);
     }
@@ -1097,7 +1097,7 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.False(afterRestart.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, afterRestart.FailureCategory);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         Assert.False(binding.TryGetVerified(original.ProjectPath, out _, out _));
     }
 
@@ -1125,7 +1125,7 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.True(result.Success, result.Error);
         Assert.Empty(result.Warnings);
-        Assert.Equal("C:\\Target\\Copy\\Copy.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Target\\Copy\\Copy.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -1300,7 +1300,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
         // The existing binding is untouched.
-        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\bound\\Session.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -1327,9 +1327,9 @@ public class OpennessWorkerClientIntegrationTests
             rebind: true);
 
         Assert.True(result.Success);
-        Assert.Equal("C:\\resolved\\Ground.ap21", binding.BoundProjectPath);
-        Assert.DoesNotContain("Target", binding.BoundProjectPath!);
-        Assert.DoesNotContain("Copy", binding.BoundProjectPath!);
+        Assert.Equal("C:\\resolved\\Ground.ap21", binding.CaptureSnapshot().ProjectPath);
+        Assert.DoesNotContain("Target", binding.CaptureSnapshot().ProjectPath!);
+        Assert.DoesNotContain("Copy", binding.CaptureSnapshot().ProjectPath!);
         Assert.Empty(result.Warnings);
     }
 
@@ -1356,7 +1356,7 @@ public class OpennessWorkerClientIntegrationTests
             rebind: true);
 
         Assert.False(result.Success);
-        Assert.Equal("C:\\bound\\FailingSave.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\bound\\FailingSave.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -1455,7 +1455,7 @@ public class OpennessWorkerClientIntegrationTests
         var document = LifecycleTestCalls.Document(applied);
         LifecycleTestCalls.Succeeded(document);
         Assert.False(document.GetProperty("verification").GetProperty("value").GetProperty("isOpen").GetBoolean());
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     // --- Task 3: explicit, worker-grounded binding transitions -----------------------------
@@ -1475,7 +1475,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.OpenProjectAsync("worker-error", forceRebind: true);
 
         Assert.False(result.Success);
-        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\bound\\Session.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -1492,7 +1492,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.GetProjectStatusAsync("ok-with-resolved-path");
 
         Assert.True(result.Success);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -1510,8 +1510,8 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.OpenProjectAsync("open-resolved-differs", forceRebind: false);
 
         Assert.True(result.Success);
-        Assert.Equal("C:\\worker\\Ground.ap21", binding.BoundProjectPath);
-        Assert.DoesNotContain("open-resolved-differs", binding.BoundProjectPath!);
+        Assert.Equal("C:\\worker\\Ground.ap21", binding.CaptureSnapshot().ProjectPath);
+        Assert.DoesNotContain("open-resolved-differs", binding.CaptureSnapshot().ProjectPath!);
     }
 
     [Fact]
@@ -1533,9 +1533,9 @@ public class OpennessWorkerClientIntegrationTests
             comment: null);
 
         Assert.True(result.Success);
-        Assert.Equal("C:\\worker\\Created.ap21", binding.BoundProjectPath);
-        Assert.DoesNotContain("create-resolved-differs", binding.BoundProjectPath!);
-        Assert.DoesNotContain("Line", binding.BoundProjectPath!);
+        Assert.Equal("C:\\worker\\Created.ap21", binding.CaptureSnapshot().ProjectPath);
+        Assert.DoesNotContain("create-resolved-differs", binding.CaptureSnapshot().ProjectPath!);
+        Assert.DoesNotContain("Line", binding.CaptureSnapshot().ProjectPath!);
     }
 
     [Fact]
@@ -1554,7 +1554,7 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -1577,6 +1577,6 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.CloseProjectAsync(projectPath: null, saveBeforeClose: false);
 
         Assert.True(result.Success, result.Error);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 }

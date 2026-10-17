@@ -573,7 +573,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // Used by the "equivalent but differently-spelled path" divergence test (Finding 2):
             // reports the identical project via forward slashes instead of back slashes. A raw
             // string.Equals would misclassify this as divergence; the canonicalized comparison
-            // (ProjectSessionBinding.IsBoundTo) must not.
+            // (ProjectSessionBinding path matching) must not.
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:/equivalent/Project.ap21"}""");
             break;
         case "ok-with-warnings":

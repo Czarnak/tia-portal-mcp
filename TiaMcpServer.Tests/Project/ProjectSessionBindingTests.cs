@@ -19,7 +19,7 @@ public class ProjectSessionBindingTests
         Assert.Contains("read-write/full", error);
 
         var configured = new ProjectSessionBinding(@"C:\Projects\A.ap21");
-        Assert.False(configured.TryResolve(@"C:\Projects\B.ap21", out _, out var conflict));
+        Assert.False(configured.TryResolveWithSnapshot(@"C:\Projects\B.ap21", out _, out _, out var conflict));
         Assert.Contains("bind_project with forceRebind=true", conflict);
         Assert.True(conflict!.IndexOf("bind_project", StringComparison.Ordinal)
             < conflict.IndexOf("open_project", StringComparison.Ordinal));
@@ -159,11 +159,11 @@ public class ProjectSessionBindingTests
     {
         var binding = new ProjectSessionBinding(null);
 
-        Assert.True(binding.TryResolve("C:\\Projects\\Line.ap21", out var effectivePath, out var error));
+        Assert.True(binding.TryResolveWithSnapshot("C:\\Projects\\Line.ap21", out _, out var effectivePath, out var error));
 
         Assert.Equal("C:\\Projects\\Line.ap21", effectivePath);
         Assert.Null(error);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -176,8 +176,9 @@ public class ProjectSessionBindingTests
         var binding = new ProjectSessionBinding(null);
         binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
 
-        Assert.True(binding.TryResolve(
+        Assert.True(binding.TryResolveWithSnapshot(
             "C:\\Projects\\Other\\..\\Line.ap21",
+            out _,
             out var effectivePath,
             out var error));
 
@@ -191,8 +192,9 @@ public class ProjectSessionBindingTests
         var binding = new ProjectSessionBinding(null);
         binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
 
-        Assert.True(binding.TryResolve(
+        Assert.True(binding.TryResolveWithSnapshot(
             "C:/Projects/Line.ap21",
+            out _,
             out var effectivePath,
             out var error));
 
@@ -206,7 +208,7 @@ public class ProjectSessionBindingTests
         var binding = new ProjectSessionBinding(null);
         binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
 
-        Assert.True(binding.TryResolve("C:\\Projects\\Line.ap21", out var effectivePath, out var error));
+        Assert.True(binding.TryResolveWithSnapshot("C:\\Projects\\Line.ap21", out _, out var effectivePath, out var error));
 
         Assert.Equal("C:\\Projects\\Line.ap21", effectivePath);
         Assert.Null(error);
@@ -218,7 +220,7 @@ public class ProjectSessionBindingTests
         var binding = new ProjectSessionBinding(null);
         binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out _);
 
-        Assert.False(binding.TryResolve("C:\\Projects\\Other.ap21", out var effectivePath, out var error));
+        Assert.False(binding.TryResolveWithSnapshot("C:\\Projects\\Other.ap21", out _, out var effectivePath, out var error));
 
         Assert.Null(effectivePath);
         Assert.Contains("already bound", error);
@@ -229,7 +231,7 @@ public class ProjectSessionBindingTests
     {
         var binding = new ProjectSessionBinding("C:\\Projects\\Startup.ap21");
 
-        Assert.True(binding.TryResolve(null, out var effectivePath, out var error));
+        Assert.True(binding.TryResolveWithSnapshot(null, out _, out var effectivePath, out var error));
 
         Assert.Equal("C:\\Projects\\Startup.ap21", effectivePath);
         Assert.Null(error);
@@ -243,7 +245,7 @@ public class ProjectSessionBindingTests
         Assert.True(binding.Bind("  C:\\Projects\\Line.ap21  ", forceRebind: false, out var error));
 
         Assert.Null(error);
-        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -254,7 +256,7 @@ public class ProjectSessionBindingTests
         Assert.True(binding.Bind("C:\\Projects\\Line.ap21", forceRebind: false, out var error));
 
         Assert.Null(error);
-        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -265,7 +267,7 @@ public class ProjectSessionBindingTests
         Assert.False(binding.Bind("C:\\Projects\\Other.ap21", forceRebind: false, out var error));
 
         Assert.Contains("already bound", error);
-        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -276,7 +278,7 @@ public class ProjectSessionBindingTests
         Assert.True(binding.Bind("C:\\Projects\\Other.ap21", forceRebind: true, out var error));
 
         Assert.Null(error);
-        Assert.Equal("C:\\Projects\\Other.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Projects\\Other.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -287,7 +289,7 @@ public class ProjectSessionBindingTests
         Assert.True(binding.Clear("C:\\Projects\\Line.ap21", out var error));
 
         Assert.Null(error);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Theory]
@@ -334,7 +336,7 @@ public class ProjectSessionBindingTests
         Assert.True(binding.Clear(null, out var error));
 
         Assert.Null(error);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -345,7 +347,7 @@ public class ProjectSessionBindingTests
         Assert.False(binding.Clear("C:\\Projects\\Other.ap21", out var error));
 
         Assert.Contains("already bound", error);
-        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -353,7 +355,7 @@ public class ProjectSessionBindingTests
     {
         var binding = new ProjectSessionBinding(@"C:\Projects\a.ap21");
 
-        var resolved = binding.TryResolve(@"C:\Projects\b.ap21", out _, out var error);
+        var resolved = binding.TryResolveWithSnapshot(@"C:\Projects\b.ap21", out _, out _, out var error);
 
         Assert.False(resolved);
         Assert.Contains("forceRebind", error);
@@ -368,7 +370,7 @@ public class ProjectSessionBindingTests
         Assert.True(binding.CanBind("C:\\Projects\\Line.ap21", forceRebind: false, out var error));
 
         Assert.Null(error);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -379,7 +381,7 @@ public class ProjectSessionBindingTests
         Assert.False(binding.CanBind("C:\\Projects\\Other.ap21", forceRebind: false, out var error));
 
         Assert.Contains("already bound", error);
-        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -390,7 +392,7 @@ public class ProjectSessionBindingTests
         Assert.True(binding.CanBind("C:\\Projects\\Other.ap21", forceRebind: true, out var error));
 
         Assert.Null(error);
-        Assert.Equal("C:\\Projects\\Line.ap21", binding.BoundProjectPath);
+        Assert.Equal("C:\\Projects\\Line.ap21", binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -408,11 +410,11 @@ public class ProjectSessionBindingTests
     {
         var binding = new ProjectSessionBinding(null);
 
-        Assert.True(binding.TryResolve("C:\\a.ap21", out var effective, out var error));
+        Assert.True(binding.TryResolveWithSnapshot("C:\\a.ap21", out _, out var effective, out var error));
 
         Assert.Equal("C:\\a.ap21", effective);
         Assert.Null(error);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -420,8 +422,8 @@ public class ProjectSessionBindingTests
     {
         var binding = new ProjectSessionBinding(null);
 
-        Assert.True(binding.TryResolve("C:\\a.ap21", out _, out _));
-        Assert.True(binding.TryResolve("C:\\b.ap21", out var effective, out var error));
+        Assert.True(binding.TryResolveWithSnapshot("C:\\a.ap21", out _, out _, out _));
+        Assert.True(binding.TryResolveWithSnapshot("C:\\b.ap21", out _, out var effective, out var error));
 
         Assert.Equal("C:\\b.ap21", effective);
         Assert.Null(error);
@@ -433,7 +435,7 @@ public class ProjectSessionBindingTests
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\a.ap21", forceRebind: false, out _));
 
-        Assert.False(binding.TryResolve("C:\\b.ap21", out _, out var error));
+        Assert.False(binding.TryResolveWithSnapshot("C:\\b.ap21", out _, out _, out var error));
 
         Assert.Contains("already bound", error);
         Assert.Contains("forceRebind=true", error);
@@ -446,7 +448,7 @@ public class ProjectSessionBindingTests
         const string other = "C:\\Projects\\Other.ap21";
 
         var forTryResolve = new ProjectSessionBinding(bound);
-        forTryResolve.TryResolve(other, out _, out var tryResolveError);
+        forTryResolve.TryResolveWithSnapshot(other, out _, out _, out var tryResolveError);
 
         var forBind = new ProjectSessionBinding(bound);
         forBind.Bind(other, forceRebind: false, out var bindError);
@@ -466,7 +468,7 @@ public class ProjectSessionBindingTests
     {
         var binding = new ProjectSessionBinding("C:\\Projects\\Line.ap21");
 
-        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.CaptureSnapshot().State);
         Assert.False(binding.TryGetVerified(null, out _, out var beforeError));
         Assert.Contains("worker-verified", beforeError);
 
@@ -518,9 +520,9 @@ public class ProjectSessionBindingTests
 
         binding.Invalidate(mismatch!);
 
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
         Assert.False(binding.TryGetVerified("C:\\Projects\\Line.ap21", out _, out var writeError));
-        Assert.False(binding.TryResolve("C:\\Projects\\Line.ap21", out _, out var routeError));
+        Assert.False(binding.TryResolveWithSnapshot("C:\\Projects\\Line.ap21", out _, out _, out var routeError));
         Assert.Contains("invalidated", writeError);
         Assert.Contains("invalidated", routeError);
     }

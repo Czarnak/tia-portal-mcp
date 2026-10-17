@@ -78,7 +78,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
     {
         using var fixture = new Fixture();
         await fixture.Bind("lifecycle-probe-only");
-        var source = fixture.Binding.BoundProjectPath;
+        var source = fixture.Binding.CaptureSnapshot().ProjectPath;
         var directory = Directory.CreateTempSubdirectory("tia-archive-test-").FullName;
         try
         {
@@ -147,7 +147,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
             {
                 var document = LifecycleTestCalls.Document(call);
                 LifecycleTestCalls.Phase(document, "preview");
-                Assert.Equal(fixture.Binding.BoundProjectPath,
+                Assert.Equal(fixture.Binding.CaptureSnapshot().ProjectPath,
                     document.GetProperty("effects").GetProperty("sourceProjectPath").GetString());
                 Assert.False(document.GetProperty("effects").GetProperty("savesSource").GetBoolean());
                 Assert.False(document.TryGetProperty("requestedInputHash", out _));
@@ -353,7 +353,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         LifecycleTestCalls.Rejected(result, "guard_blocked");
         Assert.Contains(LifecycleTestCalls.Document(result).GetProperty("guards").EnumerateArray(),
             guard => guard.GetProperty("id").GetString() == "discards_unsaved_source_changes");
-        Assert.Equal(fixture.Source, fixture.Binding.BoundProjectPath);
+        Assert.Equal(fixture.Source, fixture.Binding.CaptureSnapshot().ProjectPath);
         await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
@@ -368,7 +368,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         var document = LifecycleTestCalls.Document(result);
         LifecycleTestCalls.Succeeded(document);
         Assert.False(document.GetProperty("effects").GetProperty("willCloseSource").GetBoolean());
-        Assert.Equal(fixture.Physical(destination), fixture.Binding.BoundProjectPath);
+        Assert.Equal(fixture.Physical(destination), fixture.Binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -383,7 +383,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         LifecycleTestCalls.Succeeded(document);
         Assert.True(document.GetProperty("effects").GetProperty("sourceStatus").GetProperty("isModified").GetBoolean());
         Assert.False(document.GetProperty("effects").GetProperty("willCloseSource").GetBoolean());
-        Assert.Equal(fixture.Source, fixture.Binding.BoundProjectPath);
+        Assert.Equal(fixture.Source, fixture.Binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
@@ -452,7 +452,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
             "guard_blocked");
 
         Assert.True(fixture.Binding.IsVerified);
-        Assert.Equal(fixture.Source, fixture.Binding.BoundProjectPath);
+        Assert.Equal(fixture.Source, fixture.Binding.CaptureSnapshot().ProjectPath);
         await AssertNoOpenProjectCallsAsync(fixture.Client, fixture.Source);
     }
 
@@ -499,7 +499,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         Assert.Equal("invalid value",
             LifecycleTestCalls.Document(result).GetProperty("error").GetProperty("message").GetString());
         Assert.Equal(ProjectBindingSnapshot.InvalidatedState, fixture.Binding.CaptureSnapshot().State);
-        Assert.Equal(before.ProjectPath, fixture.Binding.BoundProjectPath);
+        Assert.Equal(before.ProjectPath, fixture.Binding.CaptureSnapshot().ProjectPath);
     }
 
     [Theory]

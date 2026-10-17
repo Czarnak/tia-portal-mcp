@@ -78,7 +78,7 @@ public sealed class HardwarePageWorkerClientTests
 
         Assert.True(continuation.WorkerResult.Success, continuation.WorkerResult.Error);
         Assert.Equal(ProjectBindingSnapshot.UnboundState, continuation.HostBinding.State);
-        Assert.Equal(ProjectBindingSnapshot.UnboundState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, binding.CaptureSnapshot().State);
         using var request = JsonDocument.Parse(continuation.WorkerResult.Payload);
         Assert.Equal(ProjectPath, request.RootElement.GetProperty("projectPath").GetString());
         Assert.Equal(23, request.RootElement.GetProperty("hardwarePageSize").GetInt32());

@@ -174,12 +174,12 @@ public sealed class ProjectTreeBrowseCoordinatorTests
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
         using var fixture = Fixture(worker, scenario);
-        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.CaptureSnapshot().State);
 
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
 
         Assert.True(first.IsSuccess, first.CanonicalText);
-        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.BindingState);
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.CaptureSnapshot().State);
         Assert.True(fixture.Codec.Decode(NextCursor(first)).HostBinding.Matches(binding.CaptureSnapshot()));
         var next = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
         Assert.True(next.IsSuccess, next.CanonicalText);
