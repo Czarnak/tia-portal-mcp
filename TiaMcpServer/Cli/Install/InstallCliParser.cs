@@ -79,7 +79,7 @@ public static class InstallCliParser
                     string.IsNullOrWhiteSpace(args[i + 1]) ||
                     args[i + 1].StartsWith("--", StringComparison.Ordinal))
                 {
-                    return Invalid("--access-mode requires a value. Valid values: 'read-only', 'read-write'.", json);
+                    return Invalid("--access-mode requires a value. Valid values: 'read-only', 'read-write', 'full'.", json);
                 }
 
                 accessMode = args[++i];
@@ -91,7 +91,7 @@ public static class InstallCliParser
                 accessMode = arg.Substring(AccessModePrefix.Length);
                 if (string.IsNullOrWhiteSpace(accessMode))
                 {
-                    return Invalid("--access-mode requires a value. Valid values: 'read-only', 'read-write'.", json);
+                    return Invalid("--access-mode requires a value. Valid values: 'read-only', 'read-write', 'full'.", json);
                 }
 
                 continue;
