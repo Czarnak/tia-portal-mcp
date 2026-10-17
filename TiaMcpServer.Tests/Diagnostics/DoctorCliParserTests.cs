@@ -82,7 +82,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_EmptyArgs_ReturnsValidDefaults()
     {
-        var result = DoctorCliParser.Parse(Array.Empty<string>());
+        var result = DoctorCliParser.Parse(Array.Empty<string>(), _ => null);
 
         Assert.True(result.Valid);
         Assert.False(result.Json);
@@ -94,7 +94,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_JsonFlag_SetsJson()
     {
-        var result = DoctorCliParser.Parse(new[] { "--json" });
+        var result = DoctorCliParser.Parse(new[] { "--json" }, _ => null);
 
         Assert.True(result.Valid);
         Assert.True(result.Json);
@@ -103,7 +103,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_VerboseFlag_SetsVerbose()
     {
-        var result = DoctorCliParser.Parse(new[] { "--verbose" });
+        var result = DoctorCliParser.Parse(new[] { "--verbose" }, _ => null);
 
         Assert.True(result.Valid);
         Assert.True(result.Verbose);
@@ -112,7 +112,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_ProjectFlag_SetsProjectPath()
     {
-        var result = DoctorCliParser.Parse(new[] { "--project", @"C:\Projects\Line.ap21" });
+        var result = DoctorCliParser.Parse(new[] { "--project", @"C:\Projects\Line.ap21" }, _ => null);
 
         Assert.True(result.Valid);
         Assert.Equal(@"C:\Projects\Line.ap21", result.ProjectPath);
@@ -121,7 +121,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_ProjectEquals_SetsProjectPath()
     {
-        var result = DoctorCliParser.Parse(new[] { "--project=C:\\Projects\\Line.ap21" });
+        var result = DoctorCliParser.Parse(new[] { "--project=C:\\Projects\\Line.ap21" }, _ => null);
 
         Assert.True(result.Valid);
         Assert.Equal(@"C:\Projects\Line.ap21", result.ProjectPath);
@@ -134,7 +134,7 @@ public class DoctorCliParserTests
         {
             "--project", @"C:\Projects\A.ap21",
             @"--project=C:\Projects\B.ap21"
-        });
+        }, _ => null);
 
         Assert.False(result.Valid);
         Assert.Contains("only once", result.ParseError, StringComparison.OrdinalIgnoreCase);
@@ -143,7 +143,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_CombinedFlags_AllSet()
     {
-        var result = DoctorCliParser.Parse(new[] { "--json", "--verbose", "--project", "test.ap21" });
+        var result = DoctorCliParser.Parse(new[] { "--json", "--verbose", "--project", "test.ap21" }, _ => null);
 
         Assert.True(result.Valid);
         Assert.True(result.Json);
@@ -154,7 +154,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_UnknownArg_ReturnsInvalid()
     {
-        var result = DoctorCliParser.Parse(new[] { "--bogus" });
+        var result = DoctorCliParser.Parse(new[] { "--bogus" }, _ => null);
 
         Assert.False(result.Valid);
         Assert.Contains("Unknown doctor argument", result.ParseError);
@@ -163,7 +163,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_ProjectFlagWithoutValue_ReturnsInvalid()
     {
-        var result = DoctorCliParser.Parse(new[] { "--project" });
+        var result = DoctorCliParser.Parse(new[] { "--project" }, _ => null);
 
         Assert.False(result.Valid);
         Assert.Contains("requires a value", result.ParseError);
@@ -172,7 +172,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_ProjectFlagFollowedByAnotherFlag_ReturnsInvalid()
     {
-        var result = DoctorCliParser.Parse(new[] { "--project", "--json" });
+        var result = DoctorCliParser.Parse(new[] { "--project", "--json" }, _ => null);
 
         Assert.False(result.Valid);
         Assert.True(result.Json);
@@ -182,7 +182,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_ProjectEqualsWithoutValue_ReturnsInvalid()
     {
-        var result = DoctorCliParser.Parse(new[] { "--project=" });
+        var result = DoctorCliParser.Parse(new[] { "--project=" }, _ => null);
 
         Assert.False(result.Valid);
         Assert.Contains("requires a value", result.ParseError);
@@ -193,7 +193,7 @@ public class DoctorCliParserTests
     [InlineData("   ")]
     public void Parse_ProjectFlagWithBlankSeparateValue_ReturnsInvalid(string projectPath)
     {
-        var result = DoctorCliParser.Parse(new[] { "--json", "--project", projectPath });
+        var result = DoctorCliParser.Parse(new[] { "--json", "--project", projectPath }, _ => null);
 
         Assert.False(result.Valid);
         Assert.True(result.Json);
@@ -204,7 +204,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_HelpFlag_ReturnsValidHelpRequest()
     {
-        var result = DoctorCliParser.Parse(new[] { "--help" });
+        var result = DoctorCliParser.Parse(new[] { "--help" }, _ => null);
 
         Assert.True(result.Valid);
         Assert.True(result.Help);
@@ -213,7 +213,7 @@ public class DoctorCliParserTests
     [Fact]
     public void Parse_CaseInsensitive_FlagsWork()
     {
-        var result = DoctorCliParser.Parse(new[] { "--JSON", "--VERBOSE" });
+        var result = DoctorCliParser.Parse(new[] { "--JSON", "--VERBOSE" }, _ => null);
 
         Assert.True(result.Valid);
         Assert.True(result.Json);
