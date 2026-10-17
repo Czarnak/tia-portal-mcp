@@ -108,7 +108,11 @@ public static class AccessModeParser
         var envValue = getEnvironmentVariable(EnvVarName);
         if (!string.IsNullOrWhiteSpace(envValue))
         {
-            return ParseValue(envValue);
+            var parsed = ParseValue(envValue);
+            return parsed.IsValid
+                ? parsed
+                : AccessModeParseResult.Fail(
+                    $"Invalid {EnvVarName} value '{envValue}'. Valid values: 'read-only', 'read-write', 'full'.");
         }
 
         // 3. Default

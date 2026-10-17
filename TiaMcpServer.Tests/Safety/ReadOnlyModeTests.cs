@@ -827,6 +827,9 @@ public class ReadOnlyModeTests
         Assert.False(server.IsValid);
         Assert.False(options.Valid);
         Assert.Equal(server.Error, options.ParseError);
+        Assert.Equal(
+            "Invalid TIA_MCP_ACCESS_MODE value 'invalid'. Valid values: 'read-only', 'read-write', 'full'.",
+            server.Error);
     }
 
     [Fact]
