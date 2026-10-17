@@ -151,6 +151,16 @@ public class InstallCliParserTests
     }
 
     [Fact]
+    public void Parse_HelpAsExplicitNameValue_IsNotHelp()
+    {
+        var result = InstallCliParser.Parse(new[] { "claude-code", "--name=--help" });
+
+        Assert.True(result.Valid);
+        Assert.False(result.Help);
+        Assert.Equal("--help", result.ServerName);
+    }
+
+    [Fact]
     public void Parse_UnknownOption_ReturnsInvalid()
     {
         var result = InstallCliParser.Parse(new[] { "codex", "--unknown" });

@@ -18,8 +18,18 @@ public static class InstallCliParser
 
     public static InstallOptions Parse(string[] args)
     {
+        // --help and --json are detected up front so they hold regardless of argument order
+        // or later parse errors; InstallCommand checks Help before validity.
+        var result = ParseArguments(args, args.Any(arg => IsFlag(arg, JsonFlag)));
+        return args.Any(arg => IsFlag(arg, HelpFlag)) ? result with { Help = true } : result;
+    }
+
+    private static bool IsFlag(string arg, string flag)
+        => string.Equals(arg, flag, StringComparison.OrdinalIgnoreCase);
+
+    private static InstallOptions ParseArguments(string[] args, bool json)
+    {
         bool dryRun = false;
-        bool json = false;
         bool help = false;
         string? serverName = null;
         string? accessMode = null;
