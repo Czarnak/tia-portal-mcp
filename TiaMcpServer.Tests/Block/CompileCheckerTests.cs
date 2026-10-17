@@ -516,6 +516,32 @@ public class CompileCheckerTests
         Assert.Equal(WorkerFailureCategories.TargetAmbiguous, error.FailureCategory);
     }
 
+    [Theory]
+    [InlineData("Main")]
+    [InlineData(null)]
+    public void CompileObserved_ReportsAmbiguousOrIncompleteSelectionAsUnavailableTarget(string? blockPath)
+    {
+        // Block path: two PLCs make "Main" ambiguous. PLC scope: an unreadable device item.
+        var project = new Siemens.Engineering.Project();
+        AddPlc(project, new CompilerResult(), "PLC_DP", "Station_1").BlockGroup.Blocks.Items.Add(new FC { Name = "Main" });
+        if (blockPath is null)
+        {
+            var bad = new Device { Name = "Station_2" };
+            bad.DeviceItems.Items.Add(new DeviceItem { Name = "CPU_2", ServiceFailure = new EngineeringException("item unreadable") });
+            project.Devices.Items.Add(bad);
+        }
+        else
+        {
+            AddPlc(project, new CompilerResult(), "PLC_2", "Station_2").BlockGroup.Blocks.Items.Add(new FC { Name = "Main" });
+        }
+
+        var observed = CompileChecker.CompileObserved(project, null, blockPath);
+
+        Assert.Null(observed.Report);
+        Assert.False(observed.TargetSelectionAvailable);
+        Assert.True(observed.SessionAvailable);
+    }
+
     [Fact]
     public void Compile_BlockScopeReportsMissingPlcAsTargetNotFound()
     {
