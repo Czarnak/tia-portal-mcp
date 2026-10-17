@@ -211,6 +211,15 @@ public class DoctorCliParserTests
     }
 
     [Fact]
+    public void Parse_HelpWithInvalidEnvironment_StillReportsHelp()
+    {
+        var result = DoctorCliParser.Parse(new[] { "--help" }, _ => "bogus");
+
+        Assert.False(result.Valid);
+        Assert.True(result.Help);
+    }
+
+    [Fact]
     public void Parse_CaseInsensitive_FlagsWork()
     {
         var result = DoctorCliParser.Parse(new[] { "--JSON", "--VERBOSE" }, _ => null);

@@ -31,7 +31,8 @@ public static class DoctorCliParser
         getEnvironmentVariable ??= Environment.GetEnvironmentVariable;
         bool json = args.Any(arg => string.Equals(arg, JsonFlag, StringComparison.OrdinalIgnoreCase));
         bool verbose = false;
-        bool help = false;
+        // Detected up front so a parse error result still reports it; DoctorCommand lets help win.
+        bool help = args.Any(arg => string.Equals(arg, HelpFlag, StringComparison.OrdinalIgnoreCase));
         string? projectPath = null;
 
         var accessModeResult = AccessModeParser.Parse(args, getEnvironmentVariable);
@@ -72,7 +73,6 @@ public static class DoctorCliParser
 
             if (string.Equals(arg, HelpFlag, StringComparison.OrdinalIgnoreCase))
             {
-                help = true;
                 continue;
             }
 
