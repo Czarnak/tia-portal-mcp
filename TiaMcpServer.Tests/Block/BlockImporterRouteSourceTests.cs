@@ -56,8 +56,6 @@ public class BlockImporterRouteSourceTests
         Assert.Contains("string? plcName,", source, StringComparison.Ordinal);
         Assert.Contains("string? blockPath)", source, StringComparison.Ordinal);
         Assert.Contains("!string.IsNullOrWhiteSpace(blockPath)", source, StringComparison.Ordinal);
-        Assert.Contains("PlcSoftwareLocator.FindAll(project, address.PlcName).FirstOrDefault()", source, StringComparison.Ordinal);
-        Assert.Contains("PlcSoftwareLocator.FindAll(project, plcName)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("DiagnosticNotes.Any", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Contains(\"Compilation failed\"", source, StringComparison.Ordinal);
     }

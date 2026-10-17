@@ -5,8 +5,10 @@ using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
 using System.Text.Json;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Block;
@@ -432,10 +434,121 @@ public class CompileCheckerTests
         Assert.Equal(7, report.TotalErrorCount);
         var plc = Assert.Single(report.Plcs);
         AssertIdentity(plc);
-        if (selector == null && blockPath == "Main")
-            Assert.Single(plc.DiagnosticNotes);
+        Assert.Empty(plc.DiagnosticNotes);
+    }
+
+    [Fact]
+    public void Compile_PlcScopeIncludesPlcsInDeviceGroups()
+    {
+        var project = ProjectWithCompiler(new CompilerResult { ErrorCount = 1 });
+        AddGroupedPlc(project, new CompilerResult { ErrorCount = 2 }, "Grouped_PLC", "Grouped_Station");
+
+        var report = CompileChecker.Compile(project, null, null);
+
+        Assert.Equal(new[] { "PLC_DP", "Grouped_PLC" }, report.Plcs.Select(p => p.PlcName));
+        Assert.Equal(3, report.TotalErrorCount);
+    }
+
+    [Theory]
+    [InlineData("Grouped_PLC")]
+    [InlineData("Grouped_Station")]
+    public void Compile_PlcScopeSelectsGroupedPlcByName(string selector)
+    {
+        var project = ProjectWithCompiler(new CompilerResult { ErrorCount = 1 });
+        AddGroupedPlc(project, new CompilerResult { ErrorCount = 2 }, "Grouped_PLC", "Grouped_Station");
+
+        var report = CompileChecker.Compile(project, selector, null);
+
+        var plc = Assert.Single(report.Plcs);
+        Assert.Equal("Grouped_PLC", plc.PlcName);
+        Assert.Equal("Grouped_Station", plc.DeviceName);
+    }
+
+    [Fact]
+    public void Compile_PlcScopeFailsClosedWhenADeviceItemIsUnreadable()
+    {
+        // An unreadable device item could hide a PLC, so nothing is compiled.
+        var compiler = new CountingCompiler();
+        var project = new Siemens.Engineering.Project();
+        AddPlc(project, new CompilerResult(), "PLC_DP", "Station_1").CompilerService = compiler;
+        var bad = new Device { Name = "Station_2" };
+        bad.DeviceItems.Items.Add(new DeviceItem { Name = "CPU_2", ServiceFailure = new EngineeringException("item unreadable") });
+        project.Devices.Items.Add(bad);
+
+        var error = Assert.Throws<WorkerOperationException>(() => CompileChecker.Compile(project, null, null));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, error.FailureCategory);
+        Assert.Equal(0, compiler.Calls);
+    }
+
+    [Fact]
+    public void Compile_BlockScopeFindsBlockInGroupedPlc()
+    {
+        var project = new Siemens.Engineering.Project();
+        var software = AddGroupedPlc(project, new CompilerResult(), "PLC_DP", "Station_1");
+        software.BlockGroup.Blocks.Items.Add(new FC
+        {
+            Name = "Main",
+            CompilerService = new FixtureCompiler(new CompilerResult { State = CompilerResultState.Error, ErrorCount = 7 })
+        });
+
+        var report = CompileChecker.Compile(project, null, "Station_1/Blocks/Main");
+
+        AssertIdentity(Assert.Single(report.Plcs));
+        Assert.Equal(7, report.TotalErrorCount);
+    }
+
+    [Fact]
+    public void Compile_BlockScopeWithoutPlcQualifierRejectsSeveralPlcs()
+    {
+        var project = new Siemens.Engineering.Project();
+        foreach (var (plcName, deviceName) in new[] { ("PLC_DP", "Station_1"), ("PLC_2", "Station_2") })
+        {
+            AddPlc(project, new CompilerResult(), plcName, deviceName).BlockGroup.Blocks.Items.Add(new FC
+            {
+                Name = "Main",
+                CompilerService = new FixtureCompiler(new CompilerResult())
+            });
+        }
+
+        var error = Assert.Throws<WorkerOperationException>(() => CompileChecker.Compile(project, null, "Main"));
+
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, error.FailureCategory);
+    }
+
+    [Theory]
+    [InlineData("Main")]
+    [InlineData(null)]
+    public void CompileObserved_ReportsAmbiguousOrIncompleteSelectionAsUnavailableTarget(string? blockPath)
+    {
+        // Block path: two PLCs make "Main" ambiguous. PLC scope: an unreadable device item.
+        var project = new Siemens.Engineering.Project();
+        AddPlc(project, new CompilerResult(), "PLC_DP", "Station_1").BlockGroup.Blocks.Items.Add(new FC { Name = "Main" });
+        if (blockPath is null)
+        {
+            var bad = new Device { Name = "Station_2" };
+            bad.DeviceItems.Items.Add(new DeviceItem { Name = "CPU_2", ServiceFailure = new EngineeringException("item unreadable") });
+            project.Devices.Items.Add(bad);
+        }
         else
-            Assert.Empty(plc.DiagnosticNotes);
+        {
+            AddPlc(project, new CompilerResult(), "PLC_2", "Station_2").BlockGroup.Blocks.Items.Add(new FC { Name = "Main" });
+        }
+
+        var observed = CompileChecker.CompileObserved(project, null, blockPath);
+
+        Assert.Null(observed.Report);
+        Assert.False(observed.TargetSelectionAvailable);
+        Assert.True(observed.SessionAvailable);
+    }
+
+    [Fact]
+    public void Compile_BlockScopeReportsMissingPlcAsTargetNotFound()
+    {
+        var error = Assert.Throws<WorkerOperationException>(() =>
+            CompileChecker.Compile(ProjectWithCompiler(new CompilerResult()), null, "Missing_PLC/Blocks/Main"));
+
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, error.FailureCategory);
     }
 
     [Theory]
@@ -536,6 +649,22 @@ public class CompileCheckerTests
 
     private static PlcSoftware AddPlc(Siemens.Engineering.Project project, CompilerResult result, string softwareName, string deviceName)
     {
+        var (device, software) = NewPlcDevice(result, softwareName, deviceName);
+        project.Devices.Items.Add(device);
+        return software;
+    }
+
+    private static PlcSoftware AddGroupedPlc(Siemens.Engineering.Project project, CompilerResult result, string softwareName, string deviceName)
+    {
+        var (device, software) = NewPlcDevice(result, softwareName, deviceName);
+        var group = new DeviceUserGroup { Name = "Line 1" };
+        group.Devices.Items.Add(device);
+        project.DeviceGroups.Items.Add(group);
+        return software;
+    }
+
+    private static (Device Device, PlcSoftware Software) NewPlcDevice(CompilerResult result, string softwareName, string deviceName)
+    {
         var software = new PlcSoftware
         {
             Name = softwareName,
@@ -547,13 +676,23 @@ public class CompileCheckerTests
             Name = "CPU_1",
             Container = new SoftwareContainer { Software = software }
         });
-        project.Devices.Items.Add(device);
-        return software;
+        return (device, software);
     }
 
     private sealed class FixtureCompiler(CompilerResult result, Exception? failure = null) : ICompilable
     {
         public CompilerResult Compile() => failure is null ? result : throw failure;
+    }
+
+    private sealed class CountingCompiler : ICompilable
+    {
+        public int Calls { get; private set; }
+
+        public CompilerResult Compile()
+        {
+            Calls++;
+            return new CompilerResult();
+        }
     }
 
     private sealed class UnreadablePathMessage : CompilerResultMessage

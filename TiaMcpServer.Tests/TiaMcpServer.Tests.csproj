@@ -69,6 +69,8 @@
       Link="Block\BlockMutationService.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagTableReader.cs"
       Link="Plc\TagTableReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwareTagIndexResolver.cs"
+      Link="Network\HardwareTagIndexResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\CompileChecker.cs"
       Link="Block\CompileChecker.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\CrossReferences\CrossReferenceReader.cs"

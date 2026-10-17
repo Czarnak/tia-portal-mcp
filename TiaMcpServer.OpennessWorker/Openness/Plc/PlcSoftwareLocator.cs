@@ -86,15 +86,10 @@ public static class PlcSoftwareLocator
         }
     }
 
-    /// <summary>Enumerates every PLC software in the project (optionally filtered by device name), paired with its owning device name.</summary>
-    public static IEnumerable<DiscoveredPlcSoftware> FindAll(ProjectBase project, string? plcName)
-    {
-        return Discover(project.Devices.Cast<Device>(), plcName);
-    }
-
     /// <summary>
-    /// Like <see cref="FindAll"/>, but enumerates devices as <c>browse_project_tree</c> does: root
-    /// devices, devices in (nested) device groups and ungrouped devices.
+    /// Enumerates every PLC software in the project, paired with its owning device name, optionally
+    /// filtered by software or device name (case-insensitive). Devices are enumerated as
+    /// <c>browse_project_tree</c> does: root devices, devices in (nested) device groups and ungrouped devices.
     /// </summary>
     /// <param name="discoveryFailures">Receives one message per device item that could not be read, when not null.</param>
     public static IEnumerable<DiscoveredPlcSoftware> FindEveryPlc(
@@ -102,15 +97,7 @@ public static class PlcSoftwareLocator
         string? plcName,
         ICollection<string>? discoveryFailures = null)
     {
-        return Discover(ProjectDeviceEnumerator.Enumerate(project), plcName, discoveryFailures);
-    }
-
-    private static IEnumerable<DiscoveredPlcSoftware> Discover(
-        IEnumerable<Device> devices,
-        string? plcName,
-        ICollection<string>? discoveryFailures = null)
-    {
-        foreach (Device device in devices)
+        foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
         {
             foreach (var plcSoftware in FindInDeviceItems(device.DeviceItems, discoveryFailures))
             {
