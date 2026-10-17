@@ -942,7 +942,6 @@ public class OpennessWorkerClient : IDisposable
                 request.DeviceName = deviceName;
                 request.DeviceItemName = deviceItemName;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -982,7 +981,6 @@ public class OpennessWorkerClient : IDisposable
                 request.IoSystemSubnetId = ioSystemSubnetId;
                 request.IoSystemNumber = ioSystemNumber;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1008,7 +1006,6 @@ public class OpennessWorkerClient : IDisposable
                 request.SubnetHighestAddress = highestAddress;
                 request.SubnetTransmissionSpeed = transmissionSpeed;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1036,7 +1033,6 @@ public class OpennessWorkerClient : IDisposable
                 request.SubnetHighestAddress = highestAddress;
                 request.SubnetTransmissionSpeed = transmissionSpeed;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1054,7 +1050,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.SubnetId = subnetId;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1125,7 +1120,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Content = yamlContent;
                 request.ExpectedContentHash = expectedContentHash;
                 request.Format = requestFormat;
-                request.AllowTiaConfirmations = true;
             },
             string.Empty).ConfigureAwait(false);
 
@@ -1182,7 +1176,7 @@ public class OpennessWorkerClient : IDisposable
 
     /// <summary>
     /// Writes a PLC data type's exported source. Mirrors <see cref="UpdateBlockLogicAsync"/>: same
-    /// <see cref="SendBoundProjectRequestAsync"/> construction, hardcoded AllowTiaConfirmations like
+    /// <see cref="SendBoundProjectRequestAsync"/> construction as
     /// its sibling, no bespoke logic.
     /// </summary>
     public Task<WorkerCallResult> UpdateTypeContentAsync(
@@ -1201,7 +1195,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Content = sourceContent;
                 request.ExpectedContentHash = expectedContentHash;
                 request.Format = format;
-                request.AllowTiaConfirmations = true;
             },
             string.Empty);
     }
@@ -1272,7 +1265,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1292,7 +1284,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1318,7 +1309,6 @@ public class OpennessWorkerClient : IDisposable
                 request.DataType = dataType;
                 request.LogicalAddress = logicalAddress;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1354,7 +1344,6 @@ public class OpennessWorkerClient : IDisposable
                 request.ExternalWritable = externalWritable;
                 request.IsSafety = isSafety;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1376,7 +1365,6 @@ public class OpennessWorkerClient : IDisposable
                 request.FolderPath = folderPath;
                 request.Name = name;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1402,7 +1390,6 @@ public class OpennessWorkerClient : IDisposable
                 request.DataType = dataType;
                 request.Value = value;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1428,7 +1415,6 @@ public class OpennessWorkerClient : IDisposable
                 request.DataType = dataType;
                 request.Value = value;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1450,7 +1436,6 @@ public class OpennessWorkerClient : IDisposable
                 request.FolderPath = folderPath;
                 request.Name = name;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1472,7 +1457,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Language = language;
                 request.OBEventClass = obEventClass;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1486,7 +1470,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1500,7 +1483,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1514,7 +1496,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1668,8 +1649,6 @@ public class OpennessWorkerClient : IDisposable
                 ProjectPath = projectPath,
                 ExpectedSessionIdentity = emptyIdentity ?? bindingBeforeCall.ToWorkerIdentity(),
                 Confirm = true,
-                ForceRebind = forceRebind,
-                AllowTiaConfirmations = true
             }).ConfigureAwait(false);
 
         if (!result.Success)
@@ -1765,7 +1744,6 @@ public class OpennessWorkerClient : IDisposable
                 Author = author,
                 Comment = comment,
                 Confirm = true,
-                AllowTiaConfirmations = true
             }).ConfigureAwait(false);
 
         if (!result.Success)
@@ -1799,7 +1777,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1841,7 +1818,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TargetName = targetName;
                 request.Rebind = true;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}",
             BindingTransition.BindResolvedPath);
@@ -1869,7 +1845,6 @@ public class OpennessWorkerClient : IDisposable
                 request.ArchiveMode = normalizedMode;
                 request.SaveBeforeArchive = saveBeforeArchive;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1883,7 +1858,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.SaveBeforeClose = saveBeforeClose;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}",
             BindingTransition.Clear);

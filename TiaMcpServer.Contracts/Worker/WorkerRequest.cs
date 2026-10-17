@@ -47,13 +47,9 @@ public class WorkerRequest
     public WorkerSessionIdentity? ExpectedSessionIdentity { get; set; }
 
     /// <summary>
-    /// Set by every write operation EXCEPT update_block_logic, which forwards only
-    /// AllowTiaConfirmations. Never set by reads.
+    /// Set by write operations except update_block_logic and update_type_content. Never set by reads.
     /// </summary>
     public bool Confirm { get; set; }
-
-    /// <summary>Set by every write operation, including update_block_logic. Never set by reads.</summary>
-    public bool AllowTiaConfirmations { get; set; }
 
     #endregion
 
@@ -416,9 +412,6 @@ public class WorkerRequest
     /// <summary>Forwarded by: save_project_as.</summary>
     public string? TargetName { get; set; }
 
-    /// <summary>Forwarded by: open_project. The session-rebind escape hatch.</summary>
-    public bool ForceRebind { get; set; }
-
     /// <summary>
     /// Destination B for the internal probe_open_project_rebind operation. ProjectPath remains
     /// the currently bound source A so the existing expected-session-identity gate applies.
@@ -427,7 +420,6 @@ public class WorkerRequest
 
     /// <summary>
     /// Forwarded by: save_project_as. Whether the session rebinds to the saved copy.
-    /// Distinct from ForceRebind.
     /// </summary>
     public bool Rebind { get; set; } = true;
 
