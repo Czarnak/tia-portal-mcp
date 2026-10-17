@@ -817,19 +817,30 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void DoctorCliParser_InvalidEnvVar_DefaultsToReadWrite()
+    public void DoctorCliParser_InvalidEnvVar_FailsLikeServer()
     {
-        try
-        {
-            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", "invalid");
-            var options = DoctorCliParser.Parse(Array.Empty<string>());
-            Assert.True(options.Valid);
-            Assert.Equal(McpAccessMode.ReadWrite, options.AccessMode);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
-        }
+        static string? Env(string name) => name == "TIA_MCP_ACCESS_MODE" ? "invalid" : null;
+
+        var options = DoctorCliParser.Parse(Array.Empty<string>(), Env);
+        var server = AccessModeParser.Parse(Array.Empty<string>(), Env);
+
+        Assert.False(server.IsValid);
+        Assert.False(options.Valid);
+        Assert.Equal(server.Error, options.ParseError);
+        Assert.Equal(
+            "Invalid TIA_MCP_ACCESS_MODE value 'invalid'. Valid values: 'read-only', 'read-write', 'full'.",
+            server.Error);
+    }
+
+    [Fact]
+    public void DoctorCliParser_CliModeOverridesInvalidEnvVar()
+    {
+        static string? Env(string name) => name == "TIA_MCP_ACCESS_MODE" ? "invalid" : null;
+
+        var options = DoctorCliParser.Parse(new[] { "--read-only" }, Env);
+
+        Assert.True(options.Valid);
+        Assert.Equal(McpAccessMode.ReadOnly, options.AccessMode);
     }
 
     #endregion

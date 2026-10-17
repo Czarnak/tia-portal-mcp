@@ -14,8 +14,9 @@ public static class AccessModeParser
     /// Resolves the access mode from the given CLI arguments and environment.
     /// Returns a result indicating success with the resolved mode, or failure with a message.
     /// </summary>
-    public static AccessModeParseResult Parse(string[] args)
+    public static AccessModeParseResult Parse(string[] args, Func<string, string?>? getEnvironmentVariable = null)
     {
+        getEnvironmentVariable ??= Environment.GetEnvironmentVariable;
         McpAccessMode? cliMode = null;
 
         AccessModeParseResult? RecordCliMode(McpAccessMode candidate)
@@ -104,10 +105,14 @@ public static class AccessModeParser
         }
 
         // 2. Check environment variable
-        var envValue = Environment.GetEnvironmentVariable(EnvVarName);
+        var envValue = getEnvironmentVariable(EnvVarName);
         if (!string.IsNullOrWhiteSpace(envValue))
         {
-            return ParseValue(envValue);
+            var parsed = ParseValue(envValue);
+            return parsed.IsValid
+                ? parsed
+                : AccessModeParseResult.Fail(
+                    $"Invalid {EnvVarName} value '{envValue}'. Valid values: 'read-only', 'read-write', 'full'.");
         }
 
         // 3. Default
