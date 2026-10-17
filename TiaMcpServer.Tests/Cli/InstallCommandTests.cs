@@ -107,10 +107,11 @@ public class InstallCommandTests
     public async Task RunAsync_JsonAfterInvalidArgumentWithHelp_WritesSameJsonUsage()
     {
         var output = new StringWriter();
+        var error = new StringWriter();
         var plainHelp = new StringWriter();
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "--bogus", "--help", "--json" }, new FakeProcessRunner(), output, new StringWriter(),
+            new[] { "--bogus", "--help", "--json" }, new FakeProcessRunner(), output, error,
             FakeResolveServerExe, FakeResolveClientExe);
         await InstallCommand.RunAsync(
             new[] { "--help", "--json" }, new FakeProcessRunner(), plainHelp, new StringWriter(),
@@ -118,16 +119,36 @@ public class InstallCommandTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal(plainHelp.ToString(), output.ToString());
+        Assert.Empty(error.ToString());
     }
 
     [Fact]
-    public async Task RunAsync_JsonAfterInvalidArgument_WritesJsonError()
+    public async Task RunAsync_MiMoCodeHelpJson_ReturnsZeroWithJsonUsage()
     {
         var output = new StringWriter();
         var error = new StringWriter();
 
         var exitCode = await InstallCommand.RunAsync(
-            new[] { "--bogus", "--json" }, new FakeProcessRunner(), output, error,
+            new[] { "mimo", "--help", "--json" }, new FakeProcessRunner(), output, error,
+            FakeResolveServerExe, FakeResolveClientExe);
+
+        using var document = System.Text.Json.JsonDocument.Parse(output.ToString());
+        Assert.Equal(0, exitCode);
+        Assert.True(document.RootElement.TryGetProperty("usage", out _));
+        Assert.Empty(error.ToString());
+    }
+
+    [Theory]
+    [InlineData("--bogus", "--json")]
+    [InlineData("--bogus", "--JSON")]
+    [InlineData("claude-code", "--name", "--json")]
+    public async Task RunAsync_JsonAfterInvalidArgument_WritesJsonError(params string[] args)
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await InstallCommand.RunAsync(
+            args, new FakeProcessRunner(), output, error,
             FakeResolveServerExe, FakeResolveClientExe);
 
         using var document = System.Text.Json.JsonDocument.Parse(output.ToString());
