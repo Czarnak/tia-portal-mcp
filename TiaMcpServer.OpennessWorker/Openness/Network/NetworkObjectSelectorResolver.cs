@@ -631,27 +631,6 @@ public static class NetworkObjectSelectorResolver
         return null;
     }
 
-    private static Node? NodeAt(NetworkInterface networkInterface, int index)
-    {
-        if (index < 0)
-        {
-            return null;
-        }
-
-        var current = 0;
-        foreach (Node node in networkInterface.Nodes)
-        {
-            if (current == index)
-            {
-                return node;
-            }
-
-            current++;
-        }
-
-        return null;
-    }
-
     private static Connection? ConnectionAt(ConnectionComposition connections, int index)
     {
         if (index < 0)
