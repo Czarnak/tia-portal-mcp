@@ -233,6 +233,35 @@ public class TagInventoryReaderTests
         Assert.Equal("GoodTable", Assert.Single(inventory.Plcs[1].Tables).Name);
     }
 
+    [Fact]
+    public void ReadAll_ReportsUnreadableItemsWithoutReadingAccessFlags()
+    {
+        var plc = AddPlc(new SiemensProject().Devices, "Device", "Plc");
+        plc.TagTableGroup.TagTables.Items.Add(new PlcTagTable { NameFailure = new EngineeringException("table boom") });
+        var table = AddTable(plc, "T");
+        table.Tags.Items.Add(new PlcTag
+        {
+            Name = "Input_1", LogicalAddress = "%I0.0",
+            ExternalVisibleFailure = new EngineeringException("flag boom")
+        });
+        for (var i = 0; i < 60; i++)
+        {
+            table.UserConstants.Items.Add(new PlcUserConstant { Name = $"C{i}", ValueFailure = new EngineeringException("boom") });
+        }
+
+        var messages = new List<string> { "existing" };
+        var tables = TagTableReader.ReadAll(plc, messages);
+
+        var tag = Assert.Single(Assert.Single(tables).Tags);
+        Assert.Equal("%I0.0", tag.LogicalAddress);
+        Assert.Null(tag.ExternalVisible);
+        Assert.DoesNotContain(messages, m => m.Contains("flag boom"));
+        Assert.Equal("existing", messages[0]);
+        Assert.Contains("table boom", messages[1]);
+        Assert.Equal(1 + 51, messages.Count);
+        Assert.StartsWith("... and 11 more", messages[^1]);
+    }
+
     private static PlcSoftware AddPlc(Composition<Device> devices, string deviceName, string softwareName)
     {
         var plc = new PlcSoftware { Name = softwareName };

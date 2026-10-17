@@ -13,14 +13,15 @@ public static class TagTableReader
 {
     /// <summary>
     /// Reads every tag table of one already-selected <see cref="PlcSoftware"/>. The caller owns
-    /// deterministic PLC selection. Every unreadable table, group, tag or constant adds one
-    /// message to <paramref name="messages"/> (capped like <see cref="ReadInventory"/>).
+    /// deterministic PLC selection. External-access flags are not read (they stay null). Every
+    /// unreadable table, group, tag or constant adds one message to <paramref name="messages"/>
+    /// (capped like <see cref="ReadInventory"/>).
     /// </summary>
     public static List<TagTableInfo> ReadAll(PlcSoftware plcSoftware, List<string> messages)
     {
         var tables = new List<TagTableInfo>();
         var readMessages = new List<string>();
-        InventoryGroup(plcSoftware.TagTableGroup, "/", new TableFilter(null, null), tables, readMessages);
+        InventoryGroup(plcSoftware.TagTableGroup, "/", new TableFilter(null, null), readFlags: false, tables, readMessages);
         CapMessages(readMessages);
         messages.AddRange(readMessages);
         return tables;
@@ -33,7 +34,6 @@ public static class TagTableReader
     /// PLCs when null), including PLCs in device groups. It never skips silently: every table,
     /// group, tag or constant that cannot be read yields one message and <c>IsComplete = false</c>.
     /// </summary>
-
     /// <param name="tableName">Only the table with this name (case-insensitive) when not null.</param>
     /// <param name="folderPath">Only tables directly in this folder, in the emitted folderPath syntax
     /// (case-insensitive), when not null.</param>
@@ -56,7 +56,7 @@ public static class TagTableReader
             };
             try
             {
-                InventoryGroup(discovered.Software.TagTableGroup, "/", filter, plc.Tables, inventory.Messages);
+                InventoryGroup(discovered.Software.TagTableGroup, "/", filter, readFlags: true, plc.Tables, inventory.Messages);
             }
             catch (EngineeringException ex)
             {
@@ -120,6 +120,7 @@ public static class TagTableReader
         PlcTagTableGroup group,
         string folderPath,
         TableFilter filter,
+        bool readFlags,
         List<TagTableInfo> tables,
         List<string> messages)
     {
@@ -136,7 +137,7 @@ public static class TagTableReader
                 Name = table.Name,
                 FolderPath = folderPath,
                 IsDefault = table.IsDefault,
-                Tags = InventoryTags(table, messages),
+                Tags = InventoryTags(table, readFlags, messages),
                 UserConstants = InventoryConstants(table, messages)
             });
         });
@@ -144,11 +145,12 @@ public static class TagTableReader
         ReadEach(group.Groups, $"a nested group in {where}", messages, child =>
         {
             var childPath = folderPath == "/" ? $"/{child.Name}" : $"{folderPath}/{child.Name}";
-            InventoryGroup(child, childPath, filter, tables, messages);
+            InventoryGroup(child, childPath, filter, readFlags, tables, messages);
         });
     }
 
-    private static List<TagInfo> InventoryTags(PlcTagTable table, List<string> messages)
+    // readFlags=false skips three Openness calls per tag for callers that never use the flags.
+    private static List<TagInfo> InventoryTags(PlcTagTable table, bool readFlags, List<string> messages)
     {
         var tags = new List<TagInfo>();
         ReadEach(table.Tags, $"a tag in tag table '{table.Name}'", messages, tag =>
@@ -160,9 +162,9 @@ public static class TagTableReader
                 Name = name,
                 DataType = tag.DataTypeName,
                 LogicalAddress = tag.LogicalAddress,
-                ExternalAccessible = ReadFlag(() => tag.ExternalAccessible, "ExternalAccessible", flagContext, messages),
-                ExternalVisible = ReadFlag(() => tag.ExternalVisible, "ExternalVisible", flagContext, messages),
-                ExternalWritable = ReadFlag(() => tag.ExternalWritable, "ExternalWritable", flagContext, messages)
+                ExternalAccessible = readFlags ? ReadFlag(() => tag.ExternalAccessible, "ExternalAccessible", flagContext, messages) : null,
+                ExternalVisible = readFlags ? ReadFlag(() => tag.ExternalVisible, "ExternalVisible", flagContext, messages) : null,
+                ExternalWritable = readFlags ? ReadFlag(() => tag.ExternalWritable, "ExternalWritable", flagContext, messages) : null
             });
         });
 
