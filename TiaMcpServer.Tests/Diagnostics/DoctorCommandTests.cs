@@ -76,6 +76,9 @@ public class DoctorCommandTests
     [InlineData("--help", "--access-mode", "nope")]
     [InlineData("--read-only", "--read-write", "--help")]
     [InlineData("--project", "--help")]
+    [InlineData("--access-mode", "--help")]
+    [InlineData("--worker-timeout-minutes", "--help")]
+    [InlineData("--HELP", "--bogus")]
     public async Task RunAsync_HelpWithInvalidArguments_WritesUsageAndReturnsZero(params string[] args)
     {
         var output = new StringWriter();
@@ -104,10 +107,11 @@ public class DoctorCommandTests
             output,
             error);
 
-        using var document = JsonDocument.Parse(output.ToString());
+        var plainHelp = new StringWriter();
+        await DoctorCommand.RunAsync(new[] { "--json", "--help" }, _ => PassedReport(), plainHelp, new StringWriter());
 
         Assert.Equal(0, exitCode);
-        Assert.True(document.RootElement.TryGetProperty("usage", out _));
+        Assert.Equal(plainHelp.ToString(), output.ToString());
         Assert.Empty(error.ToString());
     }
 

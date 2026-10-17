@@ -73,6 +73,7 @@ public static class DoctorCliParser
 
             if (string.Equals(arg, HelpFlag, StringComparison.OrdinalIgnoreCase))
             {
+                // Already detected up front; only skip it here.
                 continue;
             }
 
