@@ -18,9 +18,15 @@ public static class InstallCliParser
 
     public static InstallOptions Parse(string[] args)
     {
+        // --help and --json are detected up front so they hold regardless of argument order,
+        // and a help request ignores every other argument.
+        var json = args.Any(arg => IsFlag(arg, JsonFlag));
+        if (args.Any(arg => IsFlag(arg, HelpFlag)))
+        {
+            return new InstallOptions(true, null, "tia-portal", "read-only", null, null, false, json, true, null);
+        }
+
         bool dryRun = false;
-        bool json = false;
-        bool help = false;
         string? serverName = null;
         string? accessMode = null;
         string? tiaProject = null;
@@ -31,21 +37,14 @@ public static class InstallCliParser
         {
             var arg = args[i];
 
-            if (string.Equals(arg, HelpFlag, StringComparison.OrdinalIgnoreCase))
-            {
-                help = true;
-                continue;
-            }
-
-            if (string.Equals(arg, DryRunFlag, StringComparison.OrdinalIgnoreCase))
+            if (IsFlag(arg, DryRunFlag))
             {
                 dryRun = true;
                 continue;
             }
 
-            if (string.Equals(arg, JsonFlag, StringComparison.OrdinalIgnoreCase))
+            if (IsFlag(arg, JsonFlag))
             {
-                json = true;
                 continue;
             }
 
@@ -161,11 +160,6 @@ public static class InstallCliParser
             return Invalid($"Unknown install argument: '{arg}'.", json);
         }
 
-        if (help)
-        {
-            return new InstallOptions(true, client, serverName ?? "tia-portal", accessMode ?? "read-only", tiaProject, serverPath, dryRun, json, help, null);
-        }
-
         if (client is null)
         {
             return Invalid("No MCP client specified. Usage: tia-mcp install <client>", json);
@@ -190,7 +184,7 @@ public static class InstallCliParser
                 serverPath,
                 dryRun,
                 json,
-                help,
+                false,
                 "MiMoCode installation uses interactive mode and does not support --json output.");
         }
 
@@ -203,9 +197,12 @@ public static class InstallCliParser
             serverPath,
             dryRun,
             json,
-            help,
+            false,
             null);
     }
+
+    private static bool IsFlag(string arg, string flag)
+        => string.Equals(arg, flag, StringComparison.OrdinalIgnoreCase);
 
     private static InstallOptions Invalid(string error, bool json)
         => new(false, null, "tia-portal", "read-only", null, null, false, json, false, error);

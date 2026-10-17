@@ -80,6 +80,83 @@ public class InstallCommandTests
         Assert.Contains("\"usage\"", output.ToString());
     }
 
+    [Theory]
+    [InlineData("--bogus", "--help")]
+    [InlineData("--help", "--bogus")]
+    [InlineData("--name", "--help")]
+    [InlineData("--access-mode", "--help")]
+    [InlineData("--tia-project", "--help")]
+    [InlineData("--server-path", "--help")]
+    [InlineData("notaclient", "--help")]
+    [InlineData("--HELP", "--bogus")]
+    public async Task RunAsync_HelpWithInvalidArguments_ReturnsZeroAndPrintsUsage(params string[] args)
+    {
+        var runner = new FakeProcessRunner();
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await InstallCommand.RunAsync(
+            args, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Usage: tia-mcp install", output.ToString());
+        Assert.Empty(error.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_JsonAfterInvalidArgumentWithHelp_WritesSameJsonUsage()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var plainHelp = new StringWriter();
+
+        var exitCode = await InstallCommand.RunAsync(
+            new[] { "--bogus", "--help", "--json" }, new FakeProcessRunner(), output, error,
+            FakeResolveServerExe, FakeResolveClientExe);
+        await InstallCommand.RunAsync(
+            new[] { "--help", "--json" }, new FakeProcessRunner(), plainHelp, new StringWriter(),
+            FakeResolveServerExe, FakeResolveClientExe);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(plainHelp.ToString(), output.ToString());
+        Assert.Empty(error.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_MiMoCodeHelpJson_ReturnsZeroWithJsonUsage()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await InstallCommand.RunAsync(
+            new[] { "mimo", "--help", "--json" }, new FakeProcessRunner(), output, error,
+            FakeResolveServerExe, FakeResolveClientExe);
+
+        using var document = System.Text.Json.JsonDocument.Parse(output.ToString());
+        Assert.Equal(0, exitCode);
+        Assert.True(document.RootElement.TryGetProperty("usage", out _));
+        Assert.Empty(error.ToString());
+    }
+
+    [Theory]
+    [InlineData("--bogus", "--json")]
+    [InlineData("--bogus", "--JSON")]
+    [InlineData("claude-code", "--name", "--json")]
+    public async Task RunAsync_JsonAfterInvalidArgument_WritesJsonError(params string[] args)
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await InstallCommand.RunAsync(
+            args, new FakeProcessRunner(), output, error,
+            FakeResolveServerExe, FakeResolveClientExe);
+
+        using var document = System.Text.Json.JsonDocument.Parse(output.ToString());
+        Assert.Equal(2, exitCode);
+        Assert.False(document.RootElement.GetProperty("success").GetBoolean());
+        Assert.Empty(error.ToString());
+    }
+
     [Fact]
     public async Task RunAsync_MissingClient_ReturnsExitCode2()
     {

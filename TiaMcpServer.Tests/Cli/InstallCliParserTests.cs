@@ -150,6 +150,28 @@ public class InstallCliParserTests
         Assert.True(result.Help);
     }
 
+    [Theory]
+    [InlineData("--bogus", "--help")]
+    [InlineData("--HELP", "--name")]
+    public void Parse_HelpWithInvalidArguments_IsCleanHelpRequest(params string[] args)
+    {
+        var result = InstallCliParser.Parse(args);
+
+        Assert.True(result.Valid);
+        Assert.True(result.Help);
+        Assert.Null(result.ParseError);
+    }
+
+    [Fact]
+    public void Parse_HelpAsExplicitNameValue_IsNotHelp()
+    {
+        var result = InstallCliParser.Parse(new[] { "claude-code", "--name=--help" });
+
+        Assert.True(result.Valid);
+        Assert.False(result.Help);
+        Assert.Equal("--help", result.ServerName);
+    }
+
     [Fact]
     public void Parse_UnknownOption_ReturnsInvalid()
     {
