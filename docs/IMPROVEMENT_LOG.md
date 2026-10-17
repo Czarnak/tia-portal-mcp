@@ -143,7 +143,6 @@ plugin cache or user configuration.
 
 Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-references.md); none blocks it.
 
-- Network: `PlcSoftwareLocator.FindAll` (used by Network) never sees PLCs in device groups; `FindEveryPlc` does.
 - `totally-integrated-claude` skill: tracked in the skill-migration entry above (at the time 6/15/15 and `plc_write`; now 7/16/16 with `hmi_read`).
 - `list_tag_tables`: when `tableName`/`folderPath` match nothing but part of the tree was unreadable, the incomplete inventory is returned without an explicit "not found among readable tables" message.
 - `read_cross_references` budget: the trim never recurses inside a kept child; a bare source over budget (pathological names or messages) is still withheld by the renderer; the standalone fallback guidance omits `filter`.
@@ -222,8 +221,6 @@ blocks it. Known limits are also listed in the
   fails closed. Exclude unpublished unit blocks from the CPU namespace, and check the related
   worker minor where a unit-scoped create checks the top-level PLC namespace instead of the unit's.
 - **`isSafety` is not verified after write (M4).** The verifier checks the other tag values only.
-- **`compile_check` cannot reach PLCs in device groups (M5).** It still uses
-  `PlcSoftwareLocator.FindAll`, which walks root devices only; `plc_write` resolution moved to `FindUnique`.
 - **Fold `NetworkWriteArgumentValidatingTool` onto `StrictArgumentsTool`.** `plc_write` uses the
   shared strict-arguments wrapper; Network keeps its own copy.
 - **Per-target inventory completeness (D7).** Completeness exists only at the inventory root, so
@@ -1319,3 +1316,18 @@ Archival-baseline timing/memory observations do not establish a traversal reduct
 performance pass; matched baseline-write comparisons and repeated owner-transition gates remain
 unqualified, and the single-trace 10% return condition failed. See the report for candidate/package
 provenance, per-case outcomes, saved restoration and all evidence boundaries.
+
+## compile_check and hardware tag matching reach grouped PLCs — DONE 2026-10-17 (review item B-2, M5)
+
+`PlcSoftwareLocator.FindAll`, which walked root devices only, is deleted. A block-scope
+`compile_check` resolves its PLC with `FindUnique`: without a PLC qualifier it requires a single PLC
+(`target_ambiguous` otherwise, where it used to compile the first root PLC), and an unknown PLC is
+`target_not_found`. A PLC-scope compile uses `FindEveryPlc` and compiles nothing when a device item
+is unreadable (`worker_operation_failed`). `read_hardware_config` tag matching uses `FindEveryPlc`
+too, so a project with one root and one grouped PLC and no `plcName` now reports "More than one PLC"
+instead of matching the root PLC. Post-write compiles of block writes now reach grouped PLCs.
+Live-checked against a disposable project with one of three PLCs moved into a device group:
+named, block and whole-project compiles, a block create/update/delete, and grouped-PLC tag
+selection. A type write was not run, because the grouped PLC had no data types; it compiles through
+the same PLC-scope path. Still open: a device name containing `/` cannot be used as a block-path
+qualifier (the parser splits on it); use the PLC software name.

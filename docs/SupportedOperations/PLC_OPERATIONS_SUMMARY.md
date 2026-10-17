@@ -61,8 +61,10 @@ of roughly 400 tags already exceeds the default value budget: narrow `list_tag_t
 ## Compiler diagnostics (`compile_check`)
 
 Compilation can change TIA Portal's in-memory project state. A returned report is not evidence of
-saving, downloading, or PLC/plant acceptance. `compile_check` cannot yet reach a PLC inside a device
-group (see the improvement log).
+saving, downloading, or PLC/plant acceptance. `compile_check` finds PLCs at the project root and in
+device groups. Without `plcName` it compiles every PLC; it compiles nothing if a device item cannot be
+read, because that item could hide a PLC. A `blockPath` without a PLC qualifier requires a single PLC
+in the project and otherwise fails with `target_ambiguous`.
 
 Each PLC result uses `plcName` for the actual PLC software name and `deviceName` for the containing
 hardware device. The input `plcName` selector continues accepting either name. The same identities
