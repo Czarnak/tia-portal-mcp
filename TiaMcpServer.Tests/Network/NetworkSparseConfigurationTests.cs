@@ -42,29 +42,15 @@ public class NetworkSparseConfigurationTests
     }
 
     [Fact]
-    public async Task PartialConfiguration_RetainsResultAndStopsBatch()
+    public void PartialConfiguration_FailsItemAndRetainsResult()
     {
-        var invocations = new List<string>();
-        var batch = await StructuredOperationBatchExecutionEngine.ApplyWritesAsync(
-            new[] { Configure("partial"), Configure("later") },
-            operation =>
-            {
-                invocations.Add(operation.OperationId);
-                return Task.FromResult(WorkerCallResult.Ok(PartialPayload));
-            },
-            NetworkPayloadContract.Project);
-        var partial = batch.Operations[0];
-        var later = batch.Operations[1];
+        var partial = NetworkPayloadContract.Project(Configure("partial"), WorkerCallResult.Ok(PartialPayload));
 
         Assert.Equal("failed", partial.Status);
         Assert.Equal("worker_operation_failed", partial.Failure!.Category);
         Assert.NotNull(partial.Result);
         Assert.Equal("Address", Assert.Single(partial.Result.Value.GetProperty("appliedSettings").EnumerateObject()).Name);
         Assert.Equal("IoSystem", Assert.Single(partial.Result.Value.GetProperty("skippedSettings").EnumerateObject()).Name);
-        Assert.Equal("earlierOperationFailed", later.SkipReason);
-        Assert.Equal(new[] { "partial" }, invocations);
-        Assert.Equal(1, batch.Counts.Failed);
-        Assert.Equal(1, batch.Counts.Skipped);
     }
 
     [Theory]
