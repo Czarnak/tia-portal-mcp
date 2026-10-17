@@ -136,7 +136,9 @@ public class NetworkHardwareConfigDeterminismTests
                                             NodeType = "Ethernet",
                                             IpAddress = "192.168.0.10",
                                             Selectable = true,
-                                            Selector = NetworkSelectorFactory.Node("PLC_1", "node-1"),
+                                            Selector = NetworkSelectorFactory.QualifiedNode("PLC_1", "node-1",
+                                                new[] { new NetworkInterfacePathSegmentInfo { Name = "PROFINET interface_1" } },
+                                                "PROFINET interface_1"),
                                         }
                                     }
                                 }

@@ -71,43 +71,6 @@ public static class NetworkSelectorFactory
         };
     }
 
-    /// <summary>Builds a node selector from the device name and the node's own identity.</summary>
-    /// <param name="deviceName">Exact device name. Must be non-blank.</param>
-    /// <param name="nodeId">Node identity as reported by read_hardware_config. Must be non-blank.</param>
-    public static NetworkObjectSelectorInfo Node(
-        string deviceName,
-        string nodeId,
-        IReadOnlyList<DeviceItemPathSegmentInfo>? itemPath = null,
-        int? nodeIndex = null)
-    {
-        RequireNonBlank(deviceName, nameof(deviceName));
-        RequireNonBlank(nodeId, nameof(nodeId));
-        if ((itemPath is null) != (nodeIndex is null))
-        {
-            throw new ArgumentException("Item path and node index must be supplied together.");
-        }
-        if (itemPath is not null)
-        {
-            RequireNonEmptyPath(itemPath);
-            ValidateSegments(itemPath);
-        }
-        if (nodeIndex < 0)
-        {
-            throw new ArgumentException(
-                $"Node index must be non-negative but was {nodeIndex}.",
-                nameof(nodeIndex));
-        }
-
-        return new NetworkObjectSelectorInfo
-        {
-            Kind = NetworkObjectKinds.Node,
-            DeviceName = deviceName,
-            ItemPath = itemPath?.Select(Clone).ToList(),
-            NodeId = nodeId,
-            NodeIndex = nodeIndex,
-        };
-    }
-
     /// <summary>Builds the preferred node selector without requiring generic item indices or type evidence.</summary>
     public static NetworkObjectSelectorInfo QualifiedNode(string deviceName, string nodeId,
         IReadOnlyList<NetworkInterfacePathSegmentInfo> interfacePath, string? interfaceName = null, int? nodeIndex = null)
