@@ -13,24 +13,26 @@ public static class TagTableReader
 {
     /// <summary>
     /// Reads every tag table of one already-selected <see cref="PlcSoftware"/>. The caller owns
-    /// deterministic PLC selection; this method only walks the tag-table tree.
+    /// deterministic PLC selection. Every unreadable table, group, tag or constant adds one
+    /// message to <paramref name="messages"/> (capped like <see cref="ReadInventory"/>).
     /// </summary>
-    public static List<TagTableInfo> ReadAll(PlcSoftware plcSoftware)
+    public static List<TagTableInfo> ReadAll(PlcSoftware plcSoftware, List<string> messages)
     {
-        var result = new List<TagTableInfo>();
-
-        CollectTablesFromGroup(plcSoftware.TagTableGroup, folderPath: "/", result);
-
-        return result;
+        var tables = new List<TagTableInfo>();
+        var readMessages = new List<string>();
+        InventoryGroup(plcSoftware.TagTableGroup, "/", new TableFilter(null, null), tables, readMessages);
+        CapMessages(readMessages);
+        messages.AddRange(readMessages);
+        return tables;
     }
+
+    public const int MaxInventoryMessages = 50;
 
     /// <summary>
     /// Reads the complete tag inventory of every PLC selected by <paramref name="plcName"/> (all
-    /// PLCs when null), including PLCs in device groups. Unlike <see cref="ReadAll(PlcSoftware)"/>
-    /// it reads the external-access flags and never skips silently: every table, group, tag or
-    /// constant that cannot be read yields one message and <c>IsComplete = false</c>.
+    /// PLCs when null), including PLCs in device groups. It never skips silently: every table,
+    /// group, tag or constant that cannot be read yields one message and <c>IsComplete = false</c>.
     /// </summary>
-    public const int MaxInventoryMessages = 50;
 
     /// <param name="tableName">Only the table with this name (case-insensitive) when not null.</param>
     /// <param name="folderPath">Only tables directly in this folder, in the emitted folderPath syntax
@@ -232,105 +234,5 @@ public static class TagTableReader
         {
             messages.Add($"{what} could not be enumerated: {ex.Message}");
         }
-    }
-
-    private static void CollectTablesFromGroup(
-        PlcTagTableGroup group,
-        string folderPath,
-        List<TagTableInfo> result)
-    {
-        foreach (PlcTagTable table in group.TagTables)
-        {
-            try
-            {
-                result.Add(ReadTagTable(table, folderPath));
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine(
-                    $"Skipping a tag table while reading tag table group '{group.Name}': {ex.Message}");
-            }
-        }
-
-        foreach (PlcTagTableGroup childGroup in group.Groups)
-        {
-            try
-            {
-                var childPath = folderPath == "/"
-                    ? $"/{childGroup.Name}"
-                    : $"{folderPath}/{childGroup.Name}";
-
-                CollectTablesFromGroup(childGroup, childPath, result);
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine(
-                    $"Skipping a nested tag table group while reading tag table group '{group.Name}': {ex.Message}");
-            }
-        }
-    }
-
-    private static TagTableInfo ReadTagTable(PlcTagTable table, string folderPath)
-    {
-        var tagTableInfo = new TagTableInfo
-        {
-            Name = table.Name,
-            FolderPath = folderPath,
-            IsDefault = table.IsDefault,
-            Tags = ReadTags(table),
-            UserConstants = ReadUserConstants(table)
-        };
-
-        return tagTableInfo;
-    }
-
-    private static List<TagInfo> ReadTags(PlcTagTable table)
-    {
-        var tags = new List<TagInfo>();
-
-        foreach (PlcTag tag in table.Tags)
-        {
-            try
-            {
-                tags.Add(new TagInfo
-                {
-                    Name = tag.Name,
-                    DataType = tag.DataTypeName,
-                    LogicalAddress = tag.LogicalAddress
-                });
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine(
-                    $"Skipping a tag while reading tag table '{table.Name}': {ex.Message}");
-            }
-        }
-
-        return tags;
-    }
-
-    private static List<UserConstantInfo> ReadUserConstants(PlcTagTable table)
-    {
-        var constants = new List<UserConstantInfo>();
-
-        foreach (PlcUserConstant c in table.UserConstants)
-        {
-            try
-            {
-                constants.Add(new UserConstantInfo
-                {
-                    Name = c.Name,
-                    DataType = c.DataTypeName,
-                    Value = c.Value?.ToString() ?? string.Empty
-                });
-            }
-            catch (EngineeringException ex)
-            {
-                Console.Error.WriteLine(
-                    $"Skipping a user constant while reading tag table '{table.Name}': {ex.Message}");
-            }
-        }
-
-        return constants;
     }
 }
