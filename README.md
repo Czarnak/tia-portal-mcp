@@ -127,7 +127,7 @@ project is treated as UI-owned. Read-only never opens, creates, saves or closes 
 explicit binding may switch the selected session. Project-tree cursors reject binding changes,
 including a switch away and back to the same path.
 
-`plc_write` and `network_write` plan and re-plan exact current targets under one pinned verified project binding, then mutate, verify the attempted prefix, and audit under that same lease, so a concurrent rebind cannot redirect a planned write. `plc_write` blocks name collisions, `create_block` on an existing block, deleting the default tag table, and unreadable evidence before anything runs; deletes and address overlaps are reported as info.
+`plc_write`, `network_write`, `hmi_write` and `vci_write` plan and re-plan exact current targets under one pinned verified project binding, then mutate, verify the attempted prefix, and audit under that same lease, so a concurrent rebind cannot redirect a planned write. `plc_write` blocks name collisions, `create_block` on an existing block, deleting the default tag table, and unreadable evidence before anything runs; deletes and address overlaps are reported as info.
 
 Lifecycle rejection has top-level `{category,message}` `error` and MCP `isError:true`. An attempted
 write or verification failure instead has `success:false`, `error:null`, and `isError:false`, with
