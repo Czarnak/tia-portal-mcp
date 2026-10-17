@@ -7,6 +7,7 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Plc;
 using TiaMcpServer.Worker;
 using Xunit;
+using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Tests.Plc;
 
@@ -32,7 +33,7 @@ public class PlcPayloadContractTests
         var result = item.Result!.Value;
         Assert.Equal("xml", result.GetProperty("format").GetString());
         Assert.Equal("<Doc/>", result.GetProperty("content").GetString());
-        Assert.Equal(PlcContentHashes.Compute("xml", "<Doc/>"), result.GetProperty("contentHash").GetString());
+        Assert.Equal(ContentHashes.Compute("xml", "<Doc/>"), result.GetProperty("contentHash").GetString());
         Assert.StartsWith("xml:sha256:", result.GetProperty("contentHash").GetString());
         Assert.Equal("w", result.GetProperty("warnings")[0].GetString());
         Assert.Equal("w", Assert.Single(item.Warnings));

@@ -26,24 +26,17 @@ public interface IWriteBindingGate
 
     /// <summary>
     /// Runs <paramref name="operation"/> while holding the lease on <paramref name="binding"/>; a
-    /// binding that no longer matches is refused without running the operation.
+    /// binding that no longer matches is refused without running the operation. Cancellation is
+    /// observed before entry; implementations must never abandon a running mutation.
     /// </summary>
-    Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(ProjectBindingSnapshot binding, Func<Task<T>> operation)
-        where T : class;
-
-    /// <summary>Cancellation-aware lease entry; implementations must never abandon a running mutation.</summary>
     Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
-        ProjectBindingSnapshot binding, Func<Task<T>> operation, CancellationToken cancellationToken)
-        where T : class
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return RunUnderLeaseAsync(binding, operation);
-    }
+        ProjectBindingSnapshot binding, Func<Task<T>> operation, CancellationToken cancellationToken = default)
+        where T : class;
 }
 
 /// <summary>
-/// <see cref="IWriteBindingGate"/> over <see cref="OpennessWorkerClient"/>: its access policy (read-write
-/// when it has none), its verified-binding gate, and <c>ExecuteWithPinnedBindingAsync</c>.
+/// <see cref="IWriteBindingGate"/> over <see cref="OpennessWorkerClient"/>: its access policy,
+/// its verified-binding gate, and <c>ExecuteWithPinnedBindingAsync</c>.
 /// </summary>
 public sealed class OpennessWriteBindingGate : IWriteBindingGate
 {
@@ -54,7 +47,7 @@ public sealed class OpennessWriteBindingGate : IWriteBindingGate
         _workerClient = workerClient ?? throw new ArgumentNullException(nameof(workerClient));
     }
 
-    public McpAccessMode AccessMode => _workerClient.AccessPolicy?.Mode ?? McpAccessMode.ReadWrite;
+    public McpAccessMode AccessMode => _workerClient.AccessPolicy.Mode;
 
     public ProjectBindingSnapshot CurrentBinding => _workerClient.BindingSnapshot;
 
@@ -63,14 +56,8 @@ public sealed class OpennessWriteBindingGate : IWriteBindingGate
 
     public async Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
         ProjectBindingSnapshot binding,
-        Func<Task<T>> operation)
-        where T : class
-        => await RunUnderLeaseAsync(binding, operation, CancellationToken.None).ConfigureAwait(false);
-
-    public async Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
-        ProjectBindingSnapshot binding,
         Func<Task<T>> operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
         where T : class
     {
         var execution = await _workerClient

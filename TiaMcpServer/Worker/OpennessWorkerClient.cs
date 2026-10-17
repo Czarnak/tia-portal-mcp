@@ -946,19 +946,6 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(
-        string deviceName,
-        string nodeId,
-        string? ipAddress,
-        string? subnetMask,
-        string? pnDeviceName,
-        string? subnetId,
-        string? ioSystemSubnetId,
-        int? ioSystemNumber,
-        string? projectPath)
-        => ConfigureNetworkDeviceAsync(new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
-            ipAddress, subnetMask, pnDeviceName, null, subnetId, ioSystemSubnetId, ioSystemNumber, projectPath);
-
     public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(NetworkObjectSelectorInfo target,
         string? ipAddress, string? subnetMask, string? pnDeviceName, bool? pnDeviceNameAutoGeneration, string? subnetId,
         string? ioSystemSubnetId, int? ioSystemNumber, string? projectPath)
@@ -2309,13 +2296,10 @@ public class OpennessWorkerClient : IDisposable
     {
         // Defense in depth: authorize BEFORE the worker process is started, before any
         // request is written to stdin, and before TIA Portal is connected.
-        if (_accessPolicy is not null)
+        var denial = _accessPolicy.Authorize(request.Method);
+        if (denial is not null)
         {
-            var denial = _accessPolicy.Authorize(request.Method);
-            if (denial is not null)
-            {
-                return denial with { DispatchState = WorkerDispatchState.NotSent };
-            }
+            return denial with { DispatchState = WorkerDispatchState.NotSent };
         }
 
         var capabilityOperation = ProjectCapabilityCatalog.OperationFor(request.Method);

@@ -29,9 +29,6 @@ public sealed class WriteGuardCatalog
 
     private readonly Dictionary<string, WriteGuardDefinition> _guards = new(StringComparer.Ordinal);
 
-    /// <summary>The catalog holding only the pipeline's own guard.</summary>
-    public static WriteGuardCatalog Production { get; } = new(Array.Empty<WriteGuardDefinition>());
-
     public WriteGuardCatalog(IEnumerable<WriteGuardDefinition> domainGuards)
     {
         ArgumentNullException.ThrowIfNull(domainGuards);

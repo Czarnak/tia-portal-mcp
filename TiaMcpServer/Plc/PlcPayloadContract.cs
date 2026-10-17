@@ -6,6 +6,7 @@ using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Plc;
 
@@ -161,7 +162,7 @@ public static class PlcPayloadContract
     private static PlcContentResult Content(PlcOperationRequest operation, string payload, IReadOnlyList<string> warnings)
     {
         var format = PlcFormatNames.Normalize(operation.Operation, operation.Format);
-        var hash = operation.WithDependencies == true ? null : PlcContentHashes.Compute(format, payload);
+        var hash = operation.WithDependencies == true ? null : ContentHashes.Compute(format, payload);
         return new PlcContentResult(format, payload, hash, warnings);
     }
 

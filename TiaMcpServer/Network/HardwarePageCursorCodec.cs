@@ -30,11 +30,6 @@ internal sealed class HardwarePageCursorCodec
         _protector = protector;
     }
 
-    internal HardwarePageCursorCodec(byte[] key)
-        : this(new AuthenticatedCursorProtector(key, "hardware-page-compatibility"))
-    {
-    }
-
     internal string Encode(HardwarePageCursorState state)
     {
         ArgumentNullException.ThrowIfNull(state);

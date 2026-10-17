@@ -38,7 +38,7 @@ public class NetworkReadTools
             return Error(WorkerFailureCategories.ValidationError, validation.Error);
         }
 
-        var mode = workerClient.AccessPolicy?.Mode ?? McpAccessMode.ReadWrite;
+        var mode = workerClient.AccessPolicy.Mode;
         var accessErrors = NetworkOperationCatalog.ValidateAccessMode(operations, mode);
         if (accessErrors.Count != 0)
         {

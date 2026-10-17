@@ -287,7 +287,7 @@ public class HardwarePageProjectorTests
 
     private static HardwarePageProjector Projector() => new(Codec());
 
-    private static HardwarePageCursorCodec Codec() => new(new byte[32]);
+    private static HardwarePageCursorCodec Codec() => new(new TiaMcpServer.Cursors.AuthenticatedCursorProtector(new byte[32], "test-process"));
 
     private static StructuredOperationItem Project(
         HardwarePageProjector projector,
