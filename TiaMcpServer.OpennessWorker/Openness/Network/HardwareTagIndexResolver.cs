@@ -18,7 +18,7 @@ public static class HardwareTagIndexResolver
         string? plcName,
         List<string> messages)
     {
-        var discovered = PlcSoftwareLocator.FindAll(project, plcName: null).ToList();
+        var discovered = PlcSoftwareLocator.FindEveryPlc(project, plcName: null, messages).ToList();
 
         PlcSoftwareLocator.DiscoveredPlcSoftware? selected;
         if (plcName is not null)
