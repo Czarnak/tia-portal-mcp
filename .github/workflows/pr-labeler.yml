@@ -2,6 +2,7 @@ name: PR labeler
 
 # Adds "area: *", documentation, and github_actions labels from the paths a pull request
 # changes. The rules live in .github/labeler.yml.
+# Also keeps enhancement/bug labels in sync with feat:/fix: PR title prefixes.
 #
 # pull_request_target (not pull_request) is used so labeling also works on PRs from forks and
 # from Dependabot, whose pull_request runs only get a read-only token. The trade-off is that
@@ -10,7 +11,7 @@ name: PR labeler
 # list through the API and the rules from the default branch.
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, edited]
 
 permissions:
   contents: read
@@ -22,3 +23,21 @@ jobs:
     steps:
       - name: Apply labels from changed paths
         uses: actions/labeler@v7
+
+      - name: Apply label from PR title
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const target = { ...context.repo, issue_number: context.issue.number };
+            const { data: pr } = await github.rest.pulls.get({
+              ...context.repo, pull_number: context.issue.number
+            });
+            const type = pr.title.match(/^(feat|fix)(?:\([^)]+\))?!?:/i)?.[1].toLowerCase();
+            for (const [prefix, label] of [['feat', 'enhancement'], ['fix', 'bug']]) {
+              const present = pr.labels.some(item => item.name === label);
+              if (type === prefix && !present) {
+                await github.rest.issues.addLabels({ ...target, labels: [label] });
+              } else if (type !== prefix && present) {
+                await github.rest.issues.removeLabel({ ...target, name: label });
+              }
+            }
