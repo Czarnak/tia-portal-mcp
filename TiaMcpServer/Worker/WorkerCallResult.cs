@@ -1,6 +1,4 @@
 using TiaMcpServer.Contracts.Hmi;
-using System.Text.Json;
-using TiaMcpServer.Json;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
@@ -77,28 +75,4 @@ public sealed record WorkerCallResult(
 
         return new(false, string.Empty, error, failureCategory, warnings ?? Array.Empty<string>());
     }
-
-    /// <summary>Agent-facing text for boundaries where an MCP tool returns a plain string.</summary>
-    public string ToText()
-        => Success ? Payload : $"Error: {Error}";
-
-    /// <summary>
-    /// Structured agent-facing envelope for direct lifecycle results (as opposed to guarded
-    /// writes, which render through the guarded write pipeline). Always emits
-    /// <c>success</c>, <c>payload</c>, <c>failureCategory</c>, <c>error</c>, and <c>warnings</c> so
-    /// the category is a first-class, independently readable field rather than text embedded in
-    /// a message string.
-    /// </summary>
-    public string ToEnvelopeText()
-        => JsonSerializer.Serialize(
-            new
-            {
-                success = Success,
-                payload = Payload,
-                failureCategory = FailureCategory,
-                error = Error,
-                warnings = Warnings,
-                sessionIdentity = SessionIdentity
-            },
-            TiaJson.Presentation);
 }

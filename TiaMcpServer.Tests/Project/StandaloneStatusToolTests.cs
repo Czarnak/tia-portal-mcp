@@ -34,7 +34,7 @@ public sealed class StandaloneStatusToolTests
         Assert.False(value.GetProperty("isOpen").GetBoolean());
         Assert.Equal(JsonValueKind.Null, value.GetProperty("isModified").ValueKind);
         Assert.Equal(JsonValueKind.Null, value.GetProperty("metadata").ValueKind);
-        Assert.Null(binding.BoundProjectPath);
+        Assert.Null(binding.CaptureSnapshot().ProjectPath);
         Assert.False(binding.IsVerified);
     }
 

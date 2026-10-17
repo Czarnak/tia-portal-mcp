@@ -106,12 +106,8 @@ internal sealed class PlcGuardedWriteFixture : IDisposable
             return result;
         }
 
-        public Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(ProjectBindingSnapshot binding, Func<Task<T>> operation)
-            where T : class
-            => inner.RunUnderLeaseAsync(binding, operation);
-
         public Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(ProjectBindingSnapshot binding, Func<Task<T>> operation,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken = default)
             where T : class
             => inner.RunUnderLeaseAsync(binding, operation, cancellationToken);
     }

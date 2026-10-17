@@ -6,6 +6,7 @@ using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using Xunit;
+using TiaMcpServer.Contracts.Shared;
 
 namespace TiaMcpServer.Tests.Safety.Pipeline;
 
@@ -303,7 +304,7 @@ public sealed class WriteConfirmationPipelineTests
         Assert.Equal(text, Assert.IsType<JsonElement>(result.StructuredContent).GetRawText());
         var record = Assert.Single(_audit.Records);
         Assert.Equal(text, record.ResponseText);
-        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(text), record.ResponseHash);
+        Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(text), record.ResponseHash);
         return (result, Document(result));
     }
 

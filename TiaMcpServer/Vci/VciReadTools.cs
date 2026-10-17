@@ -32,7 +32,7 @@ public class VciReadTools
             return Error(validation.Category, validation.Error);
         }
 
-        var mode = workerClient.AccessPolicy?.Mode ?? McpAccessMode.ReadWrite;
+        var mode = workerClient.AccessPolicy.Mode;
         var accessErrors = VciReadCatalog.ValidateAccessMode(operations, mode);
         if (accessErrors.Count != 0)
         {

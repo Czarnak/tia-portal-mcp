@@ -9,33 +9,6 @@ internal static class BlockImportCoordinator
     public static BlockImportResult Execute(
         string documentName,
         string rawContent,
-        Action<DirectoryInfo, ParsedBlockImportBundle> importDocuments,
-        Func<BlockPostconditionEvidence> verifyPostcondition,
-        Action<string>? cleanupDirectory = null)
-    {
-        if (importDocuments is null) throw new ArgumentNullException(nameof(importDocuments));
-        if (verifyPostcondition is null) throw new ArgumentNullException(nameof(verifyPostcondition));
-
-        return Execute(
-            documentName,
-            rawContent,
-            (directory, bundle, boundary) =>
-            {
-                boundary.BeforeSiemensCall();
-                importDocuments(directory, bundle);
-                boundary.AfterSiemensCallReturned();
-                boundary.RecordReturnedResult(BlockImportReturnedState.Success);
-            },
-            compileAllowed => compileAllowed
-                ? UpgradeLegacyEvidence(verifyPostcondition())
-                : BlockPostconditionEvidence.Import(
-                    BlockCompileObservation.Unavailable(null), "unavailable", null),
-            cleanupDirectory);
-    }
-
-    public static BlockImportResult Execute(
-        string documentName,
-        string rawContent,
         Action<DirectoryInfo, ParsedBlockImportBundle, BlockImportInvocationBoundary> importDocuments,
         Func<bool, BlockPostconditionEvidence> observePostcondition,
         Action<string>? cleanupDirectory = null,
@@ -302,22 +275,6 @@ internal static class BlockImportCoordinator
             BlockImportDiagnosticSanitizer.Failure(failureContext, failure),
             BlockImportDiagnosticSanitizer.SanitizeWarnings(warnings),
             outcome);
-    }
-
-    private static BlockPostconditionEvidence UpgradeLegacyEvidence(BlockPostconditionEvidence evidence)
-    {
-        if (evidence is null) throw new ArgumentNullException(nameof(evidence));
-        var report = new CompileCheckReport
-        {
-            Scope = "block",
-            OverallState = evidence.CompileSucceeded ? "Success" : "Error",
-            TotalErrorCount = evidence.CompileSucceeded ? 0 : 1
-        };
-        return BlockPostconditionEvidence.Import(
-            BlockCompileObservation.FromReport(report),
-            evidence.ReExportSucceeded ? "succeeded" : "unavailable",
-            evidence.ReExportSucceeded ? true : null,
-            evidence.Warnings);
     }
 
     private static WorkerOperationException CreatePreTargetFailure(

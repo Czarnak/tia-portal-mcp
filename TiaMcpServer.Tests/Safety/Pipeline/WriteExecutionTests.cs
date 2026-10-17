@@ -7,6 +7,7 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
 using Xunit;
+using TiaMcpServer.Contracts.Shared;
 
 namespace TiaMcpServer.Tests.Safety.Pipeline;
 
@@ -449,7 +450,7 @@ public sealed class WriteExecutionTests
         Assert.Equal(new[] { "a", "b", "c" }, Strings(record.RequestedOperations!.Value, "operationId"));
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         Assert.Equal(text, record.ResponseText);
-        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(text), record.ResponseHash);
+        Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(text), record.ResponseHash);
         Assert.True(record.DurationMs > 0);
 
         Assert.Equal(new[] { "a", "b", "c" }, record.Items.Select(i => i.OperationId));

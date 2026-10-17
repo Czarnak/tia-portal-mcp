@@ -1,6 +1,7 @@
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Safety.Pipeline;
 using Xunit;
+using TiaMcpServer.Contracts.Shared;
 
 namespace TiaMcpServer.Tests.Safety.Pipeline;
 
@@ -25,8 +26,8 @@ public sealed class ContentHashesTests
     [Fact]
     public void Sha256Hex_IsLowerCaseUtf8()
     {
-        Assert.Equal(AbcHex, ContentHashes.Sha256Hex("abc"));
-        Assert.NotEqual(ContentHashes.Sha256Hex("a"), ContentHashes.Sha256Hex("ä"));
+        Assert.Equal(AbcHex, ContentHashRules.Sha256Hex("abc"));
+        Assert.NotEqual(ContentHashRules.Sha256Hex("a"), ContentHashRules.Sha256Hex("ä"));
     }
 
     [Theory]

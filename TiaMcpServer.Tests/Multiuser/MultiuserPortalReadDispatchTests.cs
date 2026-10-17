@@ -221,7 +221,6 @@ public sealed class MultiuserPortalReadDispatchTests
     [Theory]
     [InlineData("projectPath")]
     [InlineData("confirm")]
-    [InlineData("forceRebind")]
     [InlineData("alias")]
     [InlineData("group")]
     [InlineData("project")]
@@ -234,7 +233,6 @@ public sealed class MultiuserPortalReadDispatchTests
         {
             case "projectPath": request.ProjectPath = f.Path; break;
             case "confirm": request.Confirm = true; break;
-            case "forceRebind": request.ForceRebind = true; break;
             case "alias": request.MultiuserServerAlias = "Fixture"; break;
             case "group": request.MultiuserGroupIsRoot = true; break;
             case "project": request.MultiuserServerProjectName = "Demo"; break;

@@ -32,7 +32,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. All sixteen registered tools now follow it. This roadmap moves the rest onto
+already describe that contract. All nineteen registered tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
@@ -46,6 +46,9 @@ it without inventing a second mechanism.
 | `open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project` | Structured guarded lifecycle envelope (`1.0`) | Phase 3 implemented; current-candidate full/read-write live matrix passed 2026-10-03 |
 | `plc_read`, `read_cross_references` | Structured (`1.0`, root warnings/explicit nulls; 60,000-character value and 180,000-character document budgets) | Implemented and live-accepted 2026-10-05; replace `execute_read_batch`, which was retired |
 | `plc_write` | Structured guarded write envelope (`1.0`; effects, guards, typed batch and verification, omission) | Implemented and live-accepted 2026-10-07; replaces `preview_write_batch` and `apply_write_batch`, which were retired |
+| `hmi_read` | Structured (`1.1`, typed items, opt-in sealed snapshot cursors) | Implemented and live-accepted; see the [HMI reference](../SupportedOperations/HMI_OPERATIONS_SUMMARY.md) |
+| `hmi_write` | Structured guarded write envelope (`1.0`) | Implemented; scoped live acceptance 2026-10-14 |
+| `vci_read`, `vci_write` | Structured (`1.0`); `vci_write` uses the guarded write envelope | Implemented; scoped live acceptance 2026-10-16; see the [VCI reference](../SupportedOperations/VCI_OPERATIONS_SUMMARY.md) |
 
 The batch tools were excluded because the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) split them
@@ -61,7 +64,7 @@ One active output family remains after the batch tools were retired; two remaine
 
 | Family | How the response is built | Main departures from the target |
 | --- | --- | --- |
-| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone/lifecycle/Network/PLC tools use the target envelope; project-tree alignment remains |
+| Structured | `StructuredToolResult` over `CanonicalJson` | Standalone/lifecycle/Network/PLC/HMI/VCI tools use the target envelope; project-tree alignment remains |
 
 The legacy batch family (`TiaJson.Presentation` anonymous objects with JSON inside strings) was
 removed with the batch tools.
@@ -87,7 +90,7 @@ Below the tool surface, the host and worker also disagree about JSON:
   `GetProperty` lookups, raw pass-through, and the case-insensitive transport. Phase 1a removed
   the fifth, the lenient `JsonSerializerDefaults.Web` decode of the rebind-state payload: both
   rebind-state readers now go through `ProjectRebindStatePayloadContract`.
-- The legacy generic-batch token audit stream was retired. Lifecycle, Network, PLC and HMI writes use one canonical guarded
+- The legacy generic-batch token audit stream was retired. Lifecycle, Network, PLC, HMI and VCI writes use one canonical guarded
   write record per call in the separate `writes-yyyy-MM-dd.jsonl` stream, with a record discriminator,
   exact response/hash, and confirmation/guard satisfaction provenance; blocked calls and dry runs are included.
 
@@ -295,9 +298,9 @@ not changed by this documentation task.
 
 - Network alignment delivered with guarded writes: version `1.0`, warnings/explicit nulls, effects and typed immediate/final verification; actual-by-default `dryRun=false`, no server elicitation. SDK/wrapper legacy/unknown-root/nonboolean rejection before entry is a normal MCP error with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
-- Delete remaining legacy pieces such as `StandaloneToolResultFormatter` and
-  `WorkerCallResult.ToEnvelopeText` only after caller inventory proves they are unused.
-  Lifecycle, Network and generic-batch token paths are retired.
+- Lifecycle, Network and generic-batch token paths are retired. The remaining legacy text pieces
+  (`StandaloneToolResultFormatter`, `WorkerCallResult.ToText` and `ToEnvelopeText`) were deleted
+  in the 2026-10-17 dead-code cleanup.
 - Token core retired with `plc_write`: `CanonicalWriteSafety` went with Network; the batch tools,
   the `WriteSafetyService` token core (including the presentation token binding), the legacy audit
   record, `WriteSafetyTooling`, and `SafetyRead` went with the PLC delivery instead of a later

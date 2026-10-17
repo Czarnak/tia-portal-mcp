@@ -10,14 +10,6 @@ namespace TiaMcpServer.Tests.Network;
 /// </summary>
 public class NetworkSelectorFactoryTests
 {
-    [Fact]
-    public void LegacyIndexedSelector_RemainsStrict()
-    {
-        var path = new[] { ValidSegment(0, "Owner") };
-        path[0].TypeIdentifier = "";
-        Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.Node("Station", "E1", path, 0));
-        Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.Node("Station", "E1", new[] { ValidSegment(0, "Owner") }, null));
-    }
     // -------------------------------------------------------------------------
     // DeviceItem
     // -------------------------------------------------------------------------
@@ -177,39 +169,6 @@ public class NetworkSelectorFactoryTests
         Assert.Throws<ArgumentException>(
             () => NetworkSelectorFactory.NetworkInterface(
                 "PLC_1", new List<DeviceItemPathSegmentInfo>(), null, null, null));
-    }
-
-    // -------------------------------------------------------------------------
-    // Node
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void Node_CreatesCorrectSelector()
-    {
-        var path = new[] { ValidSegment(0, "Interface_1") };
-        var selector = NetworkSelectorFactory.Node("PLC_1", "node-42", path, 1);
-
-        Assert.Equal(NetworkObjectKinds.Node, selector.Kind);
-        Assert.Equal("PLC_1", selector.DeviceName);
-        Assert.Equal("node-42", selector.NodeId);
-        Assert.Equal(1, selector.NodeIndex);
-        Assert.Equal("Interface_1", Assert.Single(selector.ItemPath!).Name);
-    }
-
-    [Theory]
-    [InlineData("", "node-1")]
-    [InlineData("  ", "node-1")]
-    public void Node_RejectsBlankDeviceName(string deviceName, string nodeId)
-    {
-        Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.Node(deviceName, nodeId));
-    }
-
-    [Theory]
-    [InlineData("PLC_1", "")]
-    [InlineData("PLC_1", "  ")]
-    public void Node_RejectsBlankNodeId(string deviceName, string nodeId)
-    {
-        Assert.Throws<ArgumentException>(() => NetworkSelectorFactory.Node(deviceName, nodeId));
     }
 
     // -------------------------------------------------------------------------

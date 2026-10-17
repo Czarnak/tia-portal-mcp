@@ -82,15 +82,6 @@ internal static class ExecutableResolver
             $"The executable '{command}' was not found.");
     }
 
-    /// <summary>
-    /// Legacy method for backward compatibility. Returns only the path or null.
-    /// </summary>
-    public static string? FindClientExecutable(string clientExe)
-    {
-        var result = ResolveClientExecutable(clientExe);
-        return result.Found ? result.ResolvedPath : null;
-    }
-
     private static ExecutableResolutionResult ResolveAbsolute(string path)
     {
         if (File.Exists(path))

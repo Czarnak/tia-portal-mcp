@@ -19,16 +19,16 @@ namespace TiaMcpServer.Worker;
 internal static class WorkerTransportFailureGuidance
 {
     public const string SafeReadTimeout =
-        "The TIA Openness worker did not complete the read before the timeout. No project or PLC runtime mutation was requested. The worker session was discarded; retrying the read is safe.";
+        "The TIA Openness worker did not complete the read before the timeout. No project mutation was requested. The worker session was discarded; retrying the read is safe.";
 
     public const string SafeReadCrash =
-        "The TIA Openness worker stopped before returning the read result. No project or PLC runtime mutation was requested. The worker will restart on the next worker call; retrying the read is safe.";
+        "The TIA Openness worker stopped before returning the read result. No project mutation was requested. The worker will restart on the next worker call; retrying the read is safe.";
 
     public const string StateAffectingTimeout =
-        "The TIA Openness worker timed out before completion was confirmed. The project or PLC runtime state may have changed. Inspect current state before retrying.";
+        "The TIA Openness worker timed out before completion was confirmed. The project state may have changed. Inspect current state before retrying.";
 
     public const string StateAffectingCrash =
-        "The TIA Openness worker stopped before completion was confirmed. The project or PLC runtime state may have changed. Inspect current state before retrying.";
+        "The TIA Openness worker stopped before completion was confirmed. The project state may have changed. Inspect current state before retrying.";
 
     public const string SessionSelectionTimeout =
         "The TIA Openness worker timed out during session selection. The Openness dialog may need an answer in TIA Portal. The previous binding was invalidated; bind_project can be retried.";
@@ -82,8 +82,7 @@ public class OpennessWorkerClient : IDisposable
         _accessPolicy = accessPolicy ?? new Safety.OperationAccessPolicy(McpAccessMode.ReadWrite);
     }
 
-    /// <summary>The current access mode policy. Used by batch tools to validate
-    /// operations before worker invocation.</summary>
+    /// <summary>The current access mode policy; every worker request is authorized against it.</summary>
     public Safety.OperationAccessPolicy AccessPolicy => _accessPolicy;
 
     /// <summary>Current immutable host binding snapshot, used by the guarded write pipeline.</summary>
@@ -291,7 +290,7 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>
-    /// Runs a guarded write or legacy preview/apply critical section against an exact host binding
+    /// Runs a guarded write critical section against an exact host binding
     /// revision. Nested worker requests inherit that pinned identity, and other requests on this
     /// client wait until the section completes. Cancellation can end a wait without dispatching.
     /// </summary>
@@ -370,7 +369,7 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>
-    /// Fail-closed gate for every project-mutating preview/apply path. A startup --project value is
+    /// Fail-closed gate for every project-mutating write path. A startup --project value is
     /// first grounded by one read-only status request; an ordinary unbound session is never
     /// adopted implicitly and must use bind_project, or open_project in read-write/full mode.
     /// </summary>
@@ -942,23 +941,9 @@ public class OpennessWorkerClient : IDisposable
                 request.DeviceName = deviceName;
                 request.DeviceItemName = deviceItemName;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
-
-    public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(
-        string deviceName,
-        string nodeId,
-        string? ipAddress,
-        string? subnetMask,
-        string? pnDeviceName,
-        string? subnetId,
-        string? ioSystemSubnetId,
-        int? ioSystemNumber,
-        string? projectPath)
-        => ConfigureNetworkDeviceAsync(new NetworkObjectSelectorInfo { Kind = NetworkObjectKinds.Node, DeviceName = deviceName, NodeId = nodeId },
-            ipAddress, subnetMask, pnDeviceName, null, subnetId, ioSystemSubnetId, ioSystemNumber, projectPath);
 
     public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(NetworkObjectSelectorInfo target,
         string? ipAddress, string? subnetMask, string? pnDeviceName, bool? pnDeviceNameAutoGeneration, string? subnetId,
@@ -982,7 +967,6 @@ public class OpennessWorkerClient : IDisposable
                 request.IoSystemSubnetId = ioSystemSubnetId;
                 request.IoSystemNumber = ioSystemNumber;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1008,7 +992,6 @@ public class OpennessWorkerClient : IDisposable
                 request.SubnetHighestAddress = highestAddress;
                 request.SubnetTransmissionSpeed = transmissionSpeed;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1036,7 +1019,6 @@ public class OpennessWorkerClient : IDisposable
                 request.SubnetHighestAddress = highestAddress;
                 request.SubnetTransmissionSpeed = transmissionSpeed;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1054,7 +1036,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.SubnetId = subnetId;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1065,7 +1046,7 @@ public class OpennessWorkerClient : IDisposable
         string? filter,
         int? maxResults)
     {
-        // Validate the filter before TryResolve so an invalid filter fails fast without a worker round-trip.
+        // Validate the filter before TryResolveWithSnapshot so an invalid filter fails fast without a worker round-trip.
         if (!CrossReferenceFilterNames.TryNormalize(filter, out var normalizedFilter, out var filterError))
         {
             return Task.FromResult(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, filterError!));
@@ -1125,7 +1106,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Content = yamlContent;
                 request.ExpectedContentHash = expectedContentHash;
                 request.Format = requestFormat;
-                request.AllowTiaConfirmations = true;
             },
             string.Empty).ConfigureAwait(false);
 
@@ -1182,7 +1162,7 @@ public class OpennessWorkerClient : IDisposable
 
     /// <summary>
     /// Writes a PLC data type's exported source. Mirrors <see cref="UpdateBlockLogicAsync"/>: same
-    /// <see cref="SendBoundProjectRequestAsync"/> construction, hardcoded AllowTiaConfirmations like
+    /// <see cref="SendBoundProjectRequestAsync"/> construction as
     /// its sibling, no bespoke logic.
     /// </summary>
     public Task<WorkerCallResult> UpdateTypeContentAsync(
@@ -1201,7 +1181,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Content = sourceContent;
                 request.ExpectedContentHash = expectedContentHash;
                 request.Format = format;
-                request.AllowTiaConfirmations = true;
             },
             string.Empty);
     }
@@ -1272,7 +1251,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1292,7 +1270,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1318,7 +1295,6 @@ public class OpennessWorkerClient : IDisposable
                 request.DataType = dataType;
                 request.LogicalAddress = logicalAddress;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1354,7 +1330,6 @@ public class OpennessWorkerClient : IDisposable
                 request.ExternalWritable = externalWritable;
                 request.IsSafety = isSafety;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1376,7 +1351,6 @@ public class OpennessWorkerClient : IDisposable
                 request.FolderPath = folderPath;
                 request.Name = name;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1402,7 +1376,6 @@ public class OpennessWorkerClient : IDisposable
                 request.DataType = dataType;
                 request.Value = value;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1428,7 +1401,6 @@ public class OpennessWorkerClient : IDisposable
                 request.DataType = dataType;
                 request.Value = value;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1450,7 +1422,6 @@ public class OpennessWorkerClient : IDisposable
                 request.FolderPath = folderPath;
                 request.Name = name;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1472,7 +1443,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Language = language;
                 request.OBEventClass = obEventClass;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1486,7 +1456,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1500,7 +1469,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1514,7 +1482,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.BlockPath = blockPath;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1630,7 +1597,7 @@ public class OpennessWorkerClient : IDisposable
                 ProjectPathNormalization.Canonicalize(projectPath), StringComparison.OrdinalIgnoreCase))
             return WorkerCallResult.Ok("{}");
 
-        // Upfront gate: the generic helper's TryResolve has no forceRebind concept, so open keeps
+        // Upfront gate: the generic helper's TryResolveWithSnapshot has no forceRebind concept, so open keeps
         // its own binding-policy check against the CALLER's requested path before doing any work.
         if (!_projectSessionBinding.CanBind(projectPath, forceRebind, out var bindingError))
         {
@@ -1668,8 +1635,6 @@ public class OpennessWorkerClient : IDisposable
                 ProjectPath = projectPath,
                 ExpectedSessionIdentity = emptyIdentity ?? bindingBeforeCall.ToWorkerIdentity(),
                 Confirm = true,
-                ForceRebind = forceRebind,
-                AllowTiaConfirmations = true
             }).ConfigureAwait(false);
 
         if (!result.Success)
@@ -1765,7 +1730,6 @@ public class OpennessWorkerClient : IDisposable
                 Author = author,
                 Comment = comment,
                 Confirm = true,
-                AllowTiaConfirmations = true
             }).ConfigureAwait(false);
 
         if (!result.Success)
@@ -1799,7 +1763,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1841,7 +1804,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TargetName = targetName;
                 request.Rebind = true;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}",
             BindingTransition.BindResolvedPath);
@@ -1869,7 +1831,6 @@ public class OpennessWorkerClient : IDisposable
                 request.ArchiveMode = normalizedMode;
                 request.SaveBeforeArchive = saveBeforeArchive;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}");
     }
@@ -1883,7 +1844,6 @@ public class OpennessWorkerClient : IDisposable
             {
                 request.SaveBeforeClose = saveBeforeClose;
                 request.Confirm = true;
-                request.AllowTiaConfirmations = true;
             },
             "{}",
             BindingTransition.Clear);
@@ -2335,13 +2295,10 @@ public class OpennessWorkerClient : IDisposable
     {
         // Defense in depth: authorize BEFORE the worker process is started, before any
         // request is written to stdin, and before TIA Portal is connected.
-        if (_accessPolicy is not null)
+        var denial = _accessPolicy.Authorize(request.Method);
+        if (denial is not null)
         {
-            var denial = _accessPolicy.Authorize(request.Method);
-            if (denial is not null)
-            {
-                return denial with { DispatchState = WorkerDispatchState.NotSent };
-            }
+            return denial with { DispatchState = WorkerDispatchState.NotSent };
         }
 
         var capabilityOperation = ProjectCapabilityCatalog.OperationFor(request.Method);

@@ -12,6 +12,7 @@ using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 using Xunit.Abstractions;
+using TiaMcpServer.Contracts.Shared;
 
 namespace TiaMcpServer.Tests.Network;
 
@@ -108,7 +109,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.Equal("error", root.GetProperty("phase").GetString());
         var record = CanonicalJson.Deserialize<WriteAuditRecord>(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
         Assert.Equal(Assert.Single(reply.Content.OfType<TextContentBlock>()).Text, record.ResponseText);
-        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(record.ResponseText), record.ResponseHash);
+        Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(record.ResponseText), record.ResponseHash);
     }
 
     [Fact]
@@ -281,7 +282,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
 
         var record = CanonicalJson.Deserialize<WriteAuditRecord>(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
         Assert.Equal(canonical, record.ResponseText);
-        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(canonical), record.ResponseHash);
+        Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(canonical), record.ResponseHash);
         Assert.Equal("skipped", Assert.Single(record.Items).Status);
         Assert.DoesNotContain("configure_network_device", requests.Methods());
     }
@@ -569,7 +570,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.Equal(text, ((JsonElement)reply.StructuredContent!).GetRawText());
         var record = CanonicalJson.Deserialize<WriteAuditRecord>(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
         Assert.Equal(text, record.ResponseText);
-        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(text), record.ResponseHash);
+        Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(text), record.ResponseHash);
     }
     private static NetworkGuardedWriteResponse Compose(WriteReport<NetworkWriteEffect, NetworkWriteVerification> report)
     {

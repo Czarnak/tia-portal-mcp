@@ -153,7 +153,6 @@ public static class HardwareConfigReader
         HardwareDiscoveryEvidenceCapture capture)
     {
         NetworkObjectDiscoveryEvidence.AddReadMessage(messages, deviceName);
-        var failuresBefore = capture.Evidence.Failures.Count;
         var deviceDescription = deviceName.IsUsable ? deviceName.Value : "(unnamed)";
         var typeIdentifier = ReadOptionalString(
             () => device.TypeIdentifier,
@@ -174,7 +173,7 @@ public static class HardwareConfigReader
             includeIoDetails,
             tagIndex,
             capture);
-        NetworkNodeReadSelectorBuilder.Apply(deviceInfo, capture.Evidence.Failures.Count == failuresBefore);
+        // Node selectors are certified by the caller (ApplyInventory/ApplyPage) from final evidence.
         return deviceInfo;
     }
 
@@ -369,10 +368,7 @@ public static class HardwareConfigReader
             () => node.NodeId,
             $"Node '{nodeDescription}' identity");
         NetworkObjectDiscoveryEvidence.AddReadMessage(messages, nodeId);
-        var selectorDiagnostics = CombineDiagnostics(
-            Array.Empty<string>(),
-            deviceName.Diagnostic,
-            nodeId.Diagnostic);
+        // Selectable/Selector/SelectorDiagnostics are certified later by NetworkNodeReadSelectorBuilder.
         var nodeInfo = new NodeInfo
         {
             Name = nodeName ?? string.Empty,
@@ -396,8 +392,6 @@ public static class HardwareConfigReader
                 "PnDeviceName",
                 $"node '{nodeDescription}' PROFINET device name",
                 messages),
-            Selectable = selectorDiagnostics.Count == 0,
-            SelectorDiagnostics = selectorDiagnostics,
         };
         nodeInfo.ConnectionEvidence = NetworkConnectionEvidenceCapture.CaptureNode(
             () => node.ConnectedSubnet is { } subnet ? RequireSubnetIdentity(subnet) : null,
@@ -411,10 +405,6 @@ public static class HardwareConfigReader
         {
             nodeInfo.ConnectionEvidence.Complete = false;
             nodeInfo.ConnectionEvidence.Messages.Add("Node identity or device owner identity was unreadable.");
-        }
-        if (nodeInfo.Selectable)
-        {
-            nodeInfo.Selector = NetworkSelectorFactory.Node(deviceName.Value, nodeId.Value);
         }
 
         return nodeInfo;

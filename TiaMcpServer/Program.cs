@@ -80,7 +80,7 @@ namespace TiaMcpServer
             Console.Error.WriteLine($"TIA MCP worker timeout: {workerTimeout.Minutes} minutes");
             if (accessMode == McpAccessMode.ReadOnly)
             {
-                Console.Error.WriteLine("Project opening, compilation, writes, lifecycle operations, and PLC control are disabled.");
+                Console.Error.WriteLine("Project opening, compilation, writes and lifecycle operations are disabled.");
             }
 
             // Application-specific access-mode switches have been parsed. Remove them

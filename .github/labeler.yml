@@ -92,7 +92,7 @@
           - "**/McpProtocolTestHarness*"
 
 # Anything that runs inside the Openness worker or crosses the host-worker boundary.
-# Contracts is included because its logic (for example IoTagMatcher) executes in the worker.
+# Contracts is included because its logic (for example IoChannelControllerResolver) executes in the worker.
 # On a PR this label means: verify on a real TIA Portal V21 installation before merging.
 "area: worker":
   - changed-files:

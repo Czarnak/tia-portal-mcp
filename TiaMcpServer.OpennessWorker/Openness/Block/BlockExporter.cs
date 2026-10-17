@@ -78,17 +78,10 @@ public static partial class BlockExporter
             return ExportSource(target, address, withDependencies);
         }
 
-        return ExportXml(target, address, requireAuthoritativeXml: false);
+        return ExportXml(target, address);
     }
 
-    internal static string ExportForSafety(ProjectBase project, string blockPath)
-    {
-        var address = BlockAddress.Parse(blockPath);
-        var target = BlockTargetResolver.ResolveForExport(project, address);
-        return ExportXml(target, address, requireAuthoritativeXml: true);
-    }
-
-    private static string ExportXml(ResolvedBlockTarget target, BlockAddress address, bool requireAuthoritativeXml)
+    private static string ExportXml(ResolvedBlockTarget target, BlockAddress address)
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "tia-mcp-export-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -100,7 +93,7 @@ public static partial class BlockExporter
                 target.DocumentName,
                 () =>
                 {
-                    // Sole authoritative Simatic ML export path, shared with public reads.
+                    // Sole Simatic ML export path.
                     string xmlPath = Path.Combine(tempDir, target.DocumentName + ".xml");
                     target.Block!.Export(new FileInfo(xmlPath), ExportOptions.None);
                     return BlockXmlSanitizer.RemoveDocumentInfo(File.ReadAllText(xmlPath));
@@ -120,8 +113,7 @@ public static partial class BlockExporter
                         documents.Add(new BlockImportDocument(
                             file.Name, file.Name, File.ReadAllText(file.FullName)));
                     }
-                },
-                requireAuthoritativeXml);
+                });
         }
         finally
         {

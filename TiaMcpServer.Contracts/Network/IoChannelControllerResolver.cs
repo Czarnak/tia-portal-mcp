@@ -39,8 +39,6 @@ public readonly struct IoChannelControllerResult
 
     public string? ControllerName { get; }
 
-    public IoAddressRecord? RelevantAddress { get; }
-
     public string? DiagnosticMessage { get; }
 
     public bool IsTargetMatch(string? targetPlcDeviceName)
@@ -51,12 +49,10 @@ public readonly struct IoChannelControllerResult
     public IoChannelControllerResult(
         IoChannelControllerStatus status,
         string? controllerName,
-        IoAddressRecord? relevantAddress,
         string? diagnosticMessage)
     {
         Status = status;
         ControllerName = controllerName;
-        RelevantAddress = relevantAddress;
         DiagnosticMessage = diagnosticMessage;
     }
 }
@@ -84,7 +80,6 @@ public static class IoChannelControllerResolver
             return new IoChannelControllerResult(
                 IoChannelControllerStatus.NoInterval,
                 null,
-                null,
                 null);
         }
 
@@ -96,7 +91,6 @@ public static class IoChannelControllerResolver
         {
             return new IoChannelControllerResult(
                 IoChannelControllerStatus.NoInterval,
-                null,
                 null,
                 null);
         }
@@ -137,7 +131,6 @@ public static class IoChannelControllerResolver
             return new IoChannelControllerResult(
                 IoChannelControllerStatus.NoContainingAddress,
                 null,
-                null,
                 $"No controller association was found for a channel of device item '{itemDescription}'; no tag matches are reported for it.");
         }
 
@@ -145,7 +138,6 @@ public static class IoChannelControllerResolver
         {
             return new IoChannelControllerResult(
                 IoChannelControllerStatus.MultipleContainingAddresses,
-                null,
                 null,
                 $"A channel of device item '{itemDescription}' is contained by more than one address; no tag matches are reported because address ownership is ambiguous.");
         }
@@ -156,7 +148,6 @@ public static class IoChannelControllerResolver
             return new IoChannelControllerResult(
                 IoChannelControllerStatus.UnreadableController,
                 null,
-                relevant,
                 $"Controller association was unreadable for a channel of device item '{itemDescription}'; no tag matches are reported for it.");
         }
 
@@ -166,7 +157,6 @@ public static class IoChannelControllerResolver
             return new IoChannelControllerResult(
                 IoChannelControllerStatus.NoController,
                 null,
-                relevant,
                 $"No controller association was found for a channel of device item '{itemDescription}'; no tag matches are reported for it.");
         }
 
@@ -175,14 +165,12 @@ public static class IoChannelControllerResolver
             return new IoChannelControllerResult(
                 IoChannelControllerStatus.MultipleControllers,
                 null,
-                relevant,
                 $"A channel of device item '{itemDescription}' is owned by more than one controller; no tag matches are reported for it.");
         }
 
         return new IoChannelControllerResult(
             IoChannelControllerStatus.Resolved,
             controllerNames[0],
-            relevant,
             null);
     }
 }

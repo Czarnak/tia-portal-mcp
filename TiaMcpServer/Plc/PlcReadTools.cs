@@ -32,7 +32,7 @@ public class PlcReadTools
             return Error(WorkerFailureCategories.ValidationError, validation.Error);
         }
 
-        var mode = workerClient.AccessPolicy?.Mode ?? McpAccessMode.ReadWrite;
+        var mode = workerClient.AccessPolicy.Mode;
         var accessErrors = PlcOperationCatalog.ValidateAccessMode(operations, mode);
         if (accessErrors.Count != 0)
         {

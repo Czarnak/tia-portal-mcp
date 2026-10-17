@@ -69,9 +69,6 @@ public static class ContentHashes
                 evidence);
     }
 
-    /// <summary>Lower-case hexadecimal SHA-256 of the UTF-8 encoding of <paramref name="text"/>.</summary>
-    internal static string Sha256Hex(string text) => ContentHashRules.Sha256Hex(text);
-
     private static ContentHashCheck Reject(string message)
         => new(false, WorkerFailureCategories.ValidationError, message, null);
 }

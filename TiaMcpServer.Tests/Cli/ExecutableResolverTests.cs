@@ -209,24 +209,6 @@ public class ExecutableResolverTests
         Assert.NotNull(result);
     }
 
-    // --- FindClientExecutable legacy method ---
-
-    [Fact]
-    public void FindClientExecutable_NonexistentClient_ReturnsNull()
-    {
-        var result = ExecutableResolver.FindClientExecutable("nonexistent_client_xyz");
-
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public void FindClientExecutable_KnownCommand_ReturnsPath()
-    {
-        var result = ExecutableResolver.FindClientExecutable("cmd");
-
-        Assert.NotNull(result);
-    }
-
     // --- ClassifyExtension ---
 
     [Theory]

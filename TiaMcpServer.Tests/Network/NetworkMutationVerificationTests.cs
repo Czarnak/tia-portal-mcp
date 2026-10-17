@@ -216,20 +216,13 @@ public class NetworkMutationVerificationTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task PostconditionFailure_StopsLaterItems(bool required)
+    public void PostconditionFailure_FailsItemAndRetainsResult(bool required)
     {
         var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "wrong", true)));
-        var calls = 0;
-        var batch = await StructuredOperationBatchExecutionEngine.ApplyWritesAsync(
-            new[] { Configure(), Configure() },
-            _ => { calls++; return Task.FromResult(WorkerCallResult.Ok(WorkerJson.SerializePayload(result))); },
-            (op, worker) => required ? NetworkPayloadContract.Project(op, worker, true) : NetworkPayloadContract.Project(op, worker));
-        var wrongState = batch.Operations[0];
-        var later = batch.Operations[1];
+        var wrongState = Project(Configure(), result, required);
+        Assert.Equal(OperationBatchStatus.Failed, wrongState.Status);
         Assert.Equal("postcondition_failed", wrongState.Failure!.Category);
         Assert.NotNull(wrongState.Result);
-        Assert.Equal("earlierOperationFailed", later.SkipReason);
-        Assert.Equal(1, calls);
     }
 
     [Theory]

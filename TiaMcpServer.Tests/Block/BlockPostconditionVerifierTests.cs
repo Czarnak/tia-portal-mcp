@@ -95,7 +95,7 @@ public class BlockPostconditionVerifierTests
         BlockPostconditionVerifier.Verify(new BlockPostconditionEvidence(
             compileSucceeded: true,
             reExportSucceeded: true,
-            diagnosticMessage: "Verified."));
+            diagnosticMessage: "Verified."), "update");
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class BlockPostconditionVerifierTests
             BlockPostconditionVerifier.Verify(new BlockPostconditionEvidence(
                 compileSucceeded: false,
                 reExportSucceeded: true,
-                diagnosticMessage: "Compilation reported errors.")));
+                diagnosticMessage: "Compilation reported errors."), "update"));
 
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, exception.FailureCategory);
         Assert.StartsWith("Block update postcondition failed:", exception.Message);
@@ -118,7 +118,7 @@ public class BlockPostconditionVerifierTests
             BlockPostconditionVerifier.Verify(new BlockPostconditionEvidence(
                 compileSucceeded: true,
                 reExportSucceeded: false,
-                diagnosticMessage: "Re-exported primary document was missing.")));
+                diagnosticMessage: "Re-exported primary document was missing."), "update"));
 
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, exception.FailureCategory);
     }
@@ -132,7 +132,7 @@ public class BlockPostconditionVerifierTests
             BlockPostconditionVerifier.Verify(new BlockPostconditionEvidence(
                 compileSucceeded: true,
                 reExportSucceeded: false,
-                diagnosticMessage: rawDiagnostic)));
+                diagnosticMessage: rawDiagnostic), "update"));
 
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, exception.FailureCategory);
         Assert.Equal("Block update postcondition failed: verification did not complete.", exception.Message);
@@ -148,7 +148,7 @@ public class BlockPostconditionVerifierTests
             BlockPostconditionVerifier.Verify(new BlockPostconditionEvidence(
                 compileSucceeded: false,
                 reExportSucceeded: false,
-                diagnosticMessage: "Compilation failed.")));
+                diagnosticMessage: "Compilation failed."), "update"));
 
         Assert.Contains(exception.Warnings, warning =>
             warning.Contains("project state may have changed", StringComparison.OrdinalIgnoreCase));

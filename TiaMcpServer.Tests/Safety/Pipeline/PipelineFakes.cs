@@ -271,9 +271,11 @@ public sealed class FakeWriteBindingGate : IWriteBindingGate
     /// <summary>Refuses a snapshot that is not the current binding, like the real pinned lease.</summary>
     public async Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
         ProjectBindingSnapshot binding,
-        Func<Task<T>> operation)
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken = default)
         where T : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
         LeaseCalls++;
         LeasedBinding = binding;
         if (LeaseRefusal is not null)

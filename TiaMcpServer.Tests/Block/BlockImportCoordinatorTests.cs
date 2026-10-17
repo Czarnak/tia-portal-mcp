@@ -127,7 +127,7 @@ public class BlockImportCoordinatorTests
         var importCalls = 0;
         var verificationCalls = 0;
 
-        var result = BlockImportCoordinator.Execute(
+        var result = ExecuteLegacy(
             "fallback.xml",
             "--- FILE: Main.xml ---\n<Main />\n--- FILE: Types.xml ---\n<Types />",
             (directory, bundle) =>
@@ -155,7 +155,7 @@ public class BlockImportCoordinatorTests
         var observationCalls = 0;
         var cleanupCalls = 0;
 
-        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+        var exception = Assert.Throws<WorkerOperationException>(() => ExecuteLegacy(
             "fallback.xml",
             "--- FILE: ../escape.xml ---\n<SECRET_CONTENT />",
             (_, _) => importCalls++,
@@ -187,7 +187,7 @@ public class BlockImportCoordinatorTests
         var importCalls = 0;
         var verificationCalls = 0;
 
-        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+        var exception = Assert.Throws<WorkerOperationException>(() => ExecuteLegacy(
             "Main.xml",
             "<Main />",
             (_, _) => importCalls++,
@@ -578,7 +578,7 @@ public class BlockImportCoordinatorTests
     public void Execute_CleansStagingAfterSuccessAndFailure()
     {
         string? successfulStagingPath = null;
-        BlockImportCoordinator.Execute(
+        ExecuteLegacy(
             "Main.xml",
             "<Main />",
             (directory, _) => successfulStagingPath = directory.FullName,
@@ -588,7 +588,7 @@ public class BlockImportCoordinatorTests
         Assert.False(Directory.Exists(successfulStagingPath));
 
         string? failedStagingPath = null;
-        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+        var exception = Assert.Throws<WorkerOperationException>(() => ExecuteLegacy(
             "Main.xml",
             "<Main />",
             (directory, _) =>
@@ -612,7 +612,7 @@ public class BlockImportCoordinatorTests
 
         if (importFails)
         {
-            var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+            var exception = Assert.Throws<WorkerOperationException>(() => ExecuteLegacy(
                 "Main.xml",
                 "<Main />",
                 (_, _) => throw new InvalidOperationException("Import failed."),
@@ -626,7 +626,7 @@ public class BlockImportCoordinatorTests
             return;
         }
 
-        var result = BlockImportCoordinator.Execute(
+        var result = ExecuteLegacy(
             "Main.xml",
             "<Main />",
             (_, _) => { },
@@ -637,6 +637,45 @@ public class BlockImportCoordinatorTests
         var successWarning = Assert.Single(result.Warnings);
         Assert.Equal(BlockImportDiagnosticSanitizer.StagingCleanupWarning(), successWarning);
         Assert.DoesNotContain(cleanupFailure, successWarning, StringComparison.Ordinal);
+    }
+
+    // Adapts the pre-boundary test shape: an import that always returns successfully and a
+    // compile+re-export evidence callback, mapped onto the production boundary overload.
+    private static BlockImportResult ExecuteLegacy(
+        string documentName,
+        string rawContent,
+        Action<DirectoryInfo, ParsedBlockImportBundle> importDocuments,
+        Func<BlockPostconditionEvidence> verifyPostcondition,
+        Action<string>? cleanupDirectory = null)
+        => BlockImportCoordinator.Execute(
+            documentName,
+            rawContent,
+            (directory, bundle, boundary) =>
+            {
+                boundary.BeforeSiemensCall();
+                importDocuments(directory, bundle);
+                boundary.AfterSiemensCallReturned();
+                boundary.RecordReturnedResult(BlockImportReturnedState.Success);
+            },
+            compileAllowed => compileAllowed
+                ? UpgradeLegacyEvidence(verifyPostcondition())
+                : BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.Unavailable(null), "unavailable", null),
+            cleanupDirectory);
+
+    private static BlockPostconditionEvidence UpgradeLegacyEvidence(BlockPostconditionEvidence evidence)
+    {
+        var report = new CompileCheckReport
+        {
+            Scope = "block",
+            OverallState = evidence.CompileSucceeded ? "Success" : "Error",
+            TotalErrorCount = evidence.CompileSucceeded ? 0 : 1
+        };
+        return BlockPostconditionEvidence.Import(
+            BlockCompileObservation.FromReport(report),
+            evidence.ReExportSucceeded ? "succeeded" : "unavailable",
+            evidence.ReExportSucceeded ? true : null,
+            evidence.Warnings);
     }
 
     private static CompileCheckReport CleanReport() => new()

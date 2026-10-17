@@ -2,6 +2,7 @@ using System.Text.Json;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.Tests.TestSupport;
@@ -152,8 +153,9 @@ public sealed class HardwarePaginationFakeWorkerTests
             cursor = Cursor(await ReadPage(firstClient, 1, Scenario));
         }
 
+        using var otherProcess = new AuthenticatedCursorProtector(new byte[32], "other-process");
         var exception = Assert.Throws<HardwarePageCursorException>(
-            () => new HardwarePageCursorCodec(new byte[32]).Decode(cursor));
+            () => new HardwarePageCursorCodec(otherProcess).Decode(cursor));
 
         Assert.Equal(WorkerFailureCategories.InvalidCursor, exception.Category);
     }

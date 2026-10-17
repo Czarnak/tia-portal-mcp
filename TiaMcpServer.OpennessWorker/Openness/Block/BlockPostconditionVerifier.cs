@@ -10,11 +10,6 @@ internal static class BlockPostconditionVerifier
     private const string UncertainStateWarning =
         "Project state may have changed; inspect the project before retrying.";
 
-    public static void Verify(BlockPostconditionEvidence evidence)
-    {
-        Verify(evidence, "update");
-    }
-
     public static void Verify(BlockPostconditionEvidence evidence, string operation)
     {
         if (evidence is null) throw new ArgumentNullException(nameof(evidence));

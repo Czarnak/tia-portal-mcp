@@ -80,8 +80,8 @@ public class OpennessWorkerClientWarningTests
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
-        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.BindingState);
-        Assert.Equal("C:\\bound\\Session.ap21", binding.BoundProjectPath);
+        Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, binding.CaptureSnapshot().State);
+        Assert.Equal("C:\\bound\\Session.ap21", binding.CaptureSnapshot().ProjectPath);
         Assert.Contains("C:\\bound\\Session.ap21", result.Error);
         Assert.Contains("C:\\actual\\Other.ap21", result.Error);
     }
@@ -109,8 +109,8 @@ public class OpennessWorkerClientWarningTests
         Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
         Assert.Equal(divergent, result.SessionIdentity!.ProjectPath);
         Assert.Equal(new[] { "worker diagnostic" }, result.Warnings);
-        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.BindingState);
-        Assert.Equal(source, binding.BoundProjectPath);
+        Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
+        Assert.Equal(source, binding.CaptureSnapshot().ProjectPath);
 
         var blocked = await client.GetProjectStatusAsync(null);
         Assert.False(blocked.Success);
@@ -123,7 +123,7 @@ public class OpennessWorkerClientWarningTests
         Assert.True(recovered.Success, recovered.Error);
         Assert.Empty(recovered.Warnings);
         Assert.True(binding.IsVerified);
-        Assert.Equal(source, binding.BoundProjectPath);
+        Assert.Equal(source, binding.CaptureSnapshot().ProjectPath);
         Assert.Equal(new[] { "hello", "get_project_status", "get_project_status", "get_project_status" }, transport.Requests);
     }
 }

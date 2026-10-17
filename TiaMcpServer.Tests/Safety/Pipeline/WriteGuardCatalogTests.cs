@@ -10,7 +10,7 @@ public sealed class WriteGuardCatalogTests
     [Fact]
     public void Production_ContainsPartialWriteGuardAsInfo()
     {
-        var guard = WriteGuardCatalog.Production.Get("partial_write_no_rollback");
+        var guard = new WriteGuardCatalog(Array.Empty<WriteGuardDefinition>()).Get("partial_write_no_rollback");
 
         Assert.Equal(WriteGuardSeverities.Info, guard.Severity);
         Assert.False(string.IsNullOrWhiteSpace(guard.Description));
@@ -62,7 +62,7 @@ public sealed class WriteGuardCatalogTests
 
     [Fact]
     public void Get_UnknownId_Throws()
-        => Assert.Throws<InvalidOperationException>(() => WriteGuardCatalog.Production.Get("nope"));
+        => Assert.Throws<InvalidOperationException>(() => new WriteGuardCatalog(Array.Empty<WriteGuardDefinition>()).Get("nope"));
 
     [Fact]
     public void GuardBlocked_IsKnownAndAcceptedByFail()

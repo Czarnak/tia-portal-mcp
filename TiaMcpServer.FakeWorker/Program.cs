@@ -559,7 +559,7 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "C:\\bound\\Session.ap21":
             // Used by the "already bound but worker reports a different project" test: the
-            // session is pre-bound to this literal path (see IsSameProject/TryResolve), so a
+            // session is pre-bound to this literal path (see IsSameProject/TryResolveWithSnapshot), so a
             // request without an explicit projectPath forwards this exact string as the
             // scenario key. Reports a DIFFERENT resolvedProjectPath to simulate divergence.
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:\\actual\\Other.ap21"}""");
@@ -573,7 +573,7 @@ while ((line = Console.In.ReadLine()) is not null)
             // Used by the "equivalent but differently-spelled path" divergence test (Finding 2):
             // reports the identical project via forward slashes instead of back slashes. A raw
             // string.Equals would misclassify this as divergence; the canonicalized comparison
-            // (ProjectSessionBinding.IsBoundTo) must not.
+            // (ProjectSessionBinding path matching) must not.
             Respond("""{"success":true,"payload":"{}","resolvedProjectPath":"C:/equivalent/Project.ap21"}""");
             break;
         case "ok-with-warnings":
@@ -632,7 +632,6 @@ while ((line = Console.In.ReadLine()) is not null)
         case "block-outcome-missing-failure":
         case "block-outcome-invalid":
         case "block-outcome-oversized":
-        case "block-outcome-audit-failure":
             if (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
             {
                 Respond("""{"success":true,"payload":"{\"isOpen\":true}"}""");
@@ -706,48 +705,6 @@ while ((line = Console.In.ReadLine()) is not null)
                     $"pre-import {scenario}",
                     NotStartedBlockOutcome(SourceFormatNames.Source)));
             }
-            break;
-        case "block-outcome-transport-hang":
-        case "block-outcome-transport-crash":
-        case "block-outcome-transport-malformed":
-        case "block-outcome-transport-null-response":
-            if (ReadMethod(line) == "get_project_status" && currentExpectedSessionIdentity is null)
-            {
-                Respond("""{"success":true,"payload":"{\"isOpen\":true}"}""");
-            }
-            else if (scenario.EndsWith("hang", StringComparison.Ordinal))
-            {
-                Thread.Sleep(Timeout.Infinite);
-            }
-            else if (scenario.EndsWith("crash", StringComparison.Ordinal))
-            {
-                Environment.Exit(23);
-            }
-            else if (scenario.EndsWith("malformed", StringComparison.Ordinal))
-            {
-                Respond("this is not json");
-            }
-            else
-            {
-                Console.Out.WriteLine();
-                Console.Out.Flush();
-            }
-            break;
-        case "block-outcome-status-failure":
-            Respond("""{"success":false,"failureCategory":"worker_operation_failed","error":"configured project verification failed"}""");
-            break;
-        case "block-outcome-status-failure-with-stale-outcome":
-            Respond(ReadMethod(line) == "get_project_status"
-                ? BlockOutcomeResponse(
-                    false,
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    $"configured project verification failed on request {seq}",
-                    CompletedBlockOutcome(SourceFormatNames.Source, "succeeded"))
-                : BlockOutcomeResponse(
-                    false,
-                    WorkerFailureCategories.ProtocolError,
-                    $"update_block_logic must not be sent; observed request {seq}",
-                    CompletedBlockOutcome(SourceFormatNames.Source, "succeeded")));
             break;
         case "create-block-postcondition-failed":
             // Fixture bootstrap must not consume the protected write's attempt sequence.
@@ -1045,7 +1002,6 @@ while ((line = Console.In.ReadLine()) is not null)
                 : $$"""{"success":false,"error":"expected typed browse_project_tree_v3_snapshot"}""");
             break;
         case "project-tree-v3-small":
-        case "project-tree-v3-counted":
         case "project-tree-v3-one-shot":
             Respond(ProjectTreeV3ScenarioResponse(line, scenario));
             break;
@@ -2817,12 +2773,11 @@ string ProjectTreeV3ScenarioResponse(string requestLine, string scenario)
     }
 
     return SuccessWithResolvedPath(
-        ToCamelCaseJson(ProjectTreeV3Fixture(
-            scenario == "project-tree-v3-counted" ? call : null)),
+        ToCamelCaseJson(ProjectTreeV3Fixture()),
         ReadField(requestLine, "projectPath") ?? scenario);
 }
 
-ProjectTreeBrowseResultInfo ProjectTreeV3Fixture(int? observation = null) => new()
+ProjectTreeBrowseResultInfo ProjectTreeV3Fixture() => new()
 {
     StartSelector = null,
     Depth = null,
@@ -2833,9 +2788,7 @@ ProjectTreeBrowseResultInfo ProjectTreeV3Fixture(int? observation = null) => new
         {
             Name = "PLC_1",
             NodeType = ProjectTreeNodeTypes.Device,
-            Details = observation is null
-                ? null
-                : new Dictionary<string, string> { ["Observation"] = observation.Value.ToString() },
+            Details = null,
             Children = new List<ProjectTreeNode>
             {
                 new()

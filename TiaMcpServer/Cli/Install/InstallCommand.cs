@@ -79,8 +79,7 @@ public static class InstallCommand
             }
 
             // Exit code 8 for unsupported combo, 3 for unsupported client, 2 for other parse errors
-            if (options.ParseError?.Contains("does not support --json") == true ||
-                options.ParseError?.Contains("does not support") == true)
+            if (options.ParseError?.Contains("does not support") == true)
             {
                 return 8;
             }
@@ -150,14 +149,6 @@ public static class InstallCommand
             }
 
             return 4;
-        }
-
-        // For MiMoCode with --json, reject
-        if (client == ClientKind.MiMoCode && options.Json)
-        {
-            var msg = "MiMoCode installation uses interactive mode and does not support --json output.";
-            output.WriteLine(JsonSerializer.Serialize(new { success = false, client = client.ToString(), error = msg }));
-            return 8;
         }
 
         // Build install command and resolve its executable

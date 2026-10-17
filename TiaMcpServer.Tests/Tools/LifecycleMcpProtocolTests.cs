@@ -9,6 +9,7 @@ using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
+using TiaMcpServer.Contracts.Shared;
 
 namespace TiaMcpServer.Tests.Tools;
 
@@ -450,7 +451,7 @@ public sealed class LifecycleMcpProtocolTests
         using var record = JsonDocument.Parse(line);
         var text = Assert.Single(result.Content.OfType<TextContentBlock>()).Text;
         Assert.Equal(text, record.RootElement.GetProperty("responseText").GetString());
-        Assert.Equal("sha256:" + ContentHashes.Sha256Hex(text), record.RootElement.GetProperty("responseHash").GetString());
+        Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(text), record.RootElement.GetProperty("responseHash").GetString());
         Assert.Equal(2, record.RootElement.GetProperty("recordVersion").GetInt32());
         var confirmation = record.RootElement.GetProperty("confirmation");
         Assert.Equal(confirmationBy ?? (Document(result).GetProperty("phase").GetString() == "preview" ? "none" : "policy"), confirmation.GetProperty("by").GetString());

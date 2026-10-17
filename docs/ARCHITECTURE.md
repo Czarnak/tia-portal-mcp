@@ -1110,8 +1110,8 @@ again. A failed append is reported on stderr and never hides the write result.
 #### Content hash
 
 `plc_read` returns `contentHash` on each succeeded `get_block_content` and `get_type_content` read:
-`xml:sha256:<hex>` or `source:sha256:<hex>` over the exact served text (`PlcContentHashes`,
-`ContentHashes.Compute`). It is an explicit `null` on `withDependencies` reads, and a result over the
+`xml:sha256:<hex>` or `source:sha256:<hex>` over the exact served text
+(`ContentHashes.Compute`). It is an explicit `null` on `withDependencies` reads, and a result over the
 configured value budget is omitted whole, so no hash is reported for it. `plc_write`
 compares an expected hash with a fresh read through `ContentHashes.Check` (hashing is shared with
 the worker through Contracts `ContentHashRules`): a malformed hash or a

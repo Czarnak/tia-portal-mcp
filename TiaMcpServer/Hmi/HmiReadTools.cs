@@ -33,7 +33,7 @@ public class HmiReadTools
             return Error(WorkerFailureCategories.ValidationError, validation.Error);
         }
 
-        var mode = workerClient.AccessPolicy?.Mode ?? McpAccessMode.ReadWrite;
+        var mode = workerClient.AccessPolicy.Mode;
         var accessErrors = HmiOperationCatalog.ValidateAccessMode(operations, mode);
         if (accessErrors.Count != 0)
         {

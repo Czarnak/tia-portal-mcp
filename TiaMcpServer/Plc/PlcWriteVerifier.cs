@@ -2,6 +2,7 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Plc;
 
@@ -158,7 +159,7 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             : await client.GetTypeContentAsync(item.TypePath!, format, projectPath).ConfigureAwait(false);
         if (!export.Success || string.IsNullOrEmpty(export.Payload))
             return Fail(item, "contentHash", $"Operation '{item.OperationId}': the written content could not be re-exported ({(export.Success ? "the export was empty" : export.Error)}).");
-        var hash = PlcContentHashes.Compute(format, export.Payload);
+        var hash = ContentHashes.Compute(format, export.Payload);
         return new(item.OperationId, true, "contentHash", null, hash, hash, failure is null ? null
             : $"Operation '{item.OperationId}' failed with {failure.Category}; the current content hash is reported.");
     }

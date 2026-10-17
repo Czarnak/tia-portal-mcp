@@ -24,7 +24,7 @@ public class NetworkToolsTests
 
     /// <summary>A FakeWorker scenario whose hardware read AND write payloads both satisfy their
     /// declared Phase 2 result contracts, and whose hardware state is stable across requests so a
-    /// preview/apply round trip binds.</summary>
+    /// dry-run/apply round trip binds.</summary>
     private const string StableScenario = "network-roundtrip";
 
     private static Type RequiredToolType(string name)
@@ -465,34 +465,15 @@ public class NetworkToolsTests
     }
 
     [Fact]
-    public async Task NetworkWriteStructuredApplyEngine_StopsOnProtocolErrorAndSkipsLaterOperations()
+    public void NetworkWriteProjection_FailsSuccessfulWorkerCallWithInvalidPayload()
     {
-        var operations = new[] { AddDevice("first"), ConfigureDevice("second") };
-        var invocations = 0;
+        // The worker reports SUCCESS; only projecting its payload reveals the contract violation.
+        // WriteRun stops the batch on the projected status, so this item halts later writes.
+        var item = NetworkPayloadContract.Project(
+            AddDevice("first"), WorkerCallResult.Ok("""{"unexpected":true}"""));
 
-        var batch = await StructuredOperationBatchExecutionEngine.ApplyWritesAsync(
-            operations,
-            _ =>
-            {
-                invocations++;
-
-                // The worker reports SUCCESS; only projecting its payload reveals the contract
-                // violation, so the stop decision must be made after projection, not before it.
-                return Task.FromResult(WorkerCallResult.Ok("""{"unexpected":true}"""));
-            },
-            NetworkPayloadContract.Project);
-
-        Assert.Equal(1, invocations);
-        Assert.Equal(OperationBatchStatus.Failed, batch.Operations[0].Status);
-        Assert.Equal(
-            WorkerFailureCategories.ProtocolError,
-            batch.Operations[0].Failure!.Category);
-        Assert.Equal(OperationBatchStatus.Skipped, batch.Operations[1].Status);
-        Assert.Equal(
-            StructuredOperationSkipReasons.EarlierOperationFailed,
-            batch.Operations[1].SkipReason);
-        Assert.Equal(1, batch.Counts.Failed);
-        Assert.Equal(1, batch.Counts.Skipped);
+        Assert.Equal(OperationBatchStatus.Failed, item.Status);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
     }
 
 }

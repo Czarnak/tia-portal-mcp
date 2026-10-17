@@ -52,7 +52,7 @@ public static class HardwareTagIndexResolver
             return null;
         }
 
-        var tables = TagTableReader.ReadAll(selected.Software);
+        var tables = TagTableReader.ReadAll(selected.Software, messages);
         var candidates = tables
             .SelectMany(table => table.Tags.Select(tag => new IoTagCandidate(
                 tag.Name,

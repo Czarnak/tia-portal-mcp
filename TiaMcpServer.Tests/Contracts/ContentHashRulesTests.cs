@@ -15,10 +15,9 @@ public sealed class ContentHashRulesTests
         => Assert.Equal($"{format}:sha256:{AbcHex}", ContentHashRules.Compute(format, "abc"));
 
     [Fact]
-    public void Sha256Hex_MatchesHostImplementation()
+    public void Sha256Hex_IsLowerCaseHexOfUtf8()
     {
         Assert.Equal(AbcHex, ContentHashRules.Sha256Hex("abc"));
-        Assert.Equal(ContentHashes.Sha256Hex("ä€"), ContentHashRules.Sha256Hex("ä€"));
     }
 
     [Fact]
