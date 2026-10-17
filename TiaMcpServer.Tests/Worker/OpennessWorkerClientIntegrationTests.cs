@@ -866,7 +866,6 @@ public class OpennessWorkerClientIntegrationTests
 
         Assert.False(result.Success);
         Assert.Equal("boom", result.Error);
-        Assert.Equal("Error: boom", result.ToText());
         // The worker reported no category, so the client defaults to worker_operation_failed.
         Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
     }

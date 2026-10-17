@@ -143,8 +143,6 @@
       Link="Host\NetworkWriteArgumentValidatingTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StrictArgumentsTool.cs"
       Link="Host\StrictArgumentsTool.cs" />
-    <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResultFormatter.cs"
-      Link="Host\StandaloneToolResultFormatter.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandaloneToolResponses.cs" Link="Host\StandaloneToolResponses.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StandalonePayloadContract.cs" Link="Host\StandalonePayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Tools\StructuredStandaloneResult.cs" Link="Host\StructuredStandaloneResult.cs" />

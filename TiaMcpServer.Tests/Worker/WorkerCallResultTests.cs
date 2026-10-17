@@ -1,4 +1,3 @@
-using System.Text.Json;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Worker;
@@ -46,20 +45,6 @@ public class WorkerCallResultTests
     }
 
     [Fact]
-    public void ToText_RendersPayloadOnSuccess()
-    {
-        Assert.Equal("data", WorkerCallResult.Ok("data").ToText());
-    }
-
-    [Fact]
-    public void ToText_RendersErrorPrefixOnFailure()
-    {
-        Assert.Equal(
-            "Error: boom",
-            WorkerCallResult.Fail(WorkerFailureCategories.WorkerOperationFailed, "boom").ToText());
-    }
-
-    [Fact]
     public void Ok_PayloadStartingWithErrorPrefixStaysSuccessful()
     {
         // The whole point of item 1.1: payload text must never drive classification.
@@ -77,59 +62,7 @@ public class WorkerCallResultTests
     }
 
     [Fact]
-    public void ToEnvelopeText_SuccessCarriesPayloadAndSeparateWarningsArray()
-    {
-        // A degraded-but-successful direct status read: warnings live in their own array, never
-        // concatenated into the payload, and failureCategory stays null on success.
-        var result = WorkerCallResult.Ok(
-            "{\"isOpen\":true}",
-            new[] { "Skipping device 'X' while reading hardware configuration: access denied." });
-
-        using var envelope = JsonDocument.Parse(result.ToEnvelopeText());
-        var root = envelope.RootElement;
-
-        Assert.True(root.GetProperty("success").GetBoolean());
-        Assert.Equal("{\"isOpen\":true}", root.GetProperty("payload").GetString());
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("failureCategory").ValueKind);
-        Assert.Equal(1, root.GetProperty("warnings").GetArrayLength());
-        Assert.DoesNotContain("Skipping device", root.GetProperty("payload").GetString()!);
-    }
-
-    [Fact]
-    public void ToEnvelopeText_KeepsFailureCategoryPrimaryEvenWhenWarningsExist()
-    {
-        var result = WorkerCallResult.Fail(
-            WorkerFailureCategories.WorkerCrashed,
-            "The write outcome is unknown. Inspect current project state before retrying.",
-            new[] { "Skipping device 'X': access denied." });
-
-        using var envelope = JsonDocument.Parse(result.ToEnvelopeText());
-        var root = envelope.RootElement;
-
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal(WorkerFailureCategories.WorkerCrashed, root.GetProperty("failureCategory").GetString());
-        Assert.Equal(
-            "The write outcome is unknown. Inspect current project state before retrying.",
-            root.GetProperty("error").GetString());
-        Assert.Equal(1, root.GetProperty("warnings").GetArrayLength());
-    }
-
-    [Fact]
-    public void FailureRendering_DoesNotIncludeProtectedInputDataNeverPassedToTheResult()
-    {
-        // Simulates a credential-like value that lives only in caller-side "protected input"
-        // (e.g. requestedInput/target passed to preview and audit elsewhere) and must never be
-        // echoed by these renderers, since WorkerCallResult only ever carries Payload/Error/
-        // FailureCategory/Warnings — it never receives, and therefore can never leak, that data.
-        const string protectedTestOnlyValue = "test-only-fake-credential-do-not-use-9f3c1a";
-        var result = WorkerCallResult.Fail(WorkerFailureCategories.WorkerOperationFailed, "boom");
-
-        Assert.DoesNotContain(protectedTestOnlyValue, result.ToText());
-        Assert.DoesNotContain(protectedTestOnlyValue, result.ToEnvelopeText());
-    }
-
-    [Fact]
-    public void BlockImportOutcome_CarriedBySuccessAndFailureWithoutChangingText()
+    public void BlockImportOutcome_CarriedBySuccessAndFailureWithoutChangingPayloadOrError()
     {
         var outcome = new BlockImportOutcomeInfo
         {
@@ -145,8 +78,8 @@ public class WorkerCallResultTests
 
         Assert.Same(outcome, ok.BlockImportOutcome);
         Assert.Same(outcome, failed.BlockImportOutcome);
-        Assert.Equal("old payload", ok.ToText());
-        Assert.Equal("Error: bounded failure", failed.ToText());
+        Assert.Equal("old payload", ok.Payload);
+        Assert.Equal("bounded failure", failed.Error);
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, failed.FailureCategory);
         Assert.Equal("bounded warning", Assert.Single(failed.Warnings));
     }
