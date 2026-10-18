@@ -240,6 +240,7 @@ public static class NetworkAttributeMetadataProcessor
             .ToArray();
     }
 
+    // Attribute inspection continues after isolated faults; discovery traversal instead records incompleteness.
     private static void ForEachFaultIsolated<T>(
         IEnumerable<T> source,
         Action<T> process,

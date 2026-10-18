@@ -4,6 +4,7 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Project;
 using TiaMcpServer.OpennessWorker.Worker;
+using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
@@ -50,11 +51,12 @@ internal static class HardwarePageCandidateSourceFactory
                 }
 
                 var descriptors = new List<HardwarePageDescriptor>();
+                // Fail closed on descriptor traversal faults: the cursor hash needs a complete snapshot.
                 var deviceCandidates = ProjectDeviceEnumerator
                     .EnumerateWithLocations(project)
                     .Select(locatedDevice =>
                     {
-                        var nameEvidence = HardwareConfigReader.ReadTypedIdentityString(
+                        var nameEvidence = ReadTypedIdentityString(
                             () => locatedDevice.Device.Name,
                             "Device name");
                         return (LocatedDevice: locatedDevice, NameEvidence: nameEvidence);
@@ -66,35 +68,11 @@ internal static class HardwarePageCandidateSourceFactory
                 var allDeviceNames = deviceCandidates.Select(candidate => candidate.NameEvidence.IsUsable
                     ? candidate.NameEvidence.Value : null).ToList();
 
-                IReadOnlyList<(
-                    LocatedProjectDevice LocatedDevice,
-                    NetworkObjectDiscoveryEvidenceValue<string> NameEvidence)> selectedDevices;
-                if (deviceName is null)
+                var selectedDevices = FilterByDeviceName(
+                    deviceCandidates, deviceName, candidate => candidate.NameEvidence, out var failureMessage);
+                if (failureMessage is not null)
                 {
-                    selectedDevices = deviceCandidates;
-                }
-                else
-                {
-                    var matches = deviceCandidates
-                        .Where(candidate => candidate.NameEvidence.IsUsable
-                            && string.Equals(
-                                candidate.NameEvidence.Value,
-                                deviceName,
-                                StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    if (matches.Count == 1)
-                    {
-                        selectedDevices = matches;
-                    }
-                    else
-                    {
-                        pageMessages.Add(matches.Count == 0
-                            ? $"No device named '{deviceName}' was found; no devices are reported."
-                            : $"More than one device matches '{deviceName}'; no devices are reported because the device filter is ambiguous.");
-                        selectedDevices = Array.Empty<(
-                            LocatedProjectDevice,
-                            NetworkObjectDiscoveryEvidenceValue<string>)>();
-                    }
+                    pageMessages.Add(failureMessage);
                 }
 
                 foreach (var candidate in selectedDevices)
@@ -117,7 +95,7 @@ internal static class HardwarePageCandidateSourceFactory
                 foreach (Subnet subnet in project.Subnets)
                 {
                     var structuralLocator = $"subnets/{subnetIndex}";
-                    var subnetId = HardwareConfigReader.ReadExactStringIdentityAttribute(
+                    var subnetId = ReadExactStringIdentityAttribute(
                         (IEngineeringObject)subnet,
                         "SubnetId",
                         "Subnet identity");

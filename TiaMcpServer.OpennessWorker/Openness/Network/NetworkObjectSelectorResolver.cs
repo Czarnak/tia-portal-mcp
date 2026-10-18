@@ -5,6 +5,7 @@ using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Project;
+using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
@@ -196,7 +197,7 @@ public static class NetworkObjectSelectorResolver
         catch (Exception) { return EvidenceMismatch("The selected owner's network interface could not be read."); }
         if (networkInterface is null) return NotFound("The selected owner has no network interface service.");
         var messages = new List<string>();
-        var interfaceName = ReadOptionalStringAttribute((IEngineeringObject)networkInterface, "Name", messages);
+        var interfaceName = ReadExactStringAttribute((IEngineeringObject)networkInterface, "Name", "Name", messages);
         if (target.InterfaceName is not null && !string.Equals(interfaceName, target.InterfaceName, StringComparison.Ordinal))
             return EvidenceMismatch("The selected interface name does not match the supplied constraint.");
         NetworkInterfacePathMatch<Node> node;
@@ -677,115 +678,6 @@ public static class NetworkObjectSelectorResolver
             EnumerateNodes(item.DeviceItems, path, result);
         }
     }
-    private static string? ReadOptionalStringAttribute(
-        IEngineeringObject value,
-        string name,
-        List<string> messages)
-    {
-        var success = TryReadStringAttribute(value, name, out var result, out var error);
-        AddReadMessage(messages, name, error);
-        return success ? result : null;
-    }
-
-    private static bool TryReadStringAttribute(
-        IEngineeringObject value,
-        string name,
-        out string? result,
-        out string? error)
-    {
-        try
-        {
-            var raw = value.GetAttribute(name);
-            result = raw as string;
-            error = raw is null || raw is string
-                ? null
-                : $"returned unsupported CLR type '{raw.GetType().FullName}'.";
-            return error is null;
-        }
-        catch (Exception exception)
-        {
-            result = null;
-            error = exception.Message;
-            return false;
-        }
-    }
-
-    private static string? ReadOptionalString(
-        Func<string?> reader,
-        string description,
-        List<string> messages)
-    {
-        try
-        {
-            return reader();
-        }
-        catch (Exception exception)
-        {
-            AddReadMessage(messages, description, exception.Message);
-            return null;
-        }
-    }
-
-    private static bool? ReadOptionalBool(
-        Func<bool> reader,
-        string description,
-        List<string> messages)
-    {
-        try
-        {
-            return reader();
-        }
-        catch (Exception exception)
-        {
-            AddReadMessage(messages, description, exception.Message);
-            return null;
-        }
-    }
-
-    private static string? ReadOptionalEnumName<TEnum>(
-        Func<TEnum> reader,
-        string description,
-        List<string> messages)
-        where TEnum : struct, Enum
-    {
-        if (TryReadEnumName(reader, out var result, out var error))
-        {
-            return result;
-        }
-
-        AddReadMessage(messages, description, error);
-        return null;
-    }
-
-    private static bool TryReadEnumName<TEnum>(
-        Func<TEnum> reader,
-        out string? result,
-        out string? error)
-        where TEnum : struct, Enum
-    {
-        try
-        {
-            var value = reader();
-            result = Enum.Format(typeof(TEnum), value, "G");
-            error = null;
-            return true;
-        }
-        catch (Exception exception)
-        {
-            result = null;
-            error = exception.Message;
-            return false;
-        }
-    }
-
-    private static void AddReadMessage(List<string> messages, string description, string? error)
-    {
-        if (error is not null)
-        {
-            messages.Add($"Could not read {description}: {error}");
-        }
-    }
-
     private static NetworkObjectSelectionResult NotFound(string error)
         => NetworkObjectSelectionResult.Fail(WorkerFailureCategories.TargetNotFound, error);
 

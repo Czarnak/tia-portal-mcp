@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Json;
+using TiaMcpServer.OpennessWorker.Openness.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -47,13 +48,18 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareConfigReader_SelectDevices_UnfilteredReadTraversesAllDevicesEvenWhenNameIsUnreadable()
     {
-        var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
-
-        // When deviceName is null, SelectDevices returns all candidates
-        Assert.Contains("if (deviceName is null)\n        {\n            return candidates;\n        }", source, StringComparison.Ordinal);
+        var candidates = new[]
+        {
+            NetworkObjectDiscoveryEvidence.ReadString("Device_A", "Device name"),
+            NetworkObjectDiscoveryEvidence.UnreadableString("Device name"),
+        };
+        var selected = NetworkOpennessRead.FilterByDeviceName(candidates, null, candidate => candidate, out var failure);
+        Assert.Same(candidates, selected);
+        Assert.Null(failure);
 
         // ReadDevice preserves unreadable device with Name = null and emits degradation message
+        var source = ReadRepositorySource(
+            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
         Assert.Contains("Name = deviceName.IsUsable ? deviceName.Value : null,", source, StringComparison.Ordinal);
         Assert.Contains("NetworkObjectDiscoveryEvidence.AddReadMessage(messages, deviceName);", source, StringComparison.Ordinal);
     }
@@ -61,16 +67,35 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareConfigReader_SelectDevices_FilteredReadMatchesOrdinalIgnoreCaseOnUsableNames()
     {
-        var source = ReadRepositorySource(
-            "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
+        var candidates = new[]
+        {
+            NetworkObjectDiscoveryEvidence.UnreadableString("Device name"),
+            NetworkObjectDiscoveryEvidence.ReadString("Device_A", "Device name"),
+            NetworkObjectDiscoveryEvidence.ReadString("Device_B", "Device name"),
+        };
 
-        // Matches only usable names with OrdinalIgnoreCase, never unreadable evidence
-        Assert.Contains("candidate.NameEvidence.IsUsable", source, StringComparison.Ordinal);
-        Assert.Contains("string.Equals(candidate.NameEvidence.Value, deviceName, StringComparison.OrdinalIgnoreCase)", source, StringComparison.Ordinal);
+        var selected = NetworkOpennessRead.FilterByDeviceName(candidates, "device_a", candidate => candidate, out var failure);
 
-        // Zero and multiple match nonfatal messages exactly match specification
-        Assert.Contains("No device named '{deviceName}' was found; no devices are reported.", source, StringComparison.Ordinal);
-        Assert.Contains("More than one device matches '{deviceName}'; no devices are reported because the device filter is ambiguous.", source, StringComparison.Ordinal);
+        Assert.Same(candidates[1], Assert.Single(selected));
+        Assert.Null(failure);
+    }
+
+    [Theory]
+    [InlineData("missing", "No device named 'missing' was found; no devices are reported.")]
+    [InlineData("Device_A", "More than one device matches 'Device_A'; no devices are reported because the device filter is ambiguous.")]
+    public void DeviceFilter_MissingOrAmbiguousNameReportsNoDevices(string name, string expectedFailure)
+    {
+        var candidates = new[]
+        {
+            NetworkObjectDiscoveryEvidence.ReadString("Device_A", "Device name"),
+            NetworkObjectDiscoveryEvidence.ReadString("device_a", "Device name"),
+            NetworkObjectDiscoveryEvidence.UnreadableString("Device name"),
+        };
+
+        var selected = NetworkOpennessRead.FilterByDeviceName(candidates, name, candidate => candidate, out var failure);
+
+        Assert.Empty(selected);
+        Assert.Equal(expectedFailure, failure);
     }
 
     [Fact]

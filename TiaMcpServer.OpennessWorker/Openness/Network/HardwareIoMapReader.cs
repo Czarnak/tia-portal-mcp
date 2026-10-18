@@ -2,6 +2,7 @@ using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
+using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
@@ -346,59 +347,4 @@ public static class HardwareIoMapReader
         }
     }
 
-    private static int? ReadOptionalNonNegativeInt(
-        Func<int> read,
-        string description,
-        List<string> messages)
-    {
-        try
-        {
-            var value = read();
-            if (value < 0)
-            {
-                messages.Add($"Could not read {description}: the reported value was negative.");
-                return null;
-            }
-
-            return value;
-        }
-        catch (EngineeringException exception)
-        {
-            messages.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
-
-    private static int? ReadOptionalInt(
-        Func<int> read,
-        string description,
-        List<string> messages)
-    {
-        try
-        {
-            return read();
-        }
-        catch (EngineeringException exception)
-        {
-            messages.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
-
-    private static string? ReadOptionalEnumName<TEnum>(
-        Func<TEnum> read,
-        string description,
-        List<string> messages)
-        where TEnum : struct, Enum
-    {
-        try
-        {
-            return Enum.Format(typeof(TEnum), read(), "G");
-        }
-        catch (Exception exception)
-        {
-            messages.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
 }

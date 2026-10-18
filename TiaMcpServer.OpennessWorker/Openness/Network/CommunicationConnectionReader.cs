@@ -3,6 +3,7 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.CommunicationConnections;
 using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
+using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
@@ -183,34 +184,8 @@ public static class CommunicationConnectionReader
         return new CommunicationConnectionReadResult(connectionIndex, summary);
     }
 
-    private static string? ReadOptionalString(
-        Func<string?> reader,
-        string description,
-        List<string>? messages)
-    {
-        try
-        {
-            return reader();
-        }
-        catch (Exception exception)
-        {
-            messages?.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
-
     private static bool ReadIsValid(Connection connection, List<string>? messages)
-    {
-        try
-        {
-            return connection.IsValid;
-        }
-        catch (Exception exception)
-        {
-            messages?.Add($"Could not read connection validity: {exception.Message}");
-            return false;
-        }
-    }
+        => ReadOptionalBool(() => connection.IsValid, "connection validity", messages) ?? false;
 
     private static void AddDiagnostic(List<string> diagnostics, string? diagnostic)
     {
