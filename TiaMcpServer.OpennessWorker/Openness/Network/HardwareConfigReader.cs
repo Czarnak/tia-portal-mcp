@@ -3,6 +3,7 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.OpennessWorker.Openness.Project;
+using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
@@ -124,24 +125,12 @@ public static class HardwareConfigReader
         }, "deviceEnumeration", "deviceMaterialization");
         deviceNamespaceVerified = capture.Evidence.Complete && candidates.All(candidate => candidate.NameEvidence.IsUsable);
 
-        if (deviceName is null)
+        var selected = FilterByDeviceName(candidates, deviceName, candidate => candidate.NameEvidence, out var failureMessage);
+        if (failureMessage is not null)
         {
-            return candidates;
+            capture.RecordFailure("deviceSelection", failureMessage);
         }
-
-        var matches = candidates
-            .Where(candidate => candidate.NameEvidence.IsUsable
-                && string.Equals(candidate.NameEvidence.Value, deviceName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        if (matches.Count == 1)
-        {
-            return matches;
-        }
-
-        capture.RecordFailure("deviceSelection", matches.Count == 0
-            ? $"No device named '{deviceName}' was found; no devices are reported."
-            : $"More than one device matches '{deviceName}'; no devices are reported because the device filter is ambiguous.");
-        return Array.Empty<(Device, NetworkObjectDiscoveryEvidenceValue<string>)>();
+        return selected;
     }
 
     private static DeviceInfo ReadDevice(
@@ -688,124 +677,4 @@ public static class HardwareConfigReader
         return null;
     }
 
-    internal static NetworkObjectDiscoveryEvidenceValue<string> ReadTypedIdentityString(
-        Func<string?> read,
-        string field)
-    {
-        try
-        {
-            return NetworkObjectDiscoveryEvidence.ReadString(read(), field);
-        }
-        catch (EngineeringException)
-        {
-            return NetworkObjectDiscoveryEvidence.UnreadableString(field);
-        }
-    }
-
-    private static NetworkObjectDiscoveryEvidenceValue<int> ReadTypedIdentityInt(
-        Func<int> read,
-        string field)
-    {
-        try
-        {
-            var value = NetworkObjectDiscoveryEvidence.ReadInt(read(), field);
-            return value.IsUsable && value.Value < 0
-                ? NetworkObjectDiscoveryEvidenceValue<int>.Unusable(
-                    $"{field} was negative; selector not available.",
-                    "negative")
-                : value;
-        }
-        catch (EngineeringException)
-        {
-            return NetworkObjectDiscoveryEvidence.UnreadableInt(field);
-        }
-    }
-
-    internal static NetworkObjectDiscoveryEvidenceValue<string> ReadExactStringIdentityAttribute(
-        IEngineeringObject engineeringObject,
-        string attributeName,
-        string field)
-    {
-        try
-        {
-            return NetworkObjectDiscoveryEvidence.ReadString(
-                engineeringObject.GetAttribute(attributeName),
-                field);
-        }
-        catch (EngineeringException)
-        {
-            return NetworkObjectDiscoveryEvidence.UnreadableString(field);
-        }
-    }
-
-    private static string? ReadOptionalString(
-        Func<string?> read,
-        string description,
-        List<string> messages)
-    {
-        try
-        {
-            return read();
-        }
-        catch (EngineeringException exception)
-        {
-            messages.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
-
-    private static string? ReadOptionalEnumName<TEnum>(
-        Func<TEnum> read,
-        string description,
-        List<string> messages)
-        where TEnum : struct, Enum
-    {
-        try
-        {
-            return Enum.Format(typeof(TEnum), read(), "G");
-        }
-        catch (Exception exception)
-        {
-            messages.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
-
-    private static string? ReadExactStringAttribute(
-        IEngineeringObject engineeringObject,
-        string attributeName,
-        string description,
-        List<string> messages)
-    {
-        try
-        {
-            var value = engineeringObject.GetAttribute(attributeName);
-            if (value is null)
-            {
-                return null;
-            }
-
-            if (value is string text)
-            {
-                return text;
-            }
-
-            messages.Add(
-                $"Could not read {description}: attribute '{attributeName}' had an unexpected CLR type.");
-            return null;
-        }
-        catch (EngineeringException exception)
-        {
-            messages.Add($"Could not read {description}: {exception.Message}");
-            return null;
-        }
-    }
-
-    private static List<string> CombineDiagnostics(
-        IEnumerable<string> inherited,
-        params string[] diagnostics)
-        => inherited.Concat(diagnostics)
-            .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
 }

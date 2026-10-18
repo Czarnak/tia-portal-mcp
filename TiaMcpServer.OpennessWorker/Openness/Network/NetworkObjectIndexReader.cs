@@ -4,6 +4,7 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.OpennessWorker.Openness.Project;
+using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
@@ -32,7 +33,7 @@ public static class NetworkObjectIndexReader
         {
             foreach (Device device in ProjectDeviceEnumerator.Enumerate(project))
             {
-                var currentDeviceName = ReadTypedString(() => device.Name, "Device name");
+                var currentDeviceName = ReadTypedIdentityString(() => device.Name, "Device name");
                 allDeviceNames.Add(currentDeviceName.IsUsable ? currentDeviceName.Value : null);
                 if (deviceName is not null
                     && (!currentDeviceName.IsUsable
@@ -86,9 +87,9 @@ public static class NetworkObjectIndexReader
         var siblingIndex = 0;
         foreach (DeviceItem item in items)
         {
-            var itemName = ReadTypedString(() => item.Name, "Device item name");
-            var positionNumber = ReadTypedInt(() => item.PositionNumber, "Device item position number");
-            var typeIdentifier = ReadTypedString(() => item.TypeIdentifier, "Device item type identifier");
+            var itemName = ReadTypedIdentityString(() => item.Name, "Device item name");
+            var positionNumber = ReadTypedIdentityInt(() => item.PositionNumber, "Device item position number");
+            var typeIdentifier = ReadTypedIdentityString(() => item.TypeIdentifier, "Device item type identifier");
             var segment = new DeviceItemPathSegmentInfo
             {
                 Index = siblingIndex,
@@ -195,7 +196,7 @@ public static class NetworkObjectIndexReader
             return;
         }
 
-        var interfaceName = ReadInterfaceName(networkInterface);
+        var interfaceName = ReadExactStringIdentityAttribute(networkInterface, "Name", "Network interface name");
         if (requestedKinds.Contains(NetworkObjectKinds.NetworkInterface))
         {
             var diagnostics = CombineDiagnostics(
@@ -240,8 +241,8 @@ public static class NetworkObjectIndexReader
         var nodeIndex = 0;
         foreach (var node in nodes)
         {
-            var nodeName = ReadTypedString(() => node.Name, "Node name");
-            var nodeId = ReadTypedString(() => node.NodeId, "Node identity");
+            var nodeName = ReadTypedIdentityString(() => node.Name, "Node name");
+            var nodeId = ReadTypedIdentityString(() => node.NodeId, "Node identity");
             var nodeMatch = NetworkNodeReadSelectorBuilder.MatchNode(nodes, nodeId.IsUsable ? nodeId.Value : null,
                 null, x => x.NodeId);
             var diagnostics = CombineDiagnostics(
@@ -279,8 +280,8 @@ public static class NetworkObjectIndexReader
         var subnetIndex = 0;
         foreach (Subnet subnet in project.Subnets)
         {
-            var subnetName = ReadTypedString(() => subnet.Name, "Subnet name");
-            var subnetId = ReadSubnetId(subnet);
+            var subnetName = ReadTypedIdentityString(() => subnet.Name, "Subnet name");
+            var subnetId = ReadExactStringIdentityAttribute(subnet, "SubnetId", "Subnet identity");
             var subnetOrderingKey = subnetId.IsUsable
                 ? subnetId.Value
                 : "\uffff" + string.Format(CultureInfo.InvariantCulture, "{0:D10}", subnetIndex);
@@ -311,8 +312,8 @@ public static class NetworkObjectIndexReader
                 var ioSystemIndex = 0;
                 foreach (IoSystem ioSystem in subnet.IoSystems)
                 {
-                    var ioSystemName = ReadTypedString(() => ioSystem.Name, "IO system name");
-                    var number = ReadTypedInt(() => ioSystem.Number, "IO system number");
+                    var ioSystemName = ReadTypedIdentityString(() => ioSystem.Name, "IO system name");
+                    var number = ReadTypedIdentityInt(() => ioSystem.Number, "IO system number");
                     var diagnostics = CombineDiagnostics(
                         Array.Empty<string>(),
                         subnetId.Diagnostic,
@@ -396,63 +397,6 @@ public static class NetworkObjectIndexReader
         }
     }
 
-    private static NetworkObjectDiscoveryEvidenceValue<string> ReadTypedString(
-        Func<string?> read,
-        string field)
-    {
-        try
-        {
-            return NetworkObjectDiscoveryEvidence.ReadString(read(), field);
-        }
-        catch (EngineeringException)
-        {
-            return NetworkObjectDiscoveryEvidence.UnreadableString(field);
-        }
-    }
-
-    private static NetworkObjectDiscoveryEvidenceValue<int> ReadTypedInt(
-        Func<int> read,
-        string field)
-    {
-        try
-        {
-            return NetworkObjectDiscoveryEvidence.ReadInt(read(), field);
-        }
-        catch (EngineeringException)
-        {
-            return NetworkObjectDiscoveryEvidence.UnreadableInt(field);
-        }
-    }
-
-    private static NetworkObjectDiscoveryEvidenceValue<string> ReadInterfaceName(
-        NetworkInterface networkInterface)
-    {
-        try
-        {
-            return NetworkObjectDiscoveryEvidence.ReadString(
-                ((IEngineeringObject)networkInterface).GetAttribute("Name"),
-                "Network interface name");
-        }
-        catch (EngineeringException)
-        {
-            return NetworkObjectDiscoveryEvidence.UnreadableString("Network interface name");
-        }
-    }
-
-    private static NetworkObjectDiscoveryEvidenceValue<string> ReadSubnetId(Subnet subnet)
-    {
-        try
-        {
-            return NetworkObjectDiscoveryEvidence.ReadString(
-                ((IEngineeringObject)subnet).GetAttribute("SubnetId"),
-                "Subnet identity");
-        }
-        catch (EngineeringException)
-        {
-            return NetworkObjectDiscoveryEvidence.UnreadableString("Subnet identity");
-        }
-    }
-
     private static NetworkObjectSummaryInfo Summary(
         string kind,
         NetworkObjectSelectorInfo? selector,
@@ -466,14 +410,6 @@ public static class NetworkObjectIndexReader
             Evidence = evidence,
             Diagnostics = diagnostics.ToList(),
         };
-
-    private static List<string> CombineDiagnostics(
-        IEnumerable<string> inherited,
-        params string[] diagnostics)
-        => inherited.Concat(diagnostics)
-            .Where(diagnostic => !string.IsNullOrEmpty(diagnostic))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
 
     private static string PathKey(
         string? deviceName,

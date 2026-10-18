@@ -165,10 +165,10 @@ public class NetworkIntrospectionWorkerDispatchTests
         Assert.Contains("foreach (IoSystem ioSystem in subnet.IoSystems)", source, StringComparison.Ordinal);
         Assert.Contains("ioSystem.Name", source, StringComparison.Ordinal);
         Assert.Contains("ioSystem.Number", source, StringComparison.Ordinal);
-        Assert.Contains("GetAttribute(\"Name\")", source, StringComparison.Ordinal);
-        Assert.Contains("GetAttribute(\"SubnetId\")", source, StringComparison.Ordinal);
-        Assert.Contains("NetworkObjectDiscoveryEvidence.ReadString", source, StringComparison.Ordinal);
-        Assert.Contains("NetworkObjectDiscoveryEvidence.ReadInt", source, StringComparison.Ordinal);
+        Assert.Contains("ReadExactStringIdentityAttribute(networkInterface, \"Name\"", source, StringComparison.Ordinal);
+        Assert.Contains("ReadExactStringIdentityAttribute(subnet, \"SubnetId\"", source, StringComparison.Ordinal);
+        Assert.Contains("ReadTypedIdentityString", source, StringComparison.Ordinal);
+        Assert.Contains("ReadTypedIdentityInt", source, StringComparison.Ordinal);
         Assert.DoesNotContain("OpennessReflection", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ReadEnumerableProperty", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ToString(", source, StringComparison.Ordinal);
@@ -216,7 +216,6 @@ public class NetworkIntrospectionWorkerDispatchTests
         Assert.Contains("ReadOptionalNonNegativeInt", source, StringComparison.Ordinal);
         Assert.Contains("() => address.StartAddress", source, StringComparison.Ordinal);
         Assert.Contains("() => address.Length", source, StringComparison.Ordinal);
-        Assert.Contains("the reported value was negative", source, StringComparison.Ordinal);
 
         // Dynamic ChannelAddress/ChannelWidth values are coerced through the pure helper (which
         // accepts Int64/UInt64 within the DTO range) instead of an exact `is int`/`is uint` test.

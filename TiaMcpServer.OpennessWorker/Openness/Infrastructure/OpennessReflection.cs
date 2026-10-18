@@ -114,6 +114,7 @@ internal static class OpennessReflection
         return Enumerate(ReadProperty(instance, propertyName), description);
     }
 
+    // Best-effort catalog search stops on a collection fault; it does not certify discovery completeness.
     public static IEnumerable<object> Enumerate(object? collection, string description)
     {
         if (collection is null)
