@@ -343,6 +343,16 @@
       Link="Network\NetworkObjectDiscoveryEvidence.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkOpennessRead.cs"
       Link="Network\NetworkOpennessRead.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\SubnetIdentity.cs"
+      Link="Network\SubnetIdentity.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkObjectSelectorResolver.cs"
+      Link="Network\NetworkObjectSelectorResolver.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\ResolvedNetworkObject.cs"
+      Link="Network\ResolvedNetworkObject.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\CommunicationConnectionReader.cs"
+      Link="Network\CommunicationConnectionReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\ConnectionModeledAttributeAdapters.cs"
+      Link="Network\ConnectionModeledAttributeAdapters.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkAttributeValueNormalizer.cs"
       Link="Network\NetworkAttributeValueNormalizer.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkAttributeResultBuilder.cs"

@@ -281,7 +281,7 @@ public static class NetworkObjectIndexReader
         foreach (Subnet subnet in project.Subnets)
         {
             var subnetName = ReadTypedIdentityString(() => subnet.Name, "Subnet name");
-            var subnetId = ReadExactStringIdentityAttribute(subnet, "SubnetId", "Subnet identity");
+            var subnetId = SubnetIdentity.Read(subnet);
             var subnetOrderingKey = subnetId.IsUsable
                 ? subnetId.Value
                 : "\uffff" + string.Format(CultureInfo.InvariantCulture, "{0:D10}", subnetIndex);
