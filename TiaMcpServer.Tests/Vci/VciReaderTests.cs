@@ -425,7 +425,7 @@ public class VciReaderTests
     [InlineData("path")]
     [InlineData("status")]
     [InlineData("formats")]
-    public void Dispatch_PortalLossIsPortalLost(string site)
+    public void Dispatch_PortalLossPropagatesToWorkerBoundary(string site)
     {
         var f = new Fixture();
         var failure = new NonRecoverableException("Synthetic Portal loss.");
@@ -435,10 +435,10 @@ public class VciReaderTests
         if (site == "enumeration") f.Workspace.MappedObjects.EnumerationFailure = failure;
         if (site == "path") f.Leaf.ParentFailure = failure;
         if (site == "status") mapping.StatusFailure = failure;
-        if (site == "formats") f.Workspace.NonRecoverableOnLeaf.Add(f.Leaf);
+        if (site == "formats") f.Workspace.ThrowOnLeaf.Add(f.Leaf, failure);
 
-        AssertFailure(WorkerFailureCategories.PortalLost,
-            () => VciDispatch.Read(f.Project, site == "formats" ? "vci_supported_formats" : "vci_list_mappings", query));
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(
+            () => VciDispatch.Read(f.Project, site == "formats" ? "vci_supported_formats" : "vci_list_mappings", query)));
     }
 
     [Fact]

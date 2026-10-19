@@ -1552,8 +1552,9 @@ internal static class Program
         catch (NonRecoverableException ex)
         {
             return Failure(
-                WorkerFailureCategories.WorkerOperationFailed,
-                $"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
+                WorkerFailureCategories.PortalLost,
+                $"The TIA Portal connection was lost: {ex.Message}. Restart TIA Portal and explicitly bind_project again. "
+                + "An attempted mutation may have completed; inspect the project before retrying.");
         }
         catch (InvalidOperationException ex)
         {
