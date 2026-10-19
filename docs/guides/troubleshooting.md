@@ -89,6 +89,15 @@ worker-reported copied project path; verify it with a subsequent status or read 
   acceptance in read-write or policy in full. A dry run shows the guard without mutation or prompting.
 - `binding_conflict` or changed-state refusal after a prompt: the target or prepared revision
   changed. Inspect current project identity/state and submit a new intentional call.
+- `portal_lost`: the worker lost its TIA Portal connection. This category is shared
+  across domains when a fatal Openness exception reaches the execution boundary.
+  Inspect the Portal and any attempted mutation, restart/reopen the intended target
+  as needed, then explicitly `bind_project` before resuming content access. Binding
+  evidence and old cursors are invalidated; the failed request is never replayed.
+  Existing typed post-mutation failures and cleanup warnings can retain their own
+  categories, so inspect their outcome evidence too. The B-16/Q3 change has an
+  [offline verification record](../superpowers/plans/2026-10-19-worker-portal-loss.md);
+  live Portal-loss verification remains pending.
 - `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
   attempted. Read the typed `result` and `verification` failures; a successful mutation can
   precede failed verification. After timeout, crash, disconnect, or uncertain mutation, inspect

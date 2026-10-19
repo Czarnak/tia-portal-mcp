@@ -10,7 +10,87 @@
 
 **Spec:** [Agreed simplification review](2026-10-17-codebase-simplification-review.md), decision Q3 and workstream B item 16; [findings appendix](2026-10-17-codebase-simplification-review-findings.md), WORKERCORE-4, WORKERNET-7 and the verifier-corrected WORKERDOMAINS-16.
 
-**Status:** Implementation proposal, prepared on 2026-10-19 against clean `main` at `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. No implementation, build, test or live TIA operation was performed while writing this plan. Review the plan before execution. Recommended execution: native, sequential implementation; the tasks share exception policy and test doubles.
+**Status:** Offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. All four tasks and the review fix are complete. Live Portal-loss acceptance remains pending: the maintainer explicitly required stopping before any live TIA verification.
+
+## Implementation Record
+
+The approved plan and index entries were committed as `f6c4f6c` before implementation.
+All implementation used native execution in the existing checkout, on the requested
+new branch; builds and tests were serialized. Task-local `TEMP`/`TMP` and ignored
+logs under `TestResults/portal-loss` kept test artifacts inside the workspace.
+
+| Task | Commit | Fresh evidence |
+| --- | --- | --- |
+| 1: shared policy and mapping | `da27972` | Baseline 194/194; VCI regression red 9/194, green 196/196; serial stub solution build passed |
+| 2: Network propagation | `5b6e8ab` | All 33 new fatal-fault cases red; focused green 351/351; serial stub build passed |
+| 3: inventory and read propagation | `d8df0ec` | Eight new cases red; focused and typed-outcome preservation green 192/192 |
+| Review fix: interface owner traversal | `27630db` | Four fatal cases red with four ordinary controls passing; focused green 110/110; serial stub build passed |
+| 4: host recovery and documentation | This record's commit | Focused host/FakeWorker gate 99/99; full bounded suite 7,043/7,043; worker coverage gate 445/445; stub and installed-V21 solution builds passed |
+
+Implementation adjustments and their limits:
+
+- FakeWorker also source-links two changed Network helpers. It now source-links
+  the shared filter and has a minimal exception stand-in, with no Siemens runtime
+  assembly dependency. Its existing loss fixture accepts an absolute `.ap21` path
+  and uses the existing typed status builder so public explicit-bind recovery can
+  be tested.
+- The initial 33 Network fatal-fault cases share one `NetworkPortalLossTests` fixture,
+  alongside unchanged ordinary-failure suites. Full `HardwareConfigReader`,
+  `NetworkDeviceCreator`, `NetworkMutationVerifier`, `NetworkObjectIndexReader` and the net48 `Program` entry
+  point remain compile-checked rather than executed by those offline tests.
+- Independent review found one P2 defect: the shared interface-path matcher could
+  absorb fatal owner traversal before a worker filter saw it. An additive overload
+  accepts the worker recovery predicate at all three live callers; the original
+  six-argument API and DTO recovery remain intact. Contracts keeps no Siemens
+  dependency or JSON schema change. Eight live-selector/control cases and eight
+  policy fault cases cover the fix; there were no minor review findings.
+- Native PowerShell and an ignored ledger replaced optional Bash workflow helpers
+  because of known Windows path/permission limits. This changes bookkeeping only;
+  task commands and results are retained in the ledger/logs during execution.
+- Existing typed write outcomes, cleanup/stamping boundaries and identity-loss
+  `binding_conflict` behavior remain as approved. The installed Portal's fatal-loss
+  behavior and restoration are unverified until a separately authorized live run.
+
+### Final offline qualification
+
+The final production-code commit is `27630db`; the host/FakeWorker regressions
+and this documentation are included in this record's commit. The SHA-256 of the
+LF-normalized C# and project-file patch against the baseline is
+`0484849a129b25e245e178033f1b63f17ed9ba9dbd9052dc9f28774ed3124aab`.
+No source change followed these qualification runs.
+
+| Gate | Result and limits |
+| --- | --- |
+| Serial reference-stub solution build | Passed; seven existing nullable test warnings, zero errors |
+| Full Debug suite, `--no-build --no-restore`, `xUnit.MaxParallelThreads=4` | **7,043/7,043 passed**; 7.65 minutes |
+| Full suite with repository coverage settings | 7,042 passed, one unchanged snapshot timing test failed at its five-second background-task wait; the full bounded rerun above passed that test in 114 ms |
+| Configured host/contract coverage | Nonzero report: 16,004/16,969 lines (94.31%), 8,406/9,689 branches (86.75%). The repository settings exclude worker code |
+| Supplemental source-linked worker coverage | **445/445 focused tests passed**. Combined with contract coverage, 55/65 instrumented changed production lines were covered (84.62%). This measures changed lines present in the reports, not all native worker logic |
+| Installed V21 references, compile only | Serial solution build with `UseTiaPortalReferenceStubs=false` and the installed V21 `net48` reference directory passed; seven existing nullable test warnings, zero errors. No Portal attachment or operation was performed |
+| Documentation and scope | Local Markdown targets and `git diff --check` passed; B-16/Q3 and both documentation indexes link to this record |
+
+The five changed worker files absent from runtime instrumentation are `Program`,
+`HardwareConfigReader`, `NetworkDeviceCreator`, `NetworkMutationVerifier` and
+`NetworkObjectIndexReader`. Other uncovered changed lines remain in the connection
+reader, selector and VCI-dispatch branches. Compilation and doubles do not establish
+the native exception mapping, interrupted-read timing or restoration behavior.
+
+An earlier full covered attempt was interrupted after more than eight minutes
+without visible progress in minimal logging; a hang was suspected but not proved.
+Only that verified offline test process tree was stopped. Its incomplete output is
+not passing evidence. The subsequent complete covered run and bounded rerun above
+retain the actual results. Logs, TRX files and coverage reports are ignored under
+`TestResults/portal-loss`.
+
+All six implementation rulings retain their cost if wrong: use the requested branch
+in the existing checkout (shared build outputs); use native PowerShell bookkeeping
+(manual ledger maintenance); keep the net48 execution-boundary mapper without an
+extracted test seam (native boundary remains unverified); source-link the shared
+filter into FakeWorker with an exception stand-in (fixture/type parity); consolidate
+Network fault tests while retaining compile-only boundaries (runtime-only faults);
+and repair the existing loss fixture's absolute-path/status contract (synthetic
+recovery evidence). The independent review's one P2 defect was fixed through a
+failing regression and the green whole suite; there were no deferred minor findings.
 
 ## Global Constraints
 
@@ -50,6 +130,7 @@ Paths below are repository-relative. Tests compile linked production sources; ad
 | --- | --- |
 | Shared filter and default failure category | Create `TiaMcpServer.OpennessWorker/Openness/Infrastructure/OpennessExceptions.cs`; modify `TiaMcpServer.OpennessWorker/Program.cs`, `Openness/Network/NetworkOpennessRead.cs`, `Openness/Vci/VciDispatch.cs` |
 | Network propagation | Worker `Openness/Network/`: `HardwareDiscoveryEvidenceCapture.cs`, `HardwareConfigReader.cs`, `NetworkObjectSelectorResolver.cs`, `NetworkNodeReadSelectorBuilder.cs`, `NetworkConnectionEvidenceCapture.cs`, `CommunicationConnectionReader.cs`, `NetworkAttributeMetadataProcessor.cs`, `NetworkAttributeResultBuilder.cs`, `NetworkMutationVerifier.cs`, `NetworkDeviceCreator.cs` |
+| Reviewed owner traversal fix | `TiaMcpServer.Contracts/Network/NetworkInterfacePathMatcher.cs`; worker `NetworkObjectSelectorResolver.cs`, `NetworkObjectIndexReader.cs`; `TiaMcpServer.Tests/Network/NetworkPortalLossTests.cs` |
 | Other best-effort reads and inventory | Worker `Openness/Multiuser/MultiuserInventoryService.cs`, `MultiuserPortalReadDispatch.cs`; `Openness/Block/BlockExporterXmlBundle.cs`; `Openness/Hmi/HmiSoftwareLocator.cs` |
 | Offline test wiring and doubles | `TiaMcpServer.Tests/TiaMcpServer.Tests.csproj`; `TestUtilities/TagSafetySiemensDoubles.cs`, `NetworkSelectorSiemensDoubles.cs`, `MultiuserInventorySiemensDoubles.cs`, `PortalSessionSiemensDoubles.cs` as required by the listed tests |
 | Host regression fixtures | `TiaMcpServer.Tests/Worker/OpennessWorkerClientIntegrationTests.cs`, `Multiuser/ProjectBindingInspectionClientTests.cs`; reuse `TiaMcpServer.FakeWorker/Program.cs`'s `portal-lost` scenario and request logging |
@@ -63,7 +144,7 @@ The host's `OpennessWorkerClient.cs` already invalidates on `BindingConflict` or
 
 **Interfaces:** Consumes `WorkerFailureCategories.PortalLost` and `NonRecoverableException`. Produces `OpennessExceptions.IsRecoverable(Exception) : bool`; retains the existing stricter `NetworkOpennessRead.IsRecoverable(Exception) : bool` signature.
 
-- [ ] **Step 1: Align the executable double and add failing policy tests.** The reference stub declares `NonRecoverableException : System.Exception` at `reference-stubs/Siemens.Engineering.Base/Core.cs:164`. Match that base type in `TagSafetySiemensDoubles.cs` and replace its synthetic-inheritance comment. Pin the distinction:
+- [x] **Step 1: Align the executable double and add failing policy tests.** The reference stub declares `NonRecoverableException : System.Exception` at `reference-stubs/Siemens.Engineering.Base/Core.cs:164`. Match that base type in `TagSafetySiemensDoubles.cs` and replace its synthetic-inheritance comment. Pin the distinction:
 
   ```csharp
   Assert.False(typeof(EngineeringException).IsAssignableFrom(typeof(NonRecoverableException)));
@@ -74,10 +155,10 @@ The host's `OpennessWorkerClient.cs` already invalidates on `BindingConflict` or
   ```
 
   Update VCI read/plan tests to assert that the original fatal exception escapes `VciDispatch`, replacing their dispatch-local `WorkerOperationException` expectation. Retain the existing VCI writer tests unchanged as a regression gate.
-- [ ] **Step 2: Observe red.** Run `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~OpennessExceptionsTests|FullyQualifiedName~NetworkOpennessReadTests|FullyQualifiedName~VciPlannerTests|FullyQualifiedName~VciReaderTests|FullyQualifiedName~VciWriterTests"`. Initially expect the missing helper, then the old VCI translation expectations to fail until implementation. Record any behavior changes exposed by correcting the test-double hierarchy; do not weaken assertions to hide them.
-- [ ] **Step 3: Implement the small production change.** Add and source-link the filter, compose the existing strict Network predicate with it, change the central catch category/guidance and remove only the VCI read/plan translation wrappers. Leave `VciWriter`'s outcome-bearing catch intact. Keep `Program.Execute` in place; no new execution framework or exception wrapper.
-- [ ] **Step 4: Observe green and compile the worker.** Re-run the focused command, then `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`. The default mapper is a small direct change in net48 `Program`; source-linked tests and FakeWorker do not execute that entry point. Real boundary execution is an explicit live-gate requirement below.
-- [ ] **Step 5: Review and commit.** `fix: centralize Portal loss failure handling`.
+- [x] **Step 2: Observe red.** Run `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~OpennessExceptionsTests|FullyQualifiedName~NetworkOpennessReadTests|FullyQualifiedName~VciPlannerTests|FullyQualifiedName~VciReaderTests|FullyQualifiedName~VciWriterTests"`. Initially expect the missing helper, then the old VCI translation expectations to fail until implementation. Record any behavior changes exposed by correcting the test-double hierarchy; do not weaken assertions to hide them.
+- [x] **Step 3: Implement the small production change.** Add and source-link the filter, compose the existing strict Network predicate with it, change the central catch category/guidance and remove only the VCI read/plan translation wrappers. Leave `VciWriter`'s outcome-bearing catch intact. Keep `Program.Execute` in place; no new execution framework or exception wrapper.
+- [x] **Step 4: Observe green and compile the worker.** Re-run the focused command, then `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`. The default mapper is a small direct change in net48 `Program`; source-linked tests and FakeWorker do not execute that entry point. Real boundary execution is an explicit live-gate requirement below.
+- [x] **Step 5: Review and commit.** `fix: centralize Portal loss failure handling`.
 
 ## Task 2: Let Fatal Exceptions Escape Network Recovery
 
@@ -85,13 +166,13 @@ The host's `OpennessWorkerClient.cs` already invalidates on `BindingConflict` or
 
 **Interfaces:** Consumes Task 1's shared filter. Existing discovery, selector, attribute and verification return types stay unchanged.
 
-- [ ] **Step 1: Add focused fatal-exception cases to existing executable seams.** Inject one `NonRecoverableException` instance at acquisition, `GetEnumerator`, `MoveNext`, `Current`, metadata property, attribute value and iterator-disposal boundaries. Assert `Assert.Same(failure, Assert.Throws<NonRecoverableException>(action))` and assert that a following callback/candidate was not visited. Cover node-owner/root/node traversal, connection identity capture, modeled/dynamic value reads and both XML-independent Network verification catch shapes. Preserve existing ordinary-failure tests alongside each fatal case.
-- [ ] **Step 2: Observe red.** Run `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~HardwareDiscoveryEvidenceTests|FullyQualifiedName~NetworkConnectionEvidenceTests|FullyQualifiedName~NetworkIdentityResolverTests|FullyQualifiedName~NetworkQualifiedNodeIdentityTests|FullyQualifiedName~NetworkAttributeMetadataProcessorTests|FullyQualifiedName~NetworkAttributeResultBuilderTests|FullyQualifiedName~NetworkMutationVerificationTests|FullyQualifiedName~NetworkDeviceCreatorWorkerContractTests"`. Failures must demonstrate swallowed/reclassified fatal exceptions, rather than fixture setup failures.
-- [ ] **Step 3: Filter the broad recovery catches.** Use `when (OpennessExceptions.IsRecoverable(exception))` at the listed catch sites. Fully qualify this helper where `using static NetworkOpennessRead` would otherwise select the stricter predicate. Preserve existing narrower filters. In `NetworkDeviceCreator.Create`, also exclude fatal loss from the catch that wraps non-`EngineeringException` failures in `InvalidOperationException`.
+- [x] **Step 1: Add focused fatal-exception cases to existing executable seams.** Inject one `NonRecoverableException` instance at acquisition, `GetEnumerator`, `MoveNext`, `Current`, metadata property, attribute value and iterator-disposal boundaries. Assert `Assert.Same(failure, Assert.Throws<NonRecoverableException>(action))` and assert that a following callback/candidate was not visited. Cover node-owner/root/node traversal, connection identity capture, modeled/dynamic value reads and both XML-independent Network verification catch shapes. Preserve existing ordinary-failure tests alongside each fatal case.
+- [x] **Step 2: Observe red.** Run `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~HardwareDiscoveryEvidenceTests|FullyQualifiedName~NetworkConnectionEvidenceTests|FullyQualifiedName~NetworkIdentityResolverTests|FullyQualifiedName~NetworkQualifiedNodeIdentityTests|FullyQualifiedName~NetworkAttributeMetadataProcessorTests|FullyQualifiedName~NetworkAttributeResultBuilderTests|FullyQualifiedName~NetworkMutationVerificationTests|FullyQualifiedName~NetworkDeviceCreatorWorkerContractTests"`. Failures must demonstrate swallowed/reclassified fatal exceptions, rather than fixture setup failures.
+- [x] **Step 3: Filter the broad recovery catches.** Use `when (OpennessExceptions.IsRecoverable(exception))` at the listed catch sites. Fully qualify this helper where `using static NetworkOpennessRead` would otherwise select the stricter predicate. Preserve existing narrower filters. In `NetworkDeviceCreator.Create`, also exclude fatal loss from the catch that wraps non-`EngineeringException` failures in `InvalidOperationException`.
 
   Apply the same rule to both `NetworkMutationVerifier` catches: actual Portal loss must escape instead of becoming an unverified check. Ordinary verification failures retain their current evidence behavior. A mutation may already have happened; prior batch-item results remain valid, and the current item's completion must not be inferred or replayed.
-- [ ] **Step 4: Verify the production/test wiring and observe green.** Re-run the focused command and serial stub build. `NetworkMutationVerifier`, `HardwareConfigReader` and `NetworkDeviceCreator` are not currently source-linked into the test project. Exercise their already linked dependencies/callback seams and compile their production call sites; do not duplicate their bodies in tests or claim those tests executed the full classes. If a new branch needs a seam, move only that small callback-based operation to an existing linked helper. Retain the full-class runtime limitation in the validation record.
-- [ ] **Step 5: Review and commit.** `fix: propagate Portal loss through Network recovery paths`.
+- [x] **Step 4: Verify the production/test wiring and observe green.** Re-run the focused command and serial stub build. `NetworkMutationVerifier`, `HardwareConfigReader` and `NetworkDeviceCreator` are not currently source-linked into the test project. Exercise their already linked dependencies/callback seams and compile their production call sites; do not duplicate their bodies in tests or claim those tests executed the full classes. If a new branch needs a seam, move only that small callback-based operation to an existing linked helper. Retain the full-class runtime limitation in the validation record.
+- [x] **Step 5: Review and commit.** `fix: propagate Portal loss through Network recovery paths`.
 
 ## Task 3: Preserve Fatal Inventory and Read Failures
 
@@ -99,13 +180,13 @@ The host's `OpennessWorkerClient.cs` already invalidates on `BindingConflict` or
 
 **Interfaces:** Consumes Task 1's filter. Produces unchanged inventory/export/locator results on ordinary failures and propagates the original fatal exception to `Program.Execute`.
 
-- [ ] **Step 1: Add failing regressions.** Cover both `Connections` enumeration and `Read` remote-call loss; a fatal body exception with concurrent Portal disposal; fatal XML export before companion export and fatal companion export after successful XML; a fatal cached-HMI liveness read. Assert original exception identity, no following read/fallback, no attachment/replay and no project/session mutation. Healthy `target_not_found`, ordinary incomplete inventory, XML companion fallback and stale-cache relocation must retain their current behavior.
-- [ ] **Step 2: Observe red.** Run `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~MultiuserInventoryWorkerTests|FullyQualifiedName~MultiuserPortalReadDispatchTests|FullyQualifiedName~BlockExporterSafetyTests|FullyQualifiedName~HmiSoftwareLocatorTests"`.
-- [ ] **Step 3: Apply only the propagation fixes.** Filter the inventory, XML-bundle and cached-HMI catches. Refactor `MultiuserPortalReadDispatch.Run` so an original `NonRecoverableException` is rethrown without being replaced by its final checks. Keep final validation on successful and ordinary-failure paths, including existing disposal-only `binding_conflict` behavior. Do not reconnect to validate a dead read.
-- [ ] **Step 4: Observe green and verify outcome preservation.** Re-run the focused command plus `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~VciWriterTests|FullyQualifiedName~BlockImportCoordinatorTests|FullyQualifiedName~BlockMutationPostconditionTests|FullyQualifiedName~BlockUpdateOutcomeDecoratorTests|FullyQualifiedName~BlockExporterVerificationTests"`.
+- [x] **Step 1: Add failing regressions.** Cover both `Connections` enumeration and `Read` remote-call loss; a fatal body exception with concurrent Portal disposal; fatal XML export before companion export and fatal companion export after successful XML; a fatal cached-HMI liveness read. Assert original exception identity, no following read/fallback, no attachment/replay and no project/session mutation. Healthy `target_not_found`, ordinary incomplete inventory, XML companion fallback and stale-cache relocation must retain their current behavior.
+- [x] **Step 2: Observe red.** Run `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~MultiuserInventoryWorkerTests|FullyQualifiedName~MultiuserPortalReadDispatchTests|FullyQualifiedName~BlockExporterSafetyTests|FullyQualifiedName~HmiSoftwareLocatorTests"`.
+- [x] **Step 3: Apply only the propagation fixes.** Filter the inventory, XML-bundle and cached-HMI catches. Refactor `MultiuserPortalReadDispatch.Run` so an original `NonRecoverableException` is rethrown without being replaced by its final checks. Keep final validation on successful and ordinary-failure paths, including existing disposal-only `binding_conflict` behavior. Do not reconnect to validate a dead read.
+- [x] **Step 4: Observe green and verify outcome preservation.** Re-run the focused command plus `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~VciWriterTests|FullyQualifiedName~BlockImportCoordinatorTests|FullyQualifiedName~BlockMutationPostconditionTests|FullyQualifiedName~BlockUpdateOutcomeDecoratorTests|FullyQualifiedName~BlockExporterVerificationTests"`.
 
   Retain these explicit boundaries: `BlockMutationService`, `PlcTypePostconditionVerifier`, `BlockImportCoordinator`, `BlockExporterVerification` and existing HMI writer cleanup preserve their typed post-mutation/primary-failure handling. `Program.Stamp` still preserves a completed result when diagnostic stamping fails. `TiaPortalSession`'s existing identity-loss refusals retain `binding_conflict`, which already invalidates host binding. Probe reports retain their diagnostic role. Record these as scope limits, not as universal `portal_lost` coverage.
-- [ ] **Step 5: Review and commit.** `fix: preserve fatal Portal exceptions in inventory and reads`.
+- [x] **Step 5: Review and commit.** `fix: preserve fatal Portal exceptions in inventory and reads`.
 
 ## Task 4: Verify Host Recovery and Document the Scope
 
@@ -113,11 +194,11 @@ The host's `OpennessWorkerClient.cs` already invalidates on `BindingConflict` or
 
 **Interfaces:** Uses existing `portal-lost` FakeWorker scenario, `TIA_MCP_FAKE_WORKER_REQUEST_LOG`, `ProjectBindingSnapshot.InvalidatedState`, `WorkerDispatchState.Sent` and the existing explicit-bind recovery APIs.
 
-- [ ] **Step 1: Expand the existing host integration tests.** Parameterize `PortalLost_InvalidatesBindingImmediately` over representative PLC, Network, HMI, compile/lifecycle and inventory worker methods. Reuse the existing request logger to assert exactly one failed method invocation. Check the unchanged `portal_lost` category, `Sent` dispatch state, invalidated binding/revision and continuation refusal. Extend `ProjectBindingInspectionClientTests`' cursor/loss cases rather than adding another fixture framework. Cover explicit re-grounding afterward and preserve an ordinary `worker_operation_failed` control that keeps a healthy binding.
-- [ ] **Step 2: Run the focused host gate.** `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~PortalLost_InvalidatesBindingImmediately|FullyQualifiedName~ProjectBindingInspectionClientTests|FullyQualifiedName~VciWriterTests"`. Existing host invalidation should pass; add only missing fixture behavior if a representative method cannot reach the existing scenario. This is host-contract evidence, not real Openness exception mapping.
-- [ ] **Step 3: Complete the offline gate once.** Run the serial stub solution build and `dotnet test TiaMcpServer.Tests -m:1 --no-build` in the same default Debug configuration. Where installed references are available, also run `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"`. Record totals, warnings, exact candidate and limitations. Do not repeat expensive suites after documentation-only edits.
-- [ ] **Step 4: Review the whole diff and update documentation.** Check every changed catch against its ordinary-failure control and the preservation boundaries. Update current docs with the shared mapping, explicit bind/inspection recovery and retained outcome exceptions. Link this implementation plan from B-16/Q3 in the original review and record offline qualification separately from live acceptance. Keep actual fixture paths, endpoint identities and raw diagnostics private.
-- [ ] **Step 5: Validate documentation and commit.** Run `git diff --check` and check changed Markdown links. Commit `test: verify Portal loss invalidation and recovery` with the host tests and accurate documentation. Leave live acceptance visibly pending until the gate below passes.
+- [x] **Step 1: Expand the existing host integration tests.** Parameterize `PortalLost_InvalidatesBindingImmediately` over representative PLC, Network, HMI, compile/lifecycle and inventory worker methods. Reuse the existing request logger to assert exactly one failed method invocation. Check the unchanged `portal_lost` category, `Sent` dispatch state, invalidated binding/revision and continuation refusal. Extend `ProjectBindingInspectionClientTests`' cursor/loss cases rather than adding another fixture framework. Cover explicit re-grounding afterward and preserve an ordinary `worker_operation_failed` control that keeps a healthy binding.
+- [x] **Step 2: Run the focused host gate.** `dotnet test TiaMcpServer.Tests -m:1 --filter "FullyQualifiedName~PortalLost_InvalidatesBindingImmediately|FullyQualifiedName~ProjectBindingInspectionClientTests|FullyQualifiedName~VciWriterTests"`. Existing host invalidation should pass; add only missing fixture behavior if a representative method cannot reach the existing scenario. This is host-contract evidence, not real Openness exception mapping.
+- [x] **Step 3: Complete the offline gate once.** Run the serial stub solution build and `dotnet test TiaMcpServer.Tests -m:1 --no-build` in the same default Debug configuration. Where installed references are available, also run `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=false /p:TiaPortalV21Dir="C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48"`. Record totals, warnings, exact candidate and limitations. Do not repeat expensive suites after documentation-only edits.
+- [x] **Step 4: Review the whole diff and update documentation.** Check every changed catch against its ordinary-failure control and the preservation boundaries. Update current docs with the shared mapping, explicit bind/inspection recovery and retained outcome exceptions. Link this implementation plan from B-16/Q3 in the original review and record offline qualification separately from live acceptance. Keep actual fixture paths, endpoint identities and raw diagnostics private.
+- [x] **Step 5: Validate documentation and commit.** Run `git diff --check` and check changed Markdown links. Commit `test: verify Portal loss invalidation and recovery` with the host tests and accurate documentation. Leave live acceptance visibly pending until the gate below passes.
 
 ## Live Acceptance Gate — Separate Exact-target Authorization
 

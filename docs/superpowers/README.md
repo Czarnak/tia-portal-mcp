@@ -54,7 +54,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
-| 2026-10-19 | [Worker Portal-loss handling, B-16 and Q3 (implementation proposal)](plans/2026-10-19-worker-portal-loss.md) |
+| 2026-10-19 | [Worker Portal-loss handling, B-16 and Q3 (implementation record; live acceptance pending)](plans/2026-10-19-worker-portal-loss.md) |
 | 2026-10-11 | [`hmi_read` completion (implemented; live-accepted)](plans/2026-10-11-hmi-read-completion.md) |
 | 2026-10-08 | [`create_block` OB creation, issue #75 (implemented; live-accepted)](plans/2026-10-08-ob-creation.md) |
 | 2026-10-07 | [Multiuser PR4 — open existing sessions (implemented/offline-qualified; scoped maintainer live acceptance)](plans/2026-10-07-multiuser-pr4-open-existing-sessions.md) |

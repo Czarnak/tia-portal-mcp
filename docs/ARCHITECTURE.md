@@ -411,6 +411,18 @@ The worker dispatch loop maps every method name to a focused Siemens operation.
 `Execute` centralizes exception mapping and response stamping. The actual
 Openness implementations live under `TiaMcpServer.OpennessWorker/Openness/`.
 
+`NonRecoverableException` reaching `Execute` maps to `portal_lost` across worker
+domains. Broad Network recovery, XML-bundle export, cached HMI liveness and
+Multiuser inventory catches exclude it through `OpennessExceptions.IsRecoverable`;
+Multiuser final identity checks preserve an original fatal body exception. The
+host invalidates verified binding evidence and cursors on this category and
+requires explicit recovery without replay. Existing narrower property-read
+policies, typed post-mutation failures, cleanup warnings and completed-operation
+diagnostic stamping retain their contracts. VCI's writer keeps its outcome-bearing
+mapping; VCI read/plan use the shared boundary. See the
+[B-16/Q3 implementation and verification record](superpowers/plans/2026-10-19-worker-portal-loss.md)
+for offline evidence and the pending live Portal-loss gate.
+
 Temporary exports such as `get_block_content` use isolated temporary
 directories and remove them in `finally` blocks.
 

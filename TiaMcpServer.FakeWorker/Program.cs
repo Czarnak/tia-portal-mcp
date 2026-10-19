@@ -501,7 +501,7 @@ while ((line = Console.In.ReadLine()) is not null)
     {
         case "portal-lost":
             Respond(currentMethod == "get_project_status"
-                ? Success("{}")
+                ? Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = fakeProjectPath }))
                 : JsonSerializer.Serialize(new WorkerResponse
                 {
                     Success = false,
@@ -1716,10 +1716,11 @@ void InspectMultiuser(WorkerRequest request)
     }
     if (alias == "hang") { Thread.Sleep(Timeout.Infinite); return; }
     if (alias == "crash") { Environment.Exit(17); return; }
-    if (alias is "identity-loss" or "server-failure" or "target_not_found" or "target_ambiguous")
+    if (alias is "identity-loss" or "portal-lost" or "server-failure" or "target_not_found" or "target_ambiguous")
     {
         Respond(JsonSerializer.Serialize(new WorkerResponse { Success = false,
             FailureCategory = alias == "identity-loss" ? WorkerFailureCategories.BindingConflict
+                : alias == "portal-lost" ? WorkerFailureCategories.PortalLost
                 : alias == "server-failure" ? WorkerFailureCategories.WorkerOperationFailed : alias,
             Error = "Scripted inventory failure." }, WorkerJson.Envelope));
         return;
@@ -2069,7 +2070,7 @@ string? ScenarioKey(string? path)
             or "portal-selection-malformed" or "portal-selection-other-path") return name;
         if (name.StartsWith("lifecycle-rebind-probe", StringComparison.Ordinal)) return @"C:\FakeWorker\" + name + ".ap21";
         if (name is "lifecycle-probe-only" or "worker-error-with-category" or "save-as-uncertain-state") return name;
-        if (name == "network-roundtrip") return name;
+        if (name is "network-roundtrip" or "portal-lost") return name;
         if (path.EndsWith(@"\open\Line.ap21", StringComparison.OrdinalIgnoreCase)) return @"C:\open\Line.ap21";
         if (name == "B-ui-owned") return @"C:\Lifecycle\B-ui-owned.ap21";
     }
