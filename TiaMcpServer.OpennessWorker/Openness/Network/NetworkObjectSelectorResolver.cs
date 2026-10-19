@@ -175,7 +175,8 @@ public static class NetworkObjectSelectorResolver
                 ? "Multiple nodes match this bare nodeId. Use the interfacePath selector returned by read_hardware_config or list_network_objects."
                 : match.Error!);
         var ownerProof = NetworkInterfacePathMatcher.Match(deviceMatch.Value!.DeviceItems.Cast<DeviceItem>(), match.Item!.OwnerPath,
-            item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+            item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier,
+            OpennessExceptions.IsRecoverable);
         if (!ownerProof.Success) return NetworkObjectSelectionResult.Fail(ownerProof.FailureCategory!, ownerProof.Error!);
         return ResolveQualifiedNode(project, NetworkSelectorFactory.QualifiedNode(deviceMatch.Name!, target.NodeId!,
             match.Item!.OwnerPath));
@@ -189,7 +190,8 @@ public static class NetworkObjectSelectorResolver
         try
         {
             owner = NetworkInterfacePathMatcher.Match(deviceMatch.Value!.DeviceItems.Cast<DeviceItem>(), target.InterfacePath!,
-                item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
+                item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier,
+                OpennessExceptions.IsRecoverable);
         }
         catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception)) { return EvidenceMismatch("The interface owner root collection could not be read."); }
         if (!owner.Success) return NetworkObjectSelectionResult.Fail(owner.FailureCategory!, owner.Error!);

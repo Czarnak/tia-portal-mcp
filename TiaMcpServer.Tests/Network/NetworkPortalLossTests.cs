@@ -1,6 +1,8 @@
 using System.Collections;
 using Siemens.Engineering;
+using Siemens.Engineering.HW;
 using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Openness.Network;
 using Xunit;
 
@@ -8,6 +10,76 @@ namespace TiaMcpServer.Tests.Network;
 
 public sealed class NetworkPortalLossTests
 {
+    [Theory]
+    [InlineData("enumerator")]
+    [InlineData("moveNext")]
+    [InlineData("current")]
+    [InlineData("dispose")]
+    [InlineData("name")]
+    [InlineData("position")]
+    [InlineData("type")]
+    [InlineData("children")]
+    public void OwnerPathPolicy_PropagatesOriginalFatalFailureWithoutFollowingCallbacks(string site)
+    {
+        var failure = new NonRecoverableException("closed");
+        var callbacks = new List<string>();
+        var root = new DeviceItemInfo { Name = "Rack", PositionNumber = 1, TypeIdentifier = "rack" };
+        var path = new[]
+        {
+            new NetworkInterfacePathSegmentInfo { Name = "Rack", PositionNumber = 1, TypeIdentifier = "rack" },
+            new NetworkInterfacePathSegmentInfo { Name = "Port", PositionNumber = 2 },
+        };
+
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(() => NetworkInterfacePathMatcher.Match(
+            new FailingEnumerable<DeviceItemInfo>(new[] { root }, site, failure), path,
+            item => Read("children", item.Items), item => Read("name", item.Name),
+            item => Read("position", item.PositionNumber), item => Read("type", item.TypeIdentifier),
+            OpennessExceptions.IsRecoverable)));
+
+        if (site == "dispose") Assert.Equal(new[] { "name", "position" }, callbacks);
+        else if (site is "enumerator" or "moveNext" or "current") Assert.Empty(callbacks);
+        else Assert.Equal(site, callbacks[^1]);
+
+        T Read<T>(string callback, T value)
+        {
+            callbacks.Add(callback);
+            return callback == site ? throw failure : value;
+        }
+    }
+
+    [Theory]
+    [InlineData("roots", true)]
+    [InlineData("children", true)]
+    [InlineData("name", true)]
+    [InlineData("type", true)]
+    [InlineData("roots", false)]
+    [InlineData("children", false)]
+    [InlineData("name", false)]
+    [InlineData("type", false)]
+    public void QualifiedOwnerTraversal_FatalLossEscapesAndOrdinaryFailureRemainsEvidenceMismatch(string site, bool fatal)
+    {
+        Exception failure = fatal ? new NonRecoverableException("closed") : new EngineeringException("unavailable");
+        var project = new Siemens.Engineering.Project();
+        var device = new Device { Name = "A" };
+        var root = new DeviceItem { Name = "Rack", PositionNumber = 1, TypeIdentifier = "rack" };
+        var leaf = new DeviceItem { Name = "Port", PositionNumber = 2, TypeIdentifier = "port" };
+        project.Devices.Items.Add(device);
+        device.DeviceItems.Items.Add(root);
+        root.DeviceItems.Items.Add(leaf);
+        if (site == "roots") device.DeviceItems.EnumerationFailure = failure;
+        if (site == "children") root.DeviceItems.EnumerationFailure = failure;
+        if (site == "name") root.NameFailure = failure;
+        if (site == "type") root.TypeIdentifierFailure = failure;
+        var selector = NetworkSelectorFactory.QualifiedNode("A", "E1", new[]
+        {
+            new NetworkInterfacePathSegmentInfo { Name = "Rack", PositionNumber = 1, TypeIdentifier = "rack" },
+            new NetworkInterfacePathSegmentInfo { Name = "Port", PositionNumber = 2, TypeIdentifier = "port" },
+        });
+
+        if (fatal) Assert.Same(failure, Assert.Throws<NonRecoverableException>(() => NetworkObjectSelectorResolver.Resolve(project, selector)));
+        else Assert.Equal("target_evidence_mismatch", NetworkObjectSelectorResolver.Resolve(project, selector).FailureCategory);
+    }
+
     [Theory]
     [InlineData("acquire")]
     [InlineData("enumerator")]
