@@ -13,6 +13,26 @@ public class HmiSoftwareLocatorTests
 {
     public HmiSoftwareLocatorTests() => HmiSoftwareLocator.ResetCache();
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CachedLiveness_PortalLossDoesNotRelocateOrHideTheFailure(bool softwareFails)
+    {
+        var software = Unified("Runtime");
+        var device = DeviceWith("Panel", software);
+        var project = ProjectWith(device);
+        HmiSoftwareLocator.FindUnique(project, "Runtime");
+        var walked = project.Devices.YieldedItemCount;
+        var failure = new NonRecoverableException("closed");
+        if (softwareFails) software.NameFailure = failure;
+        else device.NameFailure = failure;
+        project.Devices.Items.Clear();
+        project.Devices.Items.Add(DeviceWith("Replacement", Unified("Runtime")));
+
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(() => HmiSoftwareLocator.FindUnique(project, "Runtime")));
+        Assert.Equal(walked, project.Devices.YieldedItemCount);
+    }
+
     [Fact]
     public void CachedHit_RechecksDeviceWalkForUniqueness()
     {

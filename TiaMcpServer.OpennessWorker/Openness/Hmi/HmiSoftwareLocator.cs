@@ -1,4 +1,5 @@
 using Siemens.Engineering;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -94,7 +95,7 @@ public static class HmiSoftwareLocator
                     live = string.Equals(softwareName, hmiName, StringComparison.OrdinalIgnoreCase)
                         || string.Equals(deviceName, hmiName, StringComparison.OrdinalIgnoreCase);
                 }
-                catch (Exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     // A stale Openness proxy must be relocated through the strict discovery path.
                 }

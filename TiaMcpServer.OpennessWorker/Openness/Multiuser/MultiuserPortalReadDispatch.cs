@@ -1,6 +1,7 @@
 using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Openness.Project;
 using TiaMcpServer.OpennessWorker.Worker;
 
@@ -36,16 +37,23 @@ internal static class MultiuserPortalReadDispatch
         var attachmentRevision = session.PortalAttachmentRevision;
         WorkerResponse response;
         try { response = body(session); }
-        finally
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
-            // Validate failures too, but never auto-attach after loss during the read.
+            ValidateAttachment();
+            throw;
+        }
+        ValidateAttachment();
+        response.PortalProcessId = session.CurrentProcessId;
+        return response;
+
+        void ValidateAttachment()
+        {
+            // Validate ordinary failures too; fatal loss must keep its original exception.
             if (!session.IsConnected || session.PortalAttachmentRevision != attachmentRevision)
                 throw new WorkerOperationException(WorkerFailureCategories.BindingConflict, "The Portal attachment was lost during inventory. No inventory operation was replayed.");
             session.EnsurePortalConnected(request.PortalProcessId);
             session.ValidateExpectedSessionIdentity(request.ExpectedSessionIdentity, true);
         }
-        response.PortalProcessId = session.CurrentProcessId;
-        return response;
     }
 
     private static void Validate(WorkerRequest request)

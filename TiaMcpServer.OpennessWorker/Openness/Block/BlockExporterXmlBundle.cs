@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
@@ -22,7 +23,7 @@ public static partial class BlockExporter
             documents.Add(new BlockImportDocument(xmlName, xmlName, content));
             xmlExported = true;
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             // Preserve the public best-effort companion-only fallback.
         }
@@ -35,7 +36,7 @@ public static partial class BlockExporter
             exportCompanions(companionDocuments);
             documents.AddRange(companionDocuments);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             var outcome = BlockDocumentPackagePolicy.Decide(xmlExported, displayPath, exception.Message);
             if (outcome.IsFatal)

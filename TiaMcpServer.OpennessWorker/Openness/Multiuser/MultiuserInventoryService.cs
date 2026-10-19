@@ -1,4 +1,5 @@
 using Siemens.Engineering.Multiuser;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.Contracts.Multiuser;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
@@ -123,7 +124,7 @@ internal sealed class MultiuserInventoryService
             return rows;
         }
         catch (WorkerOperationException) { throw; }
-        catch (Exception) { throw Incomplete(); }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception)) { throw Incomplete(); }
     }
 
     private (ProjectServer Server, MultiuserRemoteIdentity Identity) Server(string alias)
@@ -164,7 +165,7 @@ internal sealed class MultiuserInventoryService
     {
         try { body(); return Observe(target.Identity, ProjectServerConnectionStates.Connected); }
         catch (WorkerOperationException) { throw; }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             Observe(target.Identity, ProjectServerConnectionStates.Unknown);
             throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "Project Server inventory could not be completed. Connectivity and authentication are not proven.");

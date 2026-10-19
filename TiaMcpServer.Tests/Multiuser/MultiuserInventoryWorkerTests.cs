@@ -12,6 +12,24 @@ namespace TiaMcpServer.Tests.Multiuser;
 public sealed class MultiuserInventoryWorkerTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Inventory_PortalLossPropagatesWithoutAnIncompleteResult(bool remoteRead)
+    {
+        using var f = new InventoryFixture();
+        var failure = new NonRecoverableException("closed");
+        if (remoteRead) f.Server.RemoteFailure = failure;
+        else f.Portal.Process.Portal.ProjectServers.EnumerationFailure = failure;
+
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(() =>
+        {
+            if (remoteRead) f.Service.ListServerGroups(new() { ServerAlias = "Fixture" });
+            else f.Service.ListServerConnections(new());
+        }));
+        f.Portal.AssertNoMutation();
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(-1)]
     public void SessionIds_AreProjectedAsReturnedIntegersWithoutInventedRangeRestriction(int sessionId)
