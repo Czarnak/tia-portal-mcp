@@ -166,7 +166,7 @@ public class NetworkIntrospectionWorkerDispatchTests
         Assert.Contains("ioSystem.Name", source, StringComparison.Ordinal);
         Assert.Contains("ioSystem.Number", source, StringComparison.Ordinal);
         Assert.Contains("ReadExactStringIdentityAttribute(networkInterface, \"Name\"", source, StringComparison.Ordinal);
-        Assert.Contains("ReadExactStringIdentityAttribute(subnet, \"SubnetId\"", source, StringComparison.Ordinal);
+        Assert.Contains("SubnetIdentity.Read(subnet)", source, StringComparison.Ordinal);
         Assert.Contains("ReadTypedIdentityString", source, StringComparison.Ordinal);
         Assert.Contains("ReadTypedIdentityInt", source, StringComparison.Ordinal);
         Assert.DoesNotContain("OpennessReflection", source, StringComparison.Ordinal);

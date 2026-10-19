@@ -238,6 +238,7 @@ namespace Siemens.Engineering.HW
     public sealed class DeviceItem : NamedObject
     {
         public DeviceItem() => DeviceItems.Parent = this;
+        public int PositionNumber { get; set; }
         public DeviceItemComposition DeviceItems { get; } = new();
         public Features.SoftwareContainer? Container { get; set; }
         public Exception? ServiceFailure { get; set; }

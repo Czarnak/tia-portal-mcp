@@ -403,10 +403,7 @@ public static class HardwareConfigReader
     {
         var subnetName = ReadOptionalString(() => subnet.Name, "subnet name", messages);
         var subnetDescription = subnetName ?? "(unnamed)";
-        var subnetId = ReadExactStringIdentityAttribute(
-            (IEngineeringObject)subnet,
-            "SubnetId",
-            $"Subnet '{subnetDescription}' identity");
+        var subnetId = SubnetIdentity.Read(subnet, $"Subnet '{subnetDescription}' identity");
         return ReadSubnet(subnet, subnetName, subnetDescription, subnetId, messages, capture);
     }
 
@@ -482,7 +479,7 @@ public static class HardwareConfigReader
 
     internal static string RequireSubnetIdentity(Subnet subnet)
     {
-        var identity = ReadExactStringIdentityAttribute(subnet, "SubnetId", "Connected subnet identity");
+        var identity = SubnetIdentity.Read(subnet, "Connected subnet identity");
         if (!identity.IsUsable) throw new InvalidOperationException(identity.Diagnostic);
         return identity.Value;
     }

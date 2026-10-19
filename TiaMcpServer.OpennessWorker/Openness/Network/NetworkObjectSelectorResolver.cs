@@ -276,34 +276,47 @@ public static class NetworkObjectSelectorResolver
 
         var candidates = new List<(IoSystem IoSystem, int Number, int Index)>();
         var candidateIndex = 0;
-        foreach (IoSystem candidate in subnetMatch.Value!.IoSystems)
+        try
         {
-            var currentIndex = candidateIndex++;
-            try
+            foreach (IoSystem candidate in subnetMatch.Value!.IoSystems)
             {
+                var currentIndex = candidateIndex++;
                 if (target.IoSystemIndex is not null && currentIndex != target.IoSystemIndex)
                 {
                     continue;
                 }
 
-                var number = candidate.Number;
-                if (number != target.Number)
+                var number = ReadTypedIdentityInt(() => candidate.Number, "IO system number");
+                if (!number.IsUsable)
+                {
+                    return EvidenceMismatch(number.Diagnostic);
+                }
+
+                if (number.Value != target.Number)
                 {
                     continue;
                 }
 
-                if (target.IoSystemName is not null
-                    && !string.Equals(candidate.Name, target.IoSystemName, StringComparison.Ordinal))
+                if (target.IoSystemName is not null)
                 {
-                    continue;
+                    var name = ReadTypedIdentityString(() => candidate.Name, "IO system name");
+                    if (!name.IsUsable)
+                    {
+                        return EvidenceMismatch(name.Diagnostic);
+                    }
+
+                    if (!string.Equals(name.Value, target.IoSystemName, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
                 }
 
-                candidates.Add((candidate, number, currentIndex));
+                candidates.Add((candidate, number.Value, currentIndex));
             }
-            catch (EngineeringException)
-            {
-                // An unreadable identity can never satisfy the selector.
-            }
+        }
+        catch (Exception exception) when (IsRecoverable(exception))
+        {
+            return EvidenceMismatch("The IO-system namespace could not be read completely.");
         }
 
         if (candidates.Count == 0)
@@ -589,13 +602,25 @@ public static class NetworkObjectSelectorResolver
     private static Match<Subnet> MatchSubnet(ProjectBase project, string? subnetId)
     {
         var matches = new List<(Subnet Subnet, string Identity)>();
-        foreach (Subnet candidate in project.Subnets)
+        try
         {
-            if (TryReadStringAttribute((IEngineeringObject)candidate, "SubnetId", out var identity, out _)
-                && string.Equals(identity, subnetId, StringComparison.Ordinal))
+            foreach (Subnet candidate in project.Subnets)
             {
-                matches.Add((candidate, identity!));
+                var identity = SubnetIdentity.Read(candidate);
+                if (!identity.IsUsable)
+                {
+                    return Match<Subnet>.Fail(EvidenceMismatch(identity.Diagnostic));
+                }
+
+                if (string.Equals(identity.Value, subnetId, StringComparison.Ordinal))
+                {
+                    matches.Add((candidate, identity.Value));
+                }
             }
+        }
+        catch (Exception exception) when (IsRecoverable(exception))
+        {
+            return Match<Subnet>.Fail(EvidenceMismatch("The subnet namespace could not be read completely."));
         }
 
         if (matches.Count == 0)
