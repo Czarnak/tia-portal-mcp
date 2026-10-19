@@ -10,7 +10,7 @@
 
 **Spec:** [Agreed simplification review](2026-10-17-codebase-simplification-review.md), decision Q3 and workstream B item 16; [findings appendix](2026-10-17-codebase-simplification-review-findings.md), WORKERCORE-4, WORKERNET-7 and the verifier-corrected WORKERDOMAINS-16.
 
-**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Subsequent authorized interrupted reads of installed candidate `08f4d4a` exposed a disposal-aware mapping gap. The approved follow-up below is implemented, reviewed and qualified offline on the same branch. Live acceptance remains pending; the maintainer requires stopping before testing the updated version live.
+**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Authorized interrupted reads of installed candidate `08f4d4a` exposed a disposal-aware mapping gap. The follow-up `e804e6f` is implemented, reviewed and qualified offline. Its separately authorized manual-close Network retest passed `portal_lost` and immediate cursor invalidation on 2026-10-19. Broader live acceptance remains pending with the limits recorded below.
 
 ## Implementation Record
 
@@ -146,8 +146,42 @@ reports remain ignored under `TestResults/portal-loss`. Coverage executes source
 worker code against doubles in net10.0, with generated code excluded; it does not
 establish native event timing or installed-candidate acceptance.
 
-The updated candidate must be installed before any separately resumed live test.
-No live operation is authorized as part of this implementation follow-up.
+The implementation follow-up stopped before live testing as requested. The
+maintainer then installed the update and separately authorized the retest below.
+
+### Scoped live retest of installed candidate `e804e6f`
+
+The maintainer reopened disposable standalone fixture A and explicitly requested
+large reads with manual Portal closure to check `portal_lost` and immediate cursor
+invalidation. This run issued one interruption read; the maintainer closed Portal
+through the UI. No force-termination or project-write call was issued.
+
+| Observation | Evidence |
+| --- | --- |
+| Installed provenance | Running host and worker both reported `4.1.1-local.14.ge804e6f`; installed DLL/executable hashes were captured privately |
+| Healthy baseline | Explicit binding to A, `isModified:false`, matching AP21 baseline hash; tree snapshot had 96 nodes, hardware snapshot had 93 devices and 3 subnets. The saved tree continuation returned sequence 1 before interruption |
+| Large read | One `list_network_objects` operation requested all six kinds (`deviceItem`, `networkInterface`, `node`, `subnet`, `ioSystem`, `communicationConnection`) with `pageSize:1`; the scan ran from 20:52:58.603 to 20:53:11.534 UTC (12.931 seconds) |
+| Interrupted response | Item failed with `portal_lost`, a disposed native enumerator diagnostic and the attached-Portal disposal warning; the worker survived |
+| Immediate tree continuation | The first TIA call after that response rejected the previously healthy cursor with `cursor_binding_mismatch`. No discovery, binding, status or native content read occurred between them |
+| Hardware continuation | The next call also rejected the old hardware cursor with `cursor_binding_mismatch` |
+| Later binding/status checks | Discovery reported binding already invalidated in both previous/current values and zero Portals; status was refused with `binding_conflict` carrying the Portal-loss reason |
+| Process and file checks | Same host/worker PIDs and creation times survived; the user-closed Portal processes were absent; AP21 SHA-256 still matched baseline |
+| Response contract | Parsed text matched structured content for all 10 captured documents |
+
+This focused retest **passed** the observed Network interruption and immediate
+invalidation behavior. It does not establish complete B-16/Q3 live acceptance.
+No native IPC request log was available, so the one submitted read is not
+request-log proof of no replay. The exception's precise CLR type was not captured.
+Recovery/reopen/rebind and healthy post-recovery PLC/Network reads were not executed
+on this installed candidate. Interrupted PLC, HMI, VCI and Multiuser reads, and
+post-mutation outcomes, were not tested. Final state is Portal closed and binding
+invalidated, with no automatic recovery. The file hash is AP21 preservation evidence,
+not a complete comparison of every project-directory file.
+
+Raw paths, cursors, process identities, hashes, timestamps and canonical responses
+are ignored under `TestResults/portal-loss/live-e804e6f-2026-10-19` in
+`baseline.json` and `manual-close.json`. The earlier 7,065-test offline qualification
+still applies; this record update changes documentation only.
 
 ## Global Constraints
 

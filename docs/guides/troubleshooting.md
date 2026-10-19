@@ -99,8 +99,9 @@ worker-reported copied project path; verify it with a subsequent status or read 
   evidence and old cursors are invalidated; the failed request is never replayed.
   Existing typed post-mutation failures and cleanup warnings can retain their own
   categories, so inspect their outcome evidence too. The B-16/Q3 change has an
-  [offline verification record](../superpowers/plans/2026-10-19-worker-portal-loss.md);
-  live Portal-loss verification remains pending.
+  [verification record](../superpowers/plans/2026-10-19-worker-portal-loss.md)
+  covering offline qualification, one successful interrupted Network read and
+  immediate cursor invalidation, and the remaining native verification limits.
 - `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
   attempted. Read the typed `result` and `verification` failures; a successful mutation can
   precede failed verification. After timeout, crash, disconnect, or uncertain mutation, inspect
