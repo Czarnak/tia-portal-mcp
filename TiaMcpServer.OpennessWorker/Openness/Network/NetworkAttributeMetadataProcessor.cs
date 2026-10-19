@@ -1,3 +1,5 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
+
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>
@@ -52,7 +54,7 @@ public static class NetworkAttributeMetadataProcessor
         {
             metadata = acquireMetadata();
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             AddDiagnostic(result.Diagnostics, "Dynamic attribute metadata collection could not be acquired.");
             AddRequestedFailures(result.Observations, attributeNames);
@@ -93,7 +95,7 @@ public static class NetworkAttributeMetadataProcessor
         {
             name = entry.ReadName is null ? null : entry.ReadName();
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             AddDiagnostic(result.Diagnostics, "Dynamic attribute metadata name could not be read.");
             return;
@@ -115,7 +117,7 @@ public static class NetworkAttributeMetadataProcessor
         {
             access = entry.ReadAccess is null ? null : entry.ReadAccess();
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             AddDiagnostic(
                 result.Diagnostics,
@@ -148,7 +150,7 @@ public static class NetworkAttributeMetadataProcessor
                     var value = entry.ReadValue();
                     readValue = () => value;
                 }
-                catch (Exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     AddDiagnostic(
                         result.Diagnostics,
@@ -180,7 +182,7 @@ public static class NetworkAttributeMetadataProcessor
         {
             types = entry.ReadSupportedTypes is null ? null : entry.ReadSupportedTypes();
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             AddDiagnostic(
                 diagnostics,
@@ -214,7 +216,7 @@ public static class NetworkAttributeMetadataProcessor
                 {
                     typeName = type.ReadName is null ? null : type.ReadName();
                 }
-                catch (Exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     AddDiagnostic(
                         diagnostics,
@@ -252,7 +254,7 @@ public static class NetworkAttributeMetadataProcessor
         {
             enumerator = source.GetEnumerator();
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             AddDiagnostic(diagnostics, $"{scope} enumeration could not be started.");
             return;
@@ -269,7 +271,7 @@ public static class NetworkAttributeMetadataProcessor
                     hasNext = enumerator.MoveNext();
                     consecutiveFailures = 0;
                 }
-                catch (Exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     consecutiveFailures++;
                     AddDiagnostic(diagnostics, $"{scope} enumeration could not advance.");
@@ -294,7 +296,7 @@ public static class NetworkAttributeMetadataProcessor
                 {
                     current = enumerator.Current;
                 }
-                catch (Exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     AddDiagnostic(diagnostics, $"{scope} current entry could not be read.");
                     continue;
@@ -304,7 +306,7 @@ public static class NetworkAttributeMetadataProcessor
                 {
                     process(current);
                 }
-                catch (Exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     AddDiagnostic(diagnostics, $"{scope} current entry could not be processed.");
                 }
@@ -316,7 +318,7 @@ public static class NetworkAttributeMetadataProcessor
             {
                 enumerator.Dispose();
             }
-            catch (Exception)
+            catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
             {
                 AddDiagnostic(diagnostics, $"{scope} enumerator could not be disposed.");
             }

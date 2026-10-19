@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -28,7 +29,7 @@ public static class HardwareConfigReader
         var capture = new HardwareDiscoveryEvidenceCapture(deviceName is null ? "project" : "device", result.Messages.Add);
         result.DiscoveryEvidence = capture.Evidence;
         try { result.RootDeviceCount = project.Devices.Count; }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             result.Messages.Add($"Could not read root device count: {exception.Message}");
         }

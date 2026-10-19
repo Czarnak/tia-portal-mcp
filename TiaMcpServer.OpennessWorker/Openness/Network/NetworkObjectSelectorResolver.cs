@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.CommunicationConnections;
@@ -165,7 +166,7 @@ public static class NetworkObjectSelectorResolver
             match = NetworkNodeReadSelectorBuilder.MatchNode(EnumerateNodes(deviceMatch.Value!), target.NodeId,
                 null, candidate => candidate.Node.NodeId);
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             return EvidenceMismatch("The device's full node namespace could not be read completely.");
         }
@@ -190,11 +191,11 @@ public static class NetworkObjectSelectorResolver
             owner = NetworkInterfacePathMatcher.Match(deviceMatch.Value!.DeviceItems.Cast<DeviceItem>(), target.InterfacePath!,
                 item => item.DeviceItems.Cast<DeviceItem>(), item => item.Name, item => item.PositionNumber, item => item.TypeIdentifier);
         }
-        catch (Exception) { return EvidenceMismatch("The interface owner root collection could not be read."); }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception)) { return EvidenceMismatch("The interface owner root collection could not be read."); }
         if (!owner.Success) return NetworkObjectSelectionResult.Fail(owner.FailureCategory!, owner.Error!);
         NetworkInterface? networkInterface;
         try { networkInterface = ((IEngineeringServiceProvider)owner.Item!).GetService<NetworkInterface>(); }
-        catch (Exception) { return EvidenceMismatch("The selected owner's network interface could not be read."); }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception)) { return EvidenceMismatch("The selected owner's network interface could not be read."); }
         if (networkInterface is null) return NotFound("The selected owner has no network interface service.");
         var messages = new List<string>();
         var interfaceName = ReadExactStringAttribute((IEngineeringObject)networkInterface, "Name", "Name", messages);
@@ -202,7 +203,7 @@ public static class NetworkObjectSelectorResolver
             return EvidenceMismatch("The selected interface name does not match the supplied constraint.");
         NetworkInterfacePathMatch<Node> node;
         try { node = NetworkNodeReadSelectorBuilder.MatchNode(networkInterface.Nodes.Cast<Node>(), target.NodeId, target.NodeIndex, x => x.NodeId); }
-        catch (Exception) { return EvidenceMismatch("The selected interface node collection could not be read."); }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception)) { return EvidenceMismatch("The selected interface node collection could not be read."); }
         if (!node.Success) return NetworkObjectSelectionResult.Fail(node.FailureCategory!, node.Error!);
         var evidence = new NetworkObjectEvidenceInfo
         {
@@ -580,7 +581,7 @@ public static class NetworkObjectSelectorResolver
                 if (string.IsNullOrWhiteSpace(candidate.Name))
                     return Match<Device>.Fail(EvidenceMismatch("The device-name namespace has unreadable required identity evidence."));
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             return Match<Device>.Fail(EvidenceMismatch("The device-name namespace could not be read completely."));
         }

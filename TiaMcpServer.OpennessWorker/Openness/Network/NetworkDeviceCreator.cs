@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using TiaMcpServer.Contracts.Network;
@@ -26,7 +27,7 @@ public static class NetworkDeviceCreator
             // WorkerResponse.Success=false (via Program.Execute), never as a success with a warning.
             device = project.Devices.CreateWithItem(typeIdentifier, deviceItemName, deviceName);
         }
-        catch (Exception ex) when (ex is not EngineeringException)
+        catch (Exception ex) when (ex is not EngineeringException && OpennessExceptions.IsRecoverable(ex))
         {
             throw new InvalidOperationException(
                 $"Failed to create network device '{deviceName}' from type identifier '{typeIdentifier}': {ex.Message}",

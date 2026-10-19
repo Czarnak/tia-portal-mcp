@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.Contracts.Network;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
@@ -55,7 +56,7 @@ internal static class NetworkConnectionEvidenceCapture
                         throw new InvalidOperationException("Connected node identity or owner was unavailable.");
                     result.Nodes.Add(identity);
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     result.Complete = false;
                     result.Messages.Add($"Could not identify a connected node: {exception.Message}");
@@ -63,13 +64,13 @@ internal static class NetworkConnectionEvidenceCapture
                 // Display reads share this producer-owned relationship scope, but cannot
                 // discard an identity already captured successfully.
                 try { readDisplay?.Invoke(node, result.Messages); }
-                catch (Exception exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     result.Messages.Add($"Could not read connected-node display information: {exception.Message}");
                 }
             }
         }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             result.Complete = false;
             result.Messages.Add($"Could not complete connected-node enumeration: {exception.Message}");
@@ -92,7 +93,7 @@ internal static class NetworkConnectionEvidenceCapture
     {
         var result = new NetworkNodeConnectionInfo { Complete = true };
         try { result.SubnetId = readSubnetId(); }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             result.Complete = false;
             result.Messages.Add($"Could not read connected subnet identity: {exception.Message}");
@@ -106,7 +107,7 @@ internal static class NetworkConnectionEvidenceCapture
             result.IoSystemSubnetId = identity.SubnetId;
             result.IoSystemNumber = identity.Number;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             result.Complete = false;
             result.Messages.Add($"Could not read IO system identity: {exception.Message}");
@@ -117,7 +118,7 @@ internal static class NetworkConnectionEvidenceCapture
             result.Messages.Add("Connected subnet identity was blank.");
         }
         try { readDisplay?.Invoke(result.Messages); }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             result.Messages.Add($"Could not read relationship display information: {exception.Message}");
         }

@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.Contracts.Network;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
@@ -31,13 +32,13 @@ internal sealed class HardwareDiscoveryEvidenceCapture
             foreach (var candidate in enumerate())
             {
                 try { materialize(candidate); }
-                catch (Exception exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     RecordFailure(materializationStage, $"Hardware {materializationStage} failed: {exception.Message}");
                 }
             }
         }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             RecordFailure(enumerationStage, $"Hardware {enumerationStage} failed: {exception.Message}");
         }

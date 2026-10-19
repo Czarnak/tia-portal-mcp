@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 
@@ -86,7 +87,7 @@ internal static class NetworkNodeReadSelectorBuilder
                 return NetworkInterfacePathMatch<TNode>.Fail(WorkerFailureCategories.TargetEvidenceMismatch, "The uniquely selected node does not match the supplied node index.");
             return NetworkInterfacePathMatch<TNode>.Ok(matches[0].Node);
         }
-        catch (Exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             return NetworkInterfacePathMatch<TNode>.Fail(WorkerFailureCategories.TargetEvidenceMismatch, "Node namespace could not be read completely.");
         }

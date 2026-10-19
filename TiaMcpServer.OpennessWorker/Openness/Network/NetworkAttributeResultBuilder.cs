@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.Contracts.Network;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
@@ -116,7 +117,7 @@ public static class NetworkAttributeResultBuilder
             {
                 return AttributeReadResult.FromNormalization(NetworkAttributeValueNormalizer.Normalize(observation.ReadValue()));
             }
-            catch (Exception exception)
+            catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
             {
                 failure = exception;
             }

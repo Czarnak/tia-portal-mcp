@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\OpennessExceptions.cs" Link="Infrastructure\OpennessExceptions.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerOperationException.cs" Link="Worker\WorkerOperationException.cs" />
 

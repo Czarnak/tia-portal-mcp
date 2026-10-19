@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.CommunicationConnections;
@@ -74,7 +75,7 @@ public static class CommunicationConnectionReader
             diagnostic = null;
             return true;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             connectionType = null;
             diagnostic = $"Could not read connection type: {exception.Message}";
@@ -122,7 +123,7 @@ public static class CommunicationConnectionReader
                 + "a non-string value.";
             return false;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             value = null;
             diagnostic = $"Could not read {connectionType}.{attributeName}: {exception.Message}";
