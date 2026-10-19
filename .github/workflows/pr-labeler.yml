@@ -25,7 +25,7 @@ jobs:
         uses: actions/labeler@v7
 
       - name: Apply label from PR title
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const target = { ...context.repo, issue_number: context.issue.number };
