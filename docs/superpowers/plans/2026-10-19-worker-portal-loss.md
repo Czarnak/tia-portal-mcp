@@ -10,7 +10,7 @@
 
 **Spec:** [Agreed simplification review](2026-10-17-codebase-simplification-review.md), decision Q3 and workstream B item 16; [findings appendix](2026-10-17-codebase-simplification-review-findings.md), WORKERCORE-4, WORKERNET-7 and the verifier-corrected WORKERDOMAINS-16.
 
-**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Authorized interrupted reads of installed candidate `08f4d4a` exposed a disposal-aware mapping gap. The follow-up `e804e6f` is implemented, reviewed and qualified offline. Its separately authorized manual-close Network retest passed `portal_lost` and immediate cursor invalidation on 2026-10-19. Broader live acceptance remains pending with the limits recorded below.
+**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Candidate `08f4d4a` exposed a native disposal-aware mapping gap. Follow-up `e804e6f` is offline qualified; its Network, PLC, VCI and local-session read interruptions passed scoped loss/invalidation checks. Remaining live testing exposed two HMI defects, so complete live acceptance is **not passed**. The original standalone fixture is restored open, verified and unmodified; detailed evidence and limits follow.
 
 ## Implementation Record
 
@@ -173,15 +173,76 @@ invalidation behavior. It does not establish complete B-16/Q3 live acceptance.
 No native IPC request log was available, so the one submitted read is not
 request-log proof of no replay. The exception's precise CLR type was not captured.
 Recovery/reopen/rebind and healthy post-recovery PLC/Network reads were not executed
-on this installed candidate. Interrupted PLC, HMI, VCI and Multiuser reads, and
-post-mutation outcomes, were not tested. Final state is Portal closed and binding
-invalidated, with no automatic recovery. The file hash is AP21 preservation evidence,
+on this installed candidate during that phase. Interrupted PLC, HMI, VCI and Multiuser
+reads, and post-mutation outcomes, were not tested in that phase. It ended with Portal
+closed and binding invalidated, with no automatic recovery. The file hash is AP21 preservation evidence,
 not a complete comparison of every project-directory file.
 
 Raw paths, cursors, process identities, hashes, timestamps and canonical responses
 are ignored under `TestResults/portal-loss/live-e804e6f-2026-10-19` in
 `baseline.json` and `manual-close.json`. The earlier 7,065-test offline qualification
 still applies; this record update changes documentation only.
+
+### Autonomous remaining read cases on installed `e804e6f`
+
+The maintainer subsequently authorized the remaining cases and selection of any
+disposable local session from the specified Sessions directory. An existing
+synthetic local session H was selected. The installed host/worker remained
+`4.1.1-local.14.ge804e6f`; no production code changed during these tests.
+
+Four actual read interruptions were performed, one each for PLC, HMI, VCI and
+local-session PLC content. Every stop checked the precise PID, creation time,
+executable and project/session window title. A first PLC stop was refused by an
+incorrect UTC comparison and did not terminate Portal; the conversion was corrected
+and the helper dry-run checked against valid and deliberately wrong identities
+before retrying. One later exact-PID Portal termination cleaned up the test-owned
+local-session Portal after its recovery checks. No content write, compile, save,
+check-in, server update, VCI export/sync or PLC online operation was issued.
+
+| Case | Result and evidence |
+| --- | --- |
+| Standalone explicit recovery | Passed after the manual close and each standalone interruption: reopen A, explicitly bind, then healthy PLC and Network reads. Old cursors stayed invalid |
+| Non-interrupted PLC control | Whole-project tag read was omitted at 80,637 characters against the 60,000-character item limit; its saved tree cursor still worked, preserving healthy binding |
+| PLC interruption | Passed: `portal_lost` with disposal warning; first subsequent TIA call rejected the saved tree cursor with `cursor_binding_mismatch` |
+| HMI interruption | **Failed**: `worker_operation_failed` with a disposed-device-item diagnostic and disposal warning. First HMI continuation reached worker identity validation and returned `binding_conflict`, rather than immediate host cursor rejection |
+| VCI interruption | Passed: the still-pending one-row `list_mappings(withStatus:true)` request over a 676-mapping workspace returned `portal_lost`; the first following TIA call rejected the healthy hardware cursor. The interrupted native diagnostic named the mapped-object enumerator; this does not prove which status call had started |
+| Local-session content interruption | Passed: a 50-item PLC-read batch completed four items, returned one `portal_lost`, then 45 `binding_conflict` refusals. First subsequent TIA call rejected the healthy tree cursor |
+| Local-session recovery | Passed: reopen and explicitly bind H, identical PLC results, eight-node tree, successful unpaged Network read with five devices and three subnets. `isModified:true` was already reported immediately on the first open and remained true; nothing was saved or checked in |
+| Local-session hardware pagination | Separate limitation: paged result omitted because its cursor was 6,559 characters against the fixed 4,096-character limit. Unpaged read succeeded |
+| HMI after Portal recovery | **Failed twice** on fresh listings with a disposed `Siemens.Engineering.Project`, while current Portal, PLC, Network, VCI and status were healthy. Explicit worker restart and rebinding restored the 97-tag HMI listing; this is a workaround, not a code fix |
+| Final restoration | A is open, verified and `isModified:false`; selected PLC contents and first hardware device match baseline, with hardware totals 93 devices/3 subnets. AP21 plus H's ALS/local-AMC/server-baseline-AMC hashes all match their pre-test values |
+
+The same host and original worker survived all four read interruptions. Only after
+the completed cases was that worker deliberately restarted to clear the stale HMI
+cache. The first explicit rebind correctly refused the changed worker identity;
+the next explicit rebind succeeded. The final worker has the same installed version
+and the original Portal/project remains open. Test local-session Portals were closed.
+
+Two HMI follow-ups block acceptance:
+
+1. Strict discovery in `HmiSoftwareLocator.WalkItems` catches `EngineeringException`
+   and calls `Skip`; without a message sink, `Skip` throws
+   `WorkerOperationException(worker_operation_failed)`. The escaping exception no
+   longer reaches the shared engineering-exception mapping, matching the live
+   delayed-invalidation failure.
+2. `HmiSoftwareLocator.FindUnique` compares the cached project via `object.Equals`
+   before clearing the cache. A disposed cached-root comparison is a plausible
+   source of the repeatable post-recovery disposed-project error. No native stack
+   trace was captured; the successful worker-restart workaround supports stale
+   worker cache state but does not by itself prove the exact throwing line.
+
+This run completes the authorized read-case attempts and restoration, **not complete
+B-16/Q3 acceptance**. HMI follow-up implementation and an installed-version retest
+remain required. Typed post-mutation outcomes and dedicated inventory-fault paths
+retain their offline evidence; no native write interruption was attempted. There
+is still no native IPC request log or exact CLR exception trace, and the checked
+file hashes are not a complete project-directory comparison.
+
+Private `*-interruption.json`, `recovery-*.json`, `multiuser-*.json`,
+`final-before-worker-restart.json` and `final-restoration.json` files under the same
+ignored evidence directory retain the raw records and controlled-restart distinction.
+The earlier 7,065-test offline qualification remains the source-code gate; only
+documentation and ignored test evidence changed in this verification step.
 
 ## Global Constraints
 

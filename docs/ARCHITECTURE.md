@@ -426,8 +426,10 @@ policies, typed post-mutation failures, cleanup warnings and completed-operation
 diagnostic stamping retain their contracts. VCI's writer keeps its outcome-bearing
 mapping; VCI read/plan use the shared boundary. See the
 [B-16/Q3 implementation and verification record](superpowers/plans/2026-10-19-worker-portal-loss.md)
-for offline qualification, the scoped Network interruption retest and remaining
-native verification limits.
+for offline qualification and scoped Network, PLC, VCI and local-session read
+evidence. Complete live acceptance is blocked by HMI discovery error wrapping and
+a post-recovery stale-project cache failure; a worker restart plus explicit rebind
+restored healthy HMI reads in the recorded run.
 
 Temporary exports such as `get_block_content` use isolated temporary
 directories and remove them in `finally` blocks.
