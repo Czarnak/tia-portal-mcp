@@ -408,11 +408,16 @@ objects, performs host authorization, invokes the transport, normalizes failure
 categories, caps warning output, and applies project-binding transitions.
 
 The worker dispatch loop maps every method name to a focused Siemens operation.
-`Execute` centralizes exception mapping and response stamping. The actual
+`Program.Execute` delegates exception mapping to `WorkerExecution` and retains response stamping. The actual
 Openness implementations live under `TiaMcpServer.OpennessWorker/Openness/`.
 
 `NonRecoverableException` reaching `Execute` maps to `portal_lost` across worker
-domains. Broad Network recovery, XML-bundle export, cached HMI liveness and
+domains. An escaping `EngineeringException` also maps to `portal_lost` when the
+session observed unexpected disposal of a current Portal attachment during that
+execution. This uses cached event evidence, without native liveness calls or
+message matching. Deliberate detach, stale callbacks and earlier disposal do not
+qualify; ordinary engineering errors remain `worker_operation_failed`.
+Broad Network recovery, XML-bundle export, cached HMI liveness and
 Multiuser inventory catches exclude it through `OpennessExceptions.IsRecoverable`;
 Multiuser final identity checks preserve an original fatal body exception. The
 host invalidates verified binding evidence and cursors on this category and

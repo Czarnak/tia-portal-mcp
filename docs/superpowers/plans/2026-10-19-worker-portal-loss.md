@@ -10,7 +10,7 @@
 
 **Spec:** [Agreed simplification review](2026-10-17-codebase-simplification-review.md), decision Q3 and workstream B item 16; [findings appendix](2026-10-17-codebase-simplification-review-findings.md), WORKERCORE-4, WORKERNET-7 and the verifier-corrected WORKERDOMAINS-16.
 
-**Status:** Offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. All four tasks and the review fix are complete. Live Portal-loss acceptance remains pending: the maintainer explicitly required stopping before any live TIA verification.
+**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Subsequent authorized interrupted reads of installed candidate `08f4d4a` exposed a disposal-aware mapping gap. The approved follow-up below is implemented, reviewed and qualified offline on the same branch. Live acceptance remains pending; the maintainer requires stopping before testing the updated version live.
 
 ## Implementation Record
 
@@ -51,13 +51,13 @@ Implementation adjustments and their limits:
   `binding_conflict` behavior remain as approved. The installed Portal's fatal-loss
   behavior and restoration are unverified until a separately authorized live run.
 
-### Final offline qualification
+### Initial offline qualification
 
 The final production-code commit is `27630db`; the host/FakeWorker regressions
 and this documentation are included in this record's commit. The SHA-256 of the
 LF-normalized C# and project-file patch against the baseline is
 `0484849a129b25e245e178033f1b63f17ed9ba9dbd9052dc9f28774ed3124aab`.
-No source change followed these qualification runs.
+These runs qualify the initial candidate, before the disposal-aware follow-up below.
 
 | Gate | Result and limits |
 | --- | --- |
@@ -91,6 +91,63 @@ Network fault tests while retaining compile-only boundaries (runtime-only faults
 and repair the existing loss fixture's absolute-path/status contract (synthetic
 recovery evidence). The independent review's one P2 defect was fixed through a
 failing regression and the green whole suite; there were no deferred minor findings.
+
+### Disposal-aware follow-up after installed-candidate testing
+
+The maintainer installed candidate `08f4d4a` and authorized read-only interruption
+of disposable standalone fixture A. Interrupted PLC and Network reads, including
+a manual Portal close, returned `worker_operation_failed` with a disposal warning
+while the worker survived. The first interrupted PLC and Network cases still
+served a cached tree continuation before a later native read invalidated binding.
+A separate force-stop attempt missed the read window and is not interrupted-read
+evidence. Explicit recovery and preservation checks succeeded before the final
+manual close; that manual test ended with Portal closed. Direct native
+`NonRecoverableException` to `portal_lost` was not observed. This is a failed
+live gate for the initial candidate, not acceptance of the follow-up. Raw paths,
+process identities, responses and preservation evidence remain ignored under
+`TestResults/portal-loss/live-2026-10-19`.
+
+The approved bounded fix records unexpected disposal of the current Portal
+attachment and maps an escaping `EngineeringException` to `portal_lost` only if
+that observation advances during the execution. The exception boundary moves to
+source-linked `WorkerExecution`; `Program.Execute` retains the existing completed
+operation stamp. Deliberate detach, stale callbacks, previous disposal and failed
+liveness probes do not provide disposal evidence. Each attachment has a distinct
+callback subscription, including when a handle is reused or the event sender is
+null. The revision read synchronizes with attachment cleanup before publishing
+disposal evidence to the exception mapper. No localized message matching,
+new native probe, host replay or broader recovery-filter change is added. Returned
+typed write outcomes, cleanup warnings and completed results retain their contracts.
+An event arriving only after exception classification cannot retrospectively change
+that response; live retesting must verify the native event/exception ordering.
+
+Regression evidence before the fix: **8/20 failed**, comprising the actual
+session-disposal/engineering-exception case, six IPC invalidation cases and a
+cached-cursor case; the 12 existing controls passed. Offline follow-up qualification
+also exposed a same-handle late callback false positive (**1/3 failed** before
+subscription identity was added). Independent review caught a stale source-contract
+test and a cross-thread disposal-publication race; both were corrected, and the
+reviewer reported no remaining findings.
+
+| Follow-up gate | Result and limits |
+| --- | --- |
+| Focused disposal, IPC, cursor and outcome-preservation tests | **175/175 passed** |
+| Updated existing source-contract groups | **18/18 passed**; retain guard-before-clear and unsubscribe-before-native-dispose checks |
+| Final full Debug suite with source-linked worker coverage, `xUnit.MaxParallelThreads=4` | **7,065/7,065 passed**, zero skipped; 6.80 minutes |
+| Changed instrumented worker lines | **72/74 covered (97.30%)**: session 49/51, mapper 23/23. Mapper branch coverage is 100%; the `Program.Execute` bridge remains compile-checked |
+| Serial reference-stub solution build | Passed; seven existing nullable test warnings, zero errors |
+| Installed V21 references, compile only | Serial solution build passed; seven existing nullable test warnings, zero errors. No Portal attachment or operation |
+| Documentation and scope | All 43 local Markdown targets in changed documents resolve; `git diff --check` passed. No new dependency, public schema, tool or host-production change |
+
+A first full follow-up run passed 7,064 tests and failed one existing source-layout
+assertion. That assertion now follows `ClearPortal`, with its safety checks retained;
+the final whole-suite result above supersedes that run. Logs, TRX files and coverage
+reports remain ignored under `TestResults/portal-loss`. Coverage executes source-linked
+worker code against doubles in net10.0, with generated code excluded; it does not
+establish native event timing or installed-candidate acceptance.
+
+The updated candidate must be installed before any separately resumed live test.
+No live operation is authorized as part of this implementation follow-up.
 
 ## Global Constraints
 

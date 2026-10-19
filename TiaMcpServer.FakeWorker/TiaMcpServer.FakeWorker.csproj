@@ -9,6 +9,7 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\OpennessExceptions.cs" Link="Infrastructure\OpennessExceptions.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerOperationException.cs" Link="Worker\WorkerOperationException.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerExecution.cs" Link="Worker\WorkerExecution.cs" />
 
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwareDiscoveryEvidenceCapture.cs" Link="Network\HardwareDiscoveryEvidenceCapture.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkNodeReadSelectorBuilder.cs" Link="Network\NetworkNodeReadSelectorBuilder.cs" />

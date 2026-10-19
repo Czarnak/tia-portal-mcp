@@ -561,14 +561,20 @@ public class OpennessWorkerClientIntegrationTests
     [InlineData("hmi_list_hmi_devices")]
     [InlineData("compile_check")]
     [InlineData("save_project")]
-    public async Task PortalLost_InvalidatesBindingImmediately(string method)
+    [InlineData("list_tag_tables", true)]
+    [InlineData("get_block_content", true)]
+    [InlineData("list_network_objects", true)]
+    [InlineData("hmi_list_hmi_devices", true)]
+    [InlineData("compile_check", true)]
+    [InlineData("save_project", true)]
+    public async Task PortalLost_InvalidatesBindingImmediately(string method, bool disposed = false)
     {
         using var directory = new TempAuditDirectory();
         Directory.CreateDirectory(directory.Path);
         using var log = new FakeWorkerRequestLog(directory.Path);
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Path.Combine(directory.Path, "portal-lost.ap21"));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Path.Combine(directory.Path, disposed ? "portal-disposed.ap21" : "portal-lost.ap21"));
         var before = binding.CaptureSnapshot();
         Assert.Equal(ProjectBindingSnapshot.VerifiedState, before.State);
 

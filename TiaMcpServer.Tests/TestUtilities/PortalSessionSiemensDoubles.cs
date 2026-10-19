@@ -100,7 +100,7 @@ namespace Siemens.Engineering
         public Siemens.Engineering.Multiuser.LocalSessionComposition LocalSessions { get; } = new();
         public event EventHandler<NotificationEventArgs>? Notification;
         public event EventHandler<ConfirmationEventArgs>? Confirmation;
-        public event EventHandler? Disposed;
+        public event EventHandler<EventArgs>? Disposed;
         public int DisposeCalls { get; private set; }
         public int? SubscribersAtDispose { get; private set; }
         public Exception? DisposeFailure { get; set; }
@@ -113,6 +113,12 @@ namespace Siemens.Engineering
             Disposed?.Invoke(this, EventArgs.Empty);
         }
         public void RaiseDisposed() => Disposed?.Invoke(this, EventArgs.Empty);
+        public void RaiseDisposedWithoutSender() => Disposed?.Invoke(null, EventArgs.Empty);
+        public Action CaptureDisposedNotification()
+        {
+            var handler = Disposed;
+            return () => handler?.Invoke(this, EventArgs.Empty);
+        }
         public ConfirmationResult RaiseConfirmation()
         {
             var args = new ConfirmationEventArgs(); Confirmation?.Invoke(this, args); return args.Result;

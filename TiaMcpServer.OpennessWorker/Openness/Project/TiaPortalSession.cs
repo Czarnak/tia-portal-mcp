@@ -12,7 +12,9 @@ public class TiaPortalSession : IDisposable
 {
     private readonly bool _allowTiaConfirmations;
     private readonly string _workerSessionId = Guid.NewGuid().ToString("N");
+    private readonly object _portalHandleSync = new();
     private TiaPortal? _tiaPortal;
+    private EventHandler<EventArgs>? _portalDisposedHandler;
     private TiaPortal? _unreleasedTemporaryTarget;
     private ActiveProjectContext? _activeContext;
     private bool _disposed;
@@ -20,6 +22,7 @@ public class TiaPortalSession : IDisposable
     private string? _selectedProjectPath;
     private long _sessionGeneration;
     private long _portalAttachmentRevision;
+    private long _portalDisposalRevision;
 
     public TiaPortalSession(bool allowTiaConfirmations = false)
     {
@@ -54,6 +57,15 @@ public class TiaPortalSession : IDisposable
 
     public int? CurrentProcessId => _attachedProcessId;
     internal long PortalAttachmentRevision => _portalAttachmentRevision;
+    internal long PortalDisposalRevision
+    {
+        get
+        {
+            // Publish disposal evidence only after the callback finishes clearing the attachment.
+            lock (_portalHandleSync)
+                return _portalDisposalRevision;
+        }
+    }
 
     public WorkerSessionIdentity GetSessionIdentity()
     {
@@ -194,9 +206,7 @@ public class TiaPortalSession : IDisposable
         }
 
         SetPortalHandle(attachedPortal, attachedProcessId);
-        attachedPortal.Notification += OnNotification;
-        attachedPortal.Confirmation += OnConfirmation;
-        attachedPortal.Disposed += OnDisposed;
+        SubscribeToPortal(attachedPortal);
     }
 
     /// <summary>Validates or establishes only the persistent Portal attachment; never selects a project.</summary>
@@ -232,7 +242,7 @@ public class TiaPortalSession : IDisposable
         catch (Exception)
         {
             // Forget dead evidence without attaching, detaching, or disposing any project/session.
-            OnDisposed(_tiaPortal, EventArgs.Empty);
+            ClearPortal(_tiaPortal, unexpectedDisposal: false);
             throw new WorkerOperationException(WorkerFailureCategories.BindingConflict, "The attached TIA Portal instance is no longer verifiable.");
         }
         if (_attachedProcessId != actualProcessId)
@@ -342,9 +352,7 @@ public class TiaPortalSession : IDisposable
                 Disconnect();
 
             SetPortalHandle(target, actualProcessId);
-            target.Notification += OnNotification;
-            target.Confirmation += OnConfirmation;
-            target.Disposed += OnDisposed;
+            SubscribeToPortal(target);
             promoted = true;
 
             AdoptContext(verifiedOwner, projectPath);
@@ -912,15 +920,18 @@ public class TiaPortalSession : IDisposable
 
     private void SetPortalHandle(TiaPortal? portal, int? processId)
     {
-        if (ReferenceEquals(_tiaPortal, portal) && _attachedProcessId == processId)
+        lock (_portalHandleSync)
         {
-            return;
-        }
+            if (ReferenceEquals(_tiaPortal, portal) && _attachedProcessId == processId)
+            {
+                return;
+            }
 
-        _tiaPortal = portal;
-        _attachedProcessId = processId;
-        _portalAttachmentRevision++;
-        IncrementGeneration();
+            _tiaPortal = portal;
+            _attachedProcessId = processId;
+            _portalAttachmentRevision++;
+            IncrementGeneration();
+        }
     }
 
     private static bool PathsEqual(string? left, string? right)
@@ -951,17 +962,40 @@ public class TiaPortalSession : IDisposable
             : ConfirmationResult.No;
     }
 
-    private void OnDisposed(object? sender, EventArgs e)
+    private void SubscribeToPortal(TiaPortal portal)
     {
-        if (_tiaPortal is not null && sender is not null && !ReferenceEquals(sender, _tiaPortal))
+        EventHandler<EventArgs>? handler = null;
+        handler = (_, _) =>
         {
-            return;
-        }
+            lock (_portalHandleSync)
+            {
+                if (ReferenceEquals(_portalDisposedHandler, handler)
+                    && ClearPortal(portal, unexpectedDisposal: true))
+                    Console.Error.WriteLine("Attached TIA Portal instance was disposed.");
+            }
+        };
+        lock (_portalHandleSync)
+            _portalDisposedHandler = handler;
+        portal.Notification += OnNotification;
+        portal.Confirmation += OnConfirmation;
+        portal.Disposed += handler;
+    }
 
-        Console.Error.WriteLine("Attached TIA Portal instance was disposed.");
-        SetActiveContext(null);
-        _selectedProjectPath = null;
-        SetPortalHandle(null, null);
+    private bool ClearPortal(TiaPortal? portal, bool unexpectedDisposal)
+    {
+        lock (_portalHandleSync)
+        {
+            if (portal is null || !ReferenceEquals(portal, _tiaPortal))
+                return false;
+
+            if (unexpectedDisposal)
+                _portalDisposalRevision++;
+            _portalDisposedHandler = null;
+            SetActiveContext(null);
+            _selectedProjectPath = null;
+            SetPortalHandle(null, null);
+            return true;
+        }
     }
 
     public void Disconnect()
@@ -975,17 +1009,19 @@ public class TiaPortalSession : IDisposable
 
         ReleaseTemporaryTargetIfSafe();
 
-        if (_tiaPortal != null)
+        var portal = _tiaPortal;
+        var disposedHandler = _portalDisposedHandler;
+        // Forget the attachment before unsubscribing so an already queued callback is stale.
+        ClearPortal(portal, unexpectedDisposal: false);
+        if (portal != null)
         {
-            _tiaPortal.Notification -= OnNotification;
-            _tiaPortal.Confirmation -= OnConfirmation;
-            _tiaPortal.Disposed -= OnDisposed;
+            portal.Notification -= OnNotification;
+            portal.Confirmation -= OnConfirmation;
+            portal.Disposed -= disposedHandler;
         }
 
         SetActiveContext(null);
         _selectedProjectPath = null;
-        var portal = _tiaPortal;
-        SetPortalHandle(null, null);
         portal?.Dispose();
     }
 

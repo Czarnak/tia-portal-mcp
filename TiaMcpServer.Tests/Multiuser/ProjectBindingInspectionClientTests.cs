@@ -205,12 +205,13 @@ public sealed class ProjectBindingInspectionClientTests
     [InlineData(false, true, true, false)]
     [InlineData(false, false, true, false)]
     [InlineData(false, false, true, true)]
-    public async Task ExistingProjectTreeCursor_TracksInspectionBinding(bool foreignPid, bool discovery, bool loss, bool portalLost)
+    [InlineData(false, false, true, true, true)]
+    public async Task ExistingProjectTreeCursor_TracksInspectionBinding(bool foreignPid, bool discovery, bool loss, bool portalLost, bool disposed = false)
     {
         using var directory = new TempAuditDirectory();
         Directory.CreateDirectory(directory.Path);
         using var log = new FakeWorkerRequestLog(directory.Path);
-        const string scenario = "project-tree-v3-small";
+        var scenario = disposed ? "project-tree-v3-disposed" : "project-tree-v3-small";
         var path = Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, scenario);
         using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, path),
             new FakeWorkerPortals.Entry(43, loss ? "C:/Projects/discovery-project-closed.ap21" : null));
@@ -224,10 +225,11 @@ public sealed class ProjectBindingInspectionClientTests
         Assert.True(first.IsSuccess, first.CanonicalText);
         var cursor = first.Response.Result!.Pagination.NextCursor;
         Assert.NotNull(cursor);
-        var inspection = await client.InspectPortalAsync(discovery ? new WorkerRequest { Method = "list_tia_portal_processes" }
-            : Request(portalLost ? "portal-lost" : loss ? "target_not_found" : "expect-bound", foreignPid ? 43 : 42));
-        Assert.Equal(!foreignPid && !loss, inspection.Result.Success);
-        if (portalLost) Assert.Equal(WorkerFailureCategories.PortalLost, inspection.Result.FailureCategory);
+        var result = disposed ? await client.ListTagTablesAsync(null, null)
+            : (await client.InspectPortalAsync(discovery ? new WorkerRequest { Method = "list_tia_portal_processes" }
+                : Request(portalLost ? "portal-lost" : loss ? "target_not_found" : "expect-bound", foreignPid ? 43 : 42))).Result;
+        Assert.Equal(!foreignPid && !loss, result.Success);
+        if (portalLost) Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
         var requests = log.Methods();
         var next = await coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor));
         Assert.Equal(!loss, next.IsSuccess);

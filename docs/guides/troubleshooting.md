@@ -90,7 +90,10 @@ worker-reported copied project path; verify it with a subsequent status or read 
 - `binding_conflict` or changed-state refusal after a prompt: the target or prepared revision
   changed. Inspect current project identity/state and submit a new intentional call.
 - `portal_lost`: the worker lost its TIA Portal connection. This category is shared
-  across domains when a fatal Openness exception reaches the execution boundary.
+  across domains when a fatal Openness exception reaches the execution boundary,
+  or an escaping engineering error follows an unexpected Portal disposal observed
+  during that execution. Ordinary engineering errors keep `worker_operation_failed`;
+  error message text alone does not establish Portal loss.
   Inspect the Portal and any attempted mutation, restart/reopen the intended target
   as needed, then explicitly `bind_project` before resuming content access. Binding
   evidence and old cursors are invalidated; the failed request is never replayed.

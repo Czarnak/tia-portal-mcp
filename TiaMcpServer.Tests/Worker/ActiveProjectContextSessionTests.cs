@@ -17,6 +17,85 @@ public sealed class PortalSessionBoundaryCollection { }
 [Collection("Portal session boundary")]
 public sealed class ActiveProjectContextSessionTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void DisposedPortal_EngineeringFailureMapsToPortalLost(bool attachDuringExecution, bool nullSender)
+    {
+        using var f = new Fixture();
+        if (!attachDuringExecution) f.Session.EnsurePortalConnected(101);
+        var calls = 0;
+
+        var result = WorkerExecution.Execute(() =>
+        {
+            calls++;
+            if (attachDuringExecution) f.Session.EnsurePortalConnected(101);
+            if (nullSender) f.A.Portal.RaiseDisposedWithoutSender();
+            else f.A.Portal.RaiseDisposed();
+            throw new EngineeringException("disposed composition");
+        }, () => f.Session.PortalDisposalRevision);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.False(result.Success);
+        Assert.Contains("disposed composition", result.Error);
+        Assert.Contains("explicitly bind_project", result.Error);
+        Assert.Equal(1, calls);
+        Assert.Null(f.Session.CurrentProcessId);
+        Assert.Equal(1, f.A.AttachCalls);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void DeliberateDetach_LateDisposalDoesNotPoisonCurrentAttachment(bool reattach, bool samePortal)
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(101);
+        var lateDisposal = f.A.Portal.CaptureDisposedNotification();
+
+        var result = WorkerExecution.Execute(() =>
+        {
+            f.Session.Disconnect();
+            if (reattach) f.Session.EnsurePortalConnected(samePortal ? 101 : 202);
+            lateDisposal();
+            throw new EngineeringException("ordinary");
+        }, () => f.Session.PortalDisposalRevision);
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Equal(0, f.Session.PortalDisposalRevision);
+        Assert.Equal(reattach ? samePortal ? 101 : 202 : (int?)null, f.Session.CurrentProcessId);
+    }
+
+    [Fact]
+    public void EarlierDisposal_DoesNotPoisonRecoveredOperation()
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(101);
+        f.A.Portal.RaiseDisposed();
+        f.Session.EnsurePortalConnected(202);
+
+        var result = WorkerExecution.Execute(() => throw new EngineeringException("ordinary"),
+            () => f.Session.PortalDisposalRevision);
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Equal(1, f.Session.PortalDisposalRevision);
+        Assert.Equal(202, f.Session.CurrentProcessId);
+    }
+
+    [Fact]
+    public void FailedLivenessProbe_IsNotAReportedDisposal()
+    {
+        using var f = new Fixture();
+        f.Session.EnsurePortalConnected(101);
+        f.A.Portal.CurrentProcessFailure = new EngineeringException("unverifiable");
+
+        AssertCategory(WorkerFailureCategories.BindingConflict, () => f.Session.EnsurePortalConnected(101));
+        Assert.Equal(0, f.Session.PortalDisposalRevision);
+        Assert.Null(f.Session.CurrentProcessId);
+    }
+
     [Fact]
     public void SameRootAdoption_DoesNotAdvanceGeneration()
     {
