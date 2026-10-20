@@ -101,11 +101,13 @@ worker-reported copied project path; verify it with a subsequent status or read 
   categories, so inspect their outcome evidence too. The B-16/Q3 change has an
   [verification record](../superpowers/plans/2026-10-19-worker-portal-loss.md)
   covering scoped Network, PLC, VCI and local-session interruption/recovery evidence.
-  Known HMI gaps on candidate `e804e6f`: locator errors can retain
+  Candidate `e804e6f` exposed two HMI gaps: locator errors can retain
   `worker_operation_failed` after disposal and delay host invalidation; fresh HMI
   reads after Portal recovery can fail on a disposed cached project. A worker
   restart followed by explicit rebinding restored HMI reads in the recorded run.
-  These are open defects; complete live acceptance has not passed.
+  Offline fixes on 2026-10-20 preserve strict-discovery exceptions and evict the
+  locator cache on a different root handle without comparing the old native proxy.
+  They await an installed-version retest; complete live acceptance has not passed.
 - `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
   attempted. Read the typed `result` and `verification` failures; a successful mutation can
   precede failed verification. After timeout, crash, disconnect, or uncertain mutation, inspect

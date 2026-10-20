@@ -79,7 +79,8 @@ public static class HmiSoftwareLocator
     {
         lock (CacheGate)
         {
-            if (!object.Equals(cachedRoot, project))
+            // Evict on a different handle without invoking native equality on a possibly disposed cached root.
+            if (!ReferenceEquals(cachedRoot, project))
             {
                 Cache.Clear();
                 cachedRoot = project;

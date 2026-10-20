@@ -10,7 +10,7 @@
 
 **Spec:** [Agreed simplification review](2026-10-17-codebase-simplification-review.md), decision Q3 and workstream B item 16; [findings appendix](2026-10-17-codebase-simplification-review-findings.md), WORKERCORE-4, WORKERNET-7 and the verifier-corrected WORKERDOMAINS-16.
 
-**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Candidate `08f4d4a` exposed a native disposal-aware mapping gap. Follow-up `e804e6f` is offline qualified; its Network, PLC, VCI and local-session read interruptions passed scoped loss/invalidation checks. Remaining live testing exposed two HMI defects, so complete live acceptance is **not passed**. The original standalone fixture is restored open, verified and unmodified; detailed evidence and limits follow.
+**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Candidate `08f4d4a` exposed a native disposal-aware mapping gap. Follow-up `e804e6f` is offline qualified; its Network, PLC, VCI and local-session read interruptions passed scoped loss/invalidation checks. Remaining live testing exposed two HMI defects. Both have offline fixes with regressions from 2026-10-20; their installed-candidate retest remains required and complete live acceptance is **not passed**. The original standalone fixture was restored open, verified and unmodified during the recorded live run; detailed evidence and limits follow.
 
 ## Implementation Record
 
@@ -262,8 +262,40 @@ wrapper removed, **84/84** locator and worker/session-boundary cases passed. Cas
 cover device names, item enumeration, software service access and software names,
 with and without a new disposal observation, original exception preservation,
 lenient unreadable-item diagnostics and fatal exception propagation. Seven
-pre-existing nullable warnings remain. The full offline suite is recorded below
-after it completes; these focused results do not establish native acceptance.
+pre-existing nullable warnings remain. The first full offline suite had **7,083
+passed / one failed** (7,084 total):
+`BindOpenProjectIntegrationTests.SwitchFailure_InvalidatesPrevious` with the
+`portal-switch-fails-after-detach` scenario timed out during `Fixture.Verify`,
+before the changed locator. Its fixture uses a 700 ms timeout; all four theory
+cases passed on an isolated rerun without source changes. This timing failure is
+retained as evidence rather than counted as a passing full run.
+
+The cache regressions failed **3/45** cases (42 passed) before the fix: both named
+and omitted-selector recovery calls reached the disposed previous root's `Equals`,
+and a distinct handle reporting native equality probed software from the previous
+attachment. Changing only cache eviction to managed reference identity resolves
+those offline hazards. Distinct proxies for the same native root may now evict
+the cache; fresh strict uniqueness traversal already occurs on every cache hit.
+Binding/owner identity checks still use native equality.
+
+The final focused run passed **86/86** with source-linked worker coverage. All
+**7/7 instrumented changed production lines** were covered; the complete locator
+file had 176/184 covered lines (95.65%). This is offline double-based coverage,
+not execution of Siemens remoting. Serial reference-stub and installed-V21-reference
+solution builds both passed with seven pre-existing nullable warnings and zero
+errors. The V21 build was compilation only. The final full-suite result is recorded
+after it completes.
+
+Independent read-only review found no actionable issues after checking all four
+production callers, worker mapping, test wiring and cache behavior. Lenient
+inventory diagnostics and narrower property/typed post-mutation policies retain
+their existing contracts. The disposed-equality tests prove the cache hazard;
+they do not establish the exact native throwing line in the earlier run, for
+which no native stack was captured. An installed-candidate retest must confirm
+immediate invalidation and recovery without the worker-restart workaround.
+
+Logs, TRX and coverage are ignored under `TestResults/portal-loss/hmi-followup`
+and adjacent `hmi-*.log` files. The strict-discovery fix is commit `f916a91`.
 
 No live TIA call, installation, process interruption or project mutation is part
 of this follow-up. Both HMI paths require an installed-candidate retest after the

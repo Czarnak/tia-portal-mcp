@@ -191,15 +191,46 @@ public class HmiSoftwareLocatorTests
     }
 
     [Fact]
-    public void EqualRoot_KeepsCache()
+    public void EqualRoot_DifferentHandleDoesNotProbePreviousSoftware()
     {
         var software = Unified("Runtime");
         var first = new EqualRoot();
         first.Devices.Items.Add(DeviceWith("Panel", software));
         HmiSoftwareLocator.FindUnique(first, "Runtime");
+        software.NameFailure = new NonRecoverableException("previous attachment lost");
         var equivalent = new EqualRoot();
-        equivalent.Devices.Items.Add(first.Devices.Items[0]);
-        Assert.Same(software, HmiSoftwareLocator.FindUnique(equivalent, "Runtime").Software);
+        var replacement = Unified("Runtime");
+        equivalent.Devices.Items.Add(DeviceWith("Panel", replacement));
+
+        Assert.Same(replacement, HmiSoftwareLocator.FindUnique(equivalent, "Runtime").Software);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Runtime")]
+    public void RecoveredRoot_DoesNotCompareDisposedPreviousRoot(string? selector)
+    {
+        var previous = new DisposedEqualityRoot();
+        var oldSoftware = Unified("Runtime");
+        previous.Devices.Items.Add(DeviceWith("Panel", oldSoftware));
+        HmiSoftwareLocator.FindUnique(previous, "Runtime");
+        previous.Disposed = true;
+        oldSoftware.NameFailure = new NonRecoverableException("previous attachment lost");
+        var replacement = Unified("Runtime");
+        var recovered = ProjectWith(DeviceWith("Panel", replacement));
+
+        Assert.Same(replacement, HmiSoftwareLocator.FindUnique(recovered, selector).Software);
+        Assert.Same(replacement, HmiSoftwareLocator.FindUnique(recovered, selector).Software);
+    }
+
+    private sealed class DisposedEqualityRoot : ProjectBase
+    {
+        public DeviceSystemGroup UngroupedDevicesGroup { get; } = new();
+        public bool Disposed { get; set; }
+        public override bool Equals(object? obj) => Disposed
+            ? throw new EngineeringObjectDisposedException("previous project disposed")
+            : ReferenceEquals(this, obj);
+        public override int GetHashCode() => 0;
     }
 
     private sealed class EqualRoot : ProjectBase
