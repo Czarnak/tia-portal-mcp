@@ -244,6 +244,31 @@ ignored evidence directory retain the raw records and controlled-restart distinc
 The earlier 7,065-test offline qualification remains the source-code gate; only
 documentation and ignored test evidence changed in this verification step.
 
+### HMI follow-up implementation on 2026-10-20
+
+The maintainer authorized both HMI fixes with regression tests on the same branch,
+with separate fix commits and a stop before live testing. The intended scope is:
+
+1. Preserve the original engineering exception from strict HMI discovery so the
+   existing disposal-aware worker boundary can classify it. Keep lenient inventory
+   messages, ordinary failure categories and typed mutation outcomes unchanged.
+2. Evict locator entries on a different managed engineering-root handle without
+   calling native equality on the previous proxy. This cache check does not verify
+   project identity; native binding/owner identity checks remain unchanged.
+
+The strict-discovery regression run failed **13/43** cases at the original
+`Skip` wrapper (30 passed). With catches restricted to lenient discovery and the
+wrapper removed, **84/84** locator and worker/session-boundary cases passed. Cases
+cover device names, item enumeration, software service access and software names,
+with and without a new disposal observation, original exception preservation,
+lenient unreadable-item diagnostics and fatal exception propagation. Seven
+pre-existing nullable warnings remain. The full offline suite is recorded below
+after it completes; these focused results do not establish native acceptance.
+
+No live TIA call, installation, process interruption or project mutation is part
+of this follow-up. Both HMI paths require an installed-candidate retest after the
+maintainer installs the updated version.
+
 ## Global Constraints
 
 - Windows and TIA Portal V21; Siemens calls stay in the net48 worker.
