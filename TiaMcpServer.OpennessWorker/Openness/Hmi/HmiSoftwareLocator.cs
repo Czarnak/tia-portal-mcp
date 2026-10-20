@@ -1,4 +1,5 @@
 using Siemens.Engineering;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -72,13 +73,14 @@ public static class HmiSoftwareLocator
     /// The read-path resolver: exactly one Unified HMI whose software or device name equals
     /// <paramref name="hmiName"/> case-insensitively (any Unified HMI when null). Zero matches throw
     /// <c>target_not_found</c>, several <c>target_ambiguous</c>, a Classic match <c>target_kind_unsupported</c>.
-    /// A device item that cannot be read fails the call as <c>worker_operation_failed</c>, so it can never hide a second match.
+    /// Unreadable device items fail the call; original Openness exceptions reach the worker boundary for Portal-loss classification.
     /// </summary>
     public static DiscoveredHmiSoftware FindUnique(ProjectBase project, string? hmiName)
     {
         lock (CacheGate)
         {
-            if (!object.Equals(cachedRoot, project))
+            // Evict on a different handle without invoking native equality on a possibly disposed cached root.
+            if (!ReferenceEquals(cachedRoot, project))
             {
                 Cache.Clear();
                 cachedRoot = project;
@@ -94,7 +96,7 @@ public static class HmiSoftwareLocator
                     live = string.Equals(softwareName, hmiName, StringComparison.OrdinalIgnoreCase)
                         || string.Equals(deviceName, hmiName, StringComparison.OrdinalIgnoreCase);
                 }
-                catch (Exception)
+                catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
                 {
                     // A stale Openness proxy must be relocated through the strict discovery path.
                 }
@@ -215,9 +217,9 @@ public static class HmiSoftwareLocator
             {
                 deviceName = device.Name;
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException ex) when (messages is not null)
             {
-                Skip(messages, $"A device name could not be read while locating HMI software: {ex.Message}");
+                messages.Add($"A device name could not be read while locating HMI software: {ex.Message}");
                 continue;
             }
 
@@ -242,9 +244,9 @@ public static class HmiSoftwareLocator
                     item = enumerator.Current;
                 }
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException ex) when (messages is not null)
             {
-                Skip(messages, $"A device item could not be read while locating HMI software: {ex.Message}");
+                messages.Add($"A device item could not be read while locating HMI software: {ex.Message}");
             }
 
             if (item is null)
@@ -262,9 +264,9 @@ public static class HmiSoftwareLocator
                     found = new Found(device, deviceName, item, software!, ((Software)software!).Name, kind);
                 }
             }
-            catch (EngineeringException ex)
+            catch (EngineeringException ex) when (messages is not null)
             {
-                Skip(messages, $"A device item could not be read while locating HMI software: {ex.Message}");
+                messages.Add($"A device item could not be read while locating HMI software: {ex.Message}");
             }
 
             if (found is not null)
@@ -277,17 +279,6 @@ public static class HmiSoftwareLocator
                 yield return child;
             }
         }
-    }
-
-    /// <summary>Strict mode (no sink) fails the call; lenient mode records the message.</summary>
-    private static void Skip(ICollection<string>? messages, string message)
-    {
-        if (messages is null)
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, message);
-        }
-
-        messages.Add(message);
     }
 
     private static string? KindOf(object? software)

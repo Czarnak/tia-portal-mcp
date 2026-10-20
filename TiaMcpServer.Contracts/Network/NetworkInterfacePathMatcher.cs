@@ -21,6 +21,12 @@ public static class NetworkInterfacePathMatcher
     public static NetworkInterfacePathMatch<TItem> Match<TItem>(IEnumerable<TItem> roots,
         IReadOnlyList<NetworkInterfacePathSegmentInfo> path, Func<TItem, IEnumerable<TItem>> children,
         Func<TItem, string?> name, Func<TItem, int?> position, Func<TItem, string?> type) where TItem : class
+        => Match(roots, path, children, name, position, type, null);
+
+    public static NetworkInterfacePathMatch<TItem> Match<TItem>(IEnumerable<TItem> roots,
+        IReadOnlyList<NetworkInterfacePathSegmentInfo> path, Func<TItem, IEnumerable<TItem>> children,
+        Func<TItem, string?> name, Func<TItem, int?> position, Func<TItem, string?> type,
+        Func<Exception, bool>? isRecoverable) where TItem : class
     {
         if (path is null || path.Count == 0)
             return NetworkInterfacePathMatch<TItem>.Fail(WorkerFailureCategories.TargetNotFound, "The interface owner path is empty.");
@@ -54,7 +60,7 @@ public static class NetworkInterfacePathMatcher
                     return NetworkInterfacePathMatch<TItem>.Fail(WorkerFailureCategories.TargetEvidenceMismatch, $"Interface owner path segment {depth} type evidence does not match.");
                 if (depth + 1 < path.Count) siblings = children(selected);
             }
-            catch (Exception)
+            catch (Exception exception) when (isRecoverable?.Invoke(exception) ?? true)
             {
                 return NetworkInterfacePathMatch<TItem>.Fail(WorkerFailureCategories.TargetEvidenceMismatch,
                     $"Interface owner path segment {depth} could not be read completely.");

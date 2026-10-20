@@ -554,20 +554,50 @@ public class OpennessWorkerClientIntegrationTests
         Assert.Equal("{\"seq\":1}", recovered.Payload);
     }
 
-    [Fact]
-    public async Task PortalLost_InvalidatesBindingImmediately()
+    [Theory]
+    [InlineData("list_tag_tables")]
+    [InlineData("get_block_content")]
+    [InlineData("list_network_objects")]
+    [InlineData("hmi_list_hmi_devices")]
+    [InlineData("compile_check")]
+    [InlineData("save_project")]
+    [InlineData("list_tag_tables", true)]
+    [InlineData("get_block_content", true)]
+    [InlineData("list_network_objects", true)]
+    [InlineData("hmi_list_hmi_devices", true)]
+    [InlineData("compile_check", true)]
+    [InlineData("save_project", true)]
+    public async Task PortalLost_InvalidatesBindingImmediately(string method, bool disposed = false)
     {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
         var binding = new ProjectSessionBinding(null);
         using var client = CreateClient(binding: binding);
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "portal-lost");
-        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.CaptureSnapshot().State);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Path.Combine(directory.Path, disposed ? "portal-disposed.ap21" : "portal-lost.ap21"));
+        var before = binding.CaptureSnapshot();
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, before.State);
 
-        var result = await client.ListTagTablesAsync(null, null);
+        var result = await InvokeRawAsync(client, new WorkerRequest
+            { Method = method, ProjectPath = before.ProjectPath, ExpectedSessionIdentity = before.ToWorkerIdentity() });
 
         Assert.False(result.Success);
         Assert.Equal("portal_lost", result.FailureCategory);
         Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
+        Assert.True(binding.CaptureSnapshot().Revision > before.Revision);
         Assert.Equal(WorkerDispatchState.Sent, result.DispatchState);
+        Assert.Equal(1, log.Methods().Count(value => value == method));
+
+        var requests = log.Methods();
+        var refused = await client.ListTagTablesAsync(null, null);
+        Assert.False(refused.Success);
+        Assert.Equal(WorkerDispatchState.NotSent, refused.DispatchState);
+        Assert.Equal(requests, log.Methods());
+
+        var recovery = await client.BindOpenProjectAsync(before.ProjectPath, false);
+        Assert.Null(recovery.Failure);
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.CaptureSnapshot().State);
+        Assert.True((await client.GetProjectStatusAsync(null)).Success);
     }
 
     [Fact]

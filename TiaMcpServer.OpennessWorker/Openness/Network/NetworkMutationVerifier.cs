@@ -1,3 +1,4 @@
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using System.Globalization;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
@@ -57,7 +58,7 @@ internal static class NetworkMutationVerifier
                 if (!selected.Success) throw new InvalidOperationException(selected.Error);
                 target = (selected.Resolved!.OwningInterface!, (Node)selected.Resolved.Value);
             }
-            catch (Exception) { /* Each applied check below explicitly becomes unverified. */ }
+            catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception)) { /* Each applied check below explicitly becomes unverified. */ }
         }
         foreach (var setting in result.AppliedSettings)
         {
@@ -160,7 +161,7 @@ internal static class NetworkMutationVerifier
     private static void Observe(NetworkMutationVerificationInfo evidence, string name, string? expected, Func<string?> read)
     {
         try { evidence.Checks.Add(NetworkPostconditionChecks.Compare(name, expected, read(), true)); }
-        catch (Exception) { evidence.Checks.Add(NetworkPostconditionChecks.Compare(name, expected, null, false)); }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception)) { evidence.Checks.Add(NetworkPostconditionChecks.Compare(name, expected, null, false)); }
     }
 
     private static Device ResolveDevice(ProjectBase project, string name)

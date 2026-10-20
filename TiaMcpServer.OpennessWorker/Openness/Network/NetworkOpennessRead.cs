@@ -1,4 +1,5 @@
 using Siemens.Engineering;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
@@ -6,7 +7,7 @@ internal static class NetworkOpennessRead
 {
     // Property failures may degrade a read; Portal loss and programming errors must propagate.
     internal static bool IsRecoverable(Exception exception)
-        => exception is EngineeringException && exception is not NonRecoverableException;
+        => exception is EngineeringException && OpennessExceptions.IsRecoverable(exception);
 
     private static bool TryRead<T>(Func<T> read, out T value, out string? error)
     {

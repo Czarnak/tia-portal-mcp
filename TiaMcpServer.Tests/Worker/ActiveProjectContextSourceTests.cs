@@ -91,7 +91,7 @@ public sealed class ActiveProjectContextSourceTests
             Assert.DoesNotContain("void Save(", owner);
             Assert.DoesNotContain("void Close(", owner);
         }
-        foreach (var method in new[] { "public void Disconnect(", "private void OnDisposed(" })
+        foreach (var method in new[] { "public void Disconnect(", "private void SubscribeToPortal(", "private bool ClearPortal(" })
         {
             var cleanup = Method(Read("Openness/Project/TiaPortalSession.cs"), method);
             Assert.DoesNotContain(".Save(", cleanup);

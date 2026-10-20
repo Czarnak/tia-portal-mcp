@@ -153,6 +153,7 @@ public sealed class ProjectBindingInspectionClientTests
 
     [Theory]
     [InlineData("identity-loss", "binding_conflict")]
+    [InlineData("portal-lost", "portal_lost")]
     [InlineData("hang", "worker_timeout")]
     [InlineData("crash", "worker_crashed")]
     public async Task GenuineLoss_InvalidatesWithoutReplay(string alias, string category)
@@ -198,14 +199,19 @@ public sealed class ProjectBindingInspectionClientTests
     }
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(false, false, true)]
-    public async Task ExistingProjectTreeCursor_TracksInspectionBinding(bool foreignPid, bool discovery, bool loss)
+    [InlineData(false, false, false, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, false, true, true, true)]
+    public async Task ExistingProjectTreeCursor_TracksInspectionBinding(bool foreignPid, bool discovery, bool loss, bool portalLost, bool disposed = false)
     {
-        const string scenario = "project-tree-v3-small";
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        var scenario = disposed ? "project-tree-v3-disposed" : "project-tree-v3-small";
         var path = Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, scenario);
         using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, path),
             new FakeWorkerPortals.Entry(43, loss ? "C:/Projects/discovery-project-closed.ap21" : null));
@@ -219,12 +225,19 @@ public sealed class ProjectBindingInspectionClientTests
         Assert.True(first.IsSuccess, first.CanonicalText);
         var cursor = first.Response.Result!.Pagination.NextCursor;
         Assert.NotNull(cursor);
-        var inspection = await client.InspectPortalAsync(discovery ? new WorkerRequest { Method = "list_tia_portal_processes" }
-            : Request(loss ? "target_not_found" : "expect-bound", foreignPid ? 43 : 42));
-        Assert.Equal(!foreignPid && !loss, inspection.Result.Success);
+        var result = disposed ? await client.ListTagTablesAsync(null, null)
+            : (await client.InspectPortalAsync(discovery ? new WorkerRequest { Method = "list_tia_portal_processes" }
+                : Request(portalLost ? "portal-lost" : loss ? "target_not_found" : "expect-bound", foreignPid ? 43 : 42))).Result;
+        Assert.Equal(!foreignPid && !loss, result.Success);
+        if (portalLost) Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        var requests = log.Methods();
         var next = await coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: cursor));
         Assert.Equal(!loss, next.IsSuccess);
-        if (loss) Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, next.Response.Failure!.Category);
+        if (loss)
+        {
+            Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, next.Response.Failure!.Category);
+            Assert.Equal(requests, log.Methods());
+        }
         else Assert.Equal(new[] { 1, 2, 3 }, next.Response.Result!.Nodes.Select(node => node.Sequence));
     }
 

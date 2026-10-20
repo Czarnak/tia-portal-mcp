@@ -92,6 +92,15 @@ timeout invalidates binding evidence and cursors. This also applies to identity 
 Failed inventory is never automatically replayed.
 Use explicit `bind` with its existing guards to select another instance.
 
+Fatal `NonRecoverableException` from inventory escapes to the shared worker
+`portal_lost` mapping; final attachment checks cannot replace the original fatal
+body exception. Ordinary server failures still preserve a healthy binding, and
+existing identity/disposal-only refusals retain `binding_conflict`. The
+[B-16/Q3 record](../superpowers/plans/2026-10-19-worker-portal-loss.md) records offline
+coverage and maintainer-accepted scoped live read testing. Dedicated native
+inventory-fault injection remains untested; earlier local-session observations
+are limited to the recorded candidate and fixtures.
+
 ## Typed results and observation limits
 
 The [binding envelope](PROJECT_OPERATIONS_SUMMARY.md#explicit-binding-bind_project) remains

@@ -276,13 +276,14 @@ public class VciPlannerTests
     [InlineData("mappings")]
     [InlineData("service")]
     [InlineData("scope")]
-    public void FatalReadFailure_EscapesPlannerAndMapsToPortalLostAtDispatch(string site)
+    public void FatalReadFailure_EscapesPlannerAndDispatch(string site)
     {
         using var f = new Fixture();
-        f.SetFailure(site, new NonRecoverableException("Synthetic Portal loss."));
+        var failure = new NonRecoverableException("Synthetic Portal loss.");
+        f.SetFailure(site, failure);
 
-        Assert.Throws<NonRecoverableException>(() => VciPlanner.Plan(f.Project, f.Write()));
-        AssertFailure(WorkerFailureCategories.PortalLost, () => VciDispatch.Plan(f.Project, f.Write()));
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(() => VciPlanner.Plan(f.Project, f.Write())));
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(() => VciDispatch.Plan(f.Project, f.Write())));
     }
 
     [Fact]

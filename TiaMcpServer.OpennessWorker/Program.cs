@@ -1540,30 +1540,7 @@ internal static class Program
 
     /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure and stamps completed operations with their resolved project path.</summary>
     private static WorkerResponse Execute(Func<WorkerResponse> body)
-    {
-        try
-        {
-            return Stamp(body());
-        }
-        catch (EngineeringException ex)
-        {
-            return Failure(WorkerFailureCategories.WorkerOperationFailed, $"TIA Portal operation failed: {ex.Message}");
-        }
-        catch (NonRecoverableException ex)
-        {
-            return Failure(
-                WorkerFailureCategories.WorkerOperationFailed,
-                $"TIA Portal was closed unexpectedly: {ex.Message}. Please restart TIA Portal and try again.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Failure(WorkerFailureCategories.WorkerOperationFailed, ex.Message);
-        }
-        catch (System.IO.IOException ex)
-        {
-            return Failure(WorkerFailureCategories.WorkerOperationFailed, ex.Message);
-        }
-    }
+        => WorkerExecution.Execute(() => Stamp(body()), () => _sharedSession.PortalDisposalRevision);
 
     /// <summary>
     /// Records which project the worker actually operated on. Stamped in one place so all

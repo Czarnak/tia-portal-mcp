@@ -408,8 +408,36 @@ objects, performs host authorization, invokes the transport, normalizes failure
 categories, caps warning output, and applies project-binding transitions.
 
 The worker dispatch loop maps every method name to a focused Siemens operation.
-`Execute` centralizes exception mapping and response stamping. The actual
+`Program.Execute` delegates exception mapping to `WorkerExecution` and retains response stamping. The actual
 Openness implementations live under `TiaMcpServer.OpennessWorker/Openness/`.
+
+`NonRecoverableException` reaching `Execute` maps to `portal_lost` across worker
+domains. An escaping `EngineeringException` also maps to `portal_lost` when the
+session observed unexpected disposal of a current Portal attachment during that
+execution. This uses cached event evidence, without native liveness calls or
+message matching. Deliberate detach, stale callbacks and earlier disposal do not
+qualify; ordinary engineering errors remain `worker_operation_failed`.
+Broad Network recovery, XML-bundle export, cached HMI liveness and
+Multiuser inventory catches exclude it through `OpennessExceptions.IsRecoverable`;
+Multiuser final identity checks preserve an original fatal body exception. The
+host invalidates verified binding evidence and cursors on this category and
+requires explicit recovery without replay. Strict HMI discovery preserves the
+original engineering exception; lenient inventory diagnostics remain unchanged.
+The HMI locator evicts entries on a different managed engineering-root handle
+without calling native equality on its previous proxy. This is conservative cache
+ownership, not a project identity check; native binding/owner checks are unchanged.
+Existing narrower property-read
+policies, typed post-mutation failures, cleanup warnings and completed-operation
+diagnostic stamping retain their contracts. VCI's writer keeps its outcome-bearing
+mapping; VCI read/plan use the shared boundary. See the
+[B-16/Q3 implementation and verification record](superpowers/plans/2026-10-19-worker-portal-loss.md)
+for offline qualification and scoped Network, PLC, VCI and local-session read
+evidence. The HMI discovery and stale-project cache fixes have offline regressions
+and a scoped installed-candidate read retest: loss, immediate cursor invalidation
+and recovery without restarting the worker passed on one disposable standalone
+fixture. The maintainer accepted B-16/Q3 live testing as finished within this
+documented scope on 2026-10-20. Broader native fault locations and write
+interruptions remain untested limits of that acceptance.
 
 Temporary exports such as `get_block_content` use isolated temporary
 directories and remove them in `finally` blocks.

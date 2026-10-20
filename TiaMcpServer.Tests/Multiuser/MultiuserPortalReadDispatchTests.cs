@@ -13,6 +13,29 @@ namespace TiaMcpServer.Tests.Multiuser;
 public sealed class MultiuserPortalReadDispatchTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FatalBodyFailure_PreservesOriginalExceptionWithoutReattachmentOrReplay(bool disposed)
+    {
+        using var f = new PortalInventoryFixture();
+        f.Session.Connect(f.Path);
+        var request = new WorkerRequest { Method = "list_server_connections", ExpectedSessionIdentity = f.Session.GetSessionIdentity() };
+        var failure = new NonRecoverableException("closed");
+        var bodyCalls = 0;
+
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(() => MultiuserPortalReadDispatch.Run(f.Session, request, _ =>
+        {
+            bodyCalls++;
+            if (disposed) f.Process.Portal.RaiseDisposed();
+            else f.Process.Portal.CurrentProcessFailure = new InvalidOperationException("must not revalidate after fatal loss");
+            throw failure;
+        })));
+        Assert.Equal(1, bodyCalls);
+        Assert.Equal(1, f.Process.AttachCalls);
+        f.AssertNoMutation();
+    }
+
+    [Theory]
     [InlineData("list_server_connections")]
     [InlineData("list_server_groups")]
     [InlineData("list_server_projects")]

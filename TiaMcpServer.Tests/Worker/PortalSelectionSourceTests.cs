@@ -103,8 +103,10 @@ public sealed class PortalSelectionSourceTests
         var body = Method(Read("Openness/Project/TiaPortalSession.cs"), "public void Disconnect(");
         var release = body.IndexOf("portal?.Dispose()", StringComparison.Ordinal);
         Assert.True(release >= 0);
-        foreach (var before in new[] { "Notification -=", "Confirmation -=", "Disposed -=", "SetActiveContext(null)", "_selectedProjectPath = null", "SetPortalHandle(null, null)" })
+        foreach (var before in new[] { "Notification -=", "Confirmation -=", "Disposed -=", "SetActiveContext(null)", "_selectedProjectPath = null", "ClearPortal(portal, unexpectedDisposal: false)" })
             Assert.True(body.IndexOf(before, StringComparison.Ordinal) >= 0 && body.IndexOf(before, StringComparison.Ordinal) < release, before);
+        Assert.True(body.IndexOf("ClearPortal(", StringComparison.Ordinal) < body.IndexOf("Disposed -=", StringComparison.Ordinal));
+        Assert.Contains("SetPortalHandle(null, null)", Method(Read("Openness/Project/TiaPortalSession.cs"), "private bool ClearPortal("));
     }
 
     [Fact]
@@ -112,7 +114,7 @@ public sealed class PortalSelectionSourceTests
     {
         var disconnect = Method(Read("Openness/Project/TiaPortalSession.cs"), "public void Disconnect(");
         var guardIndex = disconnect.IndexOf("EvaluatePortalDetach(_tiaPortal)", StringComparison.Ordinal);
-        var clearIndex = disconnect.IndexOf("SetActiveContext(null)", StringComparison.Ordinal);
+        var clearIndex = disconnect.IndexOf("ClearPortal(", StringComparison.Ordinal);
         Assert.True(guardIndex >= 0 && clearIndex > guardIndex);
     }
 

@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\OpennessExceptions.cs" Link="Infrastructure\OpennessExceptions.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerExecution.cs" Link="Worker\WorkerExecution.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
 
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkNodeReadSelectorBuilder.cs" Link="Network\NetworkNodeReadSelectorBuilder.cs" />

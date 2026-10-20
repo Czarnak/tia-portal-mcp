@@ -84,8 +84,8 @@ namespace Siemens.Engineering
         public EngineeringException(string message) : base(message) { }
     }
 
-    // Inheritance deliberately exercises exclusion before the broad EngineeringException check.
-    public sealed class NonRecoverableException : EngineeringException
+    // Match the Openness hierarchy: Portal loss is not an ordinary EngineeringException.
+    public sealed class NonRecoverableException : Exception
     {
         public NonRecoverableException(string message) : base(message) { }
     }

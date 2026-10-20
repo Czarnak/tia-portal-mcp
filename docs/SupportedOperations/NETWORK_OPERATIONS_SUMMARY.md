@@ -24,6 +24,16 @@ shapes, writable values, targeting, deletion semantics, minimal result, and evid
 
 See [../roadmap/network-operations.md](../roadmap/network-operations.md) for later-phase scope.
 
+Fatal Portal loss escaping Network discovery, selection, connection/attribute reads
+or mutation verification propagates to the worker's shared `portal_lost` mapping.
+Ordinary unreadable evidence and optional-property failures retain their existing
+behavior. The host invalidates verified binding/cursors without replay; inspect
+any attempted mutation and explicitly bind again before retrying. Existing typed
+post-mutation outcomes and cleanup warnings retain their established contracts. The
+[B-16/Q3 record](../superpowers/plans/2026-10-19-worker-portal-loss.md) distinguishes
+offline fault-injection evidence from maintainer-accepted scoped live read
+testing. Native write interruptions and broader fault locations remain untested.
+
 ## Supported operations
 
 The MCP provides a bounded device and network-identity surface:

@@ -89,6 +89,31 @@ worker-reported copied project path; verify it with a subsequent status or read 
   acceptance in read-write or policy in full. A dry run shows the guard without mutation or prompting.
 - `binding_conflict` or changed-state refusal after a prompt: the target or prepared revision
   changed. Inspect current project identity/state and submit a new intentional call.
+- `portal_lost`: the worker lost its TIA Portal connection. This category is shared
+  across domains when a fatal Openness exception reaches the execution boundary,
+  or an escaping engineering error follows an unexpected Portal disposal observed
+  during that execution. Ordinary engineering errors keep `worker_operation_failed`;
+  error message text alone does not establish Portal loss.
+  Inspect the Portal and any attempted mutation, restart/reopen the intended target
+  as needed, then explicitly `bind_project` before resuming content access. Binding
+  evidence and old cursors are invalidated; the failed request is never replayed.
+  Existing typed post-mutation failures and cleanup warnings can retain their own
+  categories, so inspect their outcome evidence too. The B-16/Q3 change has an
+  [verification record](../superpowers/plans/2026-10-19-worker-portal-loss.md)
+  covering scoped Network, PLC, VCI and local-session interruption/recovery evidence.
+  Candidate `e804e6f` exposed two HMI gaps: locator errors can retain
+  `worker_operation_failed` after disposal and delay host invalidation; fresh HMI
+  reads after Portal recovery can fail on a disposed cached project. A worker
+  restart followed by explicit rebinding restored HMI reads in the recorded run.
+  Offline fixes on 2026-10-20 preserve strict-discovery exceptions and evict the
+  locator cache on a different root handle without comparing the old native proxy.
+  Installed `2fb5e9a` passed the scoped HMI read retest: `portal_lost`, immediate
+  old-cursor rejection and fresh reads after Portal restart/reopen and explicit
+  binding, with the same worker process throughout. This is one fixture and
+  interruption timing; broader fault locations and native write interruptions
+  remain untested.
+  The maintainer accepted B-16/Q3 live testing as finished within the documented
+  scope on 2026-10-20, retaining those limits.
 - `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
   attempted. Read the typed `result` and `verification` failures; a successful mutation can
   precede failed verification. After timeout, crash, disconnect, or uncertain mutation, inspect

@@ -31,6 +31,7 @@ var accessMode = modeIndex < 0 ? McpAccessMode.ReadWrite
         ? parsedMode : McpAccessMode.ReadOnly;
 var workerSessionId = Guid.NewGuid().ToString("N");
 var fakeSessionGeneration = 1L;
+var portalDisposalRevision = 0L;
 // Tests may model a project that was already opened in the TIA Portal UI before the worker
 // starts. Ordinary requests never establish this mutable session state.
 string? fakeProjectPath = ProjectPathNormalization.Canonicalize(
@@ -499,9 +500,14 @@ while ((line = Console.In.ReadLine()) is not null)
 
     switch (scenario)
     {
+        case "portal-disposed":
+            Respond(currentMethod == "get_project_status"
+                ? Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = fakeProjectPath }))
+                : JsonSerializer.Serialize(DisposedEngineeringFailure(), WorkerJson.Envelope));
+            break;
         case "portal-lost":
             Respond(currentMethod == "get_project_status"
-                ? Success("{}")
+                ? Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = fakeProjectPath }))
                 : JsonSerializer.Serialize(new WorkerResponse
                 {
                     Success = false,
@@ -1002,8 +1008,11 @@ while ((line = Console.In.ReadLine()) is not null)
                 : $$"""{"success":false,"error":"expected typed browse_project_tree_v3_snapshot"}""");
             break;
         case "project-tree-v3-small":
+        case "project-tree-v3-disposed":
         case "project-tree-v3-one-shot":
-            Respond(ProjectTreeV3ScenarioResponse(line, scenario));
+            Respond(scenario == "project-tree-v3-disposed" && currentMethod == "list_tag_tables"
+                ? JsonSerializer.Serialize(DisposedEngineeringFailure(), WorkerJson.Envelope)
+                : ProjectTreeV3ScenarioResponse(line, scenario));
             break;
         case "project-tree-v3-malformed":
             Respond(ReadMethod(line) == "browse_project_tree_v3_snapshot"
@@ -1716,10 +1725,11 @@ void InspectMultiuser(WorkerRequest request)
     }
     if (alias == "hang") { Thread.Sleep(Timeout.Infinite); return; }
     if (alias == "crash") { Environment.Exit(17); return; }
-    if (alias is "identity-loss" or "server-failure" or "target_not_found" or "target_ambiguous")
+    if (alias is "identity-loss" or "portal-lost" or "server-failure" or "target_not_found" or "target_ambiguous")
     {
         Respond(JsonSerializer.Serialize(new WorkerResponse { Success = false,
             FailureCategory = alias == "identity-loss" ? WorkerFailureCategories.BindingConflict
+                : alias == "portal-lost" ? WorkerFailureCategories.PortalLost
                 : alias == "server-failure" ? WorkerFailureCategories.WorkerOperationFailed : alias,
             Error = "Scripted inventory failure." }, WorkerJson.Envelope));
         return;
@@ -2056,6 +2066,13 @@ WorkerResponse BindingConflict(string error)
         Error = error
     };
 
+WorkerResponse DisposedEngineeringFailure()
+    => WorkerExecution.Execute(() =>
+    {
+        portalDisposalRevision++;
+        throw new Siemens.Engineering.EngineeringException("disposed composition");
+    }, () => portalDisposalRevision);
+
 string? ScenarioKey(string? path)
 {
     if (path is not null && lifecycleProbeOnlyCopiedPath is not null
@@ -2064,12 +2081,12 @@ string? ScenarioKey(string? path)
     if (path is not null && path.EndsWith(".ap21", StringComparison.OrdinalIgnoreCase))
     {
         var name = Path.GetFileNameWithoutExtension(path);
-        if (name == "project-tree-v3-small") return name;
+        if (name is "project-tree-v3-small" or "project-tree-v3-disposed") return name;
         if (name is "portal-switch-fails-after-detach" or "portal-switch-hang" or "portal-switch-crash"
             or "portal-selection-malformed" or "portal-selection-other-path") return name;
         if (name.StartsWith("lifecycle-rebind-probe", StringComparison.Ordinal)) return @"C:\FakeWorker\" + name + ".ap21";
         if (name is "lifecycle-probe-only" or "worker-error-with-category" or "save-as-uncertain-state") return name;
-        if (name == "network-roundtrip") return name;
+        if (name is "network-roundtrip" or "portal-lost" or "portal-disposed") return name;
         if (path.EndsWith(@"\open\Line.ap21", StringComparison.OrdinalIgnoreCase)) return @"C:\open\Line.ap21";
         if (name == "B-ui-owned") return @"C:\Lifecycle\B-ui-owned.ap21";
     }

@@ -13,6 +13,101 @@ public class HmiSoftwareLocatorTests
 {
     public HmiSoftwareLocatorTests() => HmiSoftwareLocator.ResetCache();
 
+    [Theory]
+    [InlineData("deviceName", false)]
+    [InlineData("deviceName", true)]
+    [InlineData("itemEnumeration", false)]
+    [InlineData("itemEnumeration", true)]
+    [InlineData("itemService", false)]
+    [InlineData("itemService", true)]
+    [InlineData("softwareName", false)]
+    [InlineData("softwareName", true)]
+    public void StrictDiscovery_EngineeringFailureUsesDisposalObservation(string failingRead, bool disposed)
+    {
+        var project = UnreadableProject(failingRead, new EngineeringException("unreadable"));
+        var revision = 0L;
+
+        var result = WorkerExecution.Execute(() =>
+        {
+            if (disposed) revision++;
+            HmiSoftwareLocator.FindUnique(project, "Good_RT");
+            return new WorkerResponse { Success = true };
+        }, () => revision);
+
+        Assert.False(result.Success);
+        Assert.Equal(disposed ? WorkerFailureCategories.PortalLost : WorkerFailureCategories.WorkerOperationFailed,
+            result.FailureCategory);
+        Assert.Contains("unreadable", result.Error);
+    }
+
+    [Theory]
+    [InlineData("deviceName")]
+    [InlineData("itemEnumeration")]
+    [InlineData("itemService")]
+    [InlineData("softwareName")]
+    public void StrictDiscovery_PreservesOriginalEngineeringFailure(string failingRead)
+    {
+        var failure = new EngineeringException("unreadable");
+        var project = UnreadableProject(failingRead, failure);
+
+        Assert.Same(failure,
+            Assert.Throws<EngineeringException>(() => HmiSoftwareLocator.FindUnique(project, "Good_RT")));
+    }
+
+    [Theory]
+    [InlineData("deviceName")]
+    [InlineData("itemEnumeration")]
+    [InlineData("itemService")]
+    [InlineData("softwareName")]
+    public void LenientDiscovery_NonRecoverableFailureEscapes(string failingRead)
+    {
+        var failure = new NonRecoverableException("closed");
+        var project = UnreadableProject(failingRead, failure);
+        var messages = new List<string>();
+
+        Assert.Same(failure,
+            Assert.Throws<NonRecoverableException>(() => HmiSoftwareLocator.EnumerateAll(project, messages).ToList()));
+        Assert.Empty(messages);
+    }
+
+    private static Siemens.Engineering.Project UnreadableProject(string failingRead, Exception failure)
+    {
+        var software = Unified("Bad_RT");
+        var bad = DeviceWith("Bad", software);
+        switch (failingRead)
+        {
+            case "deviceName": bad.NameFailure = failure; break;
+            case "itemEnumeration":
+                bad.DeviceItems.Items.Clear();
+                bad.DeviceItems.EnumerationFailure = failure;
+                break;
+            case "itemService": bad.DeviceItems.Items[0].ServiceFailure = failure; break;
+            case "softwareName": software.NameFailure = failure; break;
+            default: throw new ArgumentOutOfRangeException(nameof(failingRead));
+        }
+        return ProjectWith(DeviceWith("Good", Unified("Good_RT")), bad);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CachedLiveness_PortalLossDoesNotRelocateOrHideTheFailure(bool softwareFails)
+    {
+        var software = Unified("Runtime");
+        var device = DeviceWith("Panel", software);
+        var project = ProjectWith(device);
+        HmiSoftwareLocator.FindUnique(project, "Runtime");
+        var walked = project.Devices.YieldedItemCount;
+        var failure = new NonRecoverableException("closed");
+        if (softwareFails) software.NameFailure = failure;
+        else device.NameFailure = failure;
+        project.Devices.Items.Clear();
+        project.Devices.Items.Add(DeviceWith("Replacement", Unified("Runtime")));
+
+        Assert.Same(failure, Assert.Throws<NonRecoverableException>(() => HmiSoftwareLocator.FindUnique(project, "Runtime")));
+        Assert.Equal(walked, project.Devices.YieldedItemCount);
+    }
+
     [Fact]
     public void CachedHit_RechecksDeviceWalkForUniqueness()
     {
@@ -96,15 +191,46 @@ public class HmiSoftwareLocatorTests
     }
 
     [Fact]
-    public void EqualRoot_KeepsCache()
+    public void EqualRoot_DifferentHandleDoesNotProbePreviousSoftware()
     {
         var software = Unified("Runtime");
         var first = new EqualRoot();
         first.Devices.Items.Add(DeviceWith("Panel", software));
         HmiSoftwareLocator.FindUnique(first, "Runtime");
+        software.NameFailure = new NonRecoverableException("previous attachment lost");
         var equivalent = new EqualRoot();
-        equivalent.Devices.Items.Add(first.Devices.Items[0]);
-        Assert.Same(software, HmiSoftwareLocator.FindUnique(equivalent, "Runtime").Software);
+        var replacement = Unified("Runtime");
+        equivalent.Devices.Items.Add(DeviceWith("Panel", replacement));
+
+        Assert.Same(replacement, HmiSoftwareLocator.FindUnique(equivalent, "Runtime").Software);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Runtime")]
+    public void RecoveredRoot_DoesNotCompareDisposedPreviousRoot(string? selector)
+    {
+        var previous = new DisposedEqualityRoot();
+        var oldSoftware = Unified("Runtime");
+        previous.Devices.Items.Add(DeviceWith("Panel", oldSoftware));
+        HmiSoftwareLocator.FindUnique(previous, "Runtime");
+        previous.Disposed = true;
+        oldSoftware.NameFailure = new NonRecoverableException("previous attachment lost");
+        var replacement = Unified("Runtime");
+        var recovered = ProjectWith(DeviceWith("Panel", replacement));
+
+        Assert.Same(replacement, HmiSoftwareLocator.FindUnique(recovered, selector).Software);
+        Assert.Same(replacement, HmiSoftwareLocator.FindUnique(recovered, selector).Software);
+    }
+
+    private sealed class DisposedEqualityRoot : ProjectBase
+    {
+        public DeviceSystemGroup UngroupedDevicesGroup { get; } = new();
+        public bool Disposed { get; set; }
+        public override bool Equals(object? obj) => Disposed
+            ? throw new EngineeringObjectDisposedException("previous project disposed")
+            : ReferenceEquals(this, obj);
+        public override int GetHashCode() => 0;
     }
 
     private sealed class EqualRoot : ProjectBase
@@ -236,18 +362,25 @@ public class HmiSoftwareLocatorTests
         bad.DeviceItems.Items[0].ServiceFailure = new EngineeringException("item unreadable");
         var project = ProjectWith(DeviceWith("Good", Unified("Good_RT")), bad);
 
-        var ex = Assert.Throws<WorkerOperationException>(() => HmiSoftwareLocator.FindUnique(project, "Good_RT"));
+        var result = WorkerExecution.Execute(() =>
+        {
+            HmiSoftwareLocator.FindUnique(project, "Good_RT");
+            return new WorkerResponse { Success = true };
+        }, () => 0);
 
-        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
-        Assert.Contains("item unreadable", ex.Message);
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Contains("item unreadable", result.Error);
     }
 
-    [Fact]
-    public void EnumerateAllReportsUnreadableItemsAsMessagesAndKeepsGoing()
+    [Theory]
+    [InlineData("deviceName")]
+    [InlineData("itemEnumeration")]
+    [InlineData("itemService")]
+    [InlineData("softwareName")]
+    public void EnumerateAllReportsUnreadableItemsAsMessagesAndKeepsGoing(string failingRead)
     {
-        var bad = DeviceWith("Bad", Unified("Bad_RT"));
-        bad.DeviceItems.Items[0].ServiceFailure = new EngineeringException("item unreadable");
-        var project = ProjectWith(bad, DeviceWith("Good", Unified("Good_RT")));
+        var project = UnreadableProject(failingRead, new EngineeringException("item unreadable"));
         var messages = new List<string>();
 
         var entries = HmiSoftwareLocator.EnumerateAll(project, messages).ToList();

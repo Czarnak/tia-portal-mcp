@@ -3,6 +3,7 @@ using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Openness.Project;
 using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
@@ -233,7 +234,8 @@ public static class NetworkObjectIndexReader
             { Name = x.Name, PositionNumber = x.PositionNumber,
                 TypeIdentifier = string.IsNullOrWhiteSpace(x.TypeIdentifier) ? null : x.TypeIdentifier }).ToList();
         var owner = NetworkInterfacePathMatcher.Match(roots.Cast<DeviceItem>(), ownerPath,
-            x => x.DeviceItems.Cast<DeviceItem>(), x => x.Name, x => x.PositionNumber, x => x.TypeIdentifier);
+            x => x.DeviceItems.Cast<DeviceItem>(), x => x.Name, x => x.PositionNumber, x => x.TypeIdentifier,
+            OpennessExceptions.IsRecoverable);
         var nodes = new List<Node>();
         var nodeEnumerationComplete = true;
         try { foreach (Node node in networkInterface.Nodes) nodes.Add(node); }
