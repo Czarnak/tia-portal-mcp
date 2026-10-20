@@ -63,8 +63,9 @@ Workspaces and mappings persist only after an explicit `save_project`; `projectM
 
 VCI read and planning now use the worker's shared fatal-exception mapping. The
 VCI writer retains its own `portal_lost` mapping so partial counts, `lastAttempted`
-and persistence notes survive. This B-16/Q3 consolidation is covered offline;
-its live Portal-loss gate remains pending in the
+and persistence notes survive. This B-16/Q3 consolidation has offline coverage
+and maintainer-accepted scoped live read testing; native write interruptions
+remain untested. Candidate and fixture limits are retained in the
 [implementation record](../superpowers/plans/2026-10-19-worker-portal-loss.md).
 
 A native `NonRecoverableException` is reported as `portal_lost` and invalidates the binding immediately. It is a generic client exception: the real cause may be in the Portal report at `<ProgramData>\Siemens\Automation\Portal V21\Diagnostics\<build>\<id>\<id>.dr`, a ZIP containing `ErrorReport.xml` (`Reason="Openness"` in the observed crash). A worker timeout or crash also invalidates binding. Before each attempted leaf the worker writes a breadcrumb under `%LOCALAPPDATA%\TiaMcpServer`; on timeout/crash the host uses it only if its request ID matches, and may report `lastAttempted` in the error and audit. A missing breadcrumb does not prove that no leaf ran.

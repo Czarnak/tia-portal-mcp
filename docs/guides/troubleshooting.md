@@ -112,6 +112,8 @@ worker-reported copied project path; verify it with a subsequent status or read 
   binding, with the same worker process throughout. This is one fixture and
   interruption timing; broader fault locations and native write interruptions
   remain untested.
+  The maintainer accepted B-16/Q3 live testing as finished within the documented
+  scope on 2026-10-20, retaining those limits.
 - `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
   attempted. Read the typed `result` and `verification` failures; a successful mutation can
   precede failed verification. After timeout, crash, disconnect, or uncertain mutation, inspect

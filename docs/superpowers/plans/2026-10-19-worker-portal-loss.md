@@ -10,7 +10,7 @@
 
 **Spec:** [Agreed simplification review](2026-10-17-codebase-simplification-review.md), decision Q3 and workstream B item 16; [findings appendix](2026-10-17-codebase-simplification-review-findings.md), WORKERCORE-4, WORKERNET-7 and the verifier-corrected WORKERDOMAINS-16.
 
-**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Candidate `08f4d4a` exposed a native disposal-aware mapping gap. Follow-up `e804e6f` is offline qualified; its Network, PLC, VCI and local-session read interruptions passed scoped loss/invalidation checks. Remaining live testing exposed two HMI defects. Their fixes have offline regressions and a passing scoped HMI read retest on installed `2fb5e9a` on 2026-10-20: loss, immediate cursor invalidation and recovery without restarting the worker. The standalone fixture is restored open, verified and unmodified. Complete B-16/Q3 live acceptance has not been declared; the evidence and unexecuted-case limits follow.
+**Status:** B-16/Q3 live testing was accepted as finished within the documented scope by the maintainer on 2026-10-20. Initial offline qualification completed on 2026-10-19 on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Candidate `08f4d4a` exposed a disposal-aware mapping gap; installed `e804e6f` then passed scoped Network, PLC, VCI and local-session read interruptions. Two subsequent HMI defects received offline fixes and a passing scoped read retest on installed `2fb5e9a`: loss, immediate cursor invalidation and recovery without restarting the worker. The standalone fixture was restored open, verified and unmodified. Candidate-specific evidence and untested cases remain explicit below; acceptance does not claim exhaustive native fault or post-mutation coverage.
 
 ## Implementation Record
 
@@ -218,7 +218,7 @@ cache. The first explicit rebind correctly refused the changed worker identity;
 the next explicit rebind succeeded. The final worker has the same installed version
 and the original Portal/project remains open. Test local-session Portals were closed.
 
-Two HMI follow-ups block acceptance:
+At this stage, two HMI follow-ups blocked acceptance:
 
 1. Strict discovery in `HmiSoftwareLocator.WalkItems` catches `EngineeringException`
    and calls `Skip`; without a message sink, `Skip` throws
@@ -233,7 +233,7 @@ Two HMI follow-ups block acceptance:
 
 This run completes the authorized read-case attempts and restoration, **not complete
 B-16/Q3 acceptance**. HMI follow-up implementation and an installed-version retest
-remain required. Typed post-mutation outcomes and dedicated inventory-fault paths
+were required at this stage; the fixes and retest follow below. Typed post-mutation outcomes and dedicated inventory-fault paths
 retain their offline evidence; no native write interruption was attempted. There
 is still no native IPC request log or exact CLR exception trace, and the checked
 file hashes are not a complete project-directory comparison.
@@ -348,6 +348,37 @@ PLC, VCI and local-session evidence remains tied to the candidates recorded abov
 Private baseline, interruption and recovery records are ignored under
 `TestResults/portal-loss/live-hmi-2fb5e9a-2026-10-20`. No production source changed
 in this verification step; the existing 7,086-test and build evidence remains valid.
+
+### Maintainer disposition: accepted within the documented scope
+
+On 2026-10-20 the maintainer explicitly accepted B-16/Q3 live testing as finished
+within this record's documented scope, with untested cases retained. This satisfies
+the maintainer-disposition completion rule in the live gate below; no further live
+run is required to close this scope.
+
+Acceptance includes the recorded candidate-specific Network, PLC, VCI and
+local-session read checks on `e804e6f`, the final HMI loss/cursor/recovery retest on
+installed `2fb5e9a`, restoration evidence, and the offline qualification of both HMI
+fixes (7,086 passing tests, serial stub and installed-V21-reference builds).
+Earlier failures and the worker-restart workaround remain historical evidence;
+the final HMI retest recovered with the same host and worker throughout.
+
+The following remain untested or unproved and do not block this scoped acceptance:
+
+- Native write interruption and partial/post-mutation outcomes: retained contracts
+  have offline coverage, without an induced native write interruption.
+- Dedicated native inventory-fault injection and every HMI failure location or
+  interruption timing: source-linked controls do not establish all native paths.
+- Exact native CLR exception type/throwing line and native IPC dispatch/replay
+  counts: no exact CLR trace or native request log was captured.
+- Complete project-directory preservation: the recorded file-hash checks cover
+  the named fixture files, not every project/session file.
+- Cross-candidate breadth: earlier domain observations remain tied to their
+  recorded candidates and fixtures; they were not all rerun on `2fb5e9a`.
+
+Future work on these limits requires its own scope and target authorization.
+This acceptance step changes documentation only; it neither adds live evidence
+nor changes the qualified production/test source.
 
 ## Global Constraints
 
@@ -474,3 +505,6 @@ Before the live run, freeze the candidate and record the installed host/worker p
 Choose a read large enough to observe the interruption window; define the bounded attempt count in the live authorization. A worker crash, timeout, an interruption before the Siemens call, or a later `binding_conflict` verifies a different failure path and does not establish the new `NonRecoverableException` mapping. If the timing cannot be reproduced, retain that case as unexecuted rather than forcing a native crash. Multiuser interruption is a separate optional live case requiring its own disposable session/Portal authorization; offline fault injection covers its original-exception preservation.
 
 Completion means the offline gate passes and this scoped live gate is either executed successfully or explicitly dispositioned by the maintainer with its unexecuted limits retained. No claim of exhaustive Portal-loss, post-mutation or probe coverage follows from this plan.
+
+**Gate disposition, 2026-10-20:** the maintainer accepted live testing as finished
+within the documented scope; the untested cases above remain part of that acceptance.

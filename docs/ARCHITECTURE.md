@@ -435,8 +435,9 @@ for offline qualification and scoped Network, PLC, VCI and local-session read
 evidence. The HMI discovery and stale-project cache fixes have offline regressions
 and a scoped installed-candidate read retest: loss, immediate cursor invalidation
 and recovery without restarting the worker passed on one disposable standalone
-fixture. Broader native fault locations and write interruptions remain untested;
-complete B-16/Q3 live acceptance has not been declared.
+fixture. The maintainer accepted B-16/Q3 live testing as finished within this
+documented scope on 2026-10-20. Broader native fault locations and write
+interruptions remain untested limits of that acceptance.
 
 Temporary exports such as `get_block_content` use isolated temporary
 directories and remove them in `finally` blocks.

@@ -31,7 +31,8 @@ behavior. The host invalidates verified binding/cursors without replay; inspect
 any attempted mutation and explicitly bind again before retrying. Existing typed
 post-mutation outcomes and cleanup warnings retain their established contracts. The
 [B-16/Q3 record](../superpowers/plans/2026-10-19-worker-portal-loss.md) distinguishes
-offline fault-injection evidence from the pending live Portal-loss gate.
+offline fault-injection evidence from maintainer-accepted scoped live read
+testing. Native write interruptions and broader fault locations remain untested.
 
 ## Supported operations
 

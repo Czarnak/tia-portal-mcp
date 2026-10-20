@@ -97,7 +97,9 @@ Fatal `NonRecoverableException` from inventory escapes to the shared worker
 body exception. Ordinary server failures still preserve a healthy binding, and
 existing identity/disposal-only refusals retain `binding_conflict`. The
 [B-16/Q3 record](../superpowers/plans/2026-10-19-worker-portal-loss.md) records offline
-coverage; live Portal-loss verification remains pending.
+coverage and maintainer-accepted scoped live read testing. Dedicated native
+inventory-fault injection remains untested; earlier local-session observations
+are limited to the recorded candidate and fixtures.
 
 ## Typed results and observation limits
 
