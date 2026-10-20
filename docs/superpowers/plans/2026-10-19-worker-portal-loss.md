@@ -283,8 +283,16 @@ The final focused run passed **86/86** with source-linked worker coverage. All
 file had 176/184 covered lines (95.65%). This is offline double-based coverage,
 not execution of Siemens remoting. Serial reference-stub and installed-V21-reference
 solution builds both passed with seven pre-existing nullable warnings and zero
-errors. The V21 build was compilation only. The final full-suite result is recorded
-after it completes.
+errors. The V21 build was compilation only.
+
+The final full Debug suite (`--no-build --no-restore`,
+`xUnit.MaxParallelThreads=4`) passed **7,086/7,086**, with zero failures or skips,
+in 12.94 minutes. The TRX confirms all four cases of the previously timed-out theory,
+all 12 host immediate-invalidation/recovery cases, and all three cache recovery
+regressions passed. This final run qualifies the production/test content committed
+as `0925f67`; the subsequent verification-record commit changes documentation only.
+The SHA-256 of the LF-normalized C#/project-file patch against `51b93ad` is
+`6760d4198e8e09a35788b8af13336a8754a72d8a68265e2414f33ac29891561f`.
 
 Independent read-only review found no actionable issues after checking all four
 production callers, worker mapping, test wiring and cache behavior. Lenient
@@ -295,7 +303,8 @@ which no native stack was captured. An installed-candidate retest must confirm
 immediate invalidation and recovery without the worker-restart workaround.
 
 Logs, TRX and coverage are ignored under `TestResults/portal-loss/hmi-followup`
-and adjacent `hmi-*.log` files. The strict-discovery fix is commit `f916a91`.
+and adjacent `hmi-*.log` files. The strict-discovery fix is commit `f916a91`;
+the cache eviction fix and synchronized current documentation are `0925f67`.
 
 No live TIA call, installation, process interruption or project mutation is part
 of this follow-up. Both HMI paths require an installed-candidate retest after the
