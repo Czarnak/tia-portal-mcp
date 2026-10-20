@@ -10,7 +10,7 @@
 
 **Spec:** [Agreed simplification review](2026-10-17-codebase-simplification-review.md), decision Q3 and workstream B item 16; [findings appendix](2026-10-17-codebase-simplification-review-findings.md), WORKERCORE-4, WORKERNET-7 and the verifier-corrected WORKERDOMAINS-16.
 
-**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Candidate `08f4d4a` exposed a native disposal-aware mapping gap. Follow-up `e804e6f` is offline qualified; its Network, PLC, VCI and local-session read interruptions passed scoped loss/invalidation checks. Remaining live testing exposed two HMI defects. Both have offline fixes with regressions from 2026-10-20; their installed-candidate retest remains required and complete live acceptance is **not passed**. The original standalone fixture was restored open, verified and unmodified during the recorded live run; detailed evidence and limits follow.
+**Status:** Initial offline implementation, independent review and qualification completed on 2026-10-19, on `fix/worker-portal-loss-b16-q3` from `6e7791889a3bb9e9b8b4ba46853136b46fd3d0ba`. Candidate `08f4d4a` exposed a native disposal-aware mapping gap. Follow-up `e804e6f` is offline qualified; its Network, PLC, VCI and local-session read interruptions passed scoped loss/invalidation checks. Remaining live testing exposed two HMI defects. Their fixes have offline regressions and a passing scoped HMI read retest on installed `2fb5e9a` on 2026-10-20: loss, immediate cursor invalidation and recovery without restarting the worker. The standalone fixture is restored open, verified and unmodified. Complete B-16/Q3 live acceptance has not been declared; the evidence and unexecuted-case limits follow.
 
 ## Implementation Record
 
@@ -299,16 +299,55 @@ production callers, worker mapping, test wiring and cache behavior. Lenient
 inventory diagnostics and narrower property/typed post-mutation policies retain
 their existing contracts. The disposed-equality tests prove the cache hazard;
 they do not establish the exact native throwing line in the earlier run, for
-which no native stack was captured. An installed-candidate retest must confirm
+which no native stack was captured. The installed-candidate retest below checks
 immediate invalidation and recovery without the worker-restart workaround.
 
 Logs, TRX and coverage are ignored under `TestResults/portal-loss/hmi-followup`
 and adjacent `hmi-*.log` files. The strict-discovery fix is commit `f916a91`;
 the cache eviction fix and synchronized current documentation are `0925f67`.
 
-No live TIA call, installation, process interruption or project mutation is part
-of this follow-up. Both HMI paths require an installed-candidate retest after the
-maintainer installs the updated version.
+This implementation step stopped before live testing. The maintainer subsequently
+installed the updated version and authorized the scoped retest below.
+
+### Scoped HMI live retest of installed `2fb5e9a` on 2026-10-20
+
+The maintainer explicitly authorized autonomous HMI read interruption and recovery
+on the reopened disposable standalone fixture A. Installed worker version
+`4.1.1-local.19.g2fb5e9a` was verified from its executable path and product metadata.
+This includes both HMI fixes; the later verification record is documentation only.
+One guarded force-stop targeted only the observed Portal process after checking
+its executable, creation time and exact fixture window title. A four-second delay
+allowed a fresh `list_tags(limit:2000)` request to begin. No worker or host was
+stopped, and no content write, save or compile was requested.
+
+| Check | Observed result |
+| --- | --- |
+| Healthy baseline | Explicit verified binding, unmodified project; complete HMI inventory; 97 Unified tags. HMI and project-tree continuations both succeeded before interruption; the tree snapshot contained 1,045 nodes. |
+| Interrupted HMI read | `portal_lost`, with a disposed `DeviceItemComposition`/remoting diagnostic and the Portal-disposed warning. One failed item, no result omission. |
+| First TIA call after loss | Saved HMI continuation immediately returned `cursor_binding_mismatch`. Its message matches the host binding-snapshot gate; no intervening inventory, bind or status call was made. |
+| Saved project-tree cursor | Also returned `cursor_binding_mismatch`. Subsequent inventory reported the binding as invalidated. |
+| Recovery | Restarted Portal only, observed its empty state, opened the same AP21 and explicitly bound it. Open and bind succeeded with the project unmodified. |
+| Fresh HMI access after recovery | Two fresh `list_tags(limit:1)` reads succeeded, each reporting 97 tags. A recovered continuation succeeded at offset 1; both checked tag rows matched their pre-loss counterparts. The old pre-loss HMI cursor remained rejected after rebinding. |
+| Worker/host continuity | Both process IDs and creation timestamps matched before and after the entire interruption/recovery sequence; the worker retained the same parent and installed version. No worker-restart workaround was used. |
+| Restoration | Final status: open and unmodified. The AP21 SHA-256 matched before interruption, after interruption and after recovery. |
+
+All three requested checks **passed for this installed candidate and fixture**.
+The recovery verification used a mixed read batch: two successful fresh/new-cursor
+operations plus one expected rejection of the old cursor. Its root `success:false`
+therefore represents that intentional cursor rejection, not a fresh-read failure.
+Sixteen paired text/structured responses parsed to equal documents; expected
+System.Text.Json escaping differs from JavaScript reserialization.
+
+This is one read interruption at one timing point, not every HMI fault location or
+complete B-16/Q3 native acceptance. No native write interruption, dedicated
+inventory-fault injection, native IPC request log or exact CLR exception trace was
+added. The native diagnostic does not establish the precise throwing source line.
+The AP21 hash check is not a full project-directory comparison. Earlier Network,
+PLC, VCI and local-session evidence remains tied to the candidates recorded above.
+
+Private baseline, interruption and recovery records are ignored under
+`TestResults/portal-loss/live-hmi-2fb5e9a-2026-10-20`. No production source changed
+in this verification step; the existing 7,086-test and build evidence remains valid.
 
 ## Global Constraints
 

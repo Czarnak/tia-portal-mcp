@@ -107,7 +107,11 @@ worker-reported copied project path; verify it with a subsequent status or read 
   restart followed by explicit rebinding restored HMI reads in the recorded run.
   Offline fixes on 2026-10-20 preserve strict-discovery exceptions and evict the
   locator cache on a different root handle without comparing the old native proxy.
-  They await an installed-version retest; complete live acceptance has not passed.
+  Installed `2fb5e9a` passed the scoped HMI read retest: `portal_lost`, immediate
+  old-cursor rejection and fresh reads after Portal restart/reopen and explicit
+  binding, with the same worker process throughout. This is one fixture and
+  interruption timing; broader fault locations and native write interruptions
+  remain untested.
 - `success:false` with `error:null` and MCP `isError:false`: dispatch or verification was
   attempted. Read the typed `result` and `verification` failures; a successful mutation can
   precede failed verification. After timeout, crash, disconnect, or uncertain mutation, inspect
