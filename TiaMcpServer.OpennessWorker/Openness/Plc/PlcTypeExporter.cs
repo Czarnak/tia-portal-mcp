@@ -4,6 +4,7 @@ using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Block;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
@@ -49,10 +50,7 @@ internal static class PlcTypeExporter
         }
         finally
         {
-            if (Directory.Exists(tempDirectory))
-            {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
+            TemporaryDirectoryCleanup.TryDeleteTempDirectory(tempDirectory);
         }
     }
 

@@ -4,6 +4,7 @@ using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.ExternalSources;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
@@ -117,8 +118,7 @@ public static partial class BlockExporter
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            TemporaryDirectoryCleanup.TryDeleteTempDirectory(tempDir);
         }
     }
 
@@ -166,8 +166,7 @@ public static partial class BlockExporter
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            TemporaryDirectoryCleanup.TryDeleteTempDirectory(tempDir);
         }
     }
 
