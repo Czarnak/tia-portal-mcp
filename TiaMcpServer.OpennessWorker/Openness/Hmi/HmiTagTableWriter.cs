@@ -4,6 +4,7 @@ using Siemens.Engineering.HmiUnified.HmiTags;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
+using static TiaMcpServer.OpennessWorker.Openness.Hmi.HmiWriteRun;
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 public static class HmiTagTableWriter
 {
@@ -41,7 +42,7 @@ public static class HmiTagTableWriter
     private static HmiWriteOutcomeInfo Run(HmiSoftware software, HmiWriteRequestInfo write, string property, Action<HmiTagTableComposition> action)
     {
         var outcome = new HmiWriteOutcomeInfo { ObjectName = write.NewName ?? write.TableName! };
-        try { var tables = Tables(software, write.GroupPath); HmiTagWriter.Set(outcome, property, () => action(tables)); return outcome; }
-        catch (EngineeringException ex) { if (property == "Create") outcome.Cleanup = "notNeeded"; throw HmiTagWriter.Failure(ex, outcome); }
+        try { var tables = Tables(software, write.GroupPath); Set(outcome, property, () => action(tables)); return outcome; }
+        catch (EngineeringException ex) { if (property == "Create") outcome.Cleanup = HmiCleanupStates.NotNeeded; throw Failure(ex, outcome); }
     }
 }

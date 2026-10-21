@@ -230,7 +230,9 @@ There is no elicitation, confirmation argument, acknowledgment input or safety t
 at the first failing setter/item; there is no batch rollback or automatic replay. Typed results
 retain ordered `appliedProperties`, `failedProperty` and create `cleanup` (`notNeeded`, `deleted`,
 `failed`, with diagnostics). A failed create attempts identity-checked deletion; successful cleanup
-is verified absent, while failed cleanup can leave an object. A failed update keeps earlier setters.
+is verified absent, while failed cleanup can leave an object. Categorized worker failures retain their
+category (for example, `target_not_found` for a missing text culture) and warnings alongside the partial
+outcome. A failed update keeps earlier setters.
 Inspect actual state before retrying.
 
 Public table/tag/alarm readback verifies requested values, names and cultures; name-scoped `validate`

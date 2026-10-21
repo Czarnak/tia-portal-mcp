@@ -2,43 +2,16 @@ using Siemens.Engineering;
 using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HmiUnified.HmiTags;
 using TiaMcpServer.Contracts.Hmi;
-using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
+using static TiaMcpServer.OpennessWorker.Openness.Hmi.HmiWriteRun;
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 public static class HmiTagWriter
 {
     public static HmiWriteOutcomeInfo Create(HmiSoftware software, HmiWriteRequestInfo write)
-    {
-        var outcome = new HmiWriteOutcomeInfo { ObjectName = write.TagName! };
-        HmiTag? created = null;
-        try
-        {
-            outcome.FailedProperty = "Create";
-            created = software.Tags.Create(write.TagName!, write.TableName!);
-            outcome.AppliedProperties.Add("Create");
-            Apply(created, write, outcome);
-            return outcome;
-        }
-        catch (Exception ex) when (ex is EngineeringException or WorkerOperationException)
-        {
-            outcome.Cleanup = "notNeeded";
-            if (created is not null)
-            {
-                try
-                {
-                    var found = software.Tags.Find(write.TagName!);
-                    if (found is not null)
-                    {
-                        if (!object.Equals(found, created)) throw new InvalidOperationException("Created tag identity changed; cleanup refused.");
-                        found.Delete();
-                        outcome.Cleanup = "deleted";
-                    }
-                }
-                catch (Exception cleanup) { outcome.Cleanup = "failed"; outcome.CleanupMessage = cleanup.Message; }
-            }
-            throw Failure(ex, outcome);
-        }
-    }
+        => HmiWriteRun.Create(write.TagName!, "tag",
+            () => software.Tags.Create(write.TagName!, write.TableName!),
+            () => software.Tags.Find(write.TagName!), tag => tag.Delete(),
+            (tag, outcome) => Apply(tag, write, outcome));
     public static HmiWriteOutcomeInfo Update(HmiSoftware software, HmiWriteRequestInfo write)
     {
         var tag = HmiTagLookup.FindUnique(software, write.TagName!);
@@ -68,13 +41,4 @@ public static class HmiTagWriter
         if (write.DisplayName is not null) Set(outcome, "DisplayName", () => HmiTextMapper.Write(tag.DisplayName, write.DisplayName));
         outcome.FailedProperty = null;
     }
-    internal static void Set(HmiWriteOutcomeInfo outcome, string property, Action action)
-    {
-        outcome.FailedProperty = property;
-        action();
-        outcome.AppliedProperties.Add(property);
-        outcome.FailedProperty = null;
-    }
-    internal static WorkerOperationException Failure(Exception ex, HmiWriteOutcomeInfo outcome)
-        => new(WorkerFailureCategories.WorkerOperationFailed, ex.Message, hmiWriteOutcome: outcome);
 }

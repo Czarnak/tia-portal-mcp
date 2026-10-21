@@ -35,3 +35,10 @@ public sealed record HmiWriteOutcomeInfo
     public string? Cleanup { get; set; }
     public string? CleanupMessage { get; set; }
 }
+
+public static class HmiCleanupStates
+{
+    public const string NotNeeded = "notNeeded";
+    public const string Deleted = "deleted";
+    public const string Failed = "failed";
+}
