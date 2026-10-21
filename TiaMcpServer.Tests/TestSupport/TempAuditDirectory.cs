@@ -1,5 +1,3 @@
-using TiaMcpServer.Safety;
-
 namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
@@ -17,9 +15,18 @@ public sealed class TempAuditDirectory : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(Path))
+        for (var attempt = 0; Directory.Exists(Path); attempt++)
         {
-            Directory.Delete(Path, recursive: true);
+            try
+            {
+                Directory.Delete(Path, recursive: true);
+                return;
+            }
+            catch (IOException ex) when (attempt < 20 && (ex.HResult & 0xFFFF) is 32 or 33)
+            {
+                // Windows sharing/lock violations can briefly outlive FakeWorker disposal.
+                Thread.Sleep(100);
+            }
         }
     }
 }
