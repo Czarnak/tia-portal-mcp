@@ -285,6 +285,34 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.Equal("protocol_error", bounded.Error!.Category);
     }
 
+    [Fact]
+    public void EqualSizedEvidenceYieldsInRequestOrderBeforeEffects()
+    {
+        var evidence = new NetworkMutationVerificationInfo
+        { Status = "passed", Identity = new() { DeviceName = new string('x', 1_500) }, Checks = [] };
+        var response = Compose(Report("small")) with
+        {
+            Batch = null,
+            Verification = new(true,
+                [new("first", "configure_network_device", "passed", evidence, null),
+                 new("later", "configure_network_device", "passed", evidence, null)], [], null),
+        };
+        var original = CanonicalJson.Serialize(response);
+        var limit = original.Length - 1;
+
+        var bounded = NetworkWritePayloadBudget.Apply(response, maxDocumentChars: limit);
+
+        Assert.Equal(new[] { "first", "later" }, bounded.Verification!.Operations.Select(o => o.OperationId));
+        Assert.Null(bounded.Verification.Operations[0].Evidence);
+        Assert.Equal("responseExceededDocumentCharLimit", bounded.Verification.Operations[0].Omission!.Reason);
+        Assert.NotNull(bounded.Verification.Operations[1].Evidence);
+        Assert.NotNull(Assert.Single(bounded.Effects).Effect);
+        Assert.True(bounded.Verification.Success);
+        Assert.False(bounded.Success);
+        Assert.Equal(original, CanonicalJson.Serialize(response));
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, limit);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
