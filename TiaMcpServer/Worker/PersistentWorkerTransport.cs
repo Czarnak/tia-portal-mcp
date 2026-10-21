@@ -50,6 +50,13 @@ public sealed class PersistentWorkerTransport : IDisposable
         {
             ThrowIfDisposed();
             EnsureProcessStarted();
+            if (_disposed)
+            {
+                // Dispose ran while the worker was starting and could not see it; nothing was sent.
+                KillProcess();
+                throw new WorkerTransportDisposedException();
+            }
+
             var process = _process!;
             if (!_handshakeComplete)
             {
