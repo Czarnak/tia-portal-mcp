@@ -59,4 +59,30 @@ public class VciWriteBudgetTests
         Assert.Null(bounded.Batch.Operations[0].Result);
         Assert.Equal("vci_read", bounded.Batch.Operations[0].Omission!.RetryTool);
     }
+
+    [Fact]
+    public void DocumentOmissionKeepsEffectOrderAndDropsChecksBeforeEqualSizedEffects()
+    {
+        var response = new VciGuardedWriteResponse("vci_write", "1.0", "preview", true, null, [], [],
+            [new("a", new("export", "Fixture", null, new string('x', 1_000), 0, 0, 0), null),
+             new("b", new("export", "Fixture", null, new string('y', 1_000), 0, 0, 0), null)], null,
+            new(true, [new("a", true, "exists", null, null, new string('v', 1_000))], null), null);
+
+        var bounded = VciWritePayloadBudget.Apply(response, maxDocumentChars: 2_500);
+
+        Assert.Empty(bounded.Verification!.Operations);
+        Assert.NotNull(bounded.Verification.Omission);
+        Assert.Equal(new[] { "a", "b" }, bounded.Effects.Select(e => e.OperationId));
+        Assert.Null(bounded.Effects[0].Effect);
+        Assert.NotNull(bounded.Effects[1].Effect);
+        Assert.False(bounded.Success);
+        Assert.True(bounded.Verification.Success);
+    }
+
+    [Fact]
+    public void CompleteResponseWithNullOptionalRootsIsUnchanged()
+    {
+        var response = new VciGuardedWriteResponse("vci_write", "1.0", "preview", true, null, [], [], [], null, null, null);
+        Assert.Equal(CanonicalJson.Serialize(response), CanonicalJson.Serialize(VciWritePayloadBudget.Apply(response)));
+    }
 }

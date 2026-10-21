@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
+using static TiaMcpServer.Safety.Pipeline.GuardedWriteResponseBudget;
 
 namespace TiaMcpServer.Hmi;
 
@@ -10,6 +11,8 @@ public static class HmiWritePayloadBudget
 {
     private const string Guidance = "Inspect current state with hmi_read; use smaller hmi_write calls to see every effect. Do not replay the write.";
     private const string DiagnosticSummary = "Diagnostic details omitted. Inspect current state with hmi_read.";
+
+    private static readonly GuardedWriteResponseBudget Budget = new("hmi_read", Guidance, DiagnosticSummary);
 
     public static HmiGuardedWriteResponse Apply(HmiGuardedWriteResponse response,
         int? maxItemChars = null, int? maxDocumentChars = null)
@@ -23,98 +26,61 @@ public static class HmiWritePayloadBudget
         if (Size(response) > maxDocumentChars || Oversized(response, maxItemChars)) current = Compact(response, maxDocumentChars);
         var effects = current.Effects.ToArray();
         var verification = current.Verification;
-        HmiGuardedWriteResponse Present(StructuredOperationBatch? batch = null)
+        HmiGuardedWriteResponse Present(StructuredOperationBatch? batch)
         {
             var result = current with { Effects = effects, Verification = verification, Batch = batch ?? current.Batch };
-            return result with { Success = response.Success && !HasOmission(result) };
+            return result with { Success = response.Success && !HasOmission(result.Omission,
+                effects.Select(e => e.Omission), result.Batch, verification?.Omission) };
         }
         void OmitEffect(int index, string reason, int limit) => effects[index] = effects[index] with
-        { Effect = null, Omission = Omission(reason, limit, Size(effects[index].Effect)) };
+        { Effect = null, Omission = Budget.Omission(reason, limit, Size(effects[index].Effect)) };
         void OmitChecks(string reason, int limit) => verification = verification! with
-        { Operations = [], Omission = Omission(reason, limit, Size(verification.Operations)) };
+        { Operations = [], Omission = Budget.Omission(reason, limit, Size(verification.Operations)) };
 
-        for (var i = 0; i < effects.Length; i++)
-            if (effects[i].Effect is { } effect && Size(effect) > maxItemChars)
-                OmitEffect(i, StructuredOperationBatchPayloadBudget.ItemLimitReason, maxItemChars);
-        if (verification is { Operations.Count: > 0 } && Size(verification.Operations) > maxItemChars)
-            OmitChecks(StructuredOperationBatchPayloadBudget.ItemLimitReason, maxItemChars);
-        if (Size(Present()) > maxDocumentChars && verification is { Operations.Count: > 0 })
-            OmitChecks(StructuredOperationBatchPayloadBudget.DocumentLimitReason, maxDocumentChars);
-        foreach (var candidate in effects.Select((e, i) => (Index: i, Chars: e.Effect is null ? 0 : Size(e.Effect))).OrderByDescending(e => e.Chars))
-        {
-            if (Size(Present()) <= maxDocumentChars) break;
-            if (candidate.Chars > 0) OmitEffect(candidate.Index, StructuredOperationBatchPayloadBudget.DocumentLimitReason, maxDocumentChars);
-        }
-        if (current.Batch is null) return Present();
-        var trusted = current.Batch;
-        StructuredOperationBatch Restore(StructuredOperationBatch candidate) => StructuredOperationBatch.FromItems(
-            candidate.Operations.Select((item, index) => item with { Status = trusted.Operations[index].Status }).ToArray(), candidate.Truncation);
-        var bounded = StructuredOperationBatchPayloadBudget.Apply(trusted, candidate => Present(Restore(candidate)),
-            "hmi_read", _ => Guidance, maxItemChars, maxDocumentChars);
-        return Present(Restore(bounded));
+        GuardedWriteBudgetRoot Effect(int i) => new(effects[i].Effect is null ? 0 : Size(effects[i].Effect),
+            (reason, limit) => OmitEffect(i, reason, limit));
+        GuardedWriteBudgetRoot Checks() => new(verification is { Operations.Count: > 0 } ? Size(verification.Operations) : 0, OmitChecks);
+        IEnumerable<GuardedWriteBudgetRoot> ItemRoots()
+            => effects.Select((_, i) => Effect(i)).Append(Checks());
+        IEnumerable<GuardedWriteBudgetRoot> DocumentRoots()
+            => new[] { Checks() }.Concat(effects.Select((_, i) => Effect(i)).OrderByDescending(e => e.Chars));
+
+        return Budget.Apply(Present, () => current.Batch, ItemRoots(), DocumentRoots, maxItemChars, maxDocumentChars);
     }
 
     // An initial blocking plan never runs. Otherwise each item has at most two initial info guards
     // and two late info guards (messages may differ). The stopping item adds at most two blockers,
     // then the pipeline adds one partial-write guard. 4N+3 also bounds an initially blocked plan.
     internal static int MeasureProtectedCore(IReadOnlyList<HmiWriteOperationRequest> items)
-    {
-        if (items.Count == 0) return 0;
-        var omission = Omission(StructuredOperationBatchPayloadBudget.DocumentLimitReason, int.MaxValue, int.MaxValue);
-        var category = new string('x', 64);
-        var longest = items.OrderByDescending(i => Size(i.OperationId)).First().OperationId;
-        var guards = items.SelectMany(i => Enumerable.Repeat(new WriteGuardReport(category, "block", i.OperationId, DiagnosticSummary, null), 4))
-            .Concat(Enumerable.Repeat(new WriteGuardReport(category, "block", longest, DiagnosticSummary, null), 3)).ToArray();
-        var batch = new StructuredOperationBatch(items.Count, new(int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue),
-            items.Select(i => new StructuredOperationItem(i.OperationId, i.Operation, OperationBatchStatus.Succeeded, null,
-                new(category, DiagnosticSummary), omission, StructuredOperationSkipReasons.EarlierOperationFailed, [DiagnosticSummary])).ToArray(),
-            new(true, int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue, items.Select(i => i.OperationId).ToArray()));
-        return Size(new HmiGuardedWriteResponse("hmi_write", HmiWriteContractVersion.Current, WritePhases.Applied, false,
-            new(category, DiagnosticSummary), [DiagnosticSummary], guards,
-            items.Select(i => new HmiWriteEffectPresentation(i.OperationId, null, omission)).ToArray(), batch,
-            new(false, [], omission), omission));
-    }
+        => Budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), 4, 3, true,
+            core => new HmiGuardedWriteResponse("hmi_write", HmiWriteContractVersion.Current, WritePhases.Applied, false,
+                core.Error, core.Warnings, core.Guards,
+                items.Select(i => new HmiWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(), core.Batch,
+                new(false, [], core.Omission), core.Omission));
 
     private static bool Oversized(HmiGuardedWriteResponse r, int limit)
-        => (r.Error is not null && Size(r.Error.Message) > limit) || Size(r.Warnings) > limit
-            || r.Guards.Any(g => Size(g.Message) > limit)
+        => OversizedBatchOrDiagnostics(r.Error, r.Warnings, r.Guards, r.Batch, limit)
             || r.Effects.Any(e => e.Effect is not null && Size(e.Effect) > limit)
-            || r.Batch?.Operations.Any(i => i.Result is not null && Size(i.Result) > limit
-                || i.Failure is not null && Size(i.Failure.Message) > limit || Size(i.Warnings) > limit) == true
             || r.Verification is { Operations.Count: > 0 } v && Size(v.Operations) > limit;
 
     private static HmiGuardedWriteResponse Compact(HmiGuardedWriteResponse response, int maxDocumentChars)
     {
-        var omitted = false;
-        string Message(string message)
+        var diagnostics = Budget.Diagnostics();
+        var batch = diagnostics.Batch(response.Batch, item =>
         {
-            if (message == DiagnosticSummary) return message;
-            omitted = true;
-            return DiagnosticSummary;
-        }
-        IReadOnlyList<string> Warnings(IReadOnlyList<string> warnings) => warnings.Select(Message).Distinct(StringComparer.Ordinal).ToArray();
-        var batch = response.Batch is null ? null : StructuredOperationBatch.FromItems(response.Batch.Operations.Select(item =>
-        {
-            var result = item.Result;
-            if (result is { } value)
-            {
-                var outcome = CanonicalJson.DeserializeWorkerPayload<HmiWriteOutcomeInfo>(value.GetRawText());
-                if (outcome.CleanupMessage is not null) result = CanonicalJson.ToElement(outcome with { CleanupMessage = Message(outcome.CleanupMessage) });
-            }
-            return item with { Result = result, Failure = item.Failure is null ? null : item.Failure with { Message = Message(item.Failure.Message) }, Warnings = Warnings(item.Warnings) };
-        }).ToArray(), response.Batch.Truncation);
+            if (item.Result is not { } value) return item.Result;
+            var outcome = CanonicalJson.DeserializeWorkerPayload<HmiWriteOutcomeInfo>(value.GetRawText());
+            return outcome.CleanupMessage is null ? value
+                : CanonicalJson.ToElement(outcome with { CleanupMessage = diagnostics.Message(outcome.CleanupMessage) });
+        });
         var verification = response.Verification is null ? null : response.Verification with
-        { Operations = response.Verification.Operations.Select(o => o with { Message = o.Message is null ? null : Message(o.Message) }).ToArray() };
+        { Operations = response.Verification.Operations.Select(o => o with { Message = o.Message is null ? null : diagnostics.Message(o.Message) }).ToArray() };
         var compacted = response with
         {
-            Error = response.Error is null ? null : response.Error with { Message = Message(response.Error.Message) },
-            Warnings = Warnings(response.Warnings), Guards = response.Guards.Select(g => g with { Message = Message(g.Message) }).ToArray(),
+            Error = diagnostics.Error(response.Error),
+            Warnings = diagnostics.Warnings(response.Warnings), Guards = diagnostics.Guards(response.Guards),
             Batch = batch, Verification = verification,
         };
-        return omitted ? compacted with { Omission = Omission("diagnosticDetailsOmitted", maxDocumentChars, Size(response)) } : compacted;
+        return compacted with { Omission = Budget.DiagnosticOmission(diagnostics, response.Omission, maxDocumentChars, Size(response)) };
     }
-    private static bool HasOmission(HmiGuardedWriteResponse r) => r.Omission is not null || r.Effects.Any(e => e.Omission is not null)
-        || r.Batch?.Operations.Any(i => i.Omission is not null) == true || r.Verification?.Omission is not null;
-    private static StructuredOperationOmission Omission(string reason, int limit, int original) => new(reason, limit, original, "hmi_read", Guidance);
-    private static int Size<T>(T value) => CanonicalJson.Serialize(value).Length;
 }

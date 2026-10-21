@@ -83,6 +83,21 @@ public class HmiWriteBudgetTests
     }
 
     [Fact]
+    public void ExistingOmissionStillMarksDeliveryIncompleteWithNullOptionalRoots()
+    {
+        var omission = new StructuredOperationOmission("responseExceededDocumentCharLimit", 2_000, 3_000, "hmi_read", "Inspect current state.");
+        var response = Response(1) with { Success = true, Batch = null, Verification = null,
+            Effects = [new("a", null, omission)] };
+
+        var bounded = HmiWritePayloadBudget.Apply(response);
+
+        Assert.False(bounded.Success);
+        Assert.Same(omission, bounded.Effects[0].Omission);
+        Assert.Null(bounded.Batch);
+        Assert.Null(bounded.Verification);
+    }
+
+    [Fact]
     public void MalformedFailureWithOversizedDiagnosticStillProducesBoundedCanonicalResponse()
     {
         var item = HmiWritePayloadContract.Project(HmiGuardedWriteDomainTests.Item(),
