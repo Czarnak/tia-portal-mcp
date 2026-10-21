@@ -71,7 +71,7 @@ public static class VciWriter
                                 if (format.Format is null) throw new InvalidOperationException("No safe supported export format.");
                                 Attempt(new VciLastAttemptedInfo { Path = leaf.Path, Operation = write.Operation, Format = format.Format });
                                 if (format.IsFallback) outcome.FormatFallbacks++;
-                                var key = VciMirroredPath.Build(write.RelativeDirectory, leaf.Path);
+                                var key = VciMirroredPath.Build(write.RelativeDirectory, leaf.Path, leaf.IsPcStation);
                                 var problem = VciMirroredPath.FirstProblem(workspace.RootPath.FullName, key);
                                 if (problem is not null) throw new InvalidOperationException(problem);
                                 var directory = ExportDirectory(workspace, key);

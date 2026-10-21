@@ -19,15 +19,17 @@ namespace TiaMcpServer.OpennessWorker.Openness.Vci;
 
 public sealed class VciLeaf
 {
-    public VciLeaf(IEngineeringObject @object, List<ProjectTreeSelectorSegment> path, bool isPlc)
+    public VciLeaf(IEngineeringObject @object, List<ProjectTreeSelectorSegment> path, bool isPlc, bool isPcStation)
     {
         Object = @object;
         Path = path;
         IsPlc = isPlc;
+        IsPcStation = isPcStation;
     }
     public IEngineeringObject Object { get; }
     public List<ProjectTreeSelectorSegment> Path { get; }
     public bool IsPlc { get; }
+    public bool IsPcStation { get; }
 }
 
 public static class VciScopeResolver
@@ -71,6 +73,7 @@ public static class VciScopeResolver
             IEngineeringObject selected = ProjectTreeDeviceSelector.Select(
                 ProjectDeviceEnumerator.Enumerate(project).ToList(), d => d.Name, scope[0]);
             var path = new List<ProjectTreeSelectorSegment> { Segment(selected)! };
+            var isPcStation = VciMirroredPath.IsPcStation(((Device)selected).TypeIdentifier);
             for (var index = 1; index < scope.Count; index++)
             {
                 var requested = scope[index];
@@ -88,7 +91,7 @@ public static class VciScopeResolver
                 path.Add(Segment(selected)!);
             }
             var leaves = new List<VciLeaf>();
-            ExpandNode(selected, path, leaves, new List<IEngineeringObject>());
+            ExpandNode(selected, path, leaves, new List<IEngineeringObject>(), isPcStation);
             return leaves;
         }
         catch (ProjectTreeSelectionException ex)
@@ -126,20 +129,20 @@ public static class VciScopeResolver
     }
 
     private static void ExpandNode(IEngineeringObject node, List<ProjectTreeSelectorSegment> path,
-        List<VciLeaf> leaves, List<IEngineeringObject> ancestors)
+        List<VciLeaf> leaves, List<IEngineeringObject> ancestors, bool isPcStation)
     {
         if (ancestors.Any(parent => ReferenceEquals(parent, node)))
             throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "A cycle prevents complete scope expansion.");
         if (VciScope.IsLeaf(path[path.Count - 1].NodeType))
         {
-            leaves.Add(new VciLeaf(node, path, node is not HmiScriptModule));
+            leaves.Add(new VciLeaf(node, path, node is not HmiScriptModule, isPcStation));
             return;
         }
         ancestors.Add(node);
         foreach (var child in Children(node))
         {
             var childPath = new List<ProjectTreeSelectorSegment>(path) { Segment(child)! };
-            ExpandNode(child, childPath, leaves, ancestors);
+            ExpandNode(child, childPath, leaves, ancestors, isPcStation);
         }
         ancestors.RemoveAt(ancestors.Count - 1);
     }

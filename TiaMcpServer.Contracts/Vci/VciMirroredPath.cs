@@ -37,7 +37,14 @@ public static class VciMirroredPath
 {
     public const int MaxExtensionLength = 8;
 
-    public static VciFileKey Build(string? relativeDirectory, IReadOnlyList<ProjectTreeSelectorSegment> leafPath)
+    // Observed V21 device types: a generic PC station is "System:Device.PC" and an IPC is "OrderNumber:<ipc>//Device";
+    // hardware stations are "System:Device.<family>" and a Unified panel has none.
+    // ponytail: type-pattern rule from observed devices; an unrecognized PC family gets the hardware layout.
+    public static bool IsPcStation(string? deviceTypeIdentifier)
+        => deviceTypeIdentifier == "System:Device.PC"
+            || (deviceTypeIdentifier?.EndsWith("//Device", StringComparison.Ordinal) ?? false);
+
+    public static VciFileKey Build(string? relativeDirectory, IReadOnlyList<ProjectTreeSelectorSegment> leafPath, bool isPcStation)
     {
         VciScope.Validate(leafPath);
         if (leafPath is null || leafPath.Count == 0 || !VciScope.IsLeaf(leafPath[leafPath.Count - 1].NodeType))
@@ -48,9 +55,11 @@ public static class VciMirroredPath
         var names = new List<string>();
         if (!string.IsNullOrEmpty(relativeDirectory))
             names.AddRange(relativeDirectory!.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries));
-        names.Add(leafPath[0].Name);
-        names.Add(leafPath[1].Name);
+        // Mirror the UI project tree: a PC station shows station and software; a hardware station
+        // shows only its PLC, and a Unified panel only its device.
         var isHmi = leafPath[1].NodeType == VciScope.HmiSoftware;
+        if (isPcStation || isHmi) names.Add(leafPath[0].Name);
+        if (isPcStation || !isHmi) names.Add(leafPath[1].Name);
         names.Add(VciScope.CategoryFor(leafPath[isHmi ? 1 : 2].NodeType));
         for (var i = isHmi ? 2 : 3; i < leafPath.Count - 1; i++) names.Add(leafPath[i].Name);
         var leafName = leafPath[leafPath.Count - 1].Name;

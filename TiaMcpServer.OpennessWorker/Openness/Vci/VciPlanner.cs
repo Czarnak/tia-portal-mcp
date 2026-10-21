@@ -78,7 +78,7 @@ public static class VciPlanner
                     return plan;
                 }
                 if (format.IsFallback) plan.FormatFallbacks++;
-                var key = VciMirroredPath.Build(write.RelativeDirectory, leaf.Path);
+                var key = VciMirroredPath.Build(write.RelativeDirectory, leaf.Path, leaf.IsPcStation);
                 var problem = VciMirroredPath.FirstProblem(plan.WorkspaceRootPath!, key);
                 if (problem is not null)
                 {
