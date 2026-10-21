@@ -1,4 +1,5 @@
 using System.Security.Principal;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Versioning;
 
 namespace TiaMcpServer.Diagnostics;
@@ -93,11 +94,13 @@ public sealed class WindowsIdentityService : IWindowsIdentityService
 
     /// <summary>
     /// Returns the first SID a translation yields, or null when every form is unmapped
-    /// (<see cref="IdentityNotMappedException"/>), meaning the group does not exist. Any other
-    /// failure propagates: the group could not be checked, which is not the same as absent.
+    /// (<see cref="IdentityNotMappedException"/>), meaning the group does not exist. When no form
+    /// maps and one failed otherwise, the first such failure is rethrown: the group could not be
+    /// checked, which is not the same as absent.
     /// </summary>
     internal static string? FirstMappedSid(params Func<string?>[] translations)
     {
+        ExceptionDispatchInfo? failure = null;
         foreach (var translate in translations)
         {
             try
@@ -111,8 +114,13 @@ public sealed class WindowsIdentityService : IWindowsIdentityService
             {
                 // Try the next form.
             }
+            catch (Exception ex)
+            {
+                failure ??= ExceptionDispatchInfo.Capture(ex);
+            }
         }
 
+        failure?.Throw();
         return null;
     }
 }

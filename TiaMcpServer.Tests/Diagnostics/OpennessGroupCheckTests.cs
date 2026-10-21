@@ -76,6 +76,15 @@ public class OpennessGroupCheckTests
     }
 
     [Fact]
+    [SupportedOSPlatform("windows")]
+    public void FirstMappedSid_TriesLaterFormsAfterAFailure()
+    {
+        Assert.Equal("S-1-5-32-544", WindowsIdentityService.FirstMappedSid(
+            () => throw new SystemException("RPC server unavailable."),
+            () => "S-1-5-32-544"));
+    }
+
+    [Fact]
     public void UserNotMember_ReturnsFailed()
     {
         var identity = new FakeWindowsIdentityService
