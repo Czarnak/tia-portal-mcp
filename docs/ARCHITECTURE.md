@@ -1054,6 +1054,13 @@ elicitation; lifecycle read-write confirms every actual call.
 The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
 are recorded separately; client acceptance does not prove that a person saw the consequence.
 
+`GuardedWriteResponseBudget` shares canonical sizing, diagnostic compaction, ordered whole-value
+omission, trusted batch-status restoration and protected-core construction for PLC, Network, HMI
+and VCI writes. Typed domain adapters retain their response records, omission priorities and guard
+reserves. Network also retains its 512-character diagnostic cap, early batch pass and prepared
+recovery-value reservations. Omission metadata uses the resolved per-call limit; incomplete delivery
+can make root `success` false while execution statuses and verification truth remain unchanged.
+
 `WriteExecution.RunAsync(domain, call)` owns the order and the safety rules. An
 `IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
 evaluation, the mutation, verification, and the response shape. Stages, in order:

@@ -1,6 +1,6 @@
-using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
+using static TiaMcpServer.Safety.Pipeline.GuardedWriteResponseBudget;
 
 namespace TiaMcpServer.Plc;
 
@@ -15,7 +15,7 @@ public static class PlcWritePayloadBudget
     private const string RetryTool = "plc_read";
     private const string Guidance = "Inspect current state with plc_read (list_tag_tables, get_block_content or get_type_content); use smaller plc_write calls to see every effect. Do not replay the write.";
     private const string DiagnosticSummary = "Diagnostic details omitted. Inspect current state with plc_read.";
-    private const string DiagnosticOmissionReason = "diagnosticDetailsOmitted";
+    private static readonly GuardedWriteResponseBudget Budget = new(RetryTool, Guidance, DiagnosticSummary);
 
     public static PlcGuardedWriteResponse Apply(PlcGuardedWriteResponse response,
         int? maxItemChars = null, int? maxDocumentChars = null)
@@ -29,12 +29,12 @@ public static class PlcWritePayloadBudget
         var current = response;
         // Diagnostics are delivered intact while the document fits; they yield before any whole value is dropped.
         if (originalChars > maxDocumentChars || AnyOverItemLimit(current, maxItemChars))
-            current = Compact(current, originalChars);
+            current = Compact(current, originalChars, maxDocumentChars);
         var effects = current.Effects.ToArray();
         var items = current.Batch?.Operations.ToArray();
         var verification = current.Verification;
 
-        PlcGuardedWriteResponse Present(StructuredOperationBatch? batch = null)
+        PlcGuardedWriteResponse Present(StructuredOperationBatch? batch)
         {
             var result = current with
             {
@@ -42,70 +42,70 @@ public static class PlcWritePayloadBudget
                 Batch = batch ?? (items is null ? null : StructuredOperationBatch.FromItems(items.ToArray(), current.Batch!.Truncation)),
                 Verification = verification,
             };
-            return result with { Success = response.Success && !HasOmission(result) };
+            return result with { Success = response.Success && !HasOmission(result.Omission,
+                effects.Select(e => e.Omission), result.Batch, verification?.Omission) };
         }
-
-        bool Fits() => Size(Present()) <= maxDocumentChars;
 
         // A presentation whose diff was dropped keeps its effect and records the omission beside it.
         void OmitDiff(int i, string reason, int limit) => effects[i] = effects[i] with
         {
             Effect = effects[i].Effect! with { ContentDiff = null },
-            Omission = Omission(reason, limit, Size(effects[i].Effect!.ContentDiff)),
+            Omission = Budget.Omission(reason, limit, Size(effects[i].Effect!.ContentDiff)),
         };
         void OmitEffect(int i, string reason, int limit) => effects[i] = effects[i] with
         {
-            Effect = null, Omission = Omission(reason, limit, Size(effects[i].Effect)),
+            Effect = null, Omission = Budget.Omission(reason, limit, Size(effects[i].Effect)),
         };
         void OmitOutcome(int i, string reason, int limit) => items![i] = items[i] with
         {
             Failure = items[i].Failure! with { BlockImportOutcome = null },
-            Omission = Omission(reason, limit, Size(items[i].Failure!.BlockImportOutcome)),
+            Omission = Budget.Omission(reason, limit, Size(items[i].Failure!.BlockImportOutcome)),
         };
         void OmitChecks(string reason, int limit) => verification = verification! with
         {
-            Operations = Array.Empty<PlcOperationVerification>(), Omission = Omission(reason, limit, Size(verification.Operations)),
+            Operations = Array.Empty<PlcOperationVerification>(), Omission = Budget.Omission(reason, limit, Size(verification.Operations)),
         };
 
-        var itemReason = StructuredOperationBatchPayloadBudget.ItemLimitReason;
-        for (var i = 0; i < effects.Length; i++)
+        IEnumerable<GuardedWriteBudgetRoot> ItemRoots()
         {
-            if (effects[i].Effect is { ContentDiff: not null } effect && Size(effect) > maxItemChars) OmitDiff(i, itemReason, maxItemChars);
-            if (effects[i].Effect is { } remaining && Size(remaining) > maxItemChars) OmitEffect(i, itemReason, maxItemChars);
-        }
-
-        for (var i = 0; i < (items?.Length ?? 0); i++)
-            if (items![i].Failure?.BlockImportOutcome is { } outcome && Size(outcome) > maxItemChars) OmitOutcome(i, itemReason, maxItemChars);
-        if (verification is { Operations.Count: > 0 } && Size(verification.Operations) > maxItemChars) OmitChecks(itemReason, maxItemChars);
-
-        var documentReason = StructuredOperationBatchPayloadBudget.DocumentLimitReason;
-        var candidates = effects.Select((e, i) => (Kind: 0, Index: i, Chars: e.Effect?.ContentDiff is null ? 0 : Size(e.Effect.ContentDiff)))
-            .Concat((items ?? []).Select((o, i) => (Kind: 1, Index: i, Chars: o.Failure?.BlockImportOutcome is null ? 0 : Size(o.Failure.BlockImportOutcome))))
-            .Append((Kind: 2, Index: 0, Chars: verification is { Operations.Count: > 0 } ? Size(verification.Operations) : 0))
-            .Concat(effects.Select((e, i) => (Kind: 3, Index: i, Chars: e.Effect is null ? 0 : Size(e.Effect))))
-            .Where(c => c.Chars > 0)
-            .OrderBy(c => c.Kind).ThenByDescending(c => c.Chars).ThenBy(c => c.Index)
-            .ToArray();
-        foreach (var candidate in candidates)
-        {
-            if (Fits()) break;
-            switch (candidate.Kind)
+            for (var i = 0; i < effects.Length; i++)
             {
-                case 0 when effects[candidate.Index].Effect?.ContentDiff is not null: OmitDiff(candidate.Index, documentReason, maxDocumentChars); break;
-                case 1: OmitOutcome(candidate.Index, documentReason, maxDocumentChars); break;
-                case 2: OmitChecks(documentReason, maxDocumentChars); break;
-                case 3 when effects[candidate.Index].Effect is not null: OmitEffect(candidate.Index, documentReason, maxDocumentChars); break;
+                var index = i;
+                if (effects[i].Effect is { ContentDiff: not null } effect)
+                    yield return new(Size(effect), (reason, limit) => OmitDiff(index, reason, limit));
+                if (effects[i].Effect is { } remaining)
+                    yield return new(Size(remaining), (reason, limit) => OmitEffect(index, reason, limit));
             }
+            for (var i = 0; i < (items?.Length ?? 0); i++)
+            {
+                var index = i;
+                if (items![i].Failure?.BlockImportOutcome is { } outcome)
+                    yield return new(Size(outcome), (reason, limit) => OmitOutcome(index, reason, limit));
+            }
+            if (verification is { Operations.Count: > 0 })
+                yield return new(Size(verification.Operations), OmitChecks);
         }
 
-        if (items is null) return Present();
-        // The shared helper's omitted status describes delivery; keep the trusted execution status.
-        var trusted = StructuredOperationBatch.FromItems(items.ToArray(), current.Batch!.Truncation);
-        StructuredOperationBatch Restore(StructuredOperationBatch candidate) => StructuredOperationBatch.FromItems(
-            candidate.Operations.Select((item, index) => item with { Status = trusted.Operations[index].Status }).ToArray(), candidate.Truncation);
-        var bounded = StructuredOperationBatchPayloadBudget.Apply(trusted, candidate => Present(Restore(candidate)),
-            RetryTool, _ => Guidance, maxItemChars, maxDocumentChars);
-        return Present(Restore(bounded));
+        IEnumerable<GuardedWriteBudgetRoot> DocumentRoots()
+            => effects.Select((e, i) => (Kind: 0, Index: i, Chars: e.Effect?.ContentDiff is null ? 0 : Size(e.Effect.ContentDiff)))
+                .Concat((items ?? []).Select((o, i) => (Kind: 1, Index: i, Chars: o.Failure?.BlockImportOutcome is null ? 0 : Size(o.Failure.BlockImportOutcome))))
+                .Append((Kind: 2, Index: 0, Chars: verification is { Operations.Count: > 0 } ? Size(verification.Operations) : 0))
+                .Concat(effects.Select((e, i) => (Kind: 3, Index: i, Chars: e.Effect is null ? 0 : Size(e.Effect))))
+                .Where(c => c.Chars > 0).OrderBy(c => c.Kind).ThenByDescending(c => c.Chars).ThenBy(c => c.Index)
+                .Select(candidate => new GuardedWriteBudgetRoot(candidate.Chars, (reason, limit) =>
+                {
+                    switch (candidate.Kind)
+                    {
+                        case 0 when effects[candidate.Index].Effect?.ContentDiff is not null: OmitDiff(candidate.Index, reason, limit); break;
+                        case 1: OmitOutcome(candidate.Index, reason, limit); break;
+                        case 2: OmitChecks(reason, limit); break;
+                        case 3 when effects[candidate.Index].Effect is not null: OmitEffect(candidate.Index, reason, limit); break;
+                    }
+                }));
+
+        return Budget.Apply(Present,
+            () => items is null ? null : StructuredOperationBatch.FromItems(items.ToArray(), current.Batch!.Truncation),
+            ItemRoots(), DocumentRoots, maxItemChars, maxDocumentChars);
     }
 
     /// <summary>
@@ -114,23 +114,12 @@ public static class PlcWritePayloadBudget
     /// rejects a call whose protected core alone exceeds the document budget.
     /// </summary>
     internal static int MeasureProtectedCore(IReadOnlyList<PlcOperationRequest> items)
-    {
-        if (items.Count == 0) return 0;
-        var omission = Omission(StructuredOperationBatchPayloadBudget.DocumentLimitReason, int.MaxValue, int.MaxValue);
-        var category = new string('x', 64);
-        var longestId = items.OrderByDescending(i => Size(i.OperationId)).First().OperationId;
-        var guards = items.SelectMany(item => Enumerable.Repeat(new WriteGuardReport(category, "block", item.OperationId, DiagnosticSummary, null), 2))
-            .Append(new(category, "block", longestId, DiagnosticSummary, null)).ToArray();
-        var batch = new StructuredOperationBatch(items.Count, new(int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue),
-            items.Select(item => new StructuredOperationItem(item.OperationId, item.Operation, OperationBatchStatus.Succeeded, null,
-                new(category, DiagnosticSummary), omission, StructuredOperationSkipReasons.EarlierOperationFailed, Array.Empty<string>())).ToArray(),
-            new(true, int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue, items.Select(i => i.OperationId).ToArray()));
-        return Size(new PlcGuardedWriteResponse("plc_write", PlcContractVersion.Current, WritePhases.Applied, false,
-            new(category, DiagnosticSummary), Array.Empty<string>(), guards,
-            items.Select(item => new PlcWriteEffectPresentation(item.OperationId, null, omission)).ToArray(), batch,
-            new(false, items.Select(item => new PlcOperationVerification(item.OperationId, false, "contentHash", null, null, null, DiagnosticSummary)).ToArray(), omission),
-            omission));
-    }
+        => Budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), 2, 1, false,
+            core => new PlcGuardedWriteResponse("plc_write", PlcContractVersion.Current, WritePhases.Applied, false,
+                core.Error, core.Warnings, core.Guards,
+                items.Select(i => new PlcWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(), core.Batch,
+                new(false, items.Select(i => new PlcOperationVerification(i.OperationId, false, "contentHash", null, null, null, DiagnosticSummary)).ToArray(),
+                    core.Omission), core.Omission));
 
     private static bool AnyOverItemLimit(PlcGuardedWriteResponse response, int maxItemChars)
         => response.Effects.Any(e => e.Effect is not null && Size(e.Effect) > maxItemChars)
@@ -139,46 +128,23 @@ public static class PlcWritePayloadBudget
             || response.Verification is { Operations.Count: > 0 } v && Size(v.Operations) > maxItemChars;
 
     /// <summary>Replaces every diagnostic message with a fixed summary.</summary>
-    private static PlcGuardedWriteResponse Compact(PlcGuardedWriteResponse response, int originalChars)
+    private static PlcGuardedWriteResponse Compact(PlcGuardedWriteResponse response, int originalChars, int maxDocumentChars)
     {
-        var omitted = false;
-        string Message(string message)
-        {
-            if (message == DiagnosticSummary) return message;
-            omitted = true;
-            return DiagnosticSummary;
-        }
-
-        IReadOnlyList<string> Warnings(IReadOnlyList<string> warnings) => warnings.Select(Message).Distinct(StringComparer.Ordinal).ToArray();
-        var batch = response.Batch is null ? null : StructuredOperationBatch.FromItems(response.Batch.Operations.Select(item => item with
-        {
-            Failure = item.Failure is null ? null : item.Failure with { Message = Message(item.Failure.Message) },
-            Warnings = Warnings(item.Warnings),
-        }).ToArray(), response.Batch.Truncation);
+        var diagnostics = Budget.Diagnostics();
+        var batch = diagnostics.Batch(response.Batch);
         var verification = response.Verification is null ? null : response.Verification with
         {
-            Operations = response.Verification.Operations.Select(o => o with { Message = o.Message is null ? null : Message(o.Message) }).ToArray(),
+            Operations = response.Verification.Operations.Select(o => o with { Message = o.Message is null ? null : diagnostics.Message(o.Message) }).ToArray(),
         };
         var compacted = response with
         {
-            Error = response.Error is null ? null : response.Error with { Message = Message(response.Error.Message) },
-            Warnings = Warnings(response.Warnings),
-            Guards = response.Guards.Select(g => g with { Message = Message(g.Message) }).ToArray(),
+            Error = diagnostics.Error(response.Error),
+            Warnings = diagnostics.Warnings(response.Warnings),
+            Guards = diagnostics.Guards(response.Guards),
             Batch = batch,
             Verification = verification,
         };
-        return omitted
-            ? compacted with { Omission = new(DiagnosticOmissionReason, StructuredOperationBatchPayloadBudget.MaxDocumentChars, originalChars, RetryTool, Guidance) }
-            : compacted;
+        return compacted with { Omission = Budget.DiagnosticOmission(diagnostics, response.Omission, maxDocumentChars, originalChars) };
     }
 
-    private static bool HasOmission(PlcGuardedWriteResponse response) => response.Omission is not null
-        || response.Effects.Any(e => e.Omission is not null)
-        || response.Batch?.Operations.Any(i => i.Omission is not null) == true
-        || response.Verification?.Omission is not null;
-
-    private static StructuredOperationOmission Omission(string reason, int limit, int originalChars)
-        => new(reason, limit, originalChars, RetryTool, Guidance);
-
-    private static int Size<T>(T value) => CanonicalJson.Serialize(value).Length;
 }

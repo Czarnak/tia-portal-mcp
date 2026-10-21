@@ -249,6 +249,71 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
     }
 
     [Theory]
+    [InlineData(100_000, 3_000)]
+    [InlineData(1_000, 20_000)]
+    public void DiagnosticOmissionReportsEffectiveDocumentLimit(int itemLimit, int documentLimit)
+    {
+        var response = Compose(Report("small")) with
+        {
+            Verification = new(true, [], Enumerable.Range(0, 12).Select(i => NetworkFinalCheck.Write("check" + i)
+                with { Message = new string('x', 300) }).ToArray(), null),
+        };
+        var original = CanonicalJson.Serialize(response);
+
+        var bounded = NetworkWritePayloadBudget.Apply(response, itemLimit, documentLimit);
+
+        Assert.Equal("diagnosticDetailsOmitted", bounded.Omission!.Reason);
+        Assert.Equal(documentLimit, bounded.Omission.LimitChars);
+        Assert.Equal(original.Length, bounded.Omission.OriginalChars);
+        Assert.Equal("network_read", bounded.Omission.RetryTool);
+        Assert.Equal(response.Batch!.Counts, bounded.Batch!.Counts);
+        Assert.True(bounded.Verification!.Success);
+        Assert.False(bounded.Success);
+        Assert.Equal(original, CanonicalJson.Serialize(response));
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentLimit);
+    }
+
+    [Fact]
+    public void OrdinaryDiagnosticCapRetainsItsOwnLimit()
+    {
+        var response = Compose(Report("small")) with { Error = new("protocol_error", new string('x', 600)) };
+
+        var bounded = NetworkWritePayloadBudget.Apply(response, maxDocumentChars: 20_000);
+
+        Assert.Equal(512, bounded.Omission!.LimitChars);
+        Assert.Equal("diagnosticDetailsOmitted", bounded.Omission.Reason);
+        Assert.Equal("protocol_error", bounded.Error!.Category);
+    }
+
+    [Fact]
+    public void EqualSizedEvidenceYieldsInRequestOrderBeforeEffects()
+    {
+        var evidence = new NetworkMutationVerificationInfo
+        { Status = "passed", Identity = new() { DeviceName = new string('x', 1_500) }, Checks = [] };
+        var response = Compose(Report("small")) with
+        {
+            Batch = null,
+            Verification = new(true,
+                [new("first", "configure_network_device", "passed", evidence, null),
+                 new("later", "configure_network_device", "passed", evidence, null)], [], null),
+        };
+        var original = CanonicalJson.Serialize(response);
+        var limit = original.Length - 1;
+
+        var bounded = NetworkWritePayloadBudget.Apply(response, maxDocumentChars: limit);
+
+        Assert.Equal(new[] { "first", "later" }, bounded.Verification!.Operations.Select(o => o.OperationId));
+        Assert.Null(bounded.Verification.Operations[0].Evidence);
+        Assert.Equal("responseExceededDocumentCharLimit", bounded.Verification.Operations[0].Omission!.Reason);
+        Assert.NotNull(bounded.Verification.Operations[1].Evidence);
+        Assert.NotNull(Assert.Single(bounded.Effects).Effect);
+        Assert.True(bounded.Verification.Success);
+        Assert.False(bounded.Success);
+        Assert.Equal(original, CanonicalJson.Serialize(response));
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, limit);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task KnownOversizedSetting_RefusesBeforeMutation_WithCanonicalAudit(bool registered)

@@ -45,6 +45,8 @@ public static class StructuredOperationBatchPayloadBudget
     /// <summary>The results fit individually, but the complete response document did not.</summary>
     public const string DocumentLimitReason = "responseExceededDocumentCharLimit";
 
+    public const string DiagnosticOmissionReason = "diagnosticDetailsOmitted";
+
     private const string ShortenedMessageMarker = " [message shortened]";
 
     /// <summary>How much of a failure message survives, tried in order until the document fits.</summary>
