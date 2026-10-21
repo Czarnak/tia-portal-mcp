@@ -208,6 +208,20 @@ public class InstallCliParserTests
         Assert.Contains("--tia-project requires a value", result.ParseError);
     }
 
+    [Theory]
+    [InlineData("--tia-project", "Line.ap21")]
+    [InlineData("--tia-project", @"C:\Projects\Line.als21")]
+    [InlineData("--tia-project=Line.amc21", null)]
+    public void Parse_TiaProjectRejectedByServerStartup_ReturnsInvalid(string flag, string? value)
+    {
+        var args = value is null ? new[] { "codex", flag } : new[] { "codex", flag, value };
+
+        var result = InstallCliParser.Parse(args);
+
+        Assert.False(result.Valid);
+        Assert.Contains("--tia-project must be an absolute .ap21 or .amc21 engineering path.", result.ParseError);
+    }
+
     [Fact]
     public void Parse_ServerPathMissingValue_ReturnsInvalid()
     {

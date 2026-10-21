@@ -172,6 +172,12 @@ public static class InstallCliParser
 
         accessMode = McpAccessModeNames.ToName(parsedMode);
 
+        // The value becomes the server's --project, which refuses to start on anything else.
+        if (tiaProject is not null && ConfiguredProjectPath.Validate(tiaProject.Trim()) is { } invalidProject)
+        {
+            return Invalid($"--tia-project {invalidProject} Got '{tiaProject}'.", json);
+        }
+
         // Validate MiMoCode + --json is not supported
         if (client == ClientKind.MiMoCode && json)
         {

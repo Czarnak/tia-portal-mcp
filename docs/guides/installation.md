@@ -159,7 +159,7 @@ Options:
 
 - `--name <name>` - server registration name (default: `tia-portal`).
 - `--access-mode <mode>` - access mode: `read-only`, `read-write`, or `full` (default: `read-only`).
-- `--tia-project <path>` - bind to a specific TIA Portal project.
+- `--tia-project <path>` - bind to a specific TIA Portal project; must be an absolute `.ap21` or `.amc21` path.
 - `--server-path <path>` - explicit path to the `tia-mcp` executable.
 - `--dry-run` - print the install command without executing.
 - `--json` - emit JSON output (not supported with MiMoCode).
