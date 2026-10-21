@@ -95,13 +95,17 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Empty(requests.Methods().Skip(before).Intersect(WriteMethods.Append("list_tag_tables")));
     }
 
-    [Fact]
-    public async Task CreateTableThenTagInOneCall_Applies()
+    [Theory]
+    [InlineData(null)]
+    [InlineData(Roundtrip)]
+    public async Task CreateTableThenTagInOneCall_Applies(string? tableProjectPath)
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var table = CreateTable("table");
+        table.ProjectPath = tableProjectPath;
 
-        var response = await fixture.RunAsync(false, CreateTable("table"), CreateTag("tag", "Valve1", table: "Valves"));
+        var response = await fixture.RunAsync(false, table, CreateTag("tag", "Valve1", table: "Valves"));
 
         Assert.Equal("applied", response.Phase);
         Assert.True(response.Success, JsonSerializer.Serialize(response));

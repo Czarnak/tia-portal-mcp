@@ -25,7 +25,7 @@ public sealed class PlcWriteVerifierTests
         Assert.True(plan.Plan.Success, plan.Plan.Error?.Message);
         if (mutate)
             foreach (var item in items)
-                Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, item)).Success);
+                Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, item, Scenario)).Success);
         var effects = items.Select((item, i) => (item.OperationId, Effect: plan.Plan.Items[i].Effect!))
             .ToDictionary(p => p.OperationId, p => p.Effect);
         return await new PlcWriteVerifier(fixture.Client, items, effects).VerifyAsync(Scenario, Succeeded(items));
@@ -109,7 +109,7 @@ public sealed class PlcWriteVerifierTests
         var create = Tag("create", "create_tag", "Temp");
         var update = Tag("update", "update_tag", "Temp", i => i.DataType = "Int");
         var plan = await new PlcWritePlanner(fixture.Client).PlanAsync(Scenario, new[] { create, update });
-        Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, create)).Success);
+        Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, create, Scenario)).Success);
         var batch = StructuredOperationBatch.FromItems(new[]
         {
             new StructuredOperationItem("create", "create_tag", OperationBatchStatus.Succeeded, null, null, null, null, Array.Empty<string>()),
