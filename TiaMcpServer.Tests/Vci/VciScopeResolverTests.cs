@@ -49,6 +49,26 @@ public class VciScopeResolverTests
     }
 
     [Theory]
+    [InlineData(null, false)]
+    [InlineData("System:Device.S71500", false)]
+    [InlineData("System:Device.PC", true)]
+    public void Leaves_CarryScopeDevicePcStationFlag(string? typeIdentifier, bool expected)
+    {
+        var f = new Fixture();
+        f.Device.TypeIdentifier = typeIdentifier;
+        Assert.All(VciScopeResolver.Expand(f.Project, f.BlockScope), x => Assert.Equal(expected, x.IsPcStation));
+    }
+
+    [Fact]
+    public void UnreadableDeviceType_FailsClosedInsteadOfGuessingLayout()
+    {
+        var f = new Fixture();
+        var failure = new EngineeringException("Synthetic unreadable type.");
+        f.Device.TypeIdentifierFailure = failure;
+        Assert.Same(failure, Assert.Throws<EngineeringException>(() => VciScopeResolver.Expand(f.Project, f.DeviceScope)));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void UnsupportedDevice_IsTargetKindUnsupported(bool classic)

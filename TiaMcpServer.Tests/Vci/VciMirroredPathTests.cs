@@ -6,12 +6,14 @@ namespace TiaMcpServer.Tests.Vci;
 
 public sealed class VciMirroredPathTests
 {
+    // The UI hides a hardware station behind its PLC; a PC station shows station and software.
     [Theory]
-    [InlineData(null, @"\FixtureA\SoftwareA\Program blocks\GroupA")]
-    [InlineData(@"exports\nested", @"\exports\nested\FixtureA\SoftwareA\Program blocks\GroupA")]
-    public void Build_ReplacesRootFolderAndRetainsUserGroups(string? relative, string expected)
+    [InlineData(null, false, @"\SoftwareA\Program blocks\GroupA")]
+    [InlineData(null, true, @"\FixtureA\SoftwareA\Program blocks\GroupA")]
+    [InlineData(@"exports\nested", false, @"\exports\nested\SoftwareA\Program blocks\GroupA")]
+    public void Build_PlcFollowsUiProjectTree(string? relative, bool isPcStation, string expected)
     {
-        var key = VciMirroredPath.Build(relative, PlcPath());
+        var key = VciMirroredPath.Build(relative, PlcPath(), isPcStation);
         Assert.Equal(expected, key.Directory);
         Assert.Equal("LeafA", key.FileName);
     }
@@ -26,27 +28,48 @@ public sealed class VciMirroredPathTests
         {
             Segment("Device", "FixtureA"), Segment("PlcSoftware", "SoftwareA"),
             Segment(folder, "RootFolder"), Segment(leaf, "LeafA")
-        });
-        Assert.Equal(@"\FixtureA\SoftwareA\" + category, key.Directory);
+        }, isPcStation: false);
+        Assert.Equal(@"\SoftwareA\" + category, key.Directory);
     }
 
-    [Fact]
-    public void Build_HmiRetainsBothDeviceAndSoftwareLevels()
+    // The UI hides an HMI panel's runtime software; a PC station shows station and software.
+    [Theory]
+    [InlineData(false, @"\FixtureA\Scripts")]
+    [InlineData(true, @"\FixtureA\SoftwareA\Scripts")]
+    public void Build_HmiFollowsUiProjectTree(bool isPcStation, string expected)
     {
         var key = VciMirroredPath.Build(null, new[]
         {
             Segment("Device", "FixtureA"), Segment("HmiSoftware", "SoftwareA"), Segment("ScriptModule", "LeafA")
-        });
-        Assert.Equal(@"\FixtureA\SoftwareA\Scripts", key.Directory);
+        }, isPcStation);
+        Assert.Equal(expected, key.Directory);
     }
 
     [Fact]
     public void TwoPlcsSameBlockName_DistinctKeys()
     {
         var other = PlcPath();
-        other[0].Name = "FixtureB";
-        Assert.NotEqual(VciMirroredPath.Build(null, PlcPath()), VciMirroredPath.Build(null, other));
+        other[1].Name = "SoftwareB";
+        Assert.NotEqual(VciMirroredPath.Build(null, PlcPath(), false), VciMirroredPath.Build(null, other, false));
     }
+
+    [Fact]
+    public void SlashInHardwareStationName_IsRepresentable()
+    {
+        var path = PlcPath();
+        path[0].Name = "S7-1500/ET200MP station_1";
+        Assert.Null(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false)));
+    }
+
+    [Theory]
+    [InlineData("System:Device.PC", true)]
+    [InlineData("OrderNumber:6AG4141-xxxxx-xxxx//Device", true)]
+    [InlineData("System:Device.S71500", false)]
+    [InlineData("System:Device.ET200SP", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsPcStation_RecognizesPcDeviceTypes(string? typeIdentifier, bool expected)
+        => Assert.Equal(expected, VciMirroredPath.IsPcStation(typeIdentifier));
 
     [Theory]
     [InlineData("CON")]
@@ -85,7 +108,7 @@ public sealed class VciMirroredPathTests
     {
         var path = PlcPath();
         path[3].Name = name;
-        Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path)));
+        Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false)));
     }
 
     [Theory]
@@ -130,8 +153,8 @@ public sealed class VciMirroredPathTests
     [Fact]
     public void Build_RequiresLeafAndRelativeSyntax()
     {
-        Assert.Throws<ProjectTreeSelectionException>(() => VciMirroredPath.Build(null, PlcPath().Take(3).ToArray()));
-        Assert.Throws<ArgumentException>(() => VciMirroredPath.Build(@"..\outside", PlcPath()));
+        Assert.Throws<ProjectTreeSelectionException>(() => VciMirroredPath.Build(null, PlcPath().Take(3).ToArray(), false));
+        Assert.Throws<ArgumentException>(() => VciMirroredPath.Build(@"..\outside", PlcPath(), false));
     }
 
     private static ProjectTreeSelectorSegment[] PlcPath() => new[]

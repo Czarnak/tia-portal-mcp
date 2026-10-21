@@ -388,7 +388,7 @@ public class VciPlannerTests
         public FC Leaf { get; } = new() { Name = "FixtureLeaf" };
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "VciPlannerFixture-" + Guid.NewGuid().ToString("N"));
         public List<ProjectTreeSelectorSegment> Scope { get; }
-        public string TargetDirectory => Path.Combine(Root, "FixtureDevice", Plc.Name, "Program blocks");
+        public string TargetDirectory => Path.Combine(Root, Plc.Name, "Program blocks");
 
         public Fixture()
         {

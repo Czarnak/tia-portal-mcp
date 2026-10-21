@@ -37,7 +37,7 @@ public class VciWriterTests
         f.Workspace.OnExport = _ => Assert.True(Directory.Exists(f.Target));
         var outcome = f.Run("export");
         Assert.Equal(2, outcome.Succeeded);
-        Assert.All(f.Workspace.ExportCalls, call => Assert.Equal("\\FixtureDevice\\FixtureSoftware\\Program blocks", call.Directory.ToString()));
+        Assert.All(f.Workspace.ExportCalls, call => Assert.Equal("\\FixtureSoftware\\Program blocks", call.Directory.ToString()));
     }
 
     [Fact]
@@ -605,7 +605,7 @@ public class VciWriterTests
         public FC First { get; } = new() { Name = "FixtureA" };
         public FC Second { get; } = new() { Name = "FixtureB" };
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "VciWriterFixture-" + Guid.NewGuid().ToString("N"));
-        public string Target => Path.Combine(Root, "FixtureDevice", Plc.Name, "Program blocks");
+        public string Target => Path.Combine(Root, Plc.Name, "Program blocks");
         public VciWriteRequestInfo Request { get; }
 
         public Fixture()
