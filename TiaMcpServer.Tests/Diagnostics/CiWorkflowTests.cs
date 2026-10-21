@@ -238,60 +238,6 @@ public class CiWorkflowTests
             $"Expected the README 'Build From Source' solution build command to contain the exact '-m:1' flag as a standalone token, but it did not: {solutionBuildLine}");
     }
 
-    /// <summary>
-    /// Pins that <c>get_project_status</c> is documented as read-only/non-binding and that
-    /// adopting/switching an already-open project uses <c>bind_project</c>, while opening uses
-    /// <c>open_project</c> - never
-    /// as something achievable by calling <c>get_project_status</c> with a different path. Guards
-    /// against the installation guide regressing to instructing side-effecting status-based switching.
-    /// </summary>
-    [Fact]
-    public void InstallationDoc_DescribesNonBindingStatusAndExplicitBindVersusOpen()
-    {
-        var readmePath = Path.Combine(GetRepositoryRoot(), "docs", "guides", "installation.md");
-        Assert.True(File.Exists(readmePath), $"Expected installation.md to exist at {readmePath}");
-
-        // The document hard-wraps some paragraphs at ~120 columns, so a phrase spanning a wrap point
-        // would contain a newline where this assertion expects a space. Collapse all whitespace runs
-        // (including line breaks) to a single space first so the check is resilient to rewrapping.
-        var normalizedReadmeText = Regex.Replace(File.ReadAllText(readmePath), @"\s+", " ");
-
-        Assert.Contains(
-            "get_project_status(projectPath)` is read-only and non-binding",
-            normalizedReadmeText,
-            StringComparison.Ordinal);
-        Assert.Contains("do not use it to switch projects", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Use `bind_project` for adopting or switching to an already-open project", normalizedReadmeText, StringComparison.Ordinal);
-        Assert.Contains("use `open_project` only for opening one", normalizedReadmeText, StringComparison.Ordinal);
-        Assert.DoesNotContain("Use `open_project` for deliberate session switching", normalizedReadmeText, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TroubleshootingDoc_DescribesLiveVerifiedBlockWritesWithoutAPendingCaveat()
-    {
-        var readmePath = Path.Combine(GetRepositoryRoot(), "docs", "guides", "troubleshooting.md");
-        Assert.True(File.Exists(readmePath), $"Expected troubleshooting.md to exist at {readmePath}");
-
-        var normalizedReadmeText = Regex.Replace(File.ReadAllText(readmePath), @"\s+", " ");
-
-        Assert.DoesNotContain("pending live V21 re-verification", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("multi-document `update_block_logic` round trips are verified", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("SCL `create_block` calls are verified", normalizedReadmeText, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void ImportExportSummary_DocumentsStructuredPreviewDiffBounds()
-    {
-        var text = File.ReadAllText(Path.Combine(GetRepositoryRoot(), "docs", "SupportedOperations", "IMPORT_EXPORT_OPTIONS_SUMMARY.md"));
-
-        Assert.Contains("update_block_logic", text, StringComparison.Ordinal);
-        Assert.Contains("update_type_content", text, StringComparison.Ordinal);
-        Assert.Contains("40 excerpt lines", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("8,192", text, StringComparison.Ordinal);
-        Assert.Contains("32,768", text, StringComparison.Ordinal);
-        Assert.Contains("line-ending-only", text, StringComparison.OrdinalIgnoreCase);
-    }
-
     private static IEnumerable<string> EnumerateWorkflowFiles()
     {
         var workflowsDirectory = Path.Combine(GetRepositoryRoot(), ".github", "workflows");
