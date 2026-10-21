@@ -111,6 +111,30 @@ public sealed class PlcWriteInvokerTests
 
     [Theory]
     [MemberData(nameof(AllWriteOperations))]
+    public async Task WriteUsesPinnedProjectPathOrItemFallback(string operation)
+    {
+        var (request, _) = Build(operation);
+        request.ProjectPath = "other-project";
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(
+            binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
+
+        var result = await new PlcWriteDomain(client).MutateAsync("echo", request);
+
+        Assert.True(result.Success, result.Error);
+        using var echoed = JsonDocument.Parse(result.Payload);
+        Assert.Equal(Path.GetFullPath("echo"), echoed.RootElement.GetProperty("projectPath").GetString());
+
+        var fallback = await new PlcWriteDomain(client).MutateAsync(null, request);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, fallback.FailureCategory);
+        Assert.Equal(WorkerDispatchState.NotSent, fallback.DispatchState);
+        Assert.Equal("other-project", request.ProjectPath);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllWriteOperations))]
     public async Task ForwardsEveryFieldToItsWorkerMethod(string operation)
     {
         var (request, expected) = Build(operation);
@@ -120,10 +144,10 @@ public sealed class PlcWriteInvokerTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
-        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request);
+        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request, null);
         Assert.True(result.Success, result.Error);
         var baseline = await PlcWorkerInvoker.InvokeWriteAsync(
-            client, new PlcOperationRequest { OperationId = "baseline", Operation = operation, ProjectPath = "echo" });
+            client, new PlcOperationRequest { OperationId = "baseline", Operation = operation, ProjectPath = "echo" }, null);
         Assert.True(baseline.Success, baseline.Error);
 
         foreach (var group in expected.Select(Render).GroupBy(v => v, StringComparer.Ordinal))
@@ -148,7 +172,7 @@ public sealed class PlcWriteInvokerTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
-        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request);
+        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request, null);
 
         Assert.True(result.Success, result.Error);
         using var echoed = JsonDocument.Parse(result.Payload);
@@ -170,7 +194,7 @@ public sealed class PlcWriteInvokerTests
             Content = "secret submitted content",
             ExpectedContentHash = Hash,
             Format = "not-a-format",
-        });
+        }, null);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -195,7 +219,7 @@ public sealed class PlcWriteInvokerTests
             Content = "x",
             ExpectedContentHash = Hash,
             Format = "nope",
-        });
+        }, null);
 
         Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
         Assert.Null(result.BlockImportOutcome);
@@ -207,7 +231,7 @@ public sealed class PlcWriteInvokerTests
         using var client = CreateClient(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".exe"));
 
         var result = await PlcWorkerInvoker.InvokeWriteAsync(
-            client, new PlcOperationRequest { OperationId = "x", Operation = "get_block_content", BlockPath = "a/b" });
+            client, new PlcOperationRequest { OperationId = "x", Operation = "get_block_content", BlockPath = "a/b" }, null);
 
         Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
     }

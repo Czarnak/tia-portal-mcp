@@ -69,7 +69,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     public Task<WorkerCallResult> MutateAsync(string? projectPath, PlcOperationRequest item)
     {
         _attempted.Add(item.OperationId);
-        return PlcWorkerInvoker.InvokeWriteAsync(client, item);
+        return PlcWorkerInvoker.InvokeWriteAsync(client, item, projectPath);
     }
 
     public StructuredOperationItem Project(PlcOperationRequest item, WorkerCallResult result)

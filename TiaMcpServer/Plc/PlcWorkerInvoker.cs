@@ -43,32 +43,34 @@ public static class PlcWorkerInvoker
     public static Task<WorkerCallResult> InvokeWriteAsync(
         OpennessWorkerClient client,
         PlcOperationRequest op,
+        string? commonProjectPath,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var projectPath = commonProjectPath ?? op.ProjectPath;
         return op.Operation switch
         {
-            "update_block_logic" => InvokeUpdateBlockLogic(client, op),
-            "update_type_content" => InvokeUpdateTypeContent(client, op),
-            "create_tag_table" => client.CreateTagTableAsync(op.PlcName, op.TableName!, op.FolderPath, op.ProjectPath),
-            "delete_tag_table" => client.DeleteTagTableAsync(op.PlcName, op.TableName!, op.FolderPath, op.ProjectPath),
-            "create_tag" => client.CreateTagAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType!, op.LogicalAddress, op.ProjectPath),
-            "update_tag" => client.UpdateTagAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.NewName, op.DataType, op.LogicalAddress, op.ExternalAccessible, op.ExternalVisible, op.ExternalWritable, op.IsSafety, op.ProjectPath),
-            "delete_tag" => client.DeleteTagAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath),
-            "create_user_constant" => client.CreateUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType!, op.Value!, op.ProjectPath),
-            "update_user_constant" => client.UpdateUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType, op.Value, op.ProjectPath),
-            "delete_user_constant" => client.DeleteUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.ProjectPath),
-            "create_block" => client.CreateBlockAsync(op.BlockPath!, op.BlockType!, op.Language, op.ObEventClass, op.ProjectPath),
-            "delete_block" => client.DeleteBlockAsync(op.BlockPath!, op.ProjectPath),
-            "create_block_group" => client.CreateBlockGroupAsync(op.BlockPath!, op.ProjectPath),
-            "delete_block_group" => client.DeleteBlockGroupAsync(op.BlockPath!, op.ProjectPath),
+            "update_block_logic" => InvokeUpdateBlockLogic(client, op, projectPath),
+            "update_type_content" => InvokeUpdateTypeContent(client, op, projectPath),
+            "create_tag_table" => client.CreateTagTableAsync(op.PlcName, op.TableName!, op.FolderPath, projectPath),
+            "delete_tag_table" => client.DeleteTagTableAsync(op.PlcName, op.TableName!, op.FolderPath, projectPath),
+            "create_tag" => client.CreateTagAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType!, op.LogicalAddress, projectPath),
+            "update_tag" => client.UpdateTagAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.NewName, op.DataType, op.LogicalAddress, op.ExternalAccessible, op.ExternalVisible, op.ExternalWritable, op.IsSafety, projectPath),
+            "delete_tag" => client.DeleteTagAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, projectPath),
+            "create_user_constant" => client.CreateUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType!, op.Value!, projectPath),
+            "update_user_constant" => client.UpdateUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, op.DataType, op.Value, projectPath),
+            "delete_user_constant" => client.DeleteUserConstantAsync(op.PlcName, op.TableName!, op.FolderPath, op.Name!, projectPath),
+            "create_block" => client.CreateBlockAsync(op.BlockPath!, op.BlockType!, op.Language, op.ObEventClass, projectPath),
+            "delete_block" => client.DeleteBlockAsync(op.BlockPath!, projectPath),
+            "create_block_group" => client.CreateBlockGroupAsync(op.BlockPath!, projectPath),
+            "delete_block_group" => client.DeleteBlockGroupAsync(op.BlockPath!, projectPath),
             _ => Task.FromResult(WorkerCallResult.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"Unsupported PLC write operation '{op.Operation}'.")),
         };
     }
 
-    private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, PlcOperationRequest op)
+    private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, PlcOperationRequest op, string? projectPath)
     {
         if (!PlcFormatNames.TryNormalize(op.Operation, op.Format, out var format, out var error))
         {
@@ -82,11 +84,11 @@ public static class PlcWorkerInvoker
             });
         }
 
-        return client.UpdateBlockLogicAsync(op.BlockPath!, op.Content!, op.ProjectPath, format, op.ExpectedContentHash);
+        return client.UpdateBlockLogicAsync(op.BlockPath!, op.Content!, projectPath, format, op.ExpectedContentHash);
     }
 
-    private static Task<WorkerCallResult> InvokeUpdateTypeContent(OpennessWorkerClient client, PlcOperationRequest op)
+    private static Task<WorkerCallResult> InvokeUpdateTypeContent(OpennessWorkerClient client, PlcOperationRequest op, string? projectPath)
         => PlcFormatNames.TryNormalize(op.Operation, op.Format, out var format, out var error)
-            ? client.UpdateTypeContentAsync(op.TypePath!, op.Content!, format, op.ProjectPath, op.ExpectedContentHash)
+            ? client.UpdateTypeContentAsync(op.TypePath!, op.Content!, format, projectPath, op.ExpectedContentHash)
             : Task.FromResult(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, error!));
 }
