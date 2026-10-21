@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\OpennessExceptions.cs" Link="Infrastructure\OpennessExceptions.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\TemporaryDirectoryCleanup.cs" Link="Infrastructure\TemporaryDirectoryCleanup.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerExecution.cs" Link="Worker\WorkerExecution.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
 
