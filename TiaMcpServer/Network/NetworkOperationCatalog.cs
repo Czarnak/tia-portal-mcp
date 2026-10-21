@@ -71,40 +71,6 @@ public static class NetworkOperationCatalog
         ("subnetChanges", operation => operation.SubnetChanges is not null),
     };
 
-    // ---------------------------------------------------------------------------
-    // Selector shapes: required and applicable fields per kind.
-    // Applicable = required ∪ optional; inapplicable = present but outside applicable.
-    // ---------------------------------------------------------------------------
-
-    private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> SelectorRequiredFields =
-        new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
-        {
-            [NetworkObjectKinds.DeviceItem] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "itemPath" },
-            [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "itemPath" },
-            [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal) { "deviceName", "nodeId" },
-            [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal) { "subnetId" },
-            [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal) { "subnetId", "number" },
-            [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal)
-                { "deviceName", "itemPath", "connectionIndex", "connectionType", "localConnectionName" },
-        };
-
-    private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> SelectorApplicableFields =
-        new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
-        {
-            [NetworkObjectKinds.DeviceItem] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "itemPath" },
-            [NetworkObjectKinds.NetworkInterface] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "itemPath", "interfaceName", "interfaceType", "interfaceOperatingMode" },
-            [NetworkObjectKinds.Node] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "itemPath", "interfacePath", "interfaceName", "nodeId", "nodeIndex" },
-            [NetworkObjectKinds.Subnet] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "subnetId" },
-            [NetworkObjectKinds.IoSystem] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "subnetId", "number", "ioSystemIndex", "ioSystemName" },
-            [NetworkObjectKinds.CommunicationConnection] = new HashSet<string>(StringComparer.Ordinal)
-                { "kind", "deviceName", "itemPath", "connectionIndex", "connectionType", "localConnectionName", "localConnectionId" },
-        };
-
     /// <summary>All target fields that are inapplicable to configure_network_device (Phase 3 additions only).</summary>
     private static readonly IReadOnlySet<string> ConfigureInapplicableSelectorFields =
         new HashSet<string>(StringComparer.Ordinal)
@@ -112,19 +78,6 @@ public static class NetworkOperationCatalog
             "interfaceType", "interfaceOperatingMode",
             "subnetId", "number", "ioSystemIndex", "ioSystemName", "connectionIndex", "connectionType",
             "localConnectionName", "localConnectionId",
-        };
-
-    private static readonly IReadOnlySet<string> SupportedConnectionTypes =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "S7Connection",
-            "FdlConnection",
-            "IsoConnection",
-            "IsoOnTcpConnection",
-            "PtpConnection",
-            "TcpConnection",
-            "UdpConnection",
-            "HmiConnection",
         };
 
     public static IReadOnlyList<string> ReadOperationNames { get; } = NamesByCategory(NetworkOperationCategory.Read);
@@ -477,7 +430,7 @@ public static class NetworkOperationCatalog
             return;
         }
 
-        if (!SelectorRequiredFields.TryGetValue(target.Kind, out var required))
+        if (!NetworkSelectorRules.RequiredFields.TryGetValue(target.Kind, out var required))
         {
             errors.Add(
                 $"{prefix} 'target.kind' value '{target.Kind}' is not a recognised network object kind. "
@@ -485,7 +438,7 @@ public static class NetworkOperationCatalog
             return;
         }
 
-        var applicable = SelectorApplicableFields[target.Kind];
+        var applicable = NetworkSelectorRules.ApplicableFields[target.Kind];
 
         // Missing required selector fields.
         foreach (var field in required)
@@ -678,11 +631,11 @@ public static class NetworkOperationCatalog
             return;
         }
 
-        if (!SupportedConnectionTypes.Contains(target.ConnectionType))
+        if (!NetworkSelectorRules.SupportedConnectionTypes.Contains(target.ConnectionType))
         {
             errors.Add(
                 $"{prefix} 'target.connectionType' value '{target.ConnectionType}' is not supported. "
-                + $"Valid values: {string.Join(", ", SupportedConnectionTypes)}.");
+                + $"Valid values: {string.Join(", ", NetworkSelectorRules.SupportedConnectionTypes)}.");
             return;
         }
 

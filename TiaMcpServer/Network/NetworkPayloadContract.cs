@@ -687,19 +687,6 @@ public static class NetworkPayloadContract
         new HashSet<string>(StringComparer.Ordinal)
             { "modeled", "dynamic", "modeledAndDynamic" };
 
-    private static readonly IReadOnlySet<string> SupportedConnectionTypes =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "S7Connection",
-            "FdlConnection",
-            "IsoConnection",
-            "IsoOnTcpConnection",
-            "PtpConnection",
-            "TcpConnection",
-            "UdpConnection",
-            "HmiConnection",
-        };
-
     private static readonly IReadOnlySet<string> ValidAttributeValueKind =
         new HashSet<string>(StringComparer.Ordinal)
             { "null", "string", "boolean", "integer", "number", "enum" };
@@ -829,9 +816,6 @@ public static class NetworkPayloadContract
             case NetworkObjectKinds.DeviceItem:
                 RequireSelectorText(target.DeviceName, $"{prefix}.deviceName", target.Kind);
                 RequireSelectorPath(target, prefix, target.Kind);
-                RejectSelectorFields(target, prefix, target.Kind,
-                    interfaceFields: true, nodeField: true, subnetField: true,
-                    numberField: true, ioSystemFields: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.NetworkInterface:
@@ -840,8 +824,6 @@ public static class NetworkPayloadContract
                 RequireOptionalSelectorText(target.InterfaceName, $"{prefix}.interfaceName", target.Kind);
                 RequireOptionalSelectorText(target.InterfaceType, $"{prefix}.interfaceType", target.Kind);
                 RequireOptionalSelectorText(target.InterfaceOperatingMode, $"{prefix}.interfaceOperatingMode", target.Kind);
-                RejectSelectorFields(target, prefix, target.Kind,
-                    nodeField: true, subnetField: true, numberField: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.Node:
@@ -863,22 +845,14 @@ public static class NetworkPayloadContract
                 RequireOptionalSelectorText(target.InterfaceName, $"{prefix}.interfaceName", target.Kind);
                 if (target.InterfaceName is not null && target.ItemPath is null && target.InterfacePath is null)
                     throw new JsonException($"'{prefix}.interfaceName' requires an owner path.");
-                RejectSelectorField(target.InterfaceType is not null, prefix, "interfaceType", target.Kind);
-                RejectSelectorField(target.InterfaceOperatingMode is not null, prefix, "interfaceOperatingMode", target.Kind);
                 if (target.NodeIndex < 0)
                 {
                     throw new JsonException($"'{prefix}.nodeIndex' must not be negative.");
                 }
-                RejectSelectorFields(target, prefix, target.Kind,
-                    subnetField: true,
-                    numberField: true, ioSystemFields: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.Subnet:
                 RequireSelectorText(target.SubnetId, $"{prefix}.subnetId", target.Kind);
-                RejectSelectorFields(target, prefix, target.Kind,
-                    deviceField: true, itemPathField: true, interfaceFields: true,
-                    nodeField: true, numberField: true, ioSystemFields: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.IoSystem:
@@ -896,10 +870,6 @@ public static class NetworkPayloadContract
                     throw new JsonException($"'{prefix}.ioSystemIndex' must not be negative.");
                 }
                 RequireOptionalSelectorText(target.IoSystemName, $"{prefix}.ioSystemName", target.Kind);
-
-                RejectSelectorFields(target, prefix, target.Kind,
-                    deviceField: true, itemPathField: true, interfaceFields: true,
-                    nodeField: true, connectionFields: true);
                 break;
 
             case NetworkObjectKinds.CommunicationConnection:
@@ -916,7 +886,7 @@ public static class NetworkPayloadContract
                 }
 
                 RequireSelectorText(target.ConnectionType, $"{prefix}.connectionType", target.Kind);
-                if (!SupportedConnectionTypes.Contains(target.ConnectionType!))
+                if (!NetworkSelectorRules.SupportedConnectionTypes.Contains(target.ConnectionType!))
                 {
                     throw new JsonException(
                         $"'{prefix}.connectionType' value '{target.ConnectionType}' is not supported.");
@@ -934,12 +904,38 @@ public static class NetworkPayloadContract
                 {
                     RequireSelectorText(target.LocalConnectionId, $"{prefix}.localConnectionId", target.Kind);
                 }
-                RejectSelectorFields(target, prefix, target.Kind,
-                    interfaceFields: true, nodeField: true, subnetField: true,
-                    numberField: true, ioSystemFields: true);
                 break;
         }
+
+        var applicable = NetworkSelectorRules.ApplicableFields[target.Kind];
+        foreach (var (name, isSet) in SelectorFields)
+        {
+            if (isSet(target) && !applicable.Contains(name))
+            {
+                throw new JsonException($"'{prefix}.{name}' is not applicable for kind '{target.Kind}'.");
+            }
+        }
     }
+
+    private static readonly (string Name, Func<NetworkObjectSelectorInfo, bool> IsSet)[] SelectorFields =
+    {
+        ("deviceName", t => t.DeviceName is not null),
+        ("itemPath", t => t.ItemPath is not null),
+        ("interfacePath", t => t.InterfacePath is not null),
+        ("interfaceName", t => t.InterfaceName is not null),
+        ("interfaceType", t => t.InterfaceType is not null),
+        ("interfaceOperatingMode", t => t.InterfaceOperatingMode is not null),
+        ("nodeId", t => t.NodeId is not null),
+        ("nodeIndex", t => t.NodeIndex is not null),
+        ("subnetId", t => t.SubnetId is not null),
+        ("number", t => t.Number is not null),
+        ("ioSystemIndex", t => t.IoSystemIndex is not null),
+        ("ioSystemName", t => t.IoSystemName is not null),
+        ("connectionIndex", t => t.ConnectionIndex is not null),
+        ("connectionType", t => t.ConnectionType is not null),
+        ("localConnectionName", t => t.LocalConnectionName is not null),
+        ("localConnectionId", t => t.LocalConnectionId is not null),
+    };
 
     private static void RequireSelectorPath(NetworkObjectSelectorInfo target, string prefix, string kind)
     {
@@ -979,44 +975,6 @@ public static class NetworkPayloadContract
         if (value is not null && string.IsNullOrWhiteSpace(value))
         {
             throw new JsonException($"'{member}' must be nonblank when supplied for kind '{kind}'.");
-        }
-    }
-
-    private static void RejectSelectorFields(
-        NetworkObjectSelectorInfo target,
-        string prefix,
-        string kind,
-        bool deviceField = false,
-        bool itemPathField = false,
-        bool interfaceFields = false,
-        bool nodeField = false,
-        bool subnetField = false,
-        bool numberField = false,
-        bool ioSystemFields = false,
-        bool connectionFields = false)
-    {
-        RejectSelectorField(deviceField && target.DeviceName is not null, prefix, "deviceName", kind);
-        RejectSelectorField(itemPathField && target.ItemPath is not null, prefix, "itemPath", kind);
-        RejectSelectorField(interfaceFields && target.InterfaceName is not null, prefix, "interfaceName", kind);
-        RejectSelectorField(interfaceFields && target.InterfaceType is not null, prefix, "interfaceType", kind);
-        RejectSelectorField(interfaceFields && target.InterfaceOperatingMode is not null, prefix, "interfaceOperatingMode", kind);
-        RejectSelectorField(nodeField && target.NodeId is not null, prefix, "nodeId", kind);
-        RejectSelectorField(nodeField && target.NodeIndex is not null, prefix, "nodeIndex", kind);
-        RejectSelectorField(subnetField && target.SubnetId is not null, prefix, "subnetId", kind);
-        RejectSelectorField(numberField && target.Number is not null, prefix, "number", kind);
-        RejectSelectorField(ioSystemFields && target.IoSystemIndex is not null, prefix, "ioSystemIndex", kind);
-        RejectSelectorField(ioSystemFields && target.IoSystemName is not null, prefix, "ioSystemName", kind);
-        RejectSelectorField(connectionFields && target.ConnectionIndex is not null, prefix, "connectionIndex", kind);
-        RejectSelectorField(connectionFields && target.ConnectionType is not null, prefix, "connectionType", kind);
-        RejectSelectorField(connectionFields && target.LocalConnectionName is not null, prefix, "localConnectionName", kind);
-        RejectSelectorField(connectionFields && target.LocalConnectionId is not null, prefix, "localConnectionId", kind);
-    }
-
-    private static void RejectSelectorField(bool isPresent, string prefix, string member, string kind)
-    {
-        if (isPresent)
-        {
-            throw new JsonException($"'{prefix}.{member}' is not applicable for kind '{kind}'.");
         }
     }
 

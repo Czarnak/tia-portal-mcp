@@ -232,6 +232,8 @@
       Link="Host\Network\NetworkIdentityResolver.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkPayloadContract.cs"
       Link="Host\Network\NetworkPayloadContract.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkSelectorRules.cs"
+      Link="Host\Network\NetworkSelectorRules.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkToolResponses.cs"
       Link="Host\Network\NetworkToolResponses.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkContractVersion.cs"
