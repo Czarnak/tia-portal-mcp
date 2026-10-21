@@ -118,8 +118,8 @@ Lifecycle audits every call, including dry runs and refusals, in `writes-yyyy-MM
 The worker never attaches to the first enumerated TIA Portal or selects the first open project. It
 requires an exact path match or a genuinely sole candidate; multiple possible targets fail with
 `target_ambiguous` before Attach or mutation. The server refuses to start when `--project` or
-`TIA_MCP_PROJECT_PATH` is not an absolute `.ap21` or `.amc21` path. A configured `--project` path becomes write-ready only
-after a matching worker identity is observed. Later identity drift returns `binding_conflict` and
+`TIA_MCP_PROJECT_PATH` is not an absolute `.ap21` or `.amc21` path. A configured `--project` path
+becomes write-ready only after a matching worker identity is observed. Later identity drift returns `binding_conflict` and
 invalidates the session until an explicit rebind.
 
 There are no implicit opens: only `open_project` and `create_project` open a project. Use
