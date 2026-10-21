@@ -40,6 +40,7 @@ namespace Siemens.Engineering
     }
 
     public enum TiaPortalMode { WithUserInterface, WithoutUserInterface }
+    public enum ProjectArchivationMode { None, DiscardRestorableData, Compressed, DiscardRestorableDataAndCompressed }
     public enum ConfirmationResult { Yes, No }
     public sealed class NotificationEventArgs : EventArgs { public string Text { get; set; } = ""; }
     public sealed class ConfirmationEventArgs : EventArgs { public ConfirmationResult Result { get; set; } }

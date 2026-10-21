@@ -162,7 +162,8 @@ public static class CompileChecker
         if (report.Plcs.Count == 0)
         {
             var detail = plcName is null ? string.Empty : $" named '{plcName}'";
-            throw new InvalidOperationException($"No PLC software{detail} was found in the project.");
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                $"No PLC software{detail} was found in the project.");
         }
 
         foreach (var plc in report.Plcs)

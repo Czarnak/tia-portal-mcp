@@ -552,6 +552,19 @@ public class CompileCheckerTests
     }
 
     [Theory]
+    [InlineData(false, null)]
+    [InlineData(false, "Missing_PLC")]
+    [InlineData(true, "Missing_PLC")]
+    public void Compile_PlcScopeReportsMissingPlcAsTargetNotFound(bool hasPlc, string? plcName)
+    {
+        var project = hasPlc ? ProjectWithCompiler(new CompilerResult()) : new Siemens.Engineering.Project();
+
+        var error = Assert.Throws<WorkerOperationException>(() => CompileChecker.Compile(project, plcName, null));
+
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, error.FailureCategory);
+    }
+
+    [Theory]
     [InlineData("path")]
     [InlineData("severity")]
     public void Compile_NestedReflectedExpectedFailureIsSanitized(string field)

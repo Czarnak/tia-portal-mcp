@@ -8,7 +8,7 @@ namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
 using Project = Siemens.Engineering.Project;
 
-public static class ProjectLifecycleService
+public static partial class ProjectLifecycleService
 {
     /// <summary>
     /// Pure read: never opens, closes, or switches a project. Reuses
@@ -295,10 +295,7 @@ public static class ProjectLifecycleService
         RequireArchiveDirectoryOutsideProjectFolder(project, archiveDirectory);
         RequireDirectoryExists(archiveDirectory, "ArchiveDirectory");
 
-        if (!Enum.TryParse<ProjectArchivationMode>(archiveMode, ignoreCase: true, out var mode))
-        {
-            throw new InvalidOperationException($"Invalid archive mode '{archiveMode}'.");
-        }
+        var mode = ParseArchiveMode(archiveMode);
 
         var resolvedArchiveName = ArchiveModeNames.EnsureArchiveExtension(archiveName, archiveMode);
 
@@ -446,58 +443,6 @@ public static class ProjectLifecycleService
         {
             Console.Error.WriteLine($"Could not read project metadata: {ex.Message}");
             return null;
-        }
-    }
-
-    private static void RequireAbsoluteFile(string path, string fieldName)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            throw new InvalidOperationException($"{fieldName} is required.");
-        }
-
-        if (!Path.IsPathRooted(path))
-        {
-            throw new InvalidOperationException($"{fieldName} must be an absolute path.");
-        }
-
-        if (!File.Exists(path))
-        {
-            throw new FileNotFoundException("TIA Portal project file was not found.", path);
-        }
-    }
-
-    private static void RequireAbsoluteDirectory(string path, string fieldName, bool mustExist)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            throw new InvalidOperationException($"{fieldName} is required.");
-        }
-
-        if (!Path.IsPathRooted(path))
-        {
-            throw new InvalidOperationException($"{fieldName} must be an absolute path.");
-        }
-
-        if (mustExist && !Directory.Exists(path))
-        {
-            throw new DirectoryNotFoundException($"{fieldName} '{path}' was not found.");
-        }
-    }
-
-    private static void RequireName(string? value, string fieldName)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new InvalidOperationException($"{fieldName} is required.");
-        }
-    }
-
-    private static void RequireDirectoryExists(string path, string fieldName)
-    {
-        if (!Directory.Exists(path))
-        {
-            throw new DirectoryNotFoundException($"{fieldName} '{path}' was not found.");
         }
     }
 }
