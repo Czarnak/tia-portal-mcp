@@ -20,7 +20,7 @@ public static class VciWritePayloadBudget
     private static VciGuardedWriteResponse ApplyCore(VciGuardedWriteResponse response, int maxItemChars, int maxDocumentChars)
     {
         var current = response;
-        if (Size(response) > maxDocumentChars || Oversized(response, maxItemChars)) current = Compact(response);
+        if (Size(response) > maxDocumentChars || Oversized(response, maxItemChars)) current = Compact(response, maxDocumentChars);
         var effects = current.Effects.ToArray();
         var verification = current.Verification;
         VciGuardedWriteResponse Present(StructuredOperationBatch? batch = null)
@@ -81,7 +81,7 @@ public static class VciWritePayloadBudget
                 || i.Failure is not null && Size(i.Failure.Message) > limit || Size(i.Warnings) > limit) == true
             || r.Verification is { Operations.Count: > 0 } v && Size(v.Operations) > limit;
 
-    private static VciGuardedWriteResponse Compact(VciGuardedWriteResponse response)
+    private static VciGuardedWriteResponse Compact(VciGuardedWriteResponse response, int maxDocumentChars)
     {
         var omitted = false;
         string Message(string message)
@@ -102,7 +102,7 @@ public static class VciWritePayloadBudget
             Warnings = Warnings(response.Warnings), Guards = response.Guards.Select(g => g with { Message = Message(g.Message) }).ToArray(),
             Batch = batch, Verification = verification,
         };
-        return omitted ? compacted with { Omission = Omission("diagnosticDetailsOmitted", StructuredOperationBatchPayloadBudget.MaxDocumentChars, Size(response)) } : compacted;
+        return omitted ? compacted with { Omission = Omission("diagnosticDetailsOmitted", maxDocumentChars, Size(response)) } : compacted;
     }
     private static bool HasOmission(VciGuardedWriteResponse r) => r.Omission is not null || r.Effects.Any(e => e.Omission is not null)
         || r.Batch?.Operations.Any(i => i.Omission is not null) == true || r.Verification?.Omission is not null;

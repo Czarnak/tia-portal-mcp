@@ -29,7 +29,7 @@ public static class PlcWritePayloadBudget
         var current = response;
         // Diagnostics are delivered intact while the document fits; they yield before any whole value is dropped.
         if (originalChars > maxDocumentChars || AnyOverItemLimit(current, maxItemChars))
-            current = Compact(current, originalChars);
+            current = Compact(current, originalChars, maxDocumentChars);
         var effects = current.Effects.ToArray();
         var items = current.Batch?.Operations.ToArray();
         var verification = current.Verification;
@@ -139,7 +139,7 @@ public static class PlcWritePayloadBudget
             || response.Verification is { Operations.Count: > 0 } v && Size(v.Operations) > maxItemChars;
 
     /// <summary>Replaces every diagnostic message with a fixed summary.</summary>
-    private static PlcGuardedWriteResponse Compact(PlcGuardedWriteResponse response, int originalChars)
+    private static PlcGuardedWriteResponse Compact(PlcGuardedWriteResponse response, int originalChars, int maxDocumentChars)
     {
         var omitted = false;
         string Message(string message)
@@ -168,7 +168,7 @@ public static class PlcWritePayloadBudget
             Verification = verification,
         };
         return omitted
-            ? compacted with { Omission = new(DiagnosticOmissionReason, StructuredOperationBatchPayloadBudget.MaxDocumentChars, originalChars, RetryTool, Guidance) }
+            ? compacted with { Omission = new(DiagnosticOmissionReason, maxDocumentChars, originalChars, RetryTool, Guidance) }
             : compacted;
     }
 

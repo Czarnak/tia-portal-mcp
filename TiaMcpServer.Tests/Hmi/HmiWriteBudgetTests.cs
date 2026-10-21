@@ -10,6 +10,25 @@ namespace TiaMcpServer.Tests.Hmi;
 public class HmiWriteBudgetTests
 {
     [Theory]
+    [InlineData(100_000, 3_000)]
+    [InlineData(1_000, 20_000)]
+    public void DiagnosticOmissionReportsEffectiveDocumentLimit(int itemLimit, int documentLimit)
+    {
+        var response = Response(1) with { Error = new("worker_operation_failed", new string('x', 6_000)) };
+        var original = CanonicalJson.Serialize(response);
+
+        var bounded = HmiWritePayloadBudget.Apply(response, itemLimit, documentLimit);
+
+        Assert.Equal("diagnosticDetailsOmitted", bounded.Omission!.Reason);
+        Assert.Equal(documentLimit, bounded.Omission.LimitChars);
+        Assert.Equal(original.Length, bounded.Omission.OriginalChars);
+        Assert.Equal("hmi_read", bounded.Omission.RetryTool);
+        Assert.Equal(response.Batch!.Counts, bounded.Batch!.Counts);
+        Assert.Equal(original, CanonicalJson.Serialize(response));
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentLimit);
+    }
+
+    [Theory]
     [InlineData('x', false)]
     [InlineData('\u0001', true)]
     public void AdmissionMeasuresEncodedIdentities(char character, bool exceeds)

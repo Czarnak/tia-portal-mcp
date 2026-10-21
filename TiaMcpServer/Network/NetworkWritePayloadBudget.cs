@@ -22,7 +22,7 @@ public static class NetworkWritePayloadBudget
     private static NetworkGuardedWriteResponse ApplyCore(NetworkGuardedWriteResponse response, int maxItemChars, int maxDocumentChars)
     {
         var originalChars = Size(response);
-        var current = Diagnostics(response, false, originalChars);
+        var current = Diagnostics(response, false, originalChars, maxDocumentChars);
         var effects = current.Effects.ToArray();
         var verification = current.Verification;
         var operations = verification?.Operations.ToArray();
@@ -61,7 +61,7 @@ public static class NetworkWritePayloadBudget
             || current.Batch?.Operations.Any(i => i.Result is not null && Size(i.Result) > maxItemChars) == true
             || Size(Present()) > maxDocumentChars)
         {
-            current = Diagnostics(current, true, originalChars);
+            current = Diagnostics(current, true, originalChars, maxDocumentChars);
             effects = current.Effects.ToArray();
             verification = current.Verification;
             operations = verification?.Operations.ToArray();
@@ -285,7 +285,7 @@ public static class NetworkWritePayloadBudget
         chars += finalChars;
         return chars > int.MaxValue ? int.MaxValue : (int)chars;
     }
-    private static NetworkGuardedWriteResponse Diagnostics(NetworkGuardedWriteResponse response, bool compact, int originalChars)
+    private static NetworkGuardedWriteResponse Diagnostics(NetworkGuardedWriteResponse response, bool compact, int originalChars, int maxDocumentChars)
     {
         var omitted = false;
         string Message(string message)
@@ -322,7 +322,7 @@ public static class NetworkWritePayloadBudget
             Warnings = Warnings(item.Warnings)
         }).ToArray(), response.Batch.Truncation);
         return response with { Error = error, Warnings = warnings, Guards = guards, Batch = batch, Verification = verification,
-            Omission = omitted ? Omission("diagnosticDetailsOmitted", compact ? StructuredOperationBatchPayloadBudget.MaxDocumentChars : DiagnosticChars, originalChars) : response.Omission };
+            Omission = omitted ? Omission("diagnosticDetailsOmitted", compact ? maxDocumentChars : DiagnosticChars, originalChars) : response.Omission };
     }
 
     private static bool HasOmission(NetworkGuardedWriteResponse response) => response.Omission is not null

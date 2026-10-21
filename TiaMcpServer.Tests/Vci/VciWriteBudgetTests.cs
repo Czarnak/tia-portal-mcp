@@ -11,6 +11,30 @@ namespace TiaMcpServer.Tests.Vci;
 
 public class VciWriteBudgetTests
 {
+    [Theory]
+    [InlineData(100_000, 3_000)]
+    [InlineData(1_000, 20_000)]
+    public void DiagnosticOmissionReportsEffectiveDocumentLimit(int itemLimit, int documentLimit)
+    {
+        var response = new VciGuardedWriteResponse("vci_write", "1.0", "applied", true,
+            new("worker_operation_failed", new string('x', 6_000)), [], [], [],
+            StructuredOperationBatch.FromItems([new("a", "export", "succeeded", null, null, null, null, [])]),
+            new(true, [], null), null);
+        var original = CanonicalJson.Serialize(response);
+
+        var bounded = VciWritePayloadBudget.Apply(response, itemLimit, documentLimit);
+
+        Assert.Equal("diagnosticDetailsOmitted", bounded.Omission!.Reason);
+        Assert.Equal(documentLimit, bounded.Omission.LimitChars);
+        Assert.Equal(original.Length, bounded.Omission.OriginalChars);
+        Assert.Equal("vci_read", bounded.Omission.RetryTool);
+        Assert.Equal(response.Batch!.Counts, bounded.Batch!.Counts);
+        Assert.True(bounded.Verification!.Success);
+        Assert.False(bounded.Success);
+        Assert.Equal(original, CanonicalJson.Serialize(response));
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentLimit);
+    }
+
     [Fact]
     public void OversizedProtectedCoreRejectedBeforeBinding()
     {
