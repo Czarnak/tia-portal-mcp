@@ -73,6 +73,9 @@ tia-mcp
 tia-mcp --project 'C:\Disposable\A\Engineering\A.amc21'
 ```
 
+The server refuses to start (exit code 1) when the `--project` or `TIA_MCP_PROJECT_PATH` value is not
+an absolute `.ap21` or `.amc21` path.
+
 `--project` starts as a configured-but-unverified assertion. Before any guarded write preview, the
 host performs a read-only status check and accepts the binding only when the worker reports a complete,
 matching identity: worker process, TIA Portal PID, project generation, and canonical project path.
@@ -156,7 +159,7 @@ Options:
 
 - `--name <name>` - server registration name (default: `tia-portal`).
 - `--access-mode <mode>` - access mode: `read-only`, `read-write`, or `full` (default: `read-only`).
-- `--tia-project <path>` - bind to a specific TIA Portal project.
+- `--tia-project <path>` - bind to a specific TIA Portal project; must be an absolute `.ap21` or `.amc21` path.
 - `--server-path <path>` - explicit path to the `tia-mcp` executable.
 - `--dry-run` - print the install command without executing.
 - `--json` - emit JSON output (not supported with MiMoCode).

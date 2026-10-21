@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts.Project;
-using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
@@ -16,22 +15,17 @@ public sealed class LocalSessionStartupProcessTests
     private const string Als = "C:/Projects/Local.als21";
 
     [Theory]
-    [InlineData("split-amc", null, true)]
-    [InlineData("equals-amc", null, true)]
-    [InlineData("environment-amc", Amc, true)]
-    [InlineData("cli-overrides-environment", Als, true)]
-    [InlineData("split-als", null, false)]
-    [InlineData("environment-als", Als, false)]
-    [InlineData("als-overrides-environment", Amc, false)]
-    public async Task BuiltHost_ConfiguredAssertionUsesAmcAndRejectsAls(
-        string scenario, string? environmentPath, bool expectedSuccess)
+    [InlineData("split-amc", null)]
+    [InlineData("equals-amc", null)]
+    [InlineData("environment-amc", Amc)]
+    [InlineData("cli-overrides-environment", Als)]
+    public async Task BuiltHost_ConfiguredAssertionUsesAmc(string scenario, string? environmentPath)
     {
         using var bundle = new TempAuditDirectory();
         var info = StartInfo(bundle.Path, scenario switch
         {
             "split-amc" or "cli-overrides-environment" => ["--project", Amc],
             "equals-amc" => [$"--project={Amc}"],
-            "split-als" or "als-overrides-environment" => ["--project", Als],
             _ => []
         }, environmentPath);
         using var process = Process.Start(info) ?? throw new InvalidOperationException("Built host did not start.");
@@ -44,21 +38,14 @@ public sealed class LocalSessionStartupProcessTests
                 serverOutput: process.StandardOutput.BaseStream), cancellationToken: timeout.Token);
             var result = await client.CallToolAsync("bind_project", new Dictionary<string, object?>());
             var document = result.StructuredContent!.Value;
-            Assert.Equal(expectedSuccess, document.GetProperty("success").GetBoolean());
-            if (expectedSuccess)
-            {
-                var binding = document.GetProperty("result").GetProperty("value").GetProperty("binding");
-                Assert.Equal(ProjectPathNormalization.Canonicalize(Amc), binding.GetProperty("projectPath").GetString());
-                Assert.Equal(ProjectContainerKinds.LocalSession,
-                    binding.GetProperty("context").GetProperty("containerKind").GetString());
-            }
-            else
-                Assert.Equal(WorkerFailureCategories.ValidationError,
-                    document.GetProperty("error").GetProperty("category").GetString());
+            Assert.True(document.GetProperty("success").GetBoolean());
+            var binding = document.GetProperty("result").GetProperty("value").GetProperty("binding");
+            Assert.Equal(ProjectPathNormalization.Canonicalize(Amc), binding.GetProperty("projectPath").GetString());
+            Assert.Equal(ProjectContainerKinds.LocalSession,
+                binding.GetProperty("context").GetProperty("containerKind").GetString());
 
             var methods = File.Exists(LogPath(bundle.Path)) ? File.ReadAllLines(LogPath(bundle.Path)) : [];
             Assert.DoesNotContain("open_project", methods);
-            if (!expectedSuccess) Assert.Empty(methods);
         }
         catch (Exception ex)
         {
@@ -71,6 +58,30 @@ public sealed class LocalSessionStartupProcessTests
                     : "none";
             throw new InvalidOperationException(
                 $"Built host exited={process.HasExited}, code={process.ExitCode}; startup failure={failureKind}", ex);
+        }
+        finally
+        {
+            await StopOwnChildAsync(process);
+        }
+    }
+
+    [Theory]
+    [InlineData(true, null, "--project")]
+    [InlineData(false, Als, "TIA_MCP_PROJECT_PATH")]
+    [InlineData(true, Amc, "--project")]
+    public async Task BuiltHost_AlsStartupPathExitsBeforeMcpOrWorker(
+        bool alsOption, string? environmentPath, string expectedSource)
+    {
+        using var bundle = new TempAuditDirectory();
+        var info = StartInfo(bundle.Path, alsOption ? ["--project", Als] : [], environmentPath);
+        using var process = Process.Start(info) ?? throw new InvalidOperationException("Built host did not start.");
+        try
+        {
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            Assert.Equal(1, process.ExitCode);
+            Assert.StartsWith($"Error: {expectedSource} must be an absolute .ap21 or .amc21 engineering path.",
+                await process.StandardError.ReadToEndAsync(), StringComparison.Ordinal);
+            Assert.False(File.Exists(LogPath(bundle.Path)));
         }
         finally
         {

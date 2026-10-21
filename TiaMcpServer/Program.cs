@@ -146,6 +146,7 @@ namespace TiaMcpServer
         {
             projectPath = null;
             error = null;
+            var source = "--project";
             for (int i = 0; i < args.Length; i++)
             {
                 string? candidate = null;
@@ -189,7 +190,24 @@ namespace TiaMcpServer
                 projectPath = candidate;
             }
 
-            projectPath ??= Environment.GetEnvironmentVariable("TIA_MCP_PROJECT_PATH");
+            if (projectPath is null)
+            {
+                source = ConfiguredProjectPath.EnvVar;
+                projectPath = Environment.GetEnvironmentVariable(ConfiguredProjectPath.EnvVar);
+                if (string.IsNullOrWhiteSpace(projectPath))
+                {
+                    projectPath = null;
+                    return true;
+                }
+            }
+
+            var invalid = ConfiguredProjectPath.Validate(projectPath.Trim());
+            if (invalid is not null)
+            {
+                error = $"{source} {invalid} Got '{projectPath}'.";
+                return false;
+            }
+
             return true;
         }
     }
