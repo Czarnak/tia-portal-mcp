@@ -44,6 +44,10 @@ The following remain open:
   `Find` complexity is unknown. The bounded three-leaf follow-up passed; there is no established
   whole-project throughput or scan-reduction fix. Preserve the late-collision barrier while
   investigating performance.
+- UI layout parity (issue #145) was observed for S7-1500, ET 200SP, a Unified panel, a generic
+  PC station and an IPC. PC stations are recognized by device type pattern only; other PC-based
+  families, devices inside project-tree device folders, and non-English workspace-language
+  category names (`Program blocks`, …) remain unverified against UI exports.
 - Native `SimaticSD` exporter crash, abrupt-crash recovery timing, Unknown status, thrown-leaf
   rollback, concurrent live remapping/status races and current-candidate HMI import/runtime
   behavior remain unqualified within the live report's stated scope.
