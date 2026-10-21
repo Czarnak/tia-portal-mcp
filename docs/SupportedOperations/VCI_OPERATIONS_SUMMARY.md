@@ -32,6 +32,10 @@ The requested `format`, if supported by that leaf, wins (case-insensitive match,
 
 Every write item has `operationId`, `operation`, `workspaceName`, and optional `projectPath`. `vci_write(operations, dryRun=false)` executes when `dryRun` is omitted or false; `dryRun:true` returns `preview` with planned leaf counts, effects and guards, without mutation or status reads. It sends **no server elicitation** in either writable mode. Client permission and request timeout settings still apply.
 
+Binding-gate failures preserve their original category, including `worker_timeout`, `worker_crashed`,
+`portal_lost` and `protocol_error`, in the top-level error and audit. A gate denial stops before planning
+or mutation; a missing, mismatched or changed binding is `binding_conflict`.
+
 | Operation | Additional fields | Effect |
 | --- | --- | --- |
 | `create_workspace` | Required `rootPath` | Create a missing root directory, then a project VCI workspace |

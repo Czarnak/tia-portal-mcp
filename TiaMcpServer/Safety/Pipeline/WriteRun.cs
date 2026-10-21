@@ -121,7 +121,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             if (!gate.Success)
             {
                 return Finish(Failure(WritePhases.Error, new WriteToolError(
-                    WorkerFailureCategories.BindingConflict,
+                    gate.FailureCategory ?? WorkerFailureCategories.BindingConflict,
                     gate.Error ?? "The session holds no verified binding for this project.")));
             }
 
@@ -150,19 +150,14 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
     /// <summary>
     /// Pins the snapshot the lease runs under. A binding that was already verified must be unchanged
-    /// by the gate; a binding the gate itself verified must now be verified for the same project.
+    /// by the gate; a configured binding the gate verified must advance once for the same project.
     /// Anything else means the binding moved between the gate and the lease.
     /// </summary>
     private WriteToolError? PinBinding(ProjectBindingSnapshot beforeGate)
     {
         var pinned = _gate.CurrentBinding;
         _binding = pinned;
-        var consistent = string.Equals(beforeGate.State, ProjectBindingSnapshot.VerifiedState, StringComparison.Ordinal)
-            ? string.Equals(beforeGate.BindingId, pinned.BindingId, StringComparison.Ordinal)
-                && beforeGate.Revision == pinned.Revision
-            : string.Equals(pinned.State, ProjectBindingSnapshot.VerifiedState, StringComparison.Ordinal)
-                && string.Equals(beforeGate.ProjectPath, pinned.ProjectPath, StringComparison.OrdinalIgnoreCase);
-        return consistent
+        return WriteBindingPreparation.IsConsistent(beforeGate, pinned)
             ? null
             : new WriteToolError(
                 WorkerFailureCategories.BindingConflict,
