@@ -25,7 +25,7 @@ internal static class StartupProcess
         }
 
         startInfo.Environment.Remove("TIA_MCP_ACCESS_MODE");
-        startInfo.Environment.Remove("TIA_PROJECT_PATH");
+        startInfo.Environment.Remove(TiaMcpServer.Cli.ConfiguredProjectPath.EnvVar);
         startInfo.Environment.Remove("TIA_MCP_WORKER_TIMEOUT_MINUTES");
         if (environment is not null)
         {

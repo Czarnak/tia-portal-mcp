@@ -5,7 +5,7 @@ namespace TiaMcpServer.Diagnostics.Checks;
 public sealed class ProjectBindingCheck : IDiagnosticCheck
 {
     private const string ProjectArg = "--project";
-    private const string ProjectEnvVar = "TIA_MCP_PROJECT_PATH";
+    private const string ProjectEnvVar = Cli.ConfiguredProjectPath.EnvVar;
 
     private readonly IEnvironmentVariableService _env;
     private readonly IFileSystemService _fileSystem;

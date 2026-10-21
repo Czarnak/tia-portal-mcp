@@ -230,12 +230,9 @@ public class OpennessWorkerClient : IDisposable
             return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError, "portalProcessId must be positive."), true);
         var assertedPath = projectPath ?? (before.State == ProjectBindingSnapshot.ConfiguredUnverifiedState
             ? before.ProjectPath : null);
-        if (assertedPath is not null && (string.IsNullOrWhiteSpace(assertedPath)
-            || !Path.IsPathFullyQualified(assertedPath)
-            || !(string.Equals(Path.GetExtension(assertedPath), ".ap21", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(Path.GetExtension(assertedPath), ".amc21", StringComparison.OrdinalIgnoreCase))))
+        if (assertedPath is not null && Cli.ConfiguredProjectPath.Validate(assertedPath) is { } invalidPath)
             return Fail(WorkerCallResult.Fail(WorkerFailureCategories.ValidationError,
-                "projectPath must be an absolute .ap21 or .amc21 engineering path."), true);
+                $"projectPath {invalidPath}"), true);
         var step = ProjectBindingDecision.Decide(before, projectPath, forceRebind, portalProcessId);
         if (step is BindingStep.Reject reject)
             return Fail(WorkerCallResult.Fail(reject.Category, reject.Message), true);
