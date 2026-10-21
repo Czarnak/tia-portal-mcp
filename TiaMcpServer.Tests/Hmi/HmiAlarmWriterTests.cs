@@ -96,6 +96,50 @@ public class HmiAlarmWriterTests
         Assert.Equal(kind == "discrete" ? 0 : 1, software.DiscreteAlarms.Items.Count);
         Assert.Equal(kind == "analog" ? 0 : 1, software.AnalogAlarms.Items.Count);
     }
+    [Theory]
+    [InlineData("discrete", false)] [InlineData("analog", false)]
+    [InlineData("discrete", true)] [InlineData("analog", true)]
+    public void MissingTextCulture_PreservesCategoryAndOutcome(string kind, bool update)
+    {
+        var software = new HmiSoftware(); var request = Request(kind);
+        if (update) HmiAlarmWriter.Create(software, request);
+        request.TriggerTag = "Trigger";
+        request.EventText = new() { new("en-US", "Applied"), new("de-DE", "Missing") };
+        var error = Assert.Throws<WorkerOperationException>(() => update
+            ? HmiAlarmWriter.Update(software, request) : HmiAlarmWriter.Create(software, request));
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, error.FailureCategory);
+        Assert.Equal("Text culture 'de-DE' was not found.", error.Message);
+        Assert.Equal("Alarm", error.HmiWriteOutcome!.ObjectName);
+        Assert.Equal(update ? new[] { "RaisedStateTag" } : new[] { "Create", "RaisedStateTag" }, error.HmiWriteOutcome.AppliedProperties);
+        Assert.Equal("EventText", error.HmiWriteOutcome.FailedProperty);
+        Assert.Equal(update ? null : "deleted", error.HmiWriteOutcome.Cleanup);
+        if (update)
+        {
+            var alarm = kind == "discrete"
+                ? (Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase)software.DiscreteAlarms.Find("Alarm")!
+                : software.AnalogAlarms.Find("Alarm")!;
+            Assert.Equal("Trigger", alarm.RaisedStateTag);
+            Assert.Equal("Applied", alarm.EventText.Items.Single().Text);
+        }
+        else { Assert.Empty(software.DiscreteAlarms.Items); Assert.Empty(software.AnalogAlarms.Items); }
+    }
+    [Theory] [InlineData("discrete")] [InlineData("analog")]
+    public void Delete_PreservesCategorizedFailureAndWarnings(string kind)
+    {
+        var software = new HmiSoftware(); var request = Request(kind); HmiAlarmWriter.Create(software, request);
+        var alarm = kind == "discrete"
+            ? (Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase)software.DiscreteAlarms.Find("Alarm")!
+            : software.AnalogAlarms.Find("Alarm")!;
+        alarm.DeleteAction = () => throw new WorkerOperationException(
+            WorkerFailureCategories.TargetAmbiguous, "Identity changed", new[] { "Original warning" });
+        var error = Assert.Throws<WorkerOperationException>(() => HmiAlarmWriter.Delete(software, request));
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, error.FailureCategory);
+        Assert.Equal("Identity changed", error.Message);
+        Assert.Equal(new[] { "Original warning" }, error.Warnings);
+        Assert.Equal("Delete", error.HmiWriteOutcome!.FailedProperty);
+        Assert.Empty(error.HmiWriteOutcome.AppliedProperties);
+        Assert.Equal(1, kind == "discrete" ? software.DiscreteAlarms.Items.Count : software.AnalogAlarms.Items.Count);
+    }
     [Theory] [InlineData(false)] [InlineData(true)]
     public void Dispatch_DropsOnlyChangedHmiSnapshots_EvenAfterFailure(bool fails)
     {

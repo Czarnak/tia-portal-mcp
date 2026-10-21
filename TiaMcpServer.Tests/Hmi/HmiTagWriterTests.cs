@@ -73,6 +73,42 @@ public class HmiTagWriterTests
         Assert.Same(existing, software.Tags.Find("T")); Assert.Equal("notNeeded", error.HmiWriteOutcome!.Cleanup);
     }
     [Theory] [InlineData(false)] [InlineData(true)]
+    public void MissingTextCulture_PreservesCategoryAndOutcome(bool update)
+    {
+        var software = new HmiSoftware();
+        var tag = update ? software.Tags.Create("T", "Table") : null;
+        var request = Request(); request.Connection = "Link";
+        request.Comment = new() { new("en-US", "Applied"), new("de-DE", "Missing") };
+        var error = Assert.Throws<WorkerOperationException>(() => update
+            ? HmiTagWriter.Update(software, request) : HmiTagWriter.Create(software, request));
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, error.FailureCategory);
+        Assert.Equal("Text culture 'de-DE' was not found.", error.Message);
+        Assert.Equal("T", error.HmiWriteOutcome!.ObjectName);
+        Assert.Equal(update ? new[] { "Connection" } : new[] { "Create", "Connection" }, error.HmiWriteOutcome.AppliedProperties);
+        Assert.Equal("Comment", error.HmiWriteOutcome.FailedProperty);
+        Assert.Equal(update ? null : "deleted", error.HmiWriteOutcome.Cleanup);
+        if (update)
+        {
+            Assert.Same(tag, software.Tags.Find("T"));
+            Assert.Equal("Link", tag!.Connection);
+            Assert.Equal("Applied", tag.Comment.Items.Single().Text);
+        }
+        else Assert.Empty(software.Tags.Items);
+    }
+    [Fact] public void Delete_PreservesCategorizedFailureAndWarnings()
+    {
+        var software = new HmiSoftware(); var tag = software.Tags.Create("T", "Table");
+        tag.DeleteAction = () => throw new WorkerOperationException(
+            WorkerFailureCategories.TargetAmbiguous, "Identity changed", new[] { "Original warning" });
+        var error = Assert.Throws<WorkerOperationException>(() => HmiTagWriter.Delete(software, Request()));
+        Assert.Equal(WorkerFailureCategories.TargetAmbiguous, error.FailureCategory);
+        Assert.Equal("Identity changed", error.Message);
+        Assert.Equal(new[] { "Original warning" }, error.Warnings);
+        Assert.Equal("Delete", error.HmiWriteOutcome!.FailedProperty);
+        Assert.Empty(error.HmiWriteOutcome.AppliedProperties);
+        Assert.Same(tag, software.Tags.Find("T"));
+    }
+    [Theory] [InlineData(false)] [InlineData(true)]
     public void Write_DropsThatHmisSnapshots_EvenAfterPartialFailure(bool fails)
     {
         HmiSoftwareLocator.ResetCache();
