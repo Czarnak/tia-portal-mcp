@@ -1,4 +1,5 @@
 using System.Security.Principal;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Versioning;
 
 namespace TiaMcpServer.Diagnostics;
@@ -57,7 +58,7 @@ public sealed class WindowsIdentityService : IWindowsIdentityService
                     GroupExists: false,
                     IsMember: false,
                     GroupSid: null,
-                    ErrorMessage: $"The local group \"{groupName}\" does not exist.");
+                    ErrorMessage: null);
             }
 
             var sidIdentity = new SecurityIdentifier(groupSid);
@@ -71,6 +72,7 @@ public sealed class WindowsIdentityService : IWindowsIdentityService
         }
         catch (Exception ex)
         {
+            // Membership could not be verified; this is not evidence that the group is missing.
             return new OpennessGroupMembership(
                 GroupExists: false,
                 IsMember: false,
@@ -79,48 +81,46 @@ public sealed class WindowsIdentityService : IWindowsIdentityService
         }
     }
 
+    // Try as a local group first (machine\group), then as a bare name.
     [SupportedOSPlatform("windows")]
-    private static string? TryResolveGroupSid(string groupName)
-    {
-        try
-        {
-            // Try as a local group first (machine\group), then as a bare name.
-            var machine = Environment.MachineName;
-            var ntAccounts = new[]
-            {
-                new NTAccount($@"{machine}\{groupName}"),
-                new NTAccount(groupName)
-            };
+    private static string? TryResolveGroupSid(string groupName) =>
+        FirstMappedSid(
+            () => TranslateToSid($@"{Environment.MachineName}\{groupName}"),
+            () => TranslateToSid(groupName));
 
-            foreach (var account in ntAccounts)
+    [SupportedOSPlatform("windows")]
+    private static string? TranslateToSid(string accountName) =>
+        (new NTAccount(accountName).Translate(typeof(SecurityIdentifier)) as SecurityIdentifier)?.Value;
+
+    /// <summary>
+    /// Returns the first SID a translation yields, or null when every form is unmapped
+    /// (<see cref="IdentityNotMappedException"/>), meaning the group does not exist. When no form
+    /// maps and one failed otherwise, the first such failure is rethrown: the group could not be
+    /// checked, which is not the same as absent.
+    /// </summary>
+    internal static string? FirstMappedSid(params Func<string?>[] translations)
+    {
+        ExceptionDispatchInfo? failure = null;
+        foreach (var translate in translations)
+        {
+            try
             {
-                try
+                if (translate() is { } sid)
                 {
-                    var translated = account.Translate(typeof(SecurityIdentifier));
-                    if (translated is SecurityIdentifier sid)
-                    {
-                        return sid.Value;
-                    }
-                }
-                catch (IdentityNotMappedException)
-                {
-                    // Try the next form.
-                }
-                catch (SystemException)
-                {
-                    // Try the next form.
+                    return sid;
                 }
             }
+            catch (IdentityNotMappedException)
+            {
+                // Try the next form.
+            }
+            catch (Exception ex)
+            {
+                failure ??= ExceptionDispatchInfo.Capture(ex);
+            }
+        }
 
-            return null;
-        }
-        catch (IdentityNotMappedException)
-        {
-            return null;
-        }
-        catch (SystemException)
-        {
-            return null;
-        }
+        failure?.Throw();
+        return null;
     }
 }
