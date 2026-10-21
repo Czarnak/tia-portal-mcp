@@ -71,6 +71,19 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
 - [C-8 Shared HMI/VCI worker method lists](2026-10-21-c8-worker-method-lists.md)
 - [C-10 Remove `update_tag` `isSafety`](2026-10-21-c10-update-tag-is-safety.md)
 
+## Wave-1 execution (maintainer, 2026-10-21)
+
+- **One worktree per PR.** Each PR runs in its own worktree under `.worktrees/`, on a new branch cut from `main` after the plans merge. The orchestrator coordinates and implements nothing itself.
+- **C-1 uses subagent-driven development.** Tasks 1–4 each get a fresh implementer and a task review, followed by a whole-branch review. The other five PRs use inline execution: one implementer subagent runs the plan, then one fresh reviewer on the most capable model checks the branch.
+- **Three phases.**
+  1. Implementation runs in parallel across worktrees, with focused tests only.
+  2. Each branch's full suite runs serialized, one worktree at a time.
+  3. Reviews and fixes follow.
+- **Maintainer gates.** The live gates (the C-1 client smoke and the C-8 dispatch smoke) are not implementer tasks. They run one at a time, with maintainer authorization, before those plans' docs tasks.
+- **Pushing.** Nothing is pushed without maintainer approval.
+
+Each plan repeats the constraints below verbatim in its own Global Constraints, plus its item-specific rules. The reason: subagent-driven execution gives an implementer only its own task text, and gives the reviewer only the plan's Global Constraints.
+
 ## Global constraints (apply to every wave-1 plan)
 
 - **Shell:** run `dotnet` from PowerShell. Bash mangles `/p:` flags.

@@ -2,118 +2,176 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The PLC, HMI and VCI write verifiers share one precondition-refusal set from `WorkerFailureCategories`. Host HMI/VCI code stops hard-coding failure-category strings.
+**Goal:** The PLC, HMI and VCI write verifiers share one precondition-refusal set from `WorkerFailureCategories`, and host HMI/VCI code stops hard-coding failure-category strings.
 
-**Architecture:** Two members are added to the shared Contracts class. Three private `NeverRan` sets and all remaining raw category literals in host `Hmi/` and `Vci/` code are replaced with them. Behaviour does not change.
+**Architecture:** Add two members to the shared Contracts class. They replace three private `NeverRan` sets and every remaining raw category literal in host `Hmi/` and `Vci/`. Behaviour does not change.
 
 **Tech Stack:** C#, netstandard2.0 Contracts, net10.0 host, xUnit.
 
-**Spec:**
-- Review plan item C-3: [review](2026-10-17-codebase-simplification-review.md), findings TOOLS-9, HOSTDOMAINS-13 and CONTRACTS-4.
-- [Workstream C plan](2026-10-21-workstream-c-plan.md).
+**Spec:** Review plan item C-3 ([review](2026-10-17-codebase-simplification-review.md); findings TOOLS-9, HOSTDOMAINS-13, CONTRACTS-4) and the [Workstream C plan](2026-10-21-workstream-c-plan.md).
 
 **Branch:** `refactor/c3-failure-categories`, worktree `.worktrees/c-3`.
 
+**Execution:** inline (executing-plans), then one fresh reviewer.
+
 ## Global Constraints
 
-The [Workstream C global constraints](2026-10-21-workstream-c-plan.md#global-constraints-apply-to-every-wave-1-plan) apply. In addition:
-- **No `TransportLoss` set.** It would have one consumer (`VciWriteVerifier`), which uses the constants inline instead. This was a maintainer default on 2026-10-21. Record the deviation from the review line in the evidence.
-- **Keep VCI's whole-batch verification.** Do not move VCI to `_attempted` filtering, which the verifier rejected under TOOLS-9.
-- **Leave two sites alone:**
-  - `VciWriteDomain.cs` :66 is the breadcrumb timeout/crash check.
-  - `OpennessWorkerClient.cs` :2353 is the binding-invalidation set.
+- **No `TransportLoss` set.** It would have only one consumer, so `VciWriteVerifier` uses the existing constants inline (maintainer default, 2026-10-21). Record this deviation from the review line in the evidence.
+- **VCI keeps whole-batch verification.** Do not move VCI to `_attempted` filtering; the verifier rejected that under TOOLS-9.
+- **Leave these alone:** `VciWriteDomain`'s breadcrumb timeout/crash check (:66) and `OpennessWorkerClient`'s binding-invalidation set (:2353). Both already use constants.
+- **Shell:** run `dotnet` from PowerShell, never Bash.
+- **Build:** `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`. Expect no warnings beyond the seven existing test-assembly nullable warnings.
+- **Tests:** run only each task's focused filters. Do not run the full suite per task; the orchestrator runs it once per branch, one worktree at a time.
+- **Commits:** commit after each task, as a one-line conventional commit with no body. After each commit, expect exactly one new commit and a clean `git status`.
+- **Docs come last.**
+- **Repo hygiene:** no TIA project names or paths in the repo.
+- **Before deleting a member,** confirm its consumers with `git grep`.
 
 ## Review Focus
 
-1. **Precondition refusals reported as "never ran".** A precondition-refusal category must still produce `notVerified` without `superseded` in all three verifiers. This is pinned by:
-   - `PlcWriteVerifierTests.FailedItemThatNeverRanIsObservedWithoutFailingOrSuperseding`
-   - `HmiWriteVerifierTests.NeverRanDoesNotSupersedeEarlierSuccess`
-   - `VciWriteVerifierTests` (`state_changed` → `notVerified`)
-2. **VCI fatal categories.** `portal_lost`, `worker_timeout` and `worker_crashed` must still suppress every read. This is pinned by `VciGuardedWriteMcpTests` and `PortalLostBeforeExpansionPreservesFailureAndSuppressesAllReads`.
-3. **Category mapping.** A literal swapped for the wrong constant compiles. The Task 3 sweep and the HMI test namespace catch it.
-4. **Check names are not categories.** `HmiWriteVerifier` :45, :53 and :194 are verification **check names** (`protocol_error`, `postcondition_failed`). Keep them as literals so check vocabulary stays separate from failure vocabulary.
-5. **Null handling.** `IsPreconditionRefusal(null)` must be false. VCI passes `o.Failure?.Category`.
+1. **Never-ran items.** A precondition-refused item must still produce `notVerified`, never `superseded`. Pinned by `PlcWriteVerifierTests.FailedItemThatNeverRanIsObservedWithoutFailingOrSuperseding`, `HmiWriteVerifierTests.NeverRanDoesNotSupersedeEarlierSuccess` and `VciWriteVerifierTests`. All three run in Task 2.
+2. **VCI fatal categories.** `portal_lost`, `worker_timeout` and `worker_crashed` must still suppress every read. Pinned by `VciGuardedWriteMcpTests`, including `PortalLostBeforeExpansionPreservesFailureAndSuppressesAllReads`, run in Task 2.
+3. **Wrong constant.** A literal swapped for the wrong constant still compiles. The HMI test namespace and the sweep in Task 3 catch it.
+4. **Check names stay literal.** `HmiWriteVerifier`'s three verification check names (one `"protocol_error"`, two `"postcondition_failed"`) are not failure categories. Pinned by the Task 3 sweep, which expects exactly these three hits.
+5. **Null category.** `IsPreconditionRefusal(null)` must be false, because VCI passes `o.Failure?.Category`. Pinned by the `null` row in Task 1.
 
-## Files
+**Contract change:** none; the wire values are identical.
 
-- **Modify `TiaMcpServer.Contracts/Worker/WorkerFailureCategories.cs`.** Add the set next to `Known` and the predicate next to `IsKnown`.
-- **Modify `TiaMcpServer/Plc/PlcWriteVerifier.cs`.** Delete `NeverRan` and its summary (:30-36), and update its uses at :84 and :146.
-- **Modify `TiaMcpServer/Hmi/HmiWriteVerifier.cs`:**
-  - delete `NeverRan` (:15-16);
-  - update its use at :39;
-  - replace the literal at :272;
-  - add the `using`.
-- **Modify `TiaMcpServer/Vci/VciWriteVerifier.cs`:**
-  - delete `NeverRan` (:11-12);
-  - update its uses at :21 and :27;
-  - replace the fatal literals at :17;
-  - add the `using` and a comment of three lines or fewer.
-- **Modify `TiaMcpServer/Hmi/HmiWorkingState.cs`** (:47, :66, :119, :121) and **`TiaMcpServer/Hmi/HmiWritePlanner.cs`** (:178, :179, :286, :287, :296, :329, :345). Each file needs `using TiaMcpServer.Contracts.Worker;`.
-- **Create the test `TiaMcpServer.Tests/Worker/WorkerFailureCategoriesTests.cs`.** Contracts is a `ProjectReference`, so the csproj does not change.
+**Live verification:** not needed.
 
-## Interfaces
+## After the tasks
 
-**Produced:**
-- `public static IReadOnlyCollection<string> PreconditionRefusals { get; }`
-  - Backed by a private ordinal `HashSet<string>`: `ValidationError`, `TargetNotFound`, `TargetAmbiguous`, `StateChanged`, `GuardBlocked`, `BindingConflict`, `AccessDenied`.
-  - netstandard2.0 has no `IReadOnlySet`.
-- `public static bool IsPreconditionRefusal(string? category)`: ordinal comparison; `null` returns false.
-  - XML summary: "Categories of a precondition refusal: the item never changed TIA state."
+These are not implementer tasks. They run after Task 3 and before Task 4.
 
-**Consumed:** the existing constants `PortalLost`, `WorkerTimeout`, `WorkerCrashed`, `TargetNotFound`, `TargetAmbiguous`, `ValidationError`, `TargetKindUnsupported`, `WorkerOperationFailed` and `ProtocolError`.
+### Branch verification (orchestrator, serialized across worktrees)
+
+1. Run the stub build.
+2. Run the full suite with coverage under `TestResults/c3`. Use process-local `TEMP`/`TMP` set to `TestResults/c3/temp`, `TiaMcpServer.Tests/coverage.runsettings`, and the single-thread xUnit settings from `.github/workflows/ci.yml`.
+   - Expected: 0 failed and 0 skipped.
+3. Run `scripts/verify-coverage-threshold.ps1 -MinimumLineRate 0.80`.
+   - Expected: it passes.
+4. Record the per-file line rates for the five changed host files from the Cobertura report.
+
+Then the final whole-branch review follows, per the execution skill.
 
 ---
 
 ### Task 1: Shared precondition-refusal set
 
-- [ ] Create `WorkerFailureCategoriesTests` with three tests:
-  - `PreconditionRefusals_HasExactlySevenWireValues`: order-insensitive equality with the **literal** strings `validation_error`, `target_not_found`, `target_ambiguous`, `state_changed`, `guard_blocked`, `binding_conflict` and `access_denied`.
+**Files:**
+- Modify: `TiaMcpServer.Contracts/Worker/WorkerFailureCategories.cs`. Put the set next to `Known` and the predicate next to `IsKnown`.
+- Create: `TiaMcpServer.Tests/Worker/WorkerFailureCategoriesTests.cs`. Contracts is a `ProjectReference`, so no csproj change is needed.
+
+**Interfaces:**
+- Consumes: the existing constants and `IsKnown`.
+- Produces:
+  - `public static IReadOnlyCollection<string> PreconditionRefusals { get; }`, backed by a private ordinal `HashSet<string>` of `ValidationError`, `TargetNotFound`, `TargetAmbiguous`, `StateChanged`, `GuardBlocked`, `BindingConflict` and `AccessDenied`.
+  - `public static bool IsPreconditionRefusal(string? category)`. The comparison is ordinal, and `null` returns false. XML summary: "Categories of a precondition refusal: the item never changed TIA state."
+
+- [ ] **Step 1: Write the tests.**
+  - `PreconditionRefusals_HasExactlySevenWireValues`: order-insensitive equality with these literal strings: `validation_error`, `target_not_found`, `target_ambiguous`, `state_changed`, `guard_blocked`, `binding_conflict`, `access_denied`.
   - `PreconditionRefusals_AreAllKnown`: every member satisfies `IsKnown`.
-  - `IsPreconditionRefusal_MatchesSetOnly` (`[Theory]`): true for each of the seven; false for `portal_lost`, `worker_timeout`, `worker_crashed`, `worker_operation_failed`, `protocol_error`, `postcondition_failed`, `""`, `null` and `"Validation_Error"`.
-- [ ] Add both members, with `IsPreconditionRefusal` returning false. Run `dotnet test TiaMcpServer.Tests --filter FullyQualifiedName~WorkerFailureCategoriesTests`. The true rows fail.
-- [ ] Implement both members, then run the filter again. All pass.
-- [ ] Commit `feat: add WorkerFailureCategories.PreconditionRefusals`.
+  - `IsPreconditionRefusal_MatchesSetOnly`, a `[Theory]`:
+    - true for each of the seven;
+    - false for `portal_lost`, `worker_timeout`, `worker_crashed`, `worker_operation_failed`, `protocol_error`, `postcondition_failed`, `""`, `null` and `"Validation_Error"`.
+- [ ] **Step 2: Add both members, with `IsPreconditionRefusal` returning `false`.**
+  - Run: `dotnet test TiaMcpServer.Tests --filter FullyQualifiedName~WorkerFailureCategoriesTests`
+  - Expected: the seven `true` rows FAIL. Everything else passes.
+- [ ] **Step 3: Implement the predicate.**
+  - Run: the same filter.
+  - Expected: all PASS.
+- [ ] **Step 4: Commit.** Message: `feat: add WorkerFailureCategories.PreconditionRefusals`
+
+**Task test command:** `dotnet test TiaMcpServer.Tests --filter FullyQualifiedName~WorkerFailureCategoriesTests`
 
 ### Task 2: Verifiers use the shared set
 
-- [ ] Record a baseline with the `FullyQualifiedName~WriteVerifierTests|FullyQualifiedName~TiaMcpServer.Tests.Vci` filter. This is a pure refactor, so the Review Focus 1–2 pins act as the red-to-green guard.
-- [ ] Update `PlcWriteVerifier`: delete `NeverRan` and call `WorkerFailureCategories.IsPreconditionRefusal(failure.Category)` at :84 and :146.
-- [ ] Update `HmiWriteVerifier`: delete `NeverRan` and call `IsPreconditionRefusal(refusal.Category)` at :39.
-- [ ] Update `VciWriteVerifier`:
-  - Delete `NeverRan`.
-  - At :21 and :27, call `IsPreconditionRefusal(o.Failure?.Category)` and drop the `?? ""`.
-  - At :17, use the pattern `is WorkerFailureCategories.PortalLost or WorkerFailureCategories.WorkerTimeout or WorkerFailureCategories.WorkerCrashed`.
-- [ ] Add a comment on `VciWriteVerifier.VerifyAsync` saying why VCI verifies the whole batch:
-  - skipped items still need a per-item `notVerified`;
-  - the worker can refuse after dispatch with `state_changed` or `target_not_found`;
-  - the inferred attempted list drives `superseded`.
-- [ ] Run the same filter. The pass count matches the baseline.
-- [ ] Commit `refactor: share precondition refusals across write verifiers`.
+**Files:**
+- Modify: `TiaMcpServer/Plc/PlcWriteVerifier.cs`. Delete `NeverRan` and its summary (:30-36), and change its uses at :84 and :146.
+- Modify: `TiaMcpServer/Hmi/HmiWriteVerifier.cs`. Delete `NeverRan` (:15-16), change its use at :39, and add `using TiaMcpServer.Contracts.Worker;`.
+- Modify: `TiaMcpServer/Vci/VciWriteVerifier.cs`. Delete `NeverRan` (:11-12), change its uses at :21 and :27 and the fatal literals at :17, add the same `using`, and add a comment.
+- Test: no new tests. The pins in Review Focus 1–2 are the guard.
+
+**Interfaces:**
+- Consumes (Task 1): `WorkerFailureCategories.IsPreconditionRefusal(string?)`.
+- Produces: nothing new.
+
+- [ ] **Step 1: Record a green baseline.**
+  - Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~WriteVerifierTests|FullyQualifiedName~TiaMcpServer.Tests.Vci"`
+  - Expected: PASS. Record the count.
+- [ ] **Step 2: PLC.** Use `WorkerFailureCategories.IsPreconditionRefusal(failure.Category)` at :84 and :146.
+- [ ] **Step 3: HMI.** Use `WorkerFailureCategories.IsPreconditionRefusal(refusal.Category)` at :39.
+- [ ] **Step 4: VCI.**
+  - At :21 and :27, use `WorkerFailureCategories.IsPreconditionRefusal(o.Failure?.Category)` and drop the `?? ""`.
+  - At :17, use `is WorkerFailureCategories.PortalLost or WorkerFailureCategories.WorkerTimeout or WorkerFailureCategories.WorkerCrashed`.
+  - Add a comment of at most three lines on `VerifyAsync`, saying why VCI verifies the whole batch:
+    - skipped items still need a per-item `notVerified`;
+    - the worker can refuse after dispatch with `state_changed`/`target_not_found`;
+    - the inferred attempted list drives `superseded`.
+- [ ] **Step 5: Rerun.**
+  - Run: the same filter.
+  - Expected: PASS, with the same count as the baseline.
+- [ ] **Step 6: Commit.** Message: `refactor: share precondition refusals across write verifiers`
+
+**Task test command:** the Step 1 filter.
 
 ### Task 3: Remaining HMI category literals
 
-- [ ] Record a baseline with the `FullyQualifiedName~TiaMcpServer.Tests.Hmi` filter.
-- [ ] `HmiWorkingState`:
-  - :47 and :66 become `TargetNotFound`/`TargetAmbiguous`;
-  - :119 and :121 become `ValidationError`.
-- [ ] `HmiWritePlanner`:
-  - :178 and :286 become `TargetNotFound`/`TargetAmbiguous`;
-  - :179 becomes `TargetKindUnsupported`;
-  - :287 and :329 become `WorkerOperationFailed`;
-  - :296 and :345 become `ProtocolError`.
-- [ ] `HmiWriteVerifier` :272 becomes `TargetNotFound`.
-- [ ] Sweep with a regex `search_text` over `TiaMcpServer/Hmi`, `TiaMcpServer/Vci` and `TiaMcpServer/Plc/PlcWriteVerifier.cs`, looking for any quoted `WorkerFailureCategories` wire value. Expect exactly three hits: `HmiWriteVerifier.cs` :45, :53 and :194, which are the check names.
-- [ ] Run the same filter. The pass count matches the baseline.
-- [ ] Commit `refactor: use failure-category constants in HMI host code`.
+**Files:**
+- Modify: `TiaMcpServer/Hmi/HmiWorkingState.cs`.
+- Modify: `TiaMcpServer/Hmi/HmiWritePlanner.cs`.
+- Modify: `TiaMcpServer/Hmi/HmiWriteVerifier.cs`.
+- The first two files need `using TiaMcpServer.Contracts.Worker;`.
 
-### Task 4: Full verification and evidence (docs last)
+Task 2 shifted `HmiWriteVerifier` by one line, so the steps locate targets by content.
 
-- [ ] Build, then run the full suite with coverage under `TestResults/c3`, per the global constraints.
-- [ ] Add an evidence sub-bullet under C-3 in the review plan. Include:
+**Interfaces:**
+- Consumes: the existing constants `TargetNotFound`, `TargetAmbiguous`, `ValidationError`, `TargetKindUnsupported`, `WorkerOperationFailed` and `ProtocolError`.
+- Produces: nothing.
+
+- [ ] **Step 1: Record a green baseline.**
+  - Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~TiaMcpServer.Tests.Hmi"`
+  - Expected: PASS. Record the count.
+- [ ] **Step 2: Replace the literals with constants.**
+  - `HmiWorkingState`:
+    - :47 `"target_not_found"` becomes `TargetNotFound`.
+    - :66 `"target_not_found"`/`"target_ambiguous"` become `TargetNotFound`/`TargetAmbiguous`.
+    - :119 and :121 `"validation_error"` become `ValidationError`.
+  - `HmiWritePlanner`:
+    - :178 becomes `TargetNotFound`/`TargetAmbiguous`.
+    - :179 becomes `TargetKindUnsupported`.
+    - :286 becomes `TargetNotFound`.
+    - :287 and :329 become `WorkerOperationFailed`.
+    - :296 and :345 become `ProtocolError`.
+  - `HmiWriteVerifier`: in the optional-read helper, the `"target_not_found"` comparison on the result's failure category becomes `TargetNotFound`.
+- [ ] **Step 3: Sweep.**
+  - Run: `git grep -nE '"(validation|binding|portal|state|target|unsupported|worker|postcondition|access|protocol|invalid|cursor|snapshot|result|guard)_[a-z_]+"' -- TiaMcpServer/Hmi TiaMcpServer/Vci TiaMcpServer/Plc/PlcWriteVerifier.cs`
+  - Expected: exactly three hits, all in `HmiWriteVerifier.cs`: one `"protocol_error"` and two `"postcondition_failed"` check names.
+- [ ] **Step 4: Rerun.**
+  - Run: the Step 1 filter.
+  - Expected: PASS, with the same count as the baseline.
+- [ ] **Step 5: Commit.** Message: `refactor: use failure-category constants in HMI host code`
+
+**Task test command:** the Step 1 filter.
+
+### Task 4: Evidence (docs last)
+
+The controller supplies the branch-verification values: the full-suite count, the skip count and the per-file line rates. Use them as given. Do not run or invent them.
+
+**Files:** Modify `docs/superpowers/plans/2026-10-17-codebase-simplification-review.md`, item C-3.
+
+**Interfaces:** none.
+
+- [ ] **Step 1: Add an evidence sub-bullet under C-3, in the format of the B-9 bullets.** Include:
   - the date;
-  - the pass count, with zero skips;
-  - coverage of the changed lines;
+  - the full-suite count with zero skips;
+  - the changed-file line rates;
   - that `TransportLoss` was not added, and why;
   - that the three check-name literals were kept;
   - "No live TIA verification was performed; not needed because the wire values are identical."
-- [ ] Commit `docs: record C-3 evidence`.
+- [ ] **Step 2: Check.**
+  - Run: `git grep -n "TransportLoss" -- docs/superpowers/plans/2026-10-17-codebase-simplification-review.md`
+  - Expected: at least two hits: the original C-3 line and the new evidence bullet.
+- [ ] **Step 3: Commit.** Message: `docs: record C-3 evidence`
+
+**Task test command:** the Step 2 grep.
