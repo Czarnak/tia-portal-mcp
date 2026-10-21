@@ -12,21 +12,28 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: write
   id-token: write
 
 jobs:
-  ci:
-    permissions:
-      contents: read
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
-
   build-and-publish:
-    needs: ci
     runs-on: windows-latest
 
     steps:
+      # Releases reuse the CI run on main instead of re-running it for the same commit.
+      - name: Require passing CI for this commit
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          $runs = @(gh run list --workflow ci.yml --commit $env:HEAD_SHA --status success --limit 1 --json databaseId | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0) { throw "Could not query CI runs for $env:HEAD_SHA." }
+          if ($runs.Count -eq 0) { throw "CI has not passed for commit $env:HEAD_SHA. Wait for its CI run to succeed, then re-run this release." }
+          Write-Host "CI run $($runs[0].databaseId) passed for $env:HEAD_SHA."
+
       - name: Checkout Code
         uses: actions/checkout@v7
 
