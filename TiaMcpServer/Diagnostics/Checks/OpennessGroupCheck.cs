@@ -39,6 +39,18 @@ public sealed class OpennessGroupCheck : IDiagnosticCheck
         }
 
         var membership = _identity.CheckGroupMembership(OpennessGroupName);
+        evidence["error"] = membership.ErrorMessage;
+        if (membership.ErrorMessage is { } error)
+        {
+            return new DiagnosticCheckResult(
+                Id,
+                Name,
+                DiagnosticStatus.Warning,
+                $"Group membership could not be verified: {error}",
+                $"Verify manually that the current user is a member of the local \"{OpennessGroupName}\" group.",
+                evidence);
+        }
+
         evidence["groupExists"] = membership.GroupExists.ToString().ToLowerInvariant();
         evidence["groupSid"] = membership.GroupSid;
         evidence["isMember"] = membership.IsMember.ToString().ToLowerInvariant();

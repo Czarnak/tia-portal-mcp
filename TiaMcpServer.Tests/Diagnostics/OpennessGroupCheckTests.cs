@@ -1,3 +1,5 @@
+using System.Runtime.Versioning;
+using System.Security.Principal;
 using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Diagnostics.Checks;
 using Xunit;
@@ -32,6 +34,45 @@ public class OpennessGroupCheckTests
 
         Assert.Equal(DiagnosticStatus.Failed, result.Status);
         Assert.Contains("does not exist", result.Message);
+    }
+
+    [Fact]
+    public void MembershipCouldNotBeVerified_ReturnsWarningWithError()
+    {
+        var identity = new FakeWindowsIdentityService
+        {
+            IsWindows = true,
+            Membership = new OpennessGroupMembership(GroupExists: false, IsMember: false, GroupSid: null, ErrorMessage: "Access is denied.")
+        };
+        var check = new OpennessGroupCheck(identity);
+
+        var result = check.Run();
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+        Assert.Equal("Group membership could not be verified: Access is denied.", result.Message);
+        Assert.Equal("Access is denied.", result.Evidence!["error"]);
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void FirstMappedSid_ReturnsNullOnlyWhenEveryFormIsUnmapped()
+    {
+        Assert.Null(WindowsIdentityService.FirstMappedSid(
+            () => throw new IdentityNotMappedException(),
+            () => throw new IdentityNotMappedException()));
+        Assert.Equal("S-1-5-32-544", WindowsIdentityService.FirstMappedSid(
+            () => throw new IdentityNotMappedException(),
+            () => "S-1-5-32-544"));
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void FirstMappedSid_PropagatesOtherTranslationFailures()
+    {
+        var error = Assert.Throws<SystemException>(() => WindowsIdentityService.FirstMappedSid(
+            () => throw new IdentityNotMappedException(),
+            () => throw new SystemException("RPC server unavailable.")));
+        Assert.Equal("RPC server unavailable.", error.Message);
     }
 
     [Fact]
