@@ -227,7 +227,7 @@ public sealed class BindOpenProjectIntegrationTests
     [Fact]
     public async Task Switch_WorkerRestartedSinceVerify_IdentityMismatchInvalidates()
     {
-        using var f = Two(); await f.Verify(); f.Client.Dispose();
+        using var f = Two(); await f.Verify(); FakeWorkerRestart.KillWorkerProcess(f.Client);
         Failure(await f.Client.BindOpenProjectAsync(B, true), WorkerFailureCategories.BindingConflict, ProjectBindingSnapshot.InvalidatedState);
     }
     [Fact]

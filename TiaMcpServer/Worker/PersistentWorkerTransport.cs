@@ -20,6 +20,7 @@ namespace TiaMcpServer.Worker;
 public sealed class PersistentWorkerTransport : IDisposable
 {
     private const int RecentStderrCapacity = 30;
+    private static readonly TimeSpan DisposeGateTimeout = TimeSpan.FromSeconds(2);
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _workerExecutablePath;
@@ -31,7 +32,7 @@ public sealed class PersistentWorkerTransport : IDisposable
     private Process? _process;
     private Task? _stderrPump;
     private bool _handshakeComplete;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public PersistentWorkerTransport(string workerExecutablePath, TimeSpan requestTimeout, ILogger? logger = null, string? workerArgs = null)
     {
@@ -43,10 +44,19 @@ public sealed class PersistentWorkerTransport : IDisposable
 
     public async Task<WorkerResponse> SendAsync(WorkerRequest request)
     {
+        ThrowIfDisposed();
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
+            ThrowIfDisposed();
             EnsureProcessStarted();
+            if (_disposed)
+            {
+                // Dispose ran while the worker was starting and could not see it; nothing was sent.
+                KillProcess();
+                throw new WorkerTransportDisposedException();
+            }
+
             var process = _process!;
             if (!_handshakeComplete)
             {
@@ -86,12 +96,12 @@ public sealed class PersistentWorkerTransport : IDisposable
             throw;
         }
 
-        var responseLineTask = process.StandardOutput.ReadLineAsync();
-        using var timeout = new CancellationTokenSource(_requestTimeout);
-        var completed = await Task.WhenAny(responseLineTask, Task.Delay(Timeout.InfiniteTimeSpan, timeout.Token))
-            .ConfigureAwait(false);
-
-        if (completed != responseLineTask)
+        string? responseLine;
+        try
+        {
+            responseLine = await process.StandardOutput.ReadLineAsync().WaitAsync(_requestTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
         {
             KillProcess();
             throw new TimeoutException(
@@ -99,7 +109,6 @@ public sealed class PersistentWorkerTransport : IDisposable
                 + "The worker process was terminated and will restart on the next request; retry it.");
         }
 
-        var responseLine = await responseLineTask.ConfigureAwait(false);
         if (responseLine is null)
         {
             var detail = await CaptureCrashDetailAsync().ConfigureAwait(false);
@@ -287,6 +296,36 @@ public sealed class PersistentWorkerTransport : IDisposable
 
         _disposed = true;
 
+        // Far below the 5-60 minute request timeout: shutdown must not wait out a long request.
+        if (!_gate.Wait(DisposeGateTimeout))
+        {
+            // A request is in flight. Kill its process so its read ends; that request still owns
+            // the gate and _process and cleans both up itself.
+            try
+            {
+                _process?.Kill();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+            {
+                // Already exited or already disposed by the in-flight request.
+            }
+
+            return;
+        }
+
+        try
+        {
+            ShutDownProcess();
+        }
+        finally
+        {
+            // _gate is deliberately never disposed: a request queued behind Dispose still calls Release().
+            _gate.Release();
+        }
+    }
+
+    private void ShutDownProcess()
+    {
         var process = _process;
         if (process is not null)
         {
@@ -310,14 +349,29 @@ public sealed class PersistentWorkerTransport : IDisposable
             process.Dispose();
             _process = null;
         }
+    }
 
-        _gate.Dispose();
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new WorkerTransportDisposedException();
+        }
     }
 
     public sealed class WorkerProtocolMismatchException : InvalidOperationException
     {
         public WorkerProtocolMismatchException(string message)
             : base(message)
+        {
+        }
+    }
+
+    /// <summary>The transport was disposed before this request was written to the worker.</summary>
+    public sealed class WorkerTransportDisposedException : ObjectDisposedException
+    {
+        public WorkerTransportDisposedException()
+            : base(nameof(PersistentWorkerTransport), "The TIA Openness worker transport is shut down; the request was not sent.")
         {
         }
     }

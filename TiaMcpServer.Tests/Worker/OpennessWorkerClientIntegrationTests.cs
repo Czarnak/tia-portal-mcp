@@ -103,6 +103,31 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
+    public async Task InvokeAfterDispose_IsNotSent_KeepsBinding_AndStartsNoWorker()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await BindVerifiedAsync(client, binding);
+        client.Dispose();
+        var sentBefore = requests.Methods().Length;
+
+        var result = await InvokeRawAsync(
+            client,
+            new WorkerRequest { Method = "get_project_status", ProjectPath = "ok" });
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Contains("shutting down", result.Error);
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, binding.CaptureSnapshot().State);
+        Assert.Equal(sentBefore, requests.Methods().Length);
+    }
+
+    [Fact]
     public async Task ReadHardwarePageCandidatesAsync_ForwardsTheDedicatedInternalRequest()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
@@ -1120,9 +1145,9 @@ public class OpennessWorkerClientIntegrationTests
         var original = binding.CaptureSnapshot();
         Assert.True(original.IsVerified);
 
-        // Disposing the persistent transport and reusing the client starts a fresh worker process.
-        // The path is identical, but workerSessionId is process-local and therefore must differ.
-        client.Dispose();
+        // Killing the worker makes the next request start a fresh worker process. The path is
+        // identical, but workerSessionId is process-local and therefore must differ.
+        FakeWorkerRestart.KillWorkerProcess(client);
         var afterRestart = await client.GetProjectStatusAsync(null);
 
         Assert.False(afterRestart.Success);

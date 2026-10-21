@@ -63,9 +63,11 @@ public class OpennessWorkerClient : IDisposable
     private readonly TimeSpan _requestTimeout;
     private readonly Safety.OperationAccessPolicy _accessPolicy;
     private readonly object _transportLock = new();
+    // Never disposed: an operation still running at shutdown calls Release() in its finally.
     private readonly SemaphoreSlim _bindingOperationGate = new(1, 1);
     private readonly AsyncLocal<BindingOperationContext?> _bindingOperationContext = new();
     private PersistentWorkerTransport? _transport;
+    private bool _disposed;
     private (ProjectBindingSnapshot Binding, WorkerSessionIdentity Identity)? _emptyPortalRecovery;
 
     public OpennessWorkerClient(
@@ -2394,6 +2396,16 @@ public class OpennessWorkerClient : IDisposable
                 DispatchState = WorkerDispatchState.NotSent
             };
         }
+        catch (PersistentWorkerTransport.WorkerTransportDisposedException)
+        {
+            // Shutdown rejected the request before it was written: the session is untouched.
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.WorkerOperationFailed,
+                "The MCP server is shutting down; the request was not sent to the TIA Openness worker.") with
+            {
+                DispatchState = WorkerDispatchState.NotSent
+            };
+        }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException)
         {
             // Broken pipe (IOException), a crashed/null response or a failed process launch
@@ -2424,6 +2436,11 @@ public class OpennessWorkerClient : IDisposable
     {
         lock (_transportLock)
         {
+            if (_disposed)
+            {
+                throw new PersistentWorkerTransport.WorkerTransportDisposedException();
+            }
+
             var workerArgs = $"--access-mode {McpAccessModeNames.ToName(_accessPolicy.Mode)}";
             _transport ??= new PersistentWorkerTransport(
                 _workerExecutablePathOverride ?? LocateWorkerExecutable(),
@@ -2438,6 +2455,7 @@ public class OpennessWorkerClient : IDisposable
     {
         lock (_transportLock)
         {
+            _disposed = true;
             _transport?.Dispose();
             _transport = null;
         }
