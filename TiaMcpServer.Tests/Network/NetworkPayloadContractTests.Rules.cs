@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
@@ -403,6 +404,8 @@ public partial class NetworkPayloadContractTests
         { "target:networkInterface", "target.interfaceType", Blank, "ValidateSelector" },
         { "target:networkInterface", "target.interfaceOperatingMode", Blank, "ValidateSelector" },
         { "target:networkInterface", "target.subnetId", Str("subnet-1"), "ValidateSelector" },
+        { "target:networkInterface", "target.ioSystemIndex", "0", "ValidateSelector" },
+        { "target:networkInterface", "target.ioSystemName", Str("IO system_1"), "ValidateSelector" },
 
         // ValidateSelector, node.
         { "target:node", "target.deviceName", "null", "ValidateSelector" },
@@ -458,6 +461,75 @@ public partial class NetworkPayloadContractTests
         var chain = AssertRejectedWithoutLeak(OperationOf(baseName), payload);
 
         Assert.Contains(validator, chain);
+    }
+
+    /// <summary>A valid sample value for every selector field.</summary>
+    private static readonly (string Field, string Value)[] SelectorFieldSamples =
+    {
+        ("deviceName", Str("PLC_1")),
+        ("itemPath", $"[{ItemPathSegment}]"),
+        ("interfacePath", """[{"name":"X1","positionNumber":1}]"""),
+        ("interfaceName", Str("PROFINET interface_1")),
+        ("interfaceType", Str("PROFINET")),
+        ("interfaceOperatingMode", Str("IoController")),
+        ("nodeId", Str("node-1")),
+        ("nodeIndex", "0"),
+        ("subnetId", Str("subnet-1")),
+        ("number", "100"),
+        ("ioSystemIndex", "0"),
+        ("ioSystemName", Str("IO system_1")),
+        ("connectionIndex", "0"),
+        ("connectionType", Str("S7Connection")),
+        ("localConnectionName", Str("S7_Connection_1")),
+        ("localConnectionId", Str("16#1001")),
+    };
+
+    public static TheoryData<string, string> SelectorKindFields()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (var kind in NetworkObjectKinds.All)
+        {
+            foreach (var (field, _) in SelectorFieldSamples)
+            {
+                data.Add(kind, field);
+            }
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Request validation and worker-payload validation apply the same kind/field matrix: a minimal
+    /// valid selector of each kind plus one field is accepted by both or rejected by both.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SelectorKindFields))]
+    public void SelectorApplicability_AgreesBetweenRequestAndPayload(string kind, string field)
+    {
+        var root = JsonNode.Parse(RuleBase("target:" + kind))!;
+        var target = root["target"]!.AsObject();
+        target[field] = JsonNode.Parse(SelectorFieldSamples.Single(sample => sample.Field == field).Value);
+        if (kind == NetworkObjectKinds.Node && field is "itemPath" or "nodeIndex" or "interfaceName")
+        {
+            // A node owner path pairs itemPath with nodeIndex, and interfaceName needs that owner path.
+            target["itemPath"] = JsonNode.Parse($"[{ItemPathSegment}]");
+            target["nodeIndex"] = 0;
+        }
+
+        var expected = NetworkSelectorRules.ApplicableFields[kind].Contains(field);
+
+        var (item, _) = ProjectRuleCase("inspect_network_object", root.ToJsonString());
+        var requestTarget = JsonSerializer.Deserialize<NetworkObjectTarget>(
+            target.ToJsonString(), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var request = new NetworkOperationRequest
+        {
+            OperationId = "inspect",
+            Operation = "inspect_network_object",
+            Target = requestTarget,
+        };
+
+        Assert.Equal(expected, item.Status == OperationBatchStatus.Succeeded);
+        Assert.Equal(expected, NetworkOperationCatalog.ValidateRead(new[] { request }).IsValid);
     }
 
     /// <summary>
