@@ -56,11 +56,7 @@ public sealed class LifecycleBindingStrategy(OpennessWorkerClient workerClient) 
         cancellationToken.ThrowIfCancellationRequested();
         if (!result.Success) return Reject(result);
         var prepared = workerClient.BindingSnapshot;
-        var consistent = before.IsVerified ? before.SameBinding(prepared)
-            : before.State == ProjectBindingSnapshot.ConfiguredUnverifiedState && prepared.IsVerified
-                && LifecyclePayloadContract.SamePath(before.ProjectPath, prepared.ProjectPath)
-                && prepared.Revision == before.Revision + 1;
-        return consistent ? WriteBindingPreparation.Prepared(prepared)
+        return WriteBindingPreparation.IsConsistent(before, prepared) ? WriteBindingPreparation.Prepared(prepared)
             : WriteBindingPreparation.Rejected(new(WorkerFailureCategories.BindingConflict,
                 "The source binding changed while lifecycle preparation was being checked. Inspect project status before retrying."));
     }

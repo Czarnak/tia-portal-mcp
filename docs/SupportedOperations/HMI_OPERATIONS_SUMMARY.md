@@ -221,6 +221,10 @@ removed by the call, including table contents. Dependent deletes re-read their c
 mutation; this is not a cap on total worker dispatches or all later reads. Delete tags over separate
 calls before deleting a table whose initial evidence would exceed the cap.
 
+Binding-gate failures preserve their original category, including `worker_timeout`, `worker_crashed`,
+`portal_lost` and `protocol_error`, in the top-level error and audit. A gate denial stops before planning
+or mutation; a missing, mismatched or changed binding is `binding_conflict`.
+
 The shared guarded pipeline pins the binding through planning, mutation, verification and audit.
 There is no elicitation, confirmation argument, acknowledgment input or safety token. Execution stops
 at the first failing setter/item; there is no batch rollback or automatic replay. Typed results

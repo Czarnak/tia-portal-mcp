@@ -84,17 +84,29 @@ public sealed class WriteExecutionTests
         Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
     }
 
-    [Fact]
-    public async Task GateFailure_StopsBeforePlanning_AsBindingConflict()
+    [Theory]
+    [InlineData(WorkerFailureCategories.WorkerTimeout, false)]
+    [InlineData(WorkerFailureCategories.WorkerTimeout, true)]
+    [InlineData(WorkerFailureCategories.WorkerCrashed, false)]
+    [InlineData(WorkerFailureCategories.WorkerCrashed, true)]
+    [InlineData(WorkerFailureCategories.PortalLost, false)]
+    [InlineData(WorkerFailureCategories.PortalLost, true)]
+    [InlineData(WorkerFailureCategories.ProtocolError, false)]
+    [InlineData(WorkerFailureCategories.ProtocolError, true)]
+    [InlineData(WorkerFailureCategories.BindingConflict, false)]
+    [InlineData(null, false)]
+    public async Task GateFailure_StopsBeforePlanning_WithItsCategory(string? category, bool dryRun)
     {
-        _gate.GateResult = WorkerCallResult.Fail(WorkerFailureCategories.ProtocolError, "No verified binding.");
+        _gate.GateResult = new WorkerCallResult(false, string.Empty, "No verified binding.", category, []);
 
-        var (result, doc) = await RunAsync(new[] { Item("a") });
+        var (result, doc) = await RunAsync(new[] { Item("a") }, dryRun);
 
-        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.BindingConflict);
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, category ?? WorkerFailureCategories.BindingConflict);
         Assert.Equal("No verified binding.", ErrorMessage(doc));
         Assert.Equal(0, _gate.LeaseCalls);
+        Assert.Equal(0, _domain.MutationCount);
         Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
+        Assert.Equal(doc.GetRawText(), Assert.Single(_audit.Records).ResponseText);
         AssertAuditedOutsideLease();
     }
 
@@ -128,13 +140,15 @@ public sealed class WriteExecutionTests
         AssertAuditedOutsideLease();
     }
 
-    [Fact]
-    public async Task GateThatVerifiesTheStartupBinding_PinsTheVerifiedSnapshot()
+    [Theory]
+    [InlineData(FakeWriteBindingGate.ProjectPath)]
+    [InlineData("c:/projects/fake/fake.ap21")]
+    public async Task GateThatVerifiesTheStartupBinding_PinsTheVerifiedSnapshot(string verifiedPath)
     {
         _gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
             ProjectBindingSnapshot.ConfiguredUnverifiedState, "binding-0", 1, FakeWriteBindingGate.ProjectPath);
         _gate.OnGate = gate => gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
-            ProjectBindingSnapshot.VerifiedState, "binding-1", 2, FakeWriteBindingGate.ProjectPath);
+            ProjectBindingSnapshot.VerifiedState, "binding-1", 2, verifiedPath);
 
         var (result, doc) = await RunAsync(new[] { Item("a") });
 
@@ -142,6 +156,67 @@ public sealed class WriteExecutionTests
         Assert.Equal(ApplyA, _domain.Calls);
         Assert.Equal("binding-1", _gate.LeasedBinding!.BindingId);
         Assert.Equal(2, _audit.Records[0].Binding!.Revision);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task GateThatVerifiesStartupBinding_RejectsUnexpectedRevision(long revision)
+    {
+        _gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.ConfiguredUnverifiedState, "binding-0", 1, FakeWriteBindingGate.ProjectPath);
+        _gate.OnGate = gate => gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.VerifiedState, "binding-1", revision, FakeWriteBindingGate.ProjectPath);
+
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.BindingConflict);
+        Assert.Equal(0, _gate.LeaseCalls);
+        Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
+        AssertAuditedOutsideLease();
+    }
+
+    [Theory]
+    [InlineData(ProjectBindingSnapshot.UnboundState)]
+    [InlineData(ProjectBindingSnapshot.InvalidatedState)]
+    public async Task GateThatVerifiesAnUnconfiguredBinding_IsRefused(string state)
+    {
+        _gate.CurrentBinding = FakeWriteBindingGate.Snapshot(state, "binding-0", 1, FakeWriteBindingGate.ProjectPath);
+        _gate.OnGate = gate => gate.CurrentBinding = FakeWriteBindingGate.Snapshot(
+            ProjectBindingSnapshot.VerifiedState, "binding-1", 2, FakeWriteBindingGate.ProjectPath);
+
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.BindingConflict);
+        Assert.Equal(0, _gate.LeaseCalls);
+        Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
+        AssertAuditedOutsideLease();
+    }
+
+    [Theory]
+    [InlineData("state")]
+    [InlineData("path")]
+    [InlineData("worker")]
+    [InlineData("generation")]
+    [InlineData("portal")]
+    public async Task VerifiedBindingIdentityChange_IsRefusedBeforeTheLease(string changed)
+    {
+        var before = _gate.CurrentBinding;
+        _gate.OnGate = gate => gate.CurrentBinding = new ProjectBindingSnapshot(
+            changed == "state" ? ProjectBindingSnapshot.InvalidatedState : before.State,
+            before.BindingId, before.Revision,
+            changed == "path" ? @"C:\Projects\Other\Other.ap21" : before.ProjectPath,
+            changed == "worker" ? "session-2" : before.WorkerSessionId,
+            changed == "generation" ? before.SessionGeneration + 1 : before.SessionGeneration,
+            changed == "portal" ? 4243 : before.PortalProcessId, null);
+
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.BindingConflict);
+        Assert.Equal(0, _gate.LeaseCalls);
+        Assert.Equal(new[] { "validate", "compose" }, _domain.Calls);
+        AssertAuditedOutsideLease();
     }
 
     [Fact]

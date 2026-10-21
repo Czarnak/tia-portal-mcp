@@ -374,6 +374,10 @@ by the SDK/wrapper before tool entry, with a normal MCP error and no write audit
 need not be a guarded canonical envelope. Entered validation, binding and guard denials have
 a typed canonical top-level `error`, MCP `isError:true`, and exactly one audit v2 record.
 
+Binding-gate failures preserve their original category, including `worker_timeout`, `worker_crashed`,
+`portal_lost` and `protocol_error`, in the top-level error and audit. A gate denial stops before planning
+or mutation; a missing, mismatched or changed binding is `binding_conflict`.
+
 Both writable modes use zero server Network elicitation, including connected deletion and dry
 runs. Client permission prompts remain independent. Lifecycle still confirms every actual
 read-write call; no tool uses safety tokens.

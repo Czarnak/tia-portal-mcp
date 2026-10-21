@@ -239,6 +239,10 @@ mode (a dry run lists them and still returns `preview`); info guards become warn
 
 ### Execution, verification and audit
 
+Binding-gate failures preserve their original category, including `worker_timeout`, `worker_crashed`,
+`portal_lost` and `protocol_error`, in the top-level error and audit. A gate denial stops before planning
+or mutation; a missing, mismatched or changed binding is `binding_conflict`.
+
 Items run sequentially. Later items may use objects created earlier in the same call; they carry
 `dependsOn` and are re-planned just before their own mutation. The first failure stops the call and
 later items are `skipped`. There is no rollback or automatic replay: re-read affected objects with
