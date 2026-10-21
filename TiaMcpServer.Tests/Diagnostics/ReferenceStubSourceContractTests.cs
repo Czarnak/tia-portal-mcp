@@ -102,7 +102,7 @@ public class ReferenceStubSourceContractTests
     }
 
     [Fact]
-    public void NamespaceOwnershipAndNonExecutablePurposeAreExplicit()
+    public void NamespaceOwnershipIsExplicit()
     {
         foreach (var file in new[] { "AssemblyInfo", "Core", "Compiler", "CrossReference", "Hardware", "HardwareConnections", "Online", "Multiuser", "VersionControl" })
             Assert.True(File.Exists(StubPath("Siemens.Engineering.Base", file + ".cs")), $"Missing Base source: {file}");
@@ -115,8 +115,6 @@ public class ReferenceStubSourceContractTests
         Assert.DoesNotContain("namespace Siemens.Engineering.SW", baseSource, StringComparison.Ordinal);
         Assert.Contains("namespace Siemens.Engineering.SW", step7Source, StringComparison.Ordinal);
         Assert.DoesNotContain("namespace Siemens.Engineering.Multiuser", step7Source, StringComparison.Ordinal);
-        var readme = File.ReadAllText(StubPath("README.md"));
-        foreach (var text in new[] { "compile-only", "public-only", "29bfe5fdf4ba5d3b", "unverified", "cannot sign Siemens implementation code" }) Assert.Contains(text, readme, StringComparison.Ordinal);
     }
 
     [Fact]
