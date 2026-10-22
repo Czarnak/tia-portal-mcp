@@ -76,7 +76,7 @@ public class HmiReadTools
             ? $"Lower limit or add a narrowing field, or split the batch: re-run this operationId in its own {ToolName} call."
             : $"Split the batch: re-run this operationId in its own {ToolName} call.";
 
-    private static CallToolResult Error(string category, string message)
+    internal static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(
             new HmiReadResponse(ToolName, HmiContractVersion.Current, false,
                 new HmiToolError(category, message), Warnings: Array.Empty<string>(), Batch: null),

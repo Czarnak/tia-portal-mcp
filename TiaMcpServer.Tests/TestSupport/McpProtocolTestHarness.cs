@@ -131,21 +131,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
 
     private static IMcpServerBuilder RegisterToolType<TTools>(IMcpServerBuilder builder)
         where TTools : class
-        => typeof(TTools) == typeof(ProjectReadTools)
-            ? builder.WithProjectReadTools()
-            : typeof(TTools) == typeof(ProjectBindingTools)
-                ? builder.WithProjectBindingTools()
-                : typeof(TTools) == typeof(NetworkWriteTools)
-                    ? builder.WithNetworkWriteTools()
-                    : typeof(TTools) == typeof(TiaMcpServer.Plc.PlcWriteTools)
-                        ? builder.WithPlcWriteTools()
-                        : typeof(TTools) == typeof(TiaMcpServer.Hmi.HmiWriteTools)
-                            ? builder.WithHmiWriteTools()
-                            : typeof(TTools) == typeof(TiaMcpServer.Vci.VciReadTools)
-                                ? builder.WithVciReadTools()
-                                : typeof(TTools) == typeof(TiaMcpServer.Vci.VciWriteTools)
-                                    ? builder.WithVciWriteTools()
-                                    : builder.WithTools<TTools>();
+        => builder.WithProductionTools(typeof(TTools));
 
     private static async Task<McpProtocolTestHarness> StartCoreAsync(
         McpAccessMode accessMode,

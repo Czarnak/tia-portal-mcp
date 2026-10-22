@@ -66,7 +66,10 @@ public class VciGuardedWriteMcpTests
         using var log = new FakeWorkerRequestLog(audit.Path);
         await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
         var before = log.Methods(); var args = Args(Item()); args[key] = JsonSerializer.Deserialize<JsonElement>(value);
-        Assert.True((await h.Client.CallToolAsync("vci_write", args)).IsError);
+        var reply = await h.Client.CallToolAsync("vci_write", args);
+        ArgumentRejectionAssert.IsCanonicalValidationError(reply, "vci_write");
+        Assert.Equal("error", reply.StructuredContent!.Value.GetProperty("phase").GetString());
+        Assert.Equal("vci_write", reply.StructuredContent.Value.GetProperty("tool").GetString());
         Assert.Equal(before, log.Methods()); Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
 

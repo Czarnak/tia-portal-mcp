@@ -12,57 +12,15 @@ using TiaMcpServer.Contracts.Block;
 
 namespace TiaMcpServer.Tools;
 
-internal static class VciReadToolRegistration
-{
-    internal static IMcpServerBuilder WithVciReadTools(this IMcpServerBuilder builder)
-    {
-        builder.Services.AddSingleton(services => StrictArgumentsTool.CreateClosedTool(
-            typeof(Vci.VciReadTools).GetMethod(nameof(Vci.VciReadTools.VciRead))!, services,
-            StrictArgumentsTool.PlainTextReject, closeNestedSchemas: true));
-        return builder;
-    }
-}
-
-internal static class VciWriteToolRegistration
-{
-    internal static IMcpServerBuilder WithVciWriteTools(this IMcpServerBuilder builder)
-    {
-        builder.Services.AddSingleton(services => StrictArgumentsTool.CreateClosedTool(
-            typeof(Vci.VciWriteTools).GetMethod(nameof(Vci.VciWriteTools.VciWrite))!, services,
-            StrictArgumentsTool.PlainTextReject, closeNestedSchemas: true));
-        return builder;
-    }
-}
-
-internal static class HmiWriteToolRegistration
-{
-    internal static IMcpServerBuilder WithHmiWriteTools(this IMcpServerBuilder builder)
-    {
-        builder.Services.AddSingleton(services => StrictArgumentsTool.CreateClosedTool(
-            typeof(Hmi.HmiWriteTools).GetMethod(nameof(Hmi.HmiWriteTools.HmiWrite))!, services,
-            StrictArgumentsTool.PlainTextReject, closeNestedSchemas: true));
-        return builder;
-    }
-}
-
 internal static class PlcWriteToolRegistration
 {
-    private static readonly IReadOnlyDictionary<string, string> RetiredItemMembers = new Dictionary<string, string>(StringComparer.Ordinal)
+    internal static readonly IReadOnlyDictionary<string, string> RetiredItemMembers = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["yamlContent"] = "use 'content' with 'expectedContentHash'",
         ["sourceContent"] = "use 'content' with 'expectedContentHash'",
     };
 
-    internal static IMcpServerBuilder WithPlcWriteTools(this IMcpServerBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddSingleton(services => StrictArgumentsTool.CreateClosedTool(
-            typeof(PlcWriteTools).GetMethod(nameof(PlcWriteTools.PlcWrite))!, services,
-            StrictArgumentsTool.PlainTextReject, closeNestedSchemas: true, AddObEventClassEnum, RetiredItemMembers));
-        return builder;
-    }
-
-    private static JsonNode AddObEventClassEnum(AIJsonSchemaCreateContext context, JsonNode schema)
+    internal static JsonNode AddObEventClassEnum(AIJsonSchemaCreateContext context, JsonNode schema)
     {
         if (context.PropertyInfo is { Name: "obEventClass" } property
             && property.DeclaringType == typeof(PlcOperationRequest)
@@ -173,13 +131,6 @@ internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
         var accepted = acceptedKeys.Count == 0 ? "none" : string.Join(", ", acceptedKeys.Order(StringComparer.Ordinal));
         return $"{toolName} arguments do not match its input schema: {detail}. Accepted arguments: {accepted}.";
     }
-
-    /// <summary>Temporary plain-text rejection for the write and VCI registrations until they get canonical rejects.</summary>
-    internal static CallToolResult PlainTextReject(string message) => new()
-    {
-        IsError = true,
-        Content = [new TextContentBlock { Text = message }],
-    };
 
     public override ValueTask<CallToolResult> InvokeAsync(RequestContext<CallToolRequestParams> request,
         CancellationToken cancellationToken = default)

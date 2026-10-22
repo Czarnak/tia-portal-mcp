@@ -430,7 +430,9 @@ public class NetworkStructuredProtocolTests
 
         var result = await CallWriteAsync(harness, new object[] { operation });
 
-        Assert.True(result.IsError);
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, "network_write");
+        Assert.Equal("error", result.StructuredContent!.Value.GetProperty("phase").GetString());
+        Assert.Equal("network_write", result.StructuredContent.Value.GetProperty("tool").GetString());
     }
 
     private static ValueTask<CallToolResult> CallWriteAsync(

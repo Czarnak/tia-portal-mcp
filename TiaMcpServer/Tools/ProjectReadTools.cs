@@ -1,9 +1,7 @@
 using System.ComponentModel;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Json;
@@ -56,43 +54,7 @@ public class ProjectReadTools
 
 internal static class ProjectReadToolRegistration
 {
-    internal static IMcpServerBuilder WithProjectReadTools(this IMcpServerBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        foreach (var method in typeof(ProjectReadTools)
-                     .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                     .Where(candidate => candidate.GetCustomAttribute<McpServerToolAttribute>() is not null)
-                     .OrderBy(candidate => candidate.MetadataToken))
-        {
-            var toolMethod = method;
-            builder.Services.AddSingleton<McpServerTool>(services =>
-            {
-                var tool = McpServerTool.Create(
-                    toolMethod,
-                    target: null,
-                    options: new McpServerToolCreateOptions
-                    {
-                        Services = services,
-                        SchemaCreateOptions = new AIJsonSchemaCreateOptions
-                        {
-                            TransformSchemaNode = AlignSelectorSchemaNullability,
-                            TransformOptions = new AIJsonSchemaTransformOptions
-                            {
-                                DisallowAdditionalProperties = true,
-                            },
-                        },
-                    });
-
-                return toolMethod.Name == nameof(ProjectReadTools.BrowseProjectTree)
-                    ? new ProjectTreeArgumentValidatingTool(tool)
-                    : tool;
-            });
-        }
-
-        return builder;
-    }
-
-    private static JsonNode AlignSelectorSchemaNullability(
+    internal static JsonNode AlignSelectorSchemaNullability(
         AIJsonSchemaCreateContext context,
         JsonNode schema)
     {
@@ -145,7 +107,8 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
         var category = ShapeFailureCategory(request.Params.Arguments);
         return category is null
             ? base.InvokeAsync(request, cancellationToken)
-            : ValueTask.FromResult(ValidationFailure(category));
+            : ValueTask.FromResult(ValidationFailure(category,
+                "The browse_project_tree arguments did not match the declared input schema."));
     }
 
     private static string? ShapeFailureCategory(IDictionary<string, JsonElement>? arguments)
@@ -213,15 +176,13 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
            || value.ValueKind == JsonValueKind.Null
            || (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _));
 
-    private static CallToolResult ValidationFailure(string category)
+    internal static CallToolResult ValidationFailure(string category, string message)
     {
         var response = new BrowseProjectTreeResponse(
             ProjectTreeContract.Version,
             ProjectTreeStatuses.Failed,
             Result: null,
-            new BrowseProjectTreeFailure(
-                category,
-                "The browse_project_tree arguments did not match the declared input schema."),
+            new BrowseProjectTreeFailure(category, message),
             Array.Empty<string>());
         return StructuredToolResult.CreateCanonical(
             CanonicalJson.Serialize(response),
