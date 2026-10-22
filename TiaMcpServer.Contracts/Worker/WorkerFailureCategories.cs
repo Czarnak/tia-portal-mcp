@@ -121,6 +121,23 @@ public static class WorkerFailureCategories
         GuardBlocked
     };
 
+    private static readonly HashSet<string> PreconditionRefusalSet = new(StringComparer.Ordinal)
+    {
+        ValidationError,
+        TargetNotFound,
+        TargetAmbiguous,
+        StateChanged,
+        GuardBlocked,
+        BindingConflict,
+        AccessDenied
+    };
+
+    /// <summary>Categories of a precondition refusal: the item never changed TIA state.</summary>
+    public static IReadOnlyCollection<string> PreconditionRefusals => PreconditionRefusalSet;
+
+    /// <summary>True when <paramref name="category"/> is a precondition refusal (see <see cref="PreconditionRefusals"/>).</summary>
+    public static bool IsPreconditionRefusal(string? category) => category is not null && PreconditionRefusalSet.Contains(category);
+
     /// <summary>True when <paramref name="value"/> is exactly one of the approved category constants.</summary>
     public static bool IsKnown(string? value) => value is not null && Known.Contains(value);
 }

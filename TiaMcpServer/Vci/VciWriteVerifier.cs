@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts.Vci;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
@@ -8,23 +9,22 @@ namespace TiaMcpServer.Vci;
 
 public sealed class VciWriteVerifier(OpennessWorkerClient client, IReadOnlyList<VciOperationRequest> items)
 {
-    private static readonly HashSet<string> NeverRan = new(StringComparer.Ordinal)
-    { "validation_error", "target_not_found", "target_ambiguous", "state_changed", "guard_blocked", "binding_conflict", "access_denied" };
-
+    // Whole-batch verification: skipped items still need a per-item notVerified, the worker can refuse after
+    // dispatch with state_changed/target_not_found, and the inferred attempted list drives superseded.
     public async Task<VciWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
     {
         var results = new List<VciOperationVerification>();
-        var fatal = batch.Operations.Any(o => o.Failure?.Category is "portal_lost" or "worker_timeout" or "worker_crashed");
+        var fatal = batch.Operations.Any(o => o.Failure?.Category is WorkerFailureCategories.PortalLost or WorkerFailureCategories.WorkerTimeout or WorkerFailureCategories.WorkerCrashed);
         var outcomes = batch.Operations.ToDictionary(o => o.OperationId, StringComparer.Ordinal);
         var attempted = items.Where(i => outcomes.TryGetValue(i.OperationId, out var o)
             && o.Status is OperationBatchStatus.Succeeded or OperationBatchStatus.Failed
-            && !NeverRan.Contains(o.Failure?.Category ?? "")).ToArray();
+            && !WorkerFailureCategories.IsPreconditionRefusal(o.Failure?.Category)).ToArray();
         foreach (var item in items)
         {
             if (!outcomes.TryGetValue(item.OperationId, out var outcome)) continue;
             void Check(bool success, string check, string? expected = null, string? actual = null, string? message = null)
                 => results.Add(new(item.OperationId, success, check, expected, actual, message));
-            if (fatal || outcome.Status == OperationBatchStatus.Skipped || NeverRan.Contains(outcome.Failure?.Category ?? ""))
+            if (fatal || outcome.Status == OperationBatchStatus.Skipped || WorkerFailureCategories.IsPreconditionRefusal(outcome.Failure?.Category))
             { Check(false, "notVerified", message: "No verification read was made."); continue; }
             if (attempted.Last(i => string.Equals(i.WorkspaceName, item.WorkspaceName, StringComparison.OrdinalIgnoreCase)) != item)
             { Check(true, "superseded"); continue; }

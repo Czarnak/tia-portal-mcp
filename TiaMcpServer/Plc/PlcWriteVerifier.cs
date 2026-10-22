@@ -27,14 +27,6 @@ public sealed record PlcWriteVerification(bool Success, IReadOnlyList<PlcOperati
 public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<PlcOperationRequest> items,
     IReadOnlyDictionary<string, PlcWriteEffect> effects)
 {
-    /// <summary>Failure categories of a precondition refusal: the item never changed TIA state.</summary>
-    private static readonly IReadOnlySet<string> NeverRan = new HashSet<string>(StringComparer.Ordinal)
-    {
-        WorkerFailureCategories.ValidationError, WorkerFailureCategories.TargetNotFound, WorkerFailureCategories.TargetAmbiguous,
-        WorkerFailureCategories.StateChanged, WorkerFailureCategories.GuardBlocked, WorkerFailureCategories.BindingConflict,
-        WorkerFailureCategories.AccessDenied,
-    };
-
     private readonly PlcWritePlanner _reader = new(client);
 
     public async Task<PlcWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
@@ -81,7 +73,7 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
     {
         var own = Keys(attempted[index]);
         return attempted.Skip(index + 1)
-            .Where(later => outcomes[later.OperationId].Failure is not { } failure || !NeverRan.Contains(failure.Category))
+            .Where(later => outcomes[later.OperationId].Failure is not { } failure || !WorkerFailureCategories.IsPreconditionRefusal(failure.Category))
             .LastOrDefault(later => Keys(later).Any(k => own.Any(o => o == k || o.StartsWith(k + "\n", StringComparison.Ordinal))))
             ?.OperationId;
     }
@@ -143,7 +135,7 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             : resolution.Error is not null ? null
             : Expectation(item) == "values" ? Describe(resolution.Effect!.Changes.Select(c => (c.Field, c.Current))) : "exists";
         if (actual is null) return Fail(item, "observed", resolution.Error!.Message);
-        var ran = NeverRan.Contains(failure.Category)
+        var ran = WorkerFailureCategories.IsPreconditionRefusal(failure.Category)
             ? "the worker reported it never ran"
             : "it may already have changed TIA state";
         return new(item.OperationId, true, "observed", null, actual, null,

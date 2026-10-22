@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Worker;
 using System.Globalization;
 using System.Text.Json;
 using TiaMcpServer.Contracts.Hmi;
@@ -44,7 +45,7 @@ internal sealed class HmiWorkingState
         try { return new(ResolveEffect(item, guards), guards, null); }
         catch (ResolutionException ex)
         {
-            if (!_evidence.Complete && ex.Category == "target_not_found")
+            if (!_evidence.Complete && ex.Category == WorkerFailureCategories.TargetNotFound)
                 return new(new(item.Operation, RequestedIdentity(item), Array.Empty<HmiFieldChange>(), null, null), guards, null);
             return new(null, guards, new WriteToolError(ex.Category, ex.Message));
         }
@@ -63,7 +64,7 @@ internal sealed class HmiWorkingState
     private static T Require<T>(IEnumerable<T> source, Func<T, bool> predicate, string description)
     {
         var matches = source.Where(predicate).Take(2).ToArray();
-        if (matches.Length != 1) throw new ResolutionException(matches.Length == 0 ? "target_not_found" : "target_ambiguous", $"Cannot uniquely resolve {description}.");
+        if (matches.Length != 1) throw new ResolutionException(matches.Length == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous, $"Cannot uniquely resolve {description}.");
         return matches[0];
     }
     private HmiTableEvidence Table(string name) => Require(_tables, t => Names.Equals(t.Name, name), $"table '{name}'");
@@ -116,9 +117,9 @@ internal sealed class HmiWorkingState
             if (!create && (r.PlcTag is not null || r.DataType is not null) && connection is null)
                 guards.Add(Fire(StateUnverifiable, r, "The tag connection is unreadable."));
             else if (r.PlcTag is not null && !bound)
-                throw new ResolutionException("validation_error", "plcTag requires a bound tag or an explicit connection.");
+                throw new ResolutionException(WorkerFailureCategories.ValidationError, "plcTag requires a bound tag or an explicit connection.");
             if (r.DataType is not null && bound)
-                throw new ResolutionException("validation_error", "dataType can only be written for an internal tag.");
+                throw new ResolutionException(WorkerFailureCategories.ValidationError, "dataType can only be written for an internal tag.");
             Change("connection", tag?.Connection, r.Connection); Change("plcTag", tag?.PlcTag, HmiWriteCatalog.NormalizePlcTag(r.PlcTag));
             Change("dataType", tag?.DataType, r.DataType, !delete && bound); Change("plcName", tag?.PlcName, null, !delete && bound);
             Change("acquisitionCycle", tag?.AcquisitionCycle, r.AcquisitionCycle);
