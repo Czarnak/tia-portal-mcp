@@ -600,6 +600,9 @@ operations, validates the batch (1-50 items, unique `operationId`, per-operation
 `limit` 1-2000 default 100) and owns the single public-operation to worker-method map. Worker methods
 are `hmi_<operation>` because `OperationPolicyCatalog` is one flat namespace and PLC already owns
 `list_tag_tables`, `create_tag` and others; parameters travel in the nested `WorkerRequest.HmiQuery`.
+The method names live in `TiaMcpServer.Contracts/Hmi` (`HmiReadMethods.All`/`HmiWriteMethods.All`) and feed `OperationPolicyCatalog`,
+`ProjectCapabilityCatalog` and the worker dispatch switch; `HmiOperationCatalog.WorkerMethod` stays the
+public-to-worker map, and tests pin the two against each other.
 `HmiPayloadContract` declares one typed CLR result per operation (decoded through the worker-payload
 reader, `protocol_error` otherwise), and `HmiWorkerInvoker` runs items independently.
 

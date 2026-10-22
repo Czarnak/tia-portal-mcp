@@ -37,19 +37,21 @@ public static class ProjectCapabilityCatalog
     /// Content writes, compile and save against <c>ProjectBase</c>; a local session saves through
     /// <c>LocalSession.Save()</c> and never checks in to the Project Server.
     /// </summary>
-    private static readonly string[] ProjectContentOperations =
+    private static readonly string[] ProjectContentOperations = new[]
     {
-        "plc_write", "network_write", "hmi_write", "compile_check", "save_project",
-        "hmi_create_tag_table", "hmi_update_tag_table", "hmi_delete_tag_table",
-        "hmi_create_tag", "hmi_update_tag", "hmi_delete_tag",
-        "hmi_create_alarm", "hmi_update_alarm", "hmi_delete_alarm",
+        "plc_write", "network_write", "hmi_write", "compile_check", "save_project"
+    }
+    .Concat(HmiWriteMethods.All)
+    .Concat(new[]
+    {
         "update_block_logic", "update_type_content", "create_tag_table", "delete_tag_table",
         "create_tag", "update_tag", "delete_tag", "create_user_constant",
         "update_user_constant", "delete_user_constant", "create_block", "delete_block",
         "create_block_group", "delete_block_group",
         "add_network_device", "configure_network_device", "create_subnet", "update_subnet",
         "delete_subnet"
-    };
+    })
+    .ToArray();
 
     /// <summary>Internal qualification probes that save or compile-and-revert; never delivered for local sessions.</summary>
     private static readonly string[] StandaloneOnlyProbes =

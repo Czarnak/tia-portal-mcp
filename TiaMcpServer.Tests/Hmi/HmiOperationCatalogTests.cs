@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Hmi;
 using Xunit;
@@ -6,6 +7,20 @@ namespace TiaMcpServer.Tests.Hmi;
 
 public class HmiOperationCatalogTests
 {
+    [Fact]
+    public void WorkerMethods_EqualSharedReadList()
+    {
+        var methods = HmiOperationCatalog.OperationNames.Select(HmiOperationCatalog.WorkerMethod);
+        Assert.True(methods.ToHashSet(StringComparer.Ordinal).SetEquals(HmiReadMethods.All));
+        Assert.Equal(20, HmiReadMethods.All.Count);
+    }
+
+    [Fact]
+    public void SharedReadAndWriteLists_AreDisjoint()
+    {
+        Assert.Equal(29, HmiReadMethods.All.Concat(HmiWriteMethods.All).Distinct(StringComparer.Ordinal).Count());
+    }
+
     // Wire field name -> setter. The same names the catalog and the tool schema use.
     private static readonly Dictionary<string, Action<HmiOperationRequest>> Setters = new()
     {

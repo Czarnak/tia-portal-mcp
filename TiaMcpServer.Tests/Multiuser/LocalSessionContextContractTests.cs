@@ -15,6 +15,21 @@ namespace TiaMcpServer.Tests.Multiuser;
 
 public sealed class LocalSessionContextContractTests
 {
+    [Theory]
+    [InlineData(ProjectContainerKinds.StandaloneProject)]
+    [InlineData(ProjectContainerKinds.LocalSession)]
+    [InlineData(ProjectContainerKinds.ServerProject)]
+    public void Describe_MatchesMainSnapshot(string kind)
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Multiuser", "Snapshots", "capabilities.json")));
+        var expected = doc.RootElement.GetProperty(kind).EnumerateArray()
+            .Select(e => (e.GetProperty("operation").GetString()!, e.GetProperty("applicability").GetString()!))
+            .ToList();
+        var actual = ProjectCapabilityCatalog.Describe(kind).Select(c => (c.Operation, c.Applicability)).ToList();
+        Assert.Equal(53, expected.Count);
+        Assert.Equal(expected, actual);
+    }
+
     private const string AmcPath = @"C:\Sessions\Alpha\LS\Alpha.amc21";
     private const string AlsPath = @"C:\Sessions\Alpha\Alpha.als21";
 
