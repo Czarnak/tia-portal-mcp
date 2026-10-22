@@ -80,7 +80,7 @@ public class PlcReadTools
         _ => $"Split the batch: re-run this operationId in its own {ToolName} call.",
     };
 
-    private static CallToolResult Error(string category, string message)
+    internal static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(
             new PlcReadResponse(ToolName, PlcContractVersion.Current, false,
                 new PlcToolError(category, message), Warnings: Array.Empty<string>(), Batch: null),

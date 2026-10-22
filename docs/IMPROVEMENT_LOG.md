@@ -26,6 +26,21 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: closed tool arguments follow-ups (C-1, 2026-10-22)
+
+C-1 is done: all 19 tools reject argument-shape errors, at the root or inside items, with the
+tool's canonical document (`validation_error`, `isError:true`) and no audit record. One shared
+`StrictArgumentsTool` wrapper serves every tool, so the per-domain argument-validating wrappers
+and the tool-registration helpers are gone.
+
+- **Null still accepted for non-nullable reference and array parameters.** Parameters such as
+  `open_project.projectPath` and `operations` still accept JSON null, exactly as before C-1. On a
+  write tool such a null can reach the write pipeline and its audit record. Reject null for
+  every non-nullable parameter.
+- **Unknown root argument names are echoed uncapped.** The rejection message repeats an unknown
+  root argument name without a length limit, while paths are capped at 256 characters. Cap it
+  the same way.
+
 ## Open: VCI follow-ups (2026-10-16)
 
 The [VCI reference](SupportedOperations/VCI_OPERATIONS_SUMMARY.md) documents the delivered
@@ -224,8 +239,6 @@ blocks it. Known limits are also listed in the
   The maintainer confirmed that unpublished unit blocks cannot be referenced outside the unit. It
   fails closed. Exclude unpublished unit blocks from the CPU namespace, and check the related
   worker minor where a unit-scoped create checks the top-level PLC namespace instead of the unit's.
-- **Fold `NetworkWriteArgumentValidatingTool` onto `StrictArgumentsTool`.** `plc_write` uses the
-  shared strict-arguments wrapper; Network keeps its own copy.
 - **Per-target inventory completeness (D7).** Completeness exists only at the inventory root, so
   one unreadable table or device item makes `plc_state_unverifiable` fire for every item in the
   call. Track completeness per PLC/table so unrelated targets can plan.

@@ -155,6 +155,44 @@ public sealed class LifecycleMcpProtocolTests
         Assert.DoesNotContain("open_project", methods);
     }
 
+    [Theory]
+    [InlineData("save_project", "confirm")]
+    [InlineData("close_project", "saveBeforeClose")]
+    [InlineData("open_project", "forceRebind")]
+    [InlineData("archive_project", "dryRun")]
+    public async Task LifecycleArgumentShapeErrors_AreCanonicalAndUnaudited(string tool, string key)
+    {
+        using var audit = new TempAuditDirectory();
+        var prompts = 0;
+        var options = ClientOptions((_, _) =>
+        {
+            prompts++;
+            return ValueTask.FromResult(new ElicitResult
+            {
+                Action = "accept",
+                Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
+            });
+        });
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.ReadWrite, audit.Path, clientOptions: options);
+        var arguments = tool switch
+        {
+            "save_project" => new Dictionary<string, object?> { ["confirm"] = true },
+            "close_project" => new Dictionary<string, object?> { ["saveBeforeClose"] = null },
+            "open_project" => new Dictionary<string, object?> { ["projectPath"] = "C:\\Fixture\\Project.ap21", ["forceRebind"] = null },
+            _ => new Dictionary<string, object?> { ["archiveDirectory"] = "C:\\Archive", ["archiveName"] = "a", ["dryRun"] = "true" },
+        };
+        Assert.True(arguments.ContainsKey(key));
+
+        var result = await harness.Client.CallToolAsync(tool, arguments);
+
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, tool);
+        Assert.Equal("error", result.StructuredContent!.Value.GetProperty("phase").GetString());
+        Assert.Equal(tool, result.StructuredContent.Value.GetProperty("tool").GetString());
+        Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+        Assert.Equal(0, prompts);
+    }
+
     private static bool IsLifecycleMutation(string method)
         => method is "open_project" or "create_project" or "save_project" or "save_project_as" or "archive_project" or "close_project";
 

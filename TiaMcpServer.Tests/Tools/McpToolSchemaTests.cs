@@ -1,9 +1,13 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.AI;
+using ModelContextProtocol.Client;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectLifecycle;
@@ -429,6 +433,43 @@ public class McpToolSchemaTests
             properties.OrderBy(name => name).ToArray());
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("confirm", properties);
+    }
+
+    [Fact]
+    public async Task EveryRegisteredToolSchemaIsClosed()
+    {
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full);
+        var open = (await harness.Client.ListToolsAsync())
+            .Where(tool => !tool.ProtocolTool.InputSchema.TryGetProperty("additionalProperties", out var closed)
+                || closed.ValueKind != JsonValueKind.False)
+            .Select(tool => tool.Name)
+            .ToArray();
+        Assert.True(open.Length == 0, "Open input schemas: " + string.Join(", ", open));
+    }
+
+    /// <summary>
+    /// The snapshot is the tools/list outputSchema on main. Wrapped tools skip the SDK's legacy-wire
+    /// reshaping, so the legacy protocol is compared too; on main both protocols emit the same schemas.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("2025-11-25")]
+    public async Task OutputSchemasMatchMain(string? protocolVersion)
+    {
+        var snapshot = JsonNode.Parse(File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "Tools", "Snapshots", "output-schemas.json")))!.AsObject();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full,
+            clientOptions: new McpClientOptions { ProtocolVersion = protocolVersion });
+        var tools = await harness.Client.ListToolsAsync();
+
+        Assert.Equal(snapshot.Select(entry => entry.Key).Order(StringComparer.Ordinal),
+            tools.Select(tool => tool.Name).Order(StringComparer.Ordinal));
+        var differing = tools
+            .Where(tool => !JsonNode.DeepEquals(snapshot[tool.Name],
+                tool.ProtocolTool.OutputSchema is { } schema ? JsonNode.Parse(schema.GetRawText()) : null))
+            .Select(tool => tool.Name)
+            .ToArray();
+        Assert.True(differing.Length == 0, "Output schemas differ from main: " + string.Join(", ", differing));
     }
 }
 

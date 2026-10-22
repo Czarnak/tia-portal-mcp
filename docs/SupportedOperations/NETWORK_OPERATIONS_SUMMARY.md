@@ -370,8 +370,8 @@ and sets `isError:true`.
 Public input is `network_write(operations, dryRun=false)`: **omitting `dryRun` executes**.
 An older operations-only call used to preview; migrate every preview caller to `dryRun:true`.
 `confirm`, `acknowledge`, unknown root keys and nonboolean `dryRun` are rejected
-by the SDK/wrapper before tool entry, with a normal MCP error and no write audit. That rejection
-need not be a guarded canonical envelope. Entered validation, binding and guard denials have
+before tool entry with the tool's canonical document (`validation_error`, `isError:true`) and no
+audit record, like every argument-shape error in all 19 tools. Entered validation, binding and guard denials have
 a typed canonical top-level `error`, MCP `isError:true`, and exactly one audit v2 record.
 
 Binding-gate failures preserve their original category, including `worker_timeout`, `worker_crashed`,

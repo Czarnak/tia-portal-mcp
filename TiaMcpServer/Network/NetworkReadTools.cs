@@ -129,7 +129,7 @@ public class NetworkReadTools
             && result.TryGetProperty("pagination", out var pagination)
             && pagination.ValueKind == System.Text.Json.JsonValueKind.Object;
 
-    private static CallToolResult Error(string category, string message)
+    internal static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(
             new NetworkReadResponse(ToolName, NetworkContractVersion.Current, false,
                 new NetworkToolError(category, message), Warnings: Array.Empty<string>(), Batch: null),

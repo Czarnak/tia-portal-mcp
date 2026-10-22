@@ -41,8 +41,11 @@ public sealed class PlcGuardedWriteMcpTests
 
         var reply = await harness.Client.CallToolAsync("plc_write", args);
 
-        Assert.True(reply.IsError);
-        var text = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
+        ArgumentRejectionAssert.IsCanonicalValidationError(reply, "plc_write");
+        var root = reply.StructuredContent!.Value;
+        Assert.Equal("error", root.GetProperty("phase").GetString());
+        Assert.Equal("plc_write", root.GetProperty("tool").GetString());
+        var text = root.GetProperty("error").GetProperty("message").GetString();
         if (key.StartsWith("item:", StringComparison.Ordinal))
             Assert.Contains("use 'content' with 'expectedContentHash'", text);
         else
@@ -95,7 +98,7 @@ public sealed class PlcGuardedWriteMcpTests
 
         var reply = await harness.Client.CallToolAsync("plc_write", new Dictionary<string, object?> { ["operations"] = new[] { item }, ["dryRun"] = dryRun });
 
-        Assert.True(reply.IsError);
+        ArgumentRejectionAssert.IsCanonicalValidationError(reply, "plc_write");
         Assert.Equal(before, requests.Methods());
         Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
@@ -127,7 +130,7 @@ public sealed class PlcGuardedWriteMcpTests
 
         var reply = await harness.Client.CallToolAsync("plc_read", new Dictionary<string, object?> { ["operations"] = new[] { item } });
 
-        Assert.True(reply.IsError);
+        ArgumentRejectionAssert.IsCanonicalValidationError(reply, "plc_read");
         Assert.Equal(before, requests.Methods());
         Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }

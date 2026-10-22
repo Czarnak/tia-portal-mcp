@@ -1,9 +1,7 @@
 using System.ComponentModel;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.Json;
@@ -56,43 +54,7 @@ public class ProjectReadTools
 
 internal static class ProjectReadToolRegistration
 {
-    internal static IMcpServerBuilder WithProjectReadTools(this IMcpServerBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        foreach (var method in typeof(ProjectReadTools)
-                     .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                     .Where(candidate => candidate.GetCustomAttribute<McpServerToolAttribute>() is not null)
-                     .OrderBy(candidate => candidate.MetadataToken))
-        {
-            var toolMethod = method;
-            builder.Services.AddSingleton<McpServerTool>(services =>
-            {
-                var tool = McpServerTool.Create(
-                    toolMethod,
-                    target: null,
-                    options: new McpServerToolCreateOptions
-                    {
-                        Services = services,
-                        SchemaCreateOptions = new AIJsonSchemaCreateOptions
-                        {
-                            TransformSchemaNode = AlignSelectorSchemaNullability,
-                            TransformOptions = new AIJsonSchemaTransformOptions
-                            {
-                                DisallowAdditionalProperties = true,
-                            },
-                        },
-                    });
-
-                return toolMethod.Name == nameof(ProjectReadTools.BrowseProjectTree)
-                    ? new ProjectTreeArgumentValidatingTool(tool)
-                    : tool;
-            });
-        }
-
-        return builder;
-    }
-
-    private static JsonNode AlignSelectorSchemaNullability(
+    internal static JsonNode AlignSelectorSchemaNullability(
         AIJsonSchemaCreateContext context,
         JsonNode schema)
     {
@@ -129,61 +91,66 @@ internal static class ProjectReadToolRegistration
 internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
     : DelegatingMcpServerTool(innerTool)
 {
-    private static readonly HashSet<string> AllowedArguments = new(StringComparer.Ordinal)
-    {
-        "projectPath",
-        "startSelector",
-        "depth",
-        "pageSize",
-        "cursor",
-    };
+    private const string FixedFailureText = "The browse_project_tree arguments did not match the declared input schema.";
+
+    private readonly IReadOnlySet<string> _rootKeys = StrictArgumentsTool.RootKeys(innerTool);
 
     public override ValueTask<CallToolResult> InvokeAsync(
         RequestContext<CallToolRequestParams> request,
         CancellationToken cancellationToken = default)
     {
-        var category = ShapeFailureCategory(request.Params.Arguments);
+        var (category, message) = ShapeFailure(request.Params.Arguments);
         return category is null
             ? base.InvokeAsync(request, cancellationToken)
-            : ValueTask.FromResult(ValidationFailure(category));
+            : ValueTask.FromResult(ValidationFailure(category, message!));
     }
 
-    private static string? ShapeFailureCategory(IDictionary<string, JsonElement>? arguments)
+    private (string? Category, string? Message) ShapeFailure(IDictionary<string, JsonElement>? arguments)
     {
         if (arguments is null)
         {
-            return null;
+            return (null, null);
         }
 
-        if (arguments.Keys.Any(key => !AllowedArguments.Contains(key))
-            || !IsOptionalString(arguments, "projectPath")
-            || !IsOptionalInteger(arguments, "depth")
-            || !IsOptionalInteger(arguments, "pageSize"))
+        var unknown = arguments.Keys.FirstOrDefault(key => !_rootKeys.Contains(key));
+        if (unknown is not null)
         {
-            return WorkerFailureCategories.ValidationError;
+            return Invalid($"unknown argument '{unknown}'");
         }
 
+        foreach (var (name, isValid) in new (string, bool)[]
+                 {
+                     ("projectPath", IsOptionalString(arguments, "projectPath")),
+                     ("depth", IsOptionalInteger(arguments, "depth")),
+                     ("pageSize", IsOptionalInteger(arguments, "pageSize")),
+                 })
+        {
+            if (!isValid)
+            {
+                return Invalid($"argument '{name}' is malformed");
+            }
+        }
         if (!IsOptionalString(arguments, "cursor"))
         {
-            return WorkerFailureCategories.InvalidCursor;
+            return Fixed(WorkerFailureCategories.InvalidCursor);
         }
 
         if (!arguments.TryGetValue("startSelector", out var selector)
             || selector.ValueKind == JsonValueKind.Null)
         {
-            return null;
+            return (null, null);
         }
 
         if (selector.ValueKind != JsonValueKind.Array)
         {
-            return WorkerFailureCategories.InvalidSelector;
+            return Fixed(WorkerFailureCategories.InvalidSelector);
         }
 
         foreach (var segment in selector.EnumerateArray())
         {
             if (segment.ValueKind != JsonValueKind.Object)
             {
-                return WorkerFailureCategories.InvalidSelector;
+                return Fixed(WorkerFailureCategories.InvalidSelector);
             }
 
             var properties = segment.EnumerateObject().ToArray();
@@ -193,13 +160,18 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
                 || !segment.TryGetProperty("name", out var name)
                 || name.ValueKind != JsonValueKind.String)
             {
-                return WorkerFailureCategories.InvalidSelector;
+                return Fixed(WorkerFailureCategories.InvalidSelector);
             }
         }
 
-        return null;
+        return (null, null);
     }
 
+    private (string, string) Invalid(string detail)
+        => (WorkerFailureCategories.ValidationError,
+            StrictArgumentsTool.Message("browse_project_tree", detail, _rootKeys));
+
+    private static (string, string) Fixed(string category) => (category, FixedFailureText);
     private static bool IsOptionalString(
         IDictionary<string, JsonElement> arguments,
         string name)
@@ -213,15 +185,13 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
            || value.ValueKind == JsonValueKind.Null
            || (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _));
 
-    private static CallToolResult ValidationFailure(string category)
+    internal static CallToolResult ValidationFailure(string category, string message)
     {
         var response = new BrowseProjectTreeResponse(
             ProjectTreeContract.Version,
             ProjectTreeStatuses.Failed,
             Result: null,
-            new BrowseProjectTreeFailure(
-                category,
-                "The browse_project_tree arguments did not match the declared input schema."),
+            new BrowseProjectTreeFailure(category, message),
             Array.Empty<string>());
         return StructuredToolResult.CreateCanonical(
             CanonicalJson.Serialize(response),

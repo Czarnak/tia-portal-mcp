@@ -64,7 +64,9 @@ public sealed class NetworkGuardedWriteMcpTests
         var args = Arguments();
         args[key] = JsonSerializer.Deserialize<JsonElement>(json);
         var reply = await harness.Client.CallToolAsync("network_write", args);
-        Assert.True(reply.IsError);
+        ArgumentRejectionAssert.IsCanonicalValidationError(reply, "network_write");
+        Assert.Equal("error", reply.StructuredContent!.Value.GetProperty("phase").GetString());
+        Assert.Equal("network_write", reply.StructuredContent.Value.GetProperty("tool").GetString());
         Assert.Equal(before, requests.Methods());
         Assert.Empty(AuditLines(audit.Path));
     }

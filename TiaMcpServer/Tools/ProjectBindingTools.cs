@@ -1,9 +1,7 @@
 using System.ComponentModel;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using TiaMcpServer.OperationBatches;
@@ -83,24 +81,7 @@ public class ProjectBindingTools
 
 internal static class ProjectBindingToolRegistration
 {
-    internal static IMcpServerBuilder WithProjectBindingTools(this IMcpServerBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        var method = typeof(ProjectBindingTools).GetMethod(nameof(ProjectBindingTools.BindProject), BindingFlags.Public | BindingFlags.Static)!;
-        builder.Services.AddSingleton<McpServerTool>(services => new BindProjectArgumentValidatingTool(McpServerTool.Create(
-            method, target: null, options: new McpServerToolCreateOptions
-            {
-                Services = services,
-                SchemaCreateOptions = new AIJsonSchemaCreateOptions
-                {
-                    TransformSchemaNode = AllowNullForceRebind,
-                    TransformOptions = new AIJsonSchemaTransformOptions { DisallowAdditionalProperties = true }
-                }
-            })));
-        return builder;
-    }
-
-    private static JsonNode AllowNullForceRebind(AIJsonSchemaCreateContext context, JsonNode schema)
+    internal static JsonNode AllowNullForceRebind(AIJsonSchemaCreateContext context, JsonNode schema)
     {
         // The SDK generates each method parameter as a root schema; this tool has one bool input.
         // Response bool properties keep their non-nullable schema.

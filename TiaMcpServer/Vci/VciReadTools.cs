@@ -72,7 +72,7 @@ public class VciReadTools
             ? "Reduce limit or narrow scope, or re-run this operationId in its own vci_read call."
             : "Re-run this operationId in its own vci_read call; for one value above the limit, raise --max-item-chars and --max-document-chars.";
 
-    private static CallToolResult Error(string category, string message)
+    internal static CallToolResult Error(string category, string message)
         => StructuredToolResult.Create(
             new VciReadResponse(ToolName, VciContractVersion.Current, false,
                 new VciToolError(category, message), Warnings: Array.Empty<string>(), Batch: null),

@@ -211,7 +211,7 @@ state; execution plans/re-plans its own exact current identities under one pinne
 verified binding. Connected deletion is `info`; incomplete inventory is a non-overridable `block`.
 
 Legacy `confirm`, `acknowledge`, unknown root arguments and nonboolean dryRun
-are SDK/wrapper rejections before tool entry (normal MCP error, no audit). Entered validation/
+are rejected before tool entry with the canonical document (`validation_error`, `isError:true`) and no audit record. Entered validation/
 binding/guard denials use a canonical root error and one audit. Attempted partial failures remain
 `phase:applied`, `error:null`, MCP `isError:false`; stop on first failure, no batch rollback/replay.
 

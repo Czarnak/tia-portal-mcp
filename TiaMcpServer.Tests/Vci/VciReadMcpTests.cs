@@ -85,7 +85,7 @@ public class VciReadMcpTests
         if (kind == "item") item["unknown"] = "x";
         if (kind == "boolean") { item["operation"] = "list_mappings"; item["workspaceName"] = "Fixture"; item["withStatus"] = "true"; }
         var result = await harness.Client.CallToolAsync("vci_read", args);
-        Assert.True(result.IsError);
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, "vci_read");
     }
 
     [Theory]

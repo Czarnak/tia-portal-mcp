@@ -522,6 +522,34 @@ public sealed class ToolOutputContractConformanceTests
         }
     }
 
+    [Fact]
+    public async Task EveryRegisteredToolRejectsArgumentShapeErrorsCanonically()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var before = requests.Methods();
+
+        foreach (var tool in await harness.Client.ListToolsAsync())
+        {
+            var properties = tool.ProtocolTool.InputSchema.GetProperty("properties");
+            var cases = new List<Dictionary<string, object?>> { new() { ["unexpectedArgument"] = true } };
+            cases.AddRange(properties.EnumerateObject()
+                .Where(property => property.Value.TryGetProperty("type", out var type)
+                    && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "boolean")
+                .Select(property => new Dictionary<string, object?> { [property.Name] = null }));
+            if (properties.TryGetProperty("operations", out _))
+                cases.Add(new() { ["operations"] = new[] { new Dictionary<string, object?> { ["unexpectedMember"] = 1 } } });
+
+            foreach (var arguments in cases)
+                ArgumentRejectionAssert.IsCanonicalValidationError(await harness.Client.CallToolAsync(tool.Name, arguments), tool.Name);
+        }
+
+        Assert.Equal(before, requests.Methods());
+        Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
     private static bool HasProbe(string tool, bool expectIsError)
         => StructuredToolProbes.Values.Any(probe =>
             string.Equals(probe.Tool, tool, StringComparison.Ordinal) && probe.ExpectIsError == expectIsError);

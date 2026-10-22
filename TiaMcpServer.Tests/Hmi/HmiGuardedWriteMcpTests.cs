@@ -88,7 +88,9 @@ public class HmiGuardedWriteMcpTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
         var before = requests.Methods();
         var result = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence(), [key] = JsonSerializer.Deserialize<JsonElement>(json) });
-        Assert.True(result.IsError);
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, "hmi_write");
+        Assert.Equal("error", result.StructuredContent!.Value.GetProperty("phase").GetString());
+        Assert.Equal("hmi_write", result.StructuredContent.Value.GetProperty("tool").GetString());
         Assert.Equal(before, requests.Methods());
         Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
