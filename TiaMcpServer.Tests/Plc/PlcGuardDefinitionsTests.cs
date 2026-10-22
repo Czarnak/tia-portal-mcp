@@ -29,13 +29,4 @@ public class PlcGuardDefinitionsTests
         Assert.Equal("plc_ob_singleton_exists", PlcGuardDefinitions.ObSingletonExists);
         _ = new WriteGuardCatalog(PlcGuardDefinitions.Definitions);
     }
-
-    [Fact]
-    public void AcknowledgeRegistrationIsRejected()
-    {
-        var definitions = PlcGuardDefinitions.Definitions
-            .Append(new WriteGuardDefinition("plc_needs_ack", WriteGuardSeverities.Acknowledge, "x"));
-
-        Assert.Throws<ArgumentException>(() => PlcGuardDefinitions.Validate(definitions));
-    }
 }

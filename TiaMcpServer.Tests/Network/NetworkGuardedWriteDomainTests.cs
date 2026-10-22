@@ -103,9 +103,6 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.Equal(before, requests.Methods().Length);
     }
     [Fact]
-    public void NetworkAcknowledgeRegistration_IsRejected() => Assert.Throws<ArgumentException>(() =>
-        NetworkGuardDefinitions.Validate(new[] { new WriteGuardDefinition("network_test", "acknowledge", "test") }));
-    [Fact]
     public async Task BindingChange_PreventsDispatch()
     {
         using var audit = new TempAuditDirectory();

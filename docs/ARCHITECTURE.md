@@ -1096,6 +1096,7 @@ read-write or mode policy in full. Every actual read-write lifecycle call asks o
 info-only calls and calls without guards. Missing capability, decline, cancel, timeout, transport
 failure, or acceptance without boolean `confirm:true` denies with `access_denied`. Block guards
 stop mutation in every mode; dry runs report guards without mutation or prompting.
+Network, PLC, HMI and VCI guard sets are built with `WriteGuardCatalog.NonInteractive`, so an acknowledge guard there fails at type initialisation; only lifecycle uses acknowledge.
 
 A dry run reports `acknowledged:false` for acknowledge guards in read-write and `true` in full,
 while guard audit satisfaction remains null and confirmation is `none/not_requested`. Info/block

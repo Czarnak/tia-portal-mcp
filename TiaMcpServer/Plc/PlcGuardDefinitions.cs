@@ -16,7 +16,7 @@ public static class PlcGuardDefinitions
     public const string AddressOverlap = "plc_address_overlap";
     public const string ObSingletonExists = "plc_ob_singleton_exists";
 
-    public static IReadOnlyList<WriteGuardDefinition> Definitions { get; } = Validate(new[]
+    public static IReadOnlyList<WriteGuardDefinition> Definitions { get; } = WriteGuardCatalog.NonInteractive(new[]
     {
         new WriteGuardDefinition(StateUnverifiable, WriteGuardSeverities.Block, "PLC evidence relevant to the target is incomplete or unreadable; unreadable evidence is never treated as empty."),
         new WriteGuardDefinition(NameCollision, WriteGuardSeverities.Block, "A new or renamed PLC object collides with an existing or in-call object."),
@@ -28,14 +28,5 @@ public static class PlcGuardDefinitions
         new WriteGuardDefinition(DeletesGroupContents, WriteGuardSeverities.Info, "Deleting the block group removes every block and group inside it."),
         new WriteGuardDefinition(DeletesTableContents, WriteGuardSeverities.Info, "Deleting the tag table removes its tags and user constants."),
         new WriteGuardDefinition(AddressOverlap, WriteGuardSeverities.Info, "The requested logical address is already used by another tag; TIA Portal allows the overlap."),
-    });
-
-    public static IReadOnlyList<WriteGuardDefinition> Validate(IEnumerable<WriteGuardDefinition> definitions)
-    {
-        var materialized = definitions.ToArray();
-        if (materialized.Any(guard => guard.Severity == WriteGuardSeverities.Acknowledge))
-            throw new ArgumentException("PLC guards cannot require acknowledgement.", nameof(definitions));
-        _ = new WriteGuardCatalog(materialized);
-        return Array.AsReadOnly(materialized);
-    }
+    }, "PLC");
 }

@@ -61,6 +61,48 @@ public sealed class WriteGuardCatalogTests
         }));
 
     [Fact]
+    public void NonInteractive_RejectsAcknowledge()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => WriteGuardCatalog.NonInteractive(new[]
+        {
+            new WriteGuardDefinition("g", WriteGuardSeverities.Acknowledge, "x")
+        }, "HMI"));
+        Assert.Equal("definitions", ex.ParamName);
+        Assert.StartsWith("HMI guards cannot require acknowledgement.", ex.Message);
+    }
+
+    [Fact]
+    public void NonInteractive_ReturnsDefinitionsInOrder()
+    {
+        var result = WriteGuardCatalog.NonInteractive(new[]
+        {
+            new WriteGuardDefinition("a", WriteGuardSeverities.Block, "x"),
+            new WriteGuardDefinition("b", WriteGuardSeverities.Info, "y")
+        }, "HMI");
+        Assert.Equal(new[] { "a", "b" }, result.Select(d => d.Id));
+    }
+
+    [Fact]
+    public void NonInteractive_RejectsDuplicateIds()
+        => Assert.Throws<ArgumentException>(() => WriteGuardCatalog.NonInteractive(new[]
+        {
+            new WriteGuardDefinition("g", WriteGuardSeverities.Info, "x"),
+            new WriteGuardDefinition("g", WriteGuardSeverities.Block, "y")
+        }, "HMI"));
+
+    [Fact]
+    public void NonInteractive_RejectsPipelineGuardId()
+        => Assert.Throws<ArgumentException>(() => WriteGuardCatalog.NonInteractive(new[]
+        {
+            new WriteGuardDefinition(WriteGuardCatalog.PartialWriteGuardId, WriteGuardSeverities.Info, "x")
+        }, "HMI"));
+
+    [Fact]
+    public void NonInteractive_RejectsNullDefinition()
+        => Assert.Throws<ArgumentException>(() => WriteGuardCatalog.NonInteractive(
+            new WriteGuardDefinition?[] { null }!, "HMI"));
+
+    [Fact]
     public void Get_UnknownId_Throws()
         => Assert.Throws<InvalidOperationException>(() => new WriteGuardCatalog(Array.Empty<WriteGuardDefinition>()).Get("nope"));
 

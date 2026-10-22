@@ -39,6 +39,24 @@ public sealed class WriteGuardCatalog
         }
     }
 
+    /// <summary>
+    /// Validates a data-write domain's guard set, which never prompts: acknowledge guards are rejected.
+    /// Also runs the catalog's id, severity, duplicate and pipeline-guard checks.
+    /// </summary>
+    public static IReadOnlyList<WriteGuardDefinition> NonInteractive(
+        IEnumerable<WriteGuardDefinition> definitions, string domain)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        var all = definitions.ToArray();
+        if (all.Any(d => d is not null && d.Severity == WriteGuardSeverities.Acknowledge))
+        {
+            throw new ArgumentException($"{domain} guards cannot require acknowledgement.", nameof(definitions));
+        }
+
+        _ = new WriteGuardCatalog(all);
+        return Array.AsReadOnly(all);
+    }
+
     public bool TryGet(string id, out WriteGuardDefinition guard)
     {
         if (id is not null && _guards.TryGetValue(id, out var found))
