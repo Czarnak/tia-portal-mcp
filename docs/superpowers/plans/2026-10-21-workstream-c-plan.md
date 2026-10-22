@@ -52,11 +52,14 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
 
 ### Decisions still open (later waves)
 
-- **C-0:**
-  - Remove `projectPath` from `get_project_status` and from `save_project_as`'s source assertion. Recommended: yes.
-  - Unbound batch reads: one call-level root error or per-item failures. Recommended: call-level.
-  - Category for "bind first". Recommended: `binding_conflict`.
-  - Audit `projectPath` becomes the pinned bound path.
+- **C-0:** resolved by the maintainer on 2026-10-22; see the [C-0 plan](2026-10-22-c0-bound-project-content-tools.md).
+  - `projectPath` is removed from `get_project_status` and from `save_project_as`'s source assertion.
+  - An unbound batch read returns one call-level root error.
+  - "Bind first" uses `binding_conflict`.
+  - The audit `projectPath` is the pinned bound path.
+  - `search_equipment_catalog` is gated too.
+  - The client's `projectPath` parameters go end to end.
+  - Deferred: the worker-side identity backstop, and the tree-cursor message bug, which gets its own PR.
 - **C-5:**
   - Bind the worker session identity in the sealed state, or not.
   - Foreign-process category. Recommended: `invalid_cursor`.
