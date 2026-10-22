@@ -101,6 +101,7 @@ public sealed class WriteGuardCatalogTests
     public void NonInteractive_RejectsNullDefinition()
         => Assert.Throws<ArgumentException>(() => WriteGuardCatalog.NonInteractive(
             new WriteGuardDefinition?[] { null }!, "HMI"));
+
     [Fact]
     public void Get_UnknownId_Throws()
         => Assert.Throws<InvalidOperationException>(() => new WriteGuardCatalog(Array.Empty<WriteGuardDefinition>()).Get("nope"));

@@ -29,5 +29,4 @@ public class PlcGuardDefinitionsTests
         Assert.Equal("plc_ob_singleton_exists", PlcGuardDefinitions.ObSingletonExists);
         _ = new WriteGuardCatalog(PlcGuardDefinitions.Definitions);
     }
-
 }
