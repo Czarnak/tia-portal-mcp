@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.Contracts.Safety;
@@ -106,26 +107,6 @@ public static class OperationPolicyCatalog
             ["list_network_objects"] = OperationCapability.Observe,
             ["inspect_network_object"] = OperationCapability.Observe,
             ["probe_network_object_attributes"] = OperationCapability.Observe,
-            ["hmi_list_hmi_devices"] = OperationCapability.Observe,
-            ["hmi_list_tag_tables"] = OperationCapability.Observe,
-            ["hmi_list_tags"] = OperationCapability.Observe,
-            ["hmi_get_tag"] = OperationCapability.Observe,
-            ["hmi_list_system_tags"] = OperationCapability.Observe,
-            ["hmi_list_connections"] = OperationCapability.Observe,
-            ["hmi_list_alarms"] = OperationCapability.Observe,
-            ["hmi_get_alarm"] = OperationCapability.Observe,
-            ["hmi_list_alarm_classes"] = OperationCapability.Observe,
-            ["hmi_list_logs"] = OperationCapability.Observe,
-            ["hmi_list_logging_tags"] = OperationCapability.Observe,
-            ["hmi_list_screens"] = OperationCapability.Observe,
-            ["hmi_list_screen_items"] = OperationCapability.Observe,
-            ["hmi_list_faceplate_instances"] = OperationCapability.Observe,
-            ["hmi_get_screen_navigation"] = OperationCapability.Observe,
-            ["hmi_get_runtime_settings"] = OperationCapability.Observe,
-            ["hmi_list_script_modules"] = OperationCapability.Observe,
-            ["hmi_list_text_and_graphic_lists"] = OperationCapability.Observe,
-            ["hmi_list_project_languages"] = OperationCapability.Observe,
-            ["hmi_validate"] = OperationCapability.Observe,
 
             // SessionSelection (all presets, selects an already-open project)
             ["select_portal_project"] = OperationCapability.SessionSelection,
@@ -146,15 +127,6 @@ public static class OperationPolicyCatalog
             ["close_project"] = OperationCapability.ProjectLifecycle,
 
             // ProjectMutation (NOT read-only safe)
-            ["hmi_create_tag_table"] = OperationCapability.ProjectMutation,
-            ["hmi_update_tag_table"] = OperationCapability.ProjectMutation,
-            ["hmi_delete_tag_table"] = OperationCapability.ProjectMutation,
-            ["hmi_create_tag"] = OperationCapability.ProjectMutation,
-            ["hmi_update_tag"] = OperationCapability.ProjectMutation,
-            ["hmi_delete_tag"] = OperationCapability.ProjectMutation,
-            ["hmi_create_alarm"] = OperationCapability.ProjectMutation,
-            ["hmi_update_alarm"] = OperationCapability.ProjectMutation,
-            ["hmi_delete_alarm"] = OperationCapability.ProjectMutation,
             ["update_block_logic"] = OperationCapability.ProjectMutation,
             ["update_type_content"] = OperationCapability.ProjectMutation,
             ["create_block"] = OperationCapability.ProjectMutation,
@@ -183,6 +155,10 @@ public static class OperationPolicyCatalog
             ["get_basic_project_status"] = OperationCapability.ProjectLifecycle,
         };
 
+        foreach (var method in HmiReadMethods.All)
+            dict[method] = OperationCapability.Observe;
+        foreach (var method in HmiWriteMethods.All)
+            dict[method] = OperationCapability.ProjectMutation;
         foreach (var method in VciMethods.Read)
             dict[method] = OperationCapability.Observe;
         dict[VciMethods.Plan] = OperationCapability.Observe;
