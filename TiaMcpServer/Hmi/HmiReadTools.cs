@@ -25,7 +25,8 @@ public class HmiReadTools
     public static async Task<CallToolResult> HmiRead(
         OpennessWorkerClient workerClient,
         HmiPageCursorCodec cursorCodec,
-        [Description("Ordered list of HMI read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] HmiOperationRequest[] operations)
+        [Description("Ordered list of HMI read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] HmiOperationRequest[] operations,
+        CancellationToken cancellationToken = default)
     {
         var validation = HmiOperationCatalog.ValidateRead(operations);
         if (!validation.IsValid)
@@ -42,11 +43,12 @@ public class HmiReadTools
 
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            operation => HmiWorkerInvoker.InvokeReadAsync(workerClient, cursorCodec, operation, CancellationToken.None),
+            operation => HmiWorkerInvoker.InvokeReadAsync(workerClient, cursorCodec, operation, cancellationToken),
             // ponytail: binding captured after the worker call; a rebind in between is not cleared from the
             // worker store, but a continuation under the new project fails cursor_snapshot_mismatch at
             // HmiSnapshotStore.Take (project Equals check) rather than reading stale data.
-            (operation, result) => HmiPayloadContract.Project(operation, result, cursorCodec, workerClient.BindingSnapshot))
+            (operation, result) => HmiPayloadContract.Project(operation, result, cursorCodec, workerClient.BindingSnapshot),
+            cancellationToken)
             .ConfigureAwait(false);
 
         // A batch that ran is a successful MCP call even when items failed: isError means "could not run".

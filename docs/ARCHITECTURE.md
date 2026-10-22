@@ -462,6 +462,8 @@ required fields, inapplicable fields, and invalid bounds before worker invocatio
 Read batches execute items independently. One failed read does not prevent the
 remaining items from running.
 
+Read batches check caller cancellation before each item. An in-flight worker call is not cancelled, and the worker timeout bounds it. A cancelled call returns no batch document.
+
 Write batches execute sequentially and stop on the first failure. Already
 completed writes are not rolled back.
 

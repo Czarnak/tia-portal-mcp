@@ -30,7 +30,8 @@ public class NetworkReadTools
     [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config, search_equipment_catalog (query), list_network_objects (objectKinds), and inspect_network_object (target). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls. read_hardware_config accepts optional deviceName (case-insensitive station/root device name as in devices[].name, not a PLC/CPU device-item name), plcName (PLC software name, used only for tag matching), includeIoDetails (structured addresses and channels), and includeTagMatches (requires includeIoDetails). For bounded hardware pagination, supply pageSize (1..200) or cursor; cursor alone defaults to 50. Page size counts one combined sequence, devices first, then subnets, while the result keeps separate arrays. On continuation, deviceName, plcName, includeIoDetails, and includeTagMatches must remain unchanged. Detailed output can be large, so filter by deviceName or split into separate calls.")]
     public static async Task<CallToolResult> NetworkRead(
         OpennessWorkerClient workerClient,
-        [Description("Ordered list of dedicated network read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] NetworkOperationRequest[] operations)
+        [Description("Ordered list of dedicated network read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] NetworkOperationRequest[] operations,
+        CancellationToken cancellationToken = default)
     {
         var validation = NetworkOperationCatalog.ValidateRead(operations);
         if (!validation.IsValid)
@@ -51,7 +52,8 @@ public class NetworkReadTools
 
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            operationExecutor.ExecuteAsync)
+            operationExecutor.ExecuteAsync,
+            cancellationToken)
             .ConfigureAwait(false);
 
         var bounded = ApplyBudget(batch);

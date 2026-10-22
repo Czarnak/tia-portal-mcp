@@ -177,6 +177,107 @@ public class StructuredOperationBatchTests
         Assert.Equal(new[] { "degraded-third" }, batch.Operations[2].Warnings);
     }
 
+    private static TestOperation[] ThreeOperations() => new[]
+    {
+        new TestOperation("a", "read_a"),
+        new TestOperation("b", "read_b"),
+        new TestOperation("c", "read_c"),
+    };
+
+    [Fact]
+    public async Task ExecuteReadsAsync_Execute_PreCancelledToken_InvokesNoItem()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var calls = 0;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
+                ThreeOperations(),
+                operation =>
+                {
+                    calls++;
+                    return Task.FromResult(Succeeded(operation, null, Array.Empty<string>()));
+                },
+                cts.Token));
+
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task ExecuteReadsAsync_InvokeProject_PreCancelledToken_InvokesNoItem()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var invokes = 0;
+        var projects = 0;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
+                ThreeOperations(),
+                _ =>
+                {
+                    invokes++;
+                    return Task.FromResult(WorkerCallResult.Ok("""{"value":"ok"}"""));
+                },
+                (operation, result) =>
+                {
+                    projects++;
+                    return ProjectLikeAContract(operation, result);
+                },
+                cts.Token));
+
+        Assert.Equal(0, invokes);
+        Assert.Equal(0, projects);
+    }
+
+    [Fact]
+    public async Task ExecuteReadsAsync_Execute_CancelDuringFirstItem_StopsBeforeSecondItem()
+    {
+        using var cts = new CancellationTokenSource();
+        var calls = 0;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
+                ThreeOperations(),
+                operation =>
+                {
+                    calls++;
+                    cts.Cancel();
+                    return Task.FromResult(Succeeded(operation, null, Array.Empty<string>()));
+                },
+                cts.Token));
+
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task ExecuteReadsAsync_InvokeProject_CancelDuringFirstItem_StopsBeforeSecondItem()
+    {
+        using var cts = new CancellationTokenSource();
+        var invokes = 0;
+        var projects = 0;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
+                ThreeOperations(),
+                _ =>
+                {
+                    invokes++;
+                    cts.Cancel();
+                    return Task.FromResult(WorkerCallResult.Ok("""{"value":"ok"}"""));
+                },
+                (operation, result) =>
+                {
+                    projects++;
+                    return ProjectLikeAContract(operation, result);
+                },
+                cts.Token));
+
+        Assert.Equal(1, invokes);
+        Assert.Equal(1, projects);
+    }
+
     [Fact]
     public async Task ExecuteReadsAsync_TreatsASuccessfulJsonNullAsSucceededWithANullResult()
     {

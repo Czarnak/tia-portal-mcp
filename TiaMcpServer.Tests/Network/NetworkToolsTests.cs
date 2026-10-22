@@ -46,7 +46,7 @@ public class NetworkToolsTests
         NetworkOperationRequest[] operations)
     {
         var task = RequiredToolMethod("NetworkReadTools", "NetworkRead")
-            .Invoke(null, new object?[] { client, operations }) as Task<CallToolResult>;
+            .Invoke(null, new object?[] { client, operations, CancellationToken.None }) as Task<CallToolResult>;
         Assert.NotNull(task);
         return await task!;
     }

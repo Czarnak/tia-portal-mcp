@@ -16,7 +16,8 @@ public static class StructuredOperationBatchExecutionEngine
 {
     public static async Task<StructuredOperationBatch> ExecuteReadsAsync<T>(
         IReadOnlyList<T> operations,
-        Func<T, Task<StructuredOperationItem>> execute)
+        Func<T, Task<StructuredOperationItem>> execute,
+        CancellationToken cancellationToken = default)
         where T : IOperationBatchItem
     {
         ArgumentNullException.ThrowIfNull(operations);
@@ -24,6 +25,7 @@ public static class StructuredOperationBatchExecutionEngine
         var items = new List<StructuredOperationItem>(operations.Count);
         foreach (var operation in operations)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             items.Add(await execute(operation).ConfigureAwait(false));
         }
 
@@ -37,12 +39,14 @@ public static class StructuredOperationBatchExecutionEngine
     public static async Task<StructuredOperationBatch> ExecuteReadsAsync<T>(
         IReadOnlyList<T> operations,
         Func<T, Task<WorkerCallResult>> invoke,
-        Func<T, WorkerCallResult, StructuredOperationItem> project)
+        Func<T, WorkerCallResult, StructuredOperationItem> project,
+        CancellationToken cancellationToken = default)
         where T : IOperationBatchItem
     {
         var items = new List<StructuredOperationItem>(operations.Count);
         foreach (var operation in operations)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var workerResult = await invoke(operation).ConfigureAwait(false);
             items.Add(project(operation, workerResult));
         }

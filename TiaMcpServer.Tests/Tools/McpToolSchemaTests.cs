@@ -263,15 +263,16 @@ public class McpToolSchemaTests
             toolNames);
     }
 
-    [Fact]
-    public void NetworkRead_SchemaExposesOnlyOperations()
+    [Theory]
+    [InlineData(typeof(TiaMcpServer.Plc.PlcReadTools), "PlcRead")]
+    [InlineData(typeof(TiaMcpServer.Network.NetworkReadTools), "NetworkRead")]
+    [InlineData(typeof(TiaMcpServer.Hmi.HmiReadTools), "HmiRead")]
+    [InlineData(typeof(TiaMcpServer.Vci.VciReadTools), "VciRead")]
+    public void ReadBatchSchemas_ExposeOnlyOperations(Type toolType, string methodName)
     {
-        var properties = SchemaPropertyNames(
-            RequiredNetworkToolType("NetworkReadTools"),
-            "NetworkRead");
+        var properties = SchemaPropertyNames(toolType, methodName);
 
         Assert.Equal(new[] { "operations" }, properties);
-        Assert.DoesNotContain("workerClient", properties);
     }
 
     [Fact]
