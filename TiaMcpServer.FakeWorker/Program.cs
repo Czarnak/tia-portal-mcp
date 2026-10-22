@@ -36,8 +36,8 @@ var portalDisposalRevision = 0L;
 // starts. Ordinary requests never establish this mutable session state.
 string? fakeProjectPath = ProjectPathNormalization.Canonicalize(
     Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_UI_OPEN_PROJECT"));
-// Binding fixtures opt in so an identity-less get_project_status grounds the UI-open project
-// before any scenario script runs. Launches without the flag keep every scripted response.
+// Binding fixtures opt in so the first identity-less get_project_status grounds the UI-open
+// project before any scenario script runs. Launches without the flag keep every scripted response.
 var statusGroundingDeclared =
     Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_STATUS_GROUNDING") == "1";
 string? fakeSessionContainerPath = null;
@@ -510,6 +510,9 @@ while ((line = Console.In.ReadLine()) is not null)
         Respond(scenario == "network-binding-mismatch"
             ? SuccessWithResolvedPath(grounded, @"C:\FakeWorker\Different.ap21")
             : Success(grounded));
+        // One-shot: only the bootstrap answer changes; later identity-less status calls
+        // (recovery probes, configured-project grounding) reach their scenario scripts again.
+        statusGroundingDeclared = false;
         continue;
     }
 

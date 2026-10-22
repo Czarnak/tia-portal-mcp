@@ -16,8 +16,9 @@ internal sealed class FakeWorkerUiOpenProject : IDisposable
 
     /// <param name="projectPath">The project already open in the simulated UI.</param>
     /// <param name="groundsStatus">
-    /// When true, the launched worker answers an identity-less <c>get_project_status</c> for that
-    /// project before any scenario script runs, so a binding fixture can ground every scenario.
+    /// When true, the launched worker answers its first identity-less <c>get_project_status</c> for
+    /// that project before any scenario script runs, so a binding fixture can ground every scenario.
+    /// Later identity-less status requests reach the scenario script again.
     /// </param>
     public FakeWorkerUiOpenProject(string? projectPath, bool groundsStatus = false)
     {
