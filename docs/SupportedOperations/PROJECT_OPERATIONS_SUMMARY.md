@@ -283,6 +283,15 @@ switch or open; use `bind_project` for already-open projects and open/create for
 
 Supported archive modes are `None`, `DiscardRestorableData`, `Compressed`, and `DiscardRestorableDataAndCompressed`. Lifecycle tools are single-tool operations and cannot be included in a batch.
 
+### Argument strictness
+
+Lifecycle root arguments are strict. An unknown, missing, mistyped or retired argument is
+rejected before the tool runs with the tool's canonical document (`validation_error`,
+`isError:true`) and no audit record. JSON `null` is rejected for non-nullable boolean arguments
+(`dryRun`, `saveBeforeClose`, `forceRebind`, `rebind`, `saveBeforeArchive`); omit the argument
+instead. Optional string arguments such as `projectPath` accept `null`. Non-nullable string
+arguments still accept `null`; see the improvement log.
+
 ### Single-call writes and dry runs
 
 Every lifecycle tool accepts `dryRun:bool=false` with its operation inputs. A normal call

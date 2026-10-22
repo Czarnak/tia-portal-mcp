@@ -53,7 +53,7 @@ may still show its destructive-tool permission prompt. No tool uses safety token
 `expectedContentHash` (from `plc_read`) instead of `yamlContent`/`sourceContent`.
 `plc_write` and Network take `operations` and optional boolean `dryRun=false`; **omitting dryRun executes**.
 Set `dryRun:true` for every preview caller. Remove `confirm`, the former safety-token argument, `acknowledge` and
-unknown root keys: SDK/wrapper rejection before entry is a normal MCP error with no write audit.
+unknown root keys: every argument-shape error returns the tool's canonical document (`validation_error`, `isError:true`) with no audit record.
 Entered validation/binding/guard denials use a canonical root error and one audit v2 record.
 No `plc_write` or Network server elicitation occurs in either writable mode, including deletes.
 Read `batch`, `effects`, `verification` and explicit-null root `omission`; delivery failure can

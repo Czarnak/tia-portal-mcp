@@ -107,6 +107,9 @@ This is the contract every in-scope tool ends on.
 - `isError` is `true` exactly when the tool rejected the call before anything ran (validation,
   access mode, binding, or a guard that blocked the write). A call that ran and partly or wholly failed is
   not a protocol error: `isError` is `false` and the envelope says what failed.
+- Argument-shape errors (unknown, missing, mistyped or retired arguments, at the root or inside
+  items) are rejected before tool entry. Every tool returns its own canonical document with
+  `validation_error`, `isError: true` and no audit record, never plain text.
 
 ### Envelope
 
@@ -296,7 +299,7 @@ not changed by this documentation task.
 
 ### Phase 4: Align and Retire
 
-- Network alignment delivered with guarded writes: version `1.0`, warnings/explicit nulls, effects and typed immediate/final verification; actual-by-default `dryRun=false`, no server elicitation. SDK/wrapper legacy/unknown-root/nonboolean rejection before entry is a normal MCP error with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
+- Network alignment delivered with guarded writes: version `1.0`, warnings/explicit nulls, effects and typed immediate/final verification; actual-by-default `dryRun=false`, no server elicitation. legacy/unknown-root/nonboolean rejection before entry returns the canonical `validation_error` document with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
 - Lifecycle, Network and generic-batch token paths are retired. The remaining legacy text pieces
   (`StandaloneToolResultFormatter`, `WorkerCallResult.ToText` and `ToEnvelopeText`) were deleted
