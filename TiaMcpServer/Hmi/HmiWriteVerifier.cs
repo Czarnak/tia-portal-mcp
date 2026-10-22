@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
@@ -12,8 +13,6 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
     IReadOnlyDictionary<string, HmiWriteEffect> effects)
 {
     private static readonly StringComparer Names = StringComparer.OrdinalIgnoreCase;
-    private static readonly HashSet<string> NeverRan = new(StringComparer.Ordinal)
-    { "validation_error", "target_not_found", "target_ambiguous", "state_changed", "guard_blocked", "binding_conflict", "access_denied" };
     private sealed class ReadFailure(string message) : Exception(message);
     private sealed class Expectation(HmiTargetIdentity target, string owner)
     {
@@ -36,7 +35,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         foreach (var item in items)
         {
             if (!outcomes.TryGetValue(item.OperationId, out var outcome) || outcome.Status is not (OperationBatchStatus.Succeeded or OperationBatchStatus.Failed)) continue;
-            if (outcome.Failure is { } refusal && NeverRan.Contains(refusal.Category))
+            if (outcome.Failure is { } refusal && WorkerFailureCategories.IsPreconditionRefusal(refusal.Category))
             {
                 results.Add(new(item.OperationId, true, "skipped", null, null, refusal.Message));
                 continue;
