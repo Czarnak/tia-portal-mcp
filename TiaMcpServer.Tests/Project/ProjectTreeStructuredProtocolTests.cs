@@ -129,6 +129,35 @@ public sealed class ProjectTreeStructuredProtocolTests
     }
 
     [Fact]
+    public async Task UnknownRootKey_UsesGenericValidationMessage()
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        var result = await CallAsync(harness, new Dictionary<string, object?> { ["extra"] = true });
+
+        Assert.StartsWith(
+            "browse_project_tree arguments do not match its input schema: unknown argument 'extra'",
+            FailureMessage(result), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WrongRootType_UsesGenericValidationMessage()
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        var result = await CallAsync(harness, new Dictionary<string, object?> { ["pageSize"] = "x" });
+
+        AssertValidationFailure(result);
+        Assert.StartsWith(
+            "browse_project_tree arguments do not match its input schema: argument 'pageSize' is malformed",
+            FailureMessage(result), StringComparison.Ordinal);
+    }
+
+    private static string FailureMessage(CallToolResult result)
+    {
+        AssertValidationFailure(result);
+        return AssertOneCanonicalDocument(result).GetProperty("failure").GetProperty("message").GetString()!;
+    }
+
+    [Fact]
     public async Task BrowseProjectTree_UnknownSelectorMemberReturnsCanonicalSelectorFailure()
     {
         await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();

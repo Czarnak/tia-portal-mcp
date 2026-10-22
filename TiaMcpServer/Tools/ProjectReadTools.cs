@@ -91,62 +91,66 @@ internal static class ProjectReadToolRegistration
 internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
     : DelegatingMcpServerTool(innerTool)
 {
-    private static readonly HashSet<string> AllowedArguments = new(StringComparer.Ordinal)
-    {
-        "projectPath",
-        "startSelector",
-        "depth",
-        "pageSize",
-        "cursor",
-    };
+    private const string FixedFailureText = "The browse_project_tree arguments did not match the declared input schema.";
+
+    private readonly IReadOnlySet<string> _rootKeys = StrictArgumentsTool.RootKeys(innerTool);
 
     public override ValueTask<CallToolResult> InvokeAsync(
         RequestContext<CallToolRequestParams> request,
         CancellationToken cancellationToken = default)
     {
-        var category = ShapeFailureCategory(request.Params.Arguments);
+        var (category, message) = ShapeFailure(request.Params.Arguments);
         return category is null
             ? base.InvokeAsync(request, cancellationToken)
-            : ValueTask.FromResult(ValidationFailure(category,
-                "The browse_project_tree arguments did not match the declared input schema."));
+            : ValueTask.FromResult(ValidationFailure(category, message!));
     }
 
-    private static string? ShapeFailureCategory(IDictionary<string, JsonElement>? arguments)
+    private (string? Category, string? Message) ShapeFailure(IDictionary<string, JsonElement>? arguments)
     {
         if (arguments is null)
         {
-            return null;
+            return (null, null);
         }
 
-        if (arguments.Keys.Any(key => !AllowedArguments.Contains(key))
-            || !IsOptionalString(arguments, "projectPath")
-            || !IsOptionalInteger(arguments, "depth")
-            || !IsOptionalInteger(arguments, "pageSize"))
+        var unknown = arguments.Keys.FirstOrDefault(key => !_rootKeys.Contains(key));
+        if (unknown is not null)
         {
-            return WorkerFailureCategories.ValidationError;
+            return Invalid($"unknown argument '{unknown}'");
         }
 
+        foreach (var (name, isValid) in new (string, bool)[]
+                 {
+                     ("projectPath", IsOptionalString(arguments, "projectPath")),
+                     ("depth", IsOptionalInteger(arguments, "depth")),
+                     ("pageSize", IsOptionalInteger(arguments, "pageSize")),
+                 })
+        {
+            if (!isValid)
+            {
+                return Invalid($"argument '{name}' is malformed");
+            }
+        }
         if (!IsOptionalString(arguments, "cursor"))
         {
-            return WorkerFailureCategories.InvalidCursor;
+            return Fixed(WorkerFailureCategories.InvalidCursor);
         }
 
         if (!arguments.TryGetValue("startSelector", out var selector)
             || selector.ValueKind == JsonValueKind.Null)
         {
-            return null;
+            return (null, null);
         }
 
         if (selector.ValueKind != JsonValueKind.Array)
         {
-            return WorkerFailureCategories.InvalidSelector;
+            return Fixed(WorkerFailureCategories.InvalidSelector);
         }
 
         foreach (var segment in selector.EnumerateArray())
         {
             if (segment.ValueKind != JsonValueKind.Object)
             {
-                return WorkerFailureCategories.InvalidSelector;
+                return Fixed(WorkerFailureCategories.InvalidSelector);
             }
 
             var properties = segment.EnumerateObject().ToArray();
@@ -156,13 +160,18 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
                 || !segment.TryGetProperty("name", out var name)
                 || name.ValueKind != JsonValueKind.String)
             {
-                return WorkerFailureCategories.InvalidSelector;
+                return Fixed(WorkerFailureCategories.InvalidSelector);
             }
         }
 
-        return null;
+        return (null, null);
     }
 
+    private (string, string) Invalid(string detail)
+        => (WorkerFailureCategories.ValidationError,
+            StrictArgumentsTool.Message("browse_project_tree", detail, _rootKeys));
+
+    private static (string, string) Fixed(string category) => (category, FixedFailureText);
     private static bool IsOptionalString(
         IDictionary<string, JsonElement> arguments,
         string name)
