@@ -185,19 +185,6 @@ internal static class Program
                 "get_type_content"    => GetTypeContent(request),
                 "update_type_content" => UpdateTypeContent(request),
                 "list_tag_tables"     => ListTagTables(request),
-                "hmi_create_tag_table" or "hmi_update_tag_table" or "hmi_delete_tag_table"
-                    or "hmi_create_tag" or "hmi_update_tag" or "hmi_delete_tag"
-                    or "hmi_create_alarm" or "hmi_update_alarm" or "hmi_delete_alarm" => WriteHmi(request),
-                "hmi_list_hmi_devices" or "hmi_get_runtime_settings" or "hmi_list_script_modules"
-                    or "hmi_list_text_and_graphic_lists" or "hmi_list_project_languages" or "hmi_list_tag_tables"
-                    or "hmi_list_tags" or "hmi_get_tag" or "hmi_list_system_tags" or "hmi_list_logging_tags"
-                    or "hmi_list_connections" or "hmi_list_alarms" or "hmi_get_alarm" or "hmi_list_alarm_classes"
-                    or "hmi_list_logs" or "hmi_list_screens" or "hmi_list_screen_items" or "hmi_list_faceplate_instances"
-                    or "hmi_get_screen_navigation" or "hmi_validate" => ReadHmi(request),
-                "vci_list_workspaces" or "vci_list_mappings" or "vci_supported_formats" => ReadVci(request),
-                "vci_plan" => PlanVci(request),
-                "vci_create_workspace" or "vci_delete_workspace" or "vci_export" or "vci_sync_to_workspace"
-                    or "vci_sync_to_project" or "vci_delete_mapping" => WriteVci(request),
                 "compile_check"       => CompileCheck(request),
                 "create_tag_table"    => CreateTagTable(request),
                 "delete_tag_table"    => DeleteTagTable(request),
@@ -221,6 +208,11 @@ internal static class Program
                 "save_project_as"     => SaveProjectAs(request),
                 "archive_project"     => ArchiveProject(request),
                 "close_project"       => CloseProject(request),
+                var m when HmiWriteMethods.All.Contains(m, StringComparer.Ordinal) => WriteHmi(request),
+                var m when HmiReadMethods.All.Contains(m, StringComparer.Ordinal) => ReadHmi(request),
+                var m when VciMethods.Read.Contains(m, StringComparer.Ordinal) => ReadVci(request),
+                VciMethods.Plan => PlanVci(request),
+                var m when VciMethods.Write.Contains(m, StringComparer.Ordinal) => WriteVci(request),
                 _ => throw new WorkerOperationException(
                     WorkerFailureCategories.ValidationError,
                     $"Unsupported worker method '{request.Method}'.")
