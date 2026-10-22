@@ -24,7 +24,8 @@ public class VciReadTools
     [Description("Read standalone VCI workspaces with up to 50 independent operations: list_workspaces (no extra fields), list_mappings (workspaceName; optional scope, withStatus, offset and limit), supported_formats (scope naming one terminal leaf, optional workspaceName; otherwise uses the first workspace). scope is a Device-rooted sequence of {nodeType,name}; software units and system block folders are unsupported. list_mappings uses plain offset/limit paging without a snapshot; changes between pages may shift rows. withStatus costs about 0.5 seconds per returned mapping. Defaults: withStatus false, offset 0, limit 100 (1-200). Reads never open or switch projects.")]
     public static async Task<CallToolResult> VciRead(
         OpennessWorkerClient workerClient,
-        [Description("Ordered VCI read operations, each with unique operationId and operation.")] VciOperationRequest[] operations)
+        [Description("Ordered VCI read operations, each with unique operationId and operation.")] VciOperationRequest[] operations,
+        CancellationToken cancellationToken = default)
     {
         var validation = VciReadCatalog.ValidateRead(operations);
         if (!validation.IsValid)
@@ -42,7 +43,8 @@ public class VciReadTools
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
             operation => workerClient.ReadVciAsync(TiaMcpServer.Contracts.Vci.VciMethods.ForOperation(operation.Operation), VciReadCatalog.ToQuery(operation), operation.ProjectPath),
-            VciPayloadContract.Project)
+            VciPayloadContract.Project,
+            cancellationToken)
             .ConfigureAwait(false);
 
         // A batch that ran is a successful MCP call even when items failed: isError means "could not run".
