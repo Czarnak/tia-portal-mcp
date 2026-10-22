@@ -90,7 +90,7 @@ public sealed class ToolOutputContractConformanceTests
             "network_read",
             "succeeded",
             ExpectIsError: false,
-            StartupProjectPath: null,
+            StartupProjectPath: "network-roundtrip",
             new Dictionary<string, object?>
             {
                 ["operations"] = new[]
@@ -99,14 +99,13 @@ public sealed class ToolOutputContractConformanceTests
                     {
                         operationId = "hardware",
                         operation = "read_hardware_config",
-                        projectPath = "network-roundtrip",
                     },
                 },
             }),
         new ToolProbe("vci_read", "rejected", true, null,
             new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
-        new ToolProbe("vci_read", "succeeded", false, null,
-            new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w", operation = "list_workspaces", projectPath = "vci-read-roundtrip" } } }),
+        new ToolProbe("vci_read", "succeeded", false, "vci-read-roundtrip",
+            new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w", operation = "list_workspaces" } } }),
         new ToolProbe(
             "plc_read",
             "rejected",
@@ -117,7 +116,7 @@ public sealed class ToolOutputContractConformanceTests
             "plc_read",
             "succeeded",
             ExpectIsError: false,
-            StartupProjectPath: null,
+            StartupProjectPath: "plc-read-roundtrip",
             new Dictionary<string, object?>
             {
                 ["operations"] = new[]
@@ -126,7 +125,6 @@ public sealed class ToolOutputContractConformanceTests
                     {
                         operationId = "block",
                         operation = "get_block_content",
-                        projectPath = "plc-read-roundtrip",
                         blockPath = "PLC_1/Main",
                     },
                 },
@@ -141,7 +139,7 @@ public sealed class ToolOutputContractConformanceTests
             "hmi_read",
             "succeeded",
             ExpectIsError: false,
-            StartupProjectPath: null,
+            StartupProjectPath: "hmi-read-roundtrip",
             new Dictionary<string, object?>
             {
                 ["operations"] = new[]
@@ -150,7 +148,6 @@ public sealed class ToolOutputContractConformanceTests
                     {
                         operationId = "devices",
                         operation = "list_hmi_devices",
-                        projectPath = "hmi-read-roundtrip",
                     },
                 },
             }),
@@ -164,20 +161,18 @@ public sealed class ToolOutputContractConformanceTests
             "read_cross_references",
             "succeeded",
             ExpectIsError: false,
-            StartupProjectPath: null,
+            StartupProjectPath: "xref-roundtrip",
             new Dictionary<string, object?>
             {
-                ["projectPath"] = "xref-roundtrip",
                 ["target"] = XrefTarget,
             }),
         new ToolProbe(
             "read_cross_references",
             "omittedSources",
             ExpectIsError: false,
-            StartupProjectPath: null,
+            StartupProjectPath: "xref-oversized",
             new Dictionary<string, object?>
             {
-                ["projectPath"] = "xref-oversized",
                 ["target"] = XrefTarget,
             }),
         new ToolProbe(
@@ -273,10 +268,9 @@ public sealed class ToolOutputContractConformanceTests
             "browse_project_tree",
             "succeeded",
             ExpectIsError: false,
-            StartupProjectPath: null,
+            StartupProjectPath: "project-tree-v3-small",
             new Dictionary<string, object?>
             {
-                ["projectPath"] = "project-tree-v3-small",
                 ["pageSize"] = 4,
             }),
     }.ToDictionary(probe => probe.Name, StringComparer.Ordinal);

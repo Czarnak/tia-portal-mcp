@@ -74,7 +74,7 @@ public class ProjectStandaloneToolTests
 
         var response = await ProjectEngineeringTools.CompileCheck(
             client,
-            projectPath,
+            projectPath: projectPath,
             plcName: "PLC_1",
             blockPath: "PLC_1/Blocks/Main");
         var root = StandaloneStatusToolTests.Document(response);
@@ -95,7 +95,7 @@ public class ProjectStandaloneToolTests
 
         var response = await ProjectEngineeringTools.CompileCheck(
             client,
-            projectPath,
+            projectPath: projectPath,
             blockPath: new string('x', StructuredOperationBatchPayloadBudget.MaxItemChars + 100));
         var root = StandaloneStatusToolTests.Document(response);
         var outcome = root.GetProperty("result");

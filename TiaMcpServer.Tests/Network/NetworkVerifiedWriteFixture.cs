@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Tests.Network;
@@ -62,43 +63,9 @@ internal sealed class NetworkVerifiedWriteFixture : IDisposable
                 "The FakeWorker target-project read requires a canonical project path.");
         }
 
-        // Write fixtures require an already-open target. Keep the declaration scoped to the
-        // first worker launch; later reads do not establish or change the worker's open state.
-        using var uiOpen = new FakeWorkerUiOpenProject(requestedPath);
-        var probe = await client
-            .ReadHardwareConfigAsync(requestedPath)
-            .ConfigureAwait(false);
-        if (!probe.Success || probe.SessionIdentity is null)
-        {
-            throw new InvalidOperationException(
-                $"The FakeWorker target-project read failed: " +
-                $"{probe.Error ?? "missing session identity"}");
-        }
-
-        var reportedPath = ProjectPathNormalization.Canonicalize(
-            probe.SessionIdentity.ProjectPath);
-        var resolvedPath = ProjectPathNormalization.Canonicalize(probe.ResolvedProjectPath);
-        if (reportedPath is null ||
-            resolvedPath is not null && !string.Equals(
-                requestedPath, resolvedPath, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(
-                requestedPath,
-                reportedPath,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"The FakeWorker reported project '{reportedPath ?? "<missing>"}' " +
-                $"for requested project '{requestedPath ?? "<missing>"}'.");
-        }
-
-        if (!binding.BindVerified(
-                probe.SessionIdentity,
-                forceRebind: false,
-                out var error))
-        {
-            throw new InvalidOperationException(
-                $"Could not establish the FakeWorker project binding: {error}");
-        }
+        // Write fixtures require an already-open target; the helper declares it before the first
+        // worker launch and binds from the identity-bearing project status.
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, requestedPath).ConfigureAwait(false);
     }
 
     public void Dispose() => Client.Dispose();

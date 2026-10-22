@@ -468,12 +468,13 @@ public class HmiWriteVerifierTests
     {
         private readonly string directory = Path.Combine(Path.GetTempPath(), "hmi-verifier-" + Guid.NewGuid().ToString("N"));
         private readonly Dictionary<string, string> payloads = new();
+        private readonly ProjectSessionBinding binding;
         public OpennessWorkerClient Client { get; }
         public WorkerRequest[] Requests => File.ReadAllLines(Path.Combine(directory, "requests")).Select(l => JsonSerializer.Deserialize<WorkerRequest>(l, WorkerJson.Request)!).Where(r => r.Method is not ("get_project_status" or "hello")).ToArray();
         private Fixture()
         {
             Directory.CreateDirectory(directory);
-            Client = new(new ProjectSessionBinding(null));
+            binding = new ProjectSessionBinding(null); Client = new(binding);
             var script = """
                 param([string]$Root)
                 while (($line = [Console]::In.ReadLine()) -ne $null) {
@@ -515,7 +516,8 @@ public class HmiWriteVerifierTests
         public static async Task<Fixture> Create()
         {
             var f = new Fixture(); var status = await f.Client.GetProjectStatusAsync(null);
-            Assert.True(status.Success, status.Error); return f;
+            Assert.True(status.Success, status.Error);
+            Assert.True(f.binding.BindVerified(status.SessionIdentity!, forceRebind: false, out var bindError), bindError); return f;
         }
         public void Put<T>(string key, T payload) => PutRaw(key, WorkerJson.SerializePayload(payload));
         public void PutRaw(string key, string payload) { payloads[key] = payload; File.WriteAllText(Path.Combine(directory, "payloads"), JsonSerializer.Serialize(payloads)); }
