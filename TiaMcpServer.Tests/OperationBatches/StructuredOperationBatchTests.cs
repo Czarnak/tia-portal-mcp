@@ -277,6 +277,7 @@ public class StructuredOperationBatchTests
         Assert.Equal(1, invokes);
         Assert.Equal(1, projects);
     }
+
     [Fact]
     public async Task ExecuteReadsAsync_TreatsASuccessfulJsonNullAsSucceededWithANullResult()
     {
