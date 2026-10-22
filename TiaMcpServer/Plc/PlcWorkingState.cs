@@ -272,8 +272,7 @@ internal sealed class PlcWorkingState
                         .Concat(Change("logicalAddress", tag.LogicalAddress, item.LogicalAddress))
                         .Concat(Change("externalAccessible", Flag(tag.ExternalAccessible), Flag(item.ExternalAccessible)))
                         .Concat(Change("externalVisible", Flag(tag.ExternalVisible), Flag(item.ExternalVisible)))
-                        .Concat(Change("externalWritable", Flag(tag.ExternalWritable), Flag(item.ExternalWritable)))
-                        .Concat(Change("isSafety", null, Flag(item.IsSafety))).ToArray(), null);
+                        .Concat(Change("externalWritable", Flag(tag.ExternalWritable), Flag(item.ExternalWritable))).ToArray(), null);
             }
             case "delete_tag":
             {

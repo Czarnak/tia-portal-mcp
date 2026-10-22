@@ -117,6 +117,15 @@ public class PlcOperationCatalogTests
             JsonSerializer.Deserialize<PlcOperationRequest>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     }
 
+    [Fact]
+    public void RejectsIsSafetyOnUpdateTag()
+    {
+        const string json = """{"operationId":"a","operation":"update_tag","tableName":"T","name":"X","isSafety":true}""";
+
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<PlcOperationRequest>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+    }
+
     [Theory]
     [InlineData("read_cross_references")]
     [InlineData("nope")]
@@ -383,7 +392,7 @@ public class PlcOperationCatalogTests
         ("create_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
         ("delete_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
         ("create_tag", new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
-        ("update_tag", new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
+        ("update_tag", new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable" }),
         ("delete_tag", new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
         ("create_user_constant", new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
         ("update_user_constant", new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),

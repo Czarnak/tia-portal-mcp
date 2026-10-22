@@ -1309,7 +1309,6 @@ public class OpennessWorkerClient : IDisposable
         bool? externalAccessible,
         bool? externalVisible,
         bool? externalWritable,
-        bool? isSafety,
         string? projectPath)
     {
         return SendBoundProjectRequestAsync(
@@ -1327,7 +1326,6 @@ public class OpennessWorkerClient : IDisposable
                 request.ExternalAccessible = externalAccessible;
                 request.ExternalVisible = externalVisible;
                 request.ExternalWritable = externalWritable;
-                request.IsSafety = isSafety;
                 request.Confirm = true;
             },
             "{}");

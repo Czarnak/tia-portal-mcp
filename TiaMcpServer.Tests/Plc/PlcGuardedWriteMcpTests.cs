@@ -67,10 +67,91 @@ public sealed class PlcGuardedWriteMcpTests
         Assert.Contains("\"expectedContentHash\"", item);
         Assert.DoesNotContain("yamlContent", item);
         Assert.DoesNotContain("sourceContent", item);
+        Assert.DoesNotContain("isSafety", item);
         var output = tool.OutputSchema!.Value.GetProperty("properties").EnumerateObject().Select(p => p.Name).ToArray();
         Assert.Contains("verification", output);
         Assert.Contains("omission", output);
         Assert.Contains("effects", output);
+    }
+
+    [Theory]
+    [InlineData("true", false)]
+    [InlineData("false", false)]
+    [InlineData("null", false)]
+    [InlineData("true", true)]
+    public async Task UpdateTagIsSafety_RejectedBeforeWorker(string json, bool dryRun)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var before = requests.Methods();
+        var item = new Dictionary<string, object?>
+        {
+            ["operationId"] = "tag", ["operation"] = "update_tag", ["plcName"] = "PLC_2",
+            ["tableName"] = "Default tag table", ["name"] = "Start",
+            ["isSafety"] = JsonSerializer.Deserialize<JsonElement>(json),
+        };
+
+        var reply = await harness.Client.CallToolAsync("plc_write", new Dictionary<string, object?> { ["operations"] = new[] { item }, ["dryRun"] = dryRun });
+
+        Assert.True(reply.IsError);
+        Assert.Equal(before, requests.Methods());
+        Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
+    [Fact]
+    public async Task PlcReadItemSchema_HasNoIsSafety()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
+        var tool = Assert.Single(await harness.Client.ListToolsAsync(), t => t.Name == "plc_read").ProtocolTool;
+
+        var item = tool.InputSchema.GetProperty("properties").GetProperty("operations").GetProperty("items").GetRawText();
+
+        Assert.DoesNotContain("isSafety", item);
+    }
+
+    [Fact]
+    public async Task PlcReadItemWithIsSafety_RejectedBeforeWorker()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var before = requests.Methods();
+        var item = new Dictionary<string, object?>
+        {
+            ["operationId"] = "r", ["operation"] = "get_block_content", ["blockPath"] = "PLC_2/Main", ["isSafety"] = true,
+        };
+
+        var reply = await harness.Client.CallToolAsync("plc_read", new Dictionary<string, object?> { ["operations"] = new[] { item } });
+
+        Assert.True(reply.IsError);
+        Assert.Equal(before, requests.Methods());
+        Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
+    [Fact]
+    public async Task UpdateTag_WithoutIsSafety_StillApplies()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var args = new Dictionary<string, object?>
+        {
+            ["operations"] = new[] { new { operationId = "tag", operation = "update_tag", plcName = "PLC_2", tableName = "Default tag table", name = "Start", externalWritable = false } },
+        };
+
+        var reply = await harness.Client.CallToolAsync("plc_write", args);
+
+        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.False(reply.IsError == true);
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal("applied", root.GetProperty("phase").GetString());
+        Assert.Contains("update_tag", requests.Methods());
+        Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
 
     [Fact]
