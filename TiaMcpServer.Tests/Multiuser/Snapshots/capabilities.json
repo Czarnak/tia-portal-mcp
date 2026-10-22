@@ -1,0 +1,644 @@
+{
+  "standaloneProject": [
+    {
+      "operation": "bind_project",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "open_project",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "get_project_status",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "browse_project_tree",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "plc_read",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "network_read",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "read_cross_references",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_read",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "get_block_content",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "get_type_content",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "list_tag_tables",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "read_hardware_config",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "list_network_objects",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "inspect_network_object",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "plc_write",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "network_write",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_write",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "compile_check",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "save_project",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_create_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_update_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_delete_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_create_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_update_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_delete_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_create_alarm",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_update_alarm",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_delete_alarm",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_block_logic",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_type_content",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_user_constant",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_user_constant",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_user_constant",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_block",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_block",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_block_group",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_block_group",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "add_network_device",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "configure_network_device",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_subnet",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_subnet",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_subnet",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "save_project_as",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "archive_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "close_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "vci_read",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "vci_write",
+      "applicability": "standaloneOnly"
+    }
+  ],
+  "localSession": [
+    {
+      "operation": "bind_project",
+      "applicability": "localSessionConditional"
+    },
+    {
+      "operation": "open_project",
+      "applicability": "localSessionConditional"
+    },
+    {
+      "operation": "get_project_status",
+      "applicability": "localSessionConditional"
+    },
+    {
+      "operation": "browse_project_tree",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "plc_read",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "network_read",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "read_cross_references",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_read",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "get_block_content",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "get_type_content",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "list_tag_tables",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "read_hardware_config",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "list_network_objects",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "inspect_network_object",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "plc_write",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "network_write",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_write",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "compile_check",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "save_project",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_create_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_update_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_delete_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_create_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_update_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_delete_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_create_alarm",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_update_alarm",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "hmi_delete_alarm",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_block_logic",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_type_content",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_tag_table",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_tag",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_user_constant",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_user_constant",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_user_constant",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_block",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_block",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_block_group",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_block_group",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "add_network_device",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "configure_network_device",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_subnet",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "update_subnet",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "delete_subnet",
+      "applicability": "projectContent"
+    },
+    {
+      "operation": "create_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "save_project_as",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "archive_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "close_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "vci_read",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "vci_write",
+      "applicability": "standaloneOnly"
+    }
+  ],
+  "serverProject": [
+    {
+      "operation": "bind_project",
+      "applicability": "unsupported"
+    },
+    {
+      "operation": "open_project",
+      "applicability": "unsupported"
+    },
+    {
+      "operation": "get_project_status",
+      "applicability": "unsupported"
+    },
+    {
+      "operation": "browse_project_tree",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "plc_read",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "network_read",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "read_cross_references",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_read",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "get_block_content",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "get_type_content",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "list_tag_tables",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "read_hardware_config",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "list_network_objects",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "inspect_network_object",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "plc_write",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "network_write",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_write",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "compile_check",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "save_project",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_create_tag_table",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_update_tag_table",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_delete_tag_table",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_create_tag",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_update_tag",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_delete_tag",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_create_alarm",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_update_alarm",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "hmi_delete_alarm",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "update_block_logic",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "update_type_content",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "create_tag_table",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "delete_tag_table",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "create_tag",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "update_tag",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "delete_tag",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "create_user_constant",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "update_user_constant",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "delete_user_constant",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "create_block",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "delete_block",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "create_block_group",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "delete_block_group",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "add_network_device",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "configure_network_device",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "create_subnet",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "update_subnet",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "delete_subnet",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "create_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "save_project_as",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "archive_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "close_project",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "vci_read",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "vci_write",
+      "applicability": "standaloneOnly"
+    }
+  ]
+}

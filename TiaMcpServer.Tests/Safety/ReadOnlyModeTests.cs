@@ -25,6 +25,23 @@ namespace TiaMcpServer.Tests.Safety;
 [Collection(RealWorkerProcessCollection.Name)]
 public class ReadOnlyModeTests
 {
+    [Fact]
+    public void HmiPolicyKeys_AreExactlyTheCatalogWorkerMethods()
+    {
+        var expected = TiaMcpServer.Hmi.HmiOperationCatalog.OperationNames
+            .Concat(TiaMcpServer.Hmi.HmiWriteCatalog.OperationNames)
+            .Select(TiaMcpServer.Hmi.HmiOperationCatalog.WorkerMethod)
+            .ToHashSet(StringComparer.Ordinal);
+        var actual = OperationPolicyCatalog.AllOperationNames
+            .Where(n => n.StartsWith("hmi_", StringComparison.Ordinal))
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.Equal(29, expected.Count);
+        Assert.True(expected.SetEquals(actual));
+        foreach (var op in TiaMcpServer.Hmi.HmiWriteCatalog.OperationNames)
+            Assert.Equal(OperationCapability.ProjectMutation,
+                OperationPolicyCatalog.GetCapability(TiaMcpServer.Hmi.HmiOperationCatalog.WorkerMethod(op)));
+    }
+
     #region Configuration Tests
 
     [Fact]

@@ -7,6 +7,14 @@ namespace TiaMcpServer.Tests.Hmi;
 
 public class HmiWriteCatalogTests
 {
+    [Fact]
+    public void WorkerMethods_EqualSharedWriteList()
+    {
+        var methods = HmiWriteCatalog.OperationNames.Select(HmiOperationCatalog.WorkerMethod).ToList();
+        Assert.True(methods.ToHashSet(StringComparer.Ordinal).SetEquals(HmiWriteMethods.All));
+        Assert.Equal(9, methods.Count);
+    }
+
     private static HmiWriteOperationRequest Read(string fields) =>
         JsonSerializer.Deserialize<HmiWriteOperationRequest>(
             "{\"operationId\":\"one\"," + fields + "}",

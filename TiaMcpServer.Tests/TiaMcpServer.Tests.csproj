@@ -317,6 +317,7 @@
     <None Include="Fixtures\AnalogInputSettings.udt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\AnalogInputSettings.xml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\Simulation_DB.db" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Multiuser\Snapshots\capabilities.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\DamperDigital.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\AnalogInput.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\DamperAnalog.scl" CopyToOutputDirectory="PreserveNewest" />
