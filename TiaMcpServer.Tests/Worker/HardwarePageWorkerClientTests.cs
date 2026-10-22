@@ -122,11 +122,22 @@ public sealed class HardwarePageWorkerClientTests
             plcName: null,
             includeIoDetails: false,
             includeTagMatches: false,
-            pageSize: 50,
+            pageSize: 23,
             continuation: Continuation(),
             requiredHostBinding: first.HostBinding,
             expectedSessionIdentity: expectedIdentity);
         Assert.True(equivalent.WorkerResult.Success, equivalent.WorkerResult.Error);
+        // The echo scenario returns the continuation request the worker received.
+        using (var request = JsonDocument.Parse(equivalent.WorkerResult.Payload))
+        {
+            Assert.Equal(ProjectPath, request.RootElement.GetProperty("projectPath").GetString());
+            Assert.Equal(23, request.RootElement.GetProperty("hardwarePageSize").GetInt32());
+            Assert.Equal(7, request.RootElement
+                .GetProperty("hardwarePageContinuation")
+                .GetProperty("offset")
+                .GetInt32());
+            AssertIdentity(expectedIdentity, request.RootElement.GetProperty("expectedSessionIdentity"));
+        }
 
         var different = await client.ReadHardwarePageCandidatesAsync(
             projectPath: @"C:\different\echo",
