@@ -171,9 +171,6 @@ public class WorkerRequest
     /// <summary>Forwarded by: update_tag ONLY. create_tag does not forward it.</summary>
     public bool? ExternalWritable { get; set; }
 
-    /// <summary>Forwarded by: update_tag ONLY. create_tag does not forward it.</summary>
-    public bool? IsSafety { get; set; }
-
     #endregion
 
     #region Project tree, catalog, and cross-references

@@ -72,16 +72,9 @@ public static class TagMutationService
         string? logicalAddress,
         bool? externalAccessible,
         bool? externalVisible,
-        bool? externalWritable,
-        bool? isSafety)
+        bool? externalWritable)
     {
         RequireName(name, "Name");
-
-        if (isSafety.HasValue)
-        {
-            // Reject before any mutation is applied so the operation does not partially succeed.
-            throw new InvalidOperationException("Updating IsSafety is not supported by the available TIA Openness API.");
-        }
 
         var resolved = TagTargetResolver.Resolve(project, plcName, tableName, folderPath, name);
         var table = resolved.Table;
