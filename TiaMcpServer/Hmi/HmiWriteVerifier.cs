@@ -268,7 +268,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         var result = await client.ReadHmiAsync(HmiOperationCatalog.WorkerMethod(operation), query, path).ConfigureAwait(false);
         if (!result.Success)
         {
-            if (optional && result.FailureCategory == "target_not_found") return null;
+            if (optional && result.FailureCategory == WorkerFailureCategories.TargetNotFound) return null;
             throw new ReadFailure(result.Error ?? "HMI read-back failed.");
         }
         try { return CanonicalJson.DeserializeWorkerPayload<T>(result.Payload) ?? throw new JsonException(); }

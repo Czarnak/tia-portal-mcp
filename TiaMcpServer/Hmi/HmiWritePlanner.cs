@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Worker;
 using System.Text.Json;
 using TiaMcpServer.Contracts.CrossReferences;
 using TiaMcpServer.Contracts.Hmi;
@@ -175,8 +176,8 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
     private static string ResolveHmi(HmiDeviceListInfo devices, string? name)
     {
         var matches = devices.Devices.Where(d => name is null ? d.Kind == "unified" : Names.Equals(name, d.SoftwareName) || Names.Equals(name, d.DeviceName)).ToArray();
-        if (matches.Length != 1) throw new ReadFailure(matches.Length == 0 ? "target_not_found" : "target_ambiguous", "The HMI selector must resolve exactly one Unified HMI.");
-        if (matches[0].Kind != "unified") throw new ReadFailure("target_kind_unsupported", "HMI writes require Unified software.");
+        if (matches.Length != 1) throw new ReadFailure(matches.Length == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous, "The HMI selector must resolve exactly one Unified HMI.");
+        if (matches[0].Kind != "unified") throw new ReadFailure(WorkerFailureCategories.TargetKindUnsupported, "HMI writes require Unified software.");
         return matches[0].SoftwareName;
     }
 
@@ -283,8 +284,8 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         var result = await client.ReadHmiAsync(HmiOperationCatalog.WorkerMethod(operation), query, path).ConfigureAwait(false);
         if (!result.Success)
         {
-            if (optional && result.FailureCategory == "target_not_found") return null!;
-            throw new ReadFailure(result.FailureCategory ?? "worker_operation_failed", result.Error ?? "Required HMI evidence could not be read.");
+            if (optional && result.FailureCategory == WorkerFailureCategories.TargetNotFound) return null!;
+            throw new ReadFailure(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "Required HMI evidence could not be read.");
         }
         try
         {
@@ -293,7 +294,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
             ValidateRows(value);
             return value;
         }
-        catch (JsonException) { throw new ReadFailure("protocol_error", "Required HMI evidence did not match its typed payload contract."); }
+        catch (JsonException) { throw new ReadFailure(WorkerFailureCategories.ProtocolError, "Required HMI evidence did not match its typed payload contract."); }
     }
     private static void ValidateRows(object value)
     {
@@ -326,7 +327,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
     private async Task<(IReadOnlyList<HmiReference> References, bool Complete)> ReadReferences(string? path, string hmi, string tag)
     {
         var result = await client.ReadCrossReferencesAsync(path, new() { Hmi = new() { HmiName = hmi, TagName = tag } }, CrossReferenceFilterNames.AllObjects, null).ConfigureAwait(false);
-        if (!result.Success) throw new ReadFailure(result.FailureCategory ?? "worker_operation_failed", result.Error ?? "Tag references could not be read.");
+        if (!result.Success) throw new ReadFailure(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "Tag references could not be read.");
         try
         {
             var report = CrossReferencePayloadContract.Decode(result);
@@ -342,6 +343,6 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
             Visit(report.Sources);
             return (references, report.IsComplete && report.OmittedSourceCount == 0 && report.OwnerQueryCount == report.SuccessfulOwnerQueryCount);
         }
-        catch (JsonException) { throw new ReadFailure("protocol_error", "Tag references did not match their typed payload contract."); }
+        catch (JsonException) { throw new ReadFailure(WorkerFailureCategories.ProtocolError, "Tag references did not match their typed payload contract."); }
     }
 }
