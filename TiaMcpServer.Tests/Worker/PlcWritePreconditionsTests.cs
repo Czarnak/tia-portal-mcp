@@ -116,11 +116,11 @@ public sealed class PlcWritePreconditionsTests
         plc.TagTableGroup.TagTables.Create("Other").Tags.Create("Valve", "Bool", "%I0.1");
 
         Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", "VALVE",
-            null, null, null, null, null, null), WorkerFailureCategories.StateChanged);
+            null, null, null, null, null), WorkerFailureCategories.StateChanged);
 
         // Case-only rename of itself is not a collision.
         TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", "MOTOR",
-            null, null, null, null, null, null);
+            null, null, null, null, null);
         Assert.Equal("MOTOR", Assert.Single(table.Tags).Name);
     }
 
@@ -169,11 +169,11 @@ public sealed class PlcWritePreconditionsTests
         tag.ExternalVisibleFailure = new EngineeringNotSupportedException("no such attribute");
 
         Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", null,
-            null, null, null, true, null, null), WorkerFailureCategories.WorkerOperationFailed);
+            null, null, null, true, null), WorkerFailureCategories.WorkerOperationFailed);
 
         // A flag that was not requested may stay unreadable.
         TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", null,
-            null, null, true, null, null, null);
+            null, null, true, null, null);
         Assert.True(tag.ExternalAccessible);
     }
 
@@ -188,6 +188,13 @@ public sealed class PlcWritePreconditionsTests
     }
 
     [Fact]
+    public void UpdateTag_HasNoIsSafetyParameterOrWorkerField()
+    {
+        Assert.Null(typeof(WorkerRequest).GetProperty("IsSafety"));
+        Assert.DoesNotContain(typeof(TagMutationService).GetMethod("UpdateTag")!.GetParameters(), p => p.Name == "isSafety");
+    }
+
+    [Fact]
     public void MissingTargetsAreTargetNotFound()
     {
         var (project, _, _) = Single();
@@ -195,7 +202,7 @@ public sealed class PlcWritePreconditionsTests
         Fails(() => TagMutationService.DeleteTag(project, "PLC_1", "NoTable", null, "Nope"), WorkerFailureCategories.TargetNotFound);
         Fails(() => TagMutationService.DeleteTag(project, "PLC_1", "Default", "/NoFolder", "Nope"), WorkerFailureCategories.TargetNotFound);
         Fails(() => TagMutationService.DeleteUserConstant(project, "PLC_1", "Default", null, "Nope"), WorkerFailureCategories.TargetNotFound);
-        Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Nope", null, null, null, null, null, null, null),
+        Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Nope", null, null, null, null, null, null),
             WorkerFailureCategories.TargetNotFound);
         Fails(() => TagMutationService.CreateTag(project, "Ghost", "Default", null, "X", "Bool", null), WorkerFailureCategories.TargetNotFound);
     }

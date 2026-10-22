@@ -224,7 +224,6 @@ blocks it. Known limits are also listed in the
   The maintainer confirmed that unpublished unit blocks cannot be referenced outside the unit. It
   fails closed. Exclude unpublished unit blocks from the CPU namespace, and check the related
   worker minor where a unit-scoped create checks the top-level PLC namespace instead of the unit's.
-- **`isSafety` is not verified after write (M4).** The verifier checks the other tag values only.
 - **Fold `NetworkWriteArgumentValidatingTool` onto `StrictArgumentsTool`.** `plc_write` uses the
   shared strict-arguments wrapper; Network keeps its own copy.
 - **Per-target inventory completeness (D7).** Completeness exists only at the inventory root, so
@@ -469,7 +468,7 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
 - `NetworkDeviceConfigurator` speculative-reflection "UNVERIFIED SDK CALL" paths: verify against real
   Openness V21 API on the TIA machine and pin exact method signatures (needs hardware access).
 - **Next round (needs TIA Portal hardware):** forward `externalAccessible`/`externalVisible`/
-  `externalWritable`/`isSafety` on `create_tag` if Openness V21 permits setting them at tag-creation
+  `externalWritable` on `create_tag` if Openness V21 permits setting them at tag-creation
   time — Round 4 narrowed this to that single question by making the fields an explicit error
   instead of a silent drop. Same session should verify the `NetworkDeviceConfigurator`
   "UNVERIFIED SDK CALL" reflection paths and decide whether `deviceItemName` is meaningful for
@@ -1335,3 +1334,11 @@ named, block and whole-project compiles, a block create/update/delete, and group
 selection. A type write was not run, because the grouped PLC had no data types; it compiles through
 the same PLC-scope path. Still open: a device name containing `/` cannot be used as a block-path
 qualifier (the parser splits on it); use the PLC software name.
+
+## `update_tag` `isSafety` removed — DONE 2026-10-22 (review C-10, M4)
+
+The field was removed rather than verified. It was advertised, but the worker always threw before any
+Siemens call when it was set. `plc_write` and `plc_read` items carrying `isSafety` are now rejected at
+argument binding, before any worker call or audit record, including `dryRun` and `null` values. Other
+`update_tag` fields are unchanged. No live TIA verification was performed; not needed because the removed
+worker branch always threw before any Siemens call.

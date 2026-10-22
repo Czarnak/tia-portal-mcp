@@ -38,7 +38,7 @@ public static class PlcOperationCatalog
         ["create_tag"] = Write(new[] { "tableName", "name", "dataType" }, new[] { "plcName", "folderPath", "logicalAddress" }),
         ["update_tag"] = Write(
             new[] { "tableName", "name" },
-            new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable", "isSafety" }),
+            new[] { "plcName", "folderPath", "newName", "dataType", "logicalAddress", "externalAccessible", "externalVisible", "externalWritable" }),
         ["delete_tag"] = Write(new[] { "tableName", "name" }, new[] { "plcName", "folderPath" }),
         ["create_user_constant"] = Write(new[] { "tableName", "name", "dataType", "value" }, new[] { "plcName", "folderPath" }),
         ["update_user_constant"] = Write(new[] { "tableName", "name" }, new[] { "plcName", "folderPath", "dataType", "value" }),
@@ -79,7 +79,6 @@ public static class PlcOperationCatalog
                 ("externalAccessible", op => op.ExternalAccessible is not null),
                 ("externalVisible", op => op.ExternalVisible is not null),
                 ("externalWritable", op => op.ExternalWritable is not null),
-                ("isSafety", op => op.IsSafety is not null),
             })
             .ToArray();
 

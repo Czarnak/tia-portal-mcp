@@ -173,7 +173,7 @@ saves, downloads, or controls a PLC.
 | `create_block_group` / `delete_block_group` | `blockPath` | — |
 | `create_tag_table` / `delete_tag_table` | `tableName` | `plcName`, `folderPath` |
 | `create_tag` | `tableName`, `name`, `dataType` | `plcName`, `folderPath`, `logicalAddress` |
-| `update_tag` | `tableName`, `name` | `plcName`, `folderPath`, `newName`, `dataType`, `logicalAddress`, `externalAccessible`, `externalVisible`, `externalWritable`, `isSafety` |
+| `update_tag` | `tableName`, `name` | `plcName`, `folderPath`, `newName`, `dataType`, `logicalAddress`, `externalAccessible`, `externalVisible`, `externalWritable` |
 | `delete_tag` | `tableName`, `name` | `plcName`, `folderPath` |
 | `create_user_constant` | `tableName`, `name`, `dataType`, `value` | `plcName`, `folderPath` |
 | `update_user_constant` | `tableName`, `name` | `plcName`, `folderPath`, `dataType`, `value` |
@@ -265,7 +265,6 @@ whole values are omitted, never cut. Every entered call appends one audit v2 rec
 - Blocks inside software units are counted in the CPU namespace, so a tag named like an unpublished
   unit block is blocked as `plc_name_collision`. This fails closed; see the
   [improvement log](../IMPROVEMENT_LOG.md).
-- `isSafety` is not verified after the write.
 - Created OBs use TIA Portal defaults: no event parameters (cyclic time, phase offset, priority,
   time-of-day schedule, hardware-interrupt triggers) and no renumbering of existing blocks. See the
   [improvement log](../IMPROVEMENT_LOG.md).

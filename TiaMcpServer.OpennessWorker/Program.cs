@@ -1072,8 +1072,7 @@ internal static class Program
                 request.LogicalAddress,
                 request.ExternalAccessible,
                 request.ExternalVisible,
-                request.ExternalWritable,
-                request.IsSafety));
+                request.ExternalWritable));
     }
 
     private static WorkerResponse DeleteTag(WorkerRequest request)

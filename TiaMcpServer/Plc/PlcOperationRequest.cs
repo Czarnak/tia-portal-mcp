@@ -69,9 +69,6 @@ public sealed class PlcOperationRequest : IOperationBatchItem
     [Description("Optional tag attribute: external writability.")]
     public bool? ExternalWritable { get; set; }
 
-    [Description("Optional flag marking the tag as a safety tag.")]
-    public bool? IsSafety { get; set; }
-
     [Description("Block type for create_block. Valid values: FB, FC, OB, GlobalDB.")]
     public string? BlockType { get; set; }
 
