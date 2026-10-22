@@ -52,7 +52,7 @@ public sealed class OpennessWriteBindingGate : IWriteBindingGate
     public ProjectBindingSnapshot CurrentBinding => _workerClient.BindingSnapshot;
 
     public Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
-        => _workerClient.RequireVerifiedWriteBindingAsync(projectPath);
+        => _workerClient.RequireVerifiedBindingAsync(projectPath);
 
     public async Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
         ProjectBindingSnapshot binding,

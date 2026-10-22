@@ -36,6 +36,11 @@ public sealed class ProjectSessionBinding
         }
     }
 
+    /// <summary>The single bind-first refusal for every project-scoped call on a non-verified session.</summary>
+    public const string BindFirstMessage =
+        "A worker-verified project binding is required. Call bind_project first, or configure --project and verify it. "
+        + "In read-write/full mode, you can also call open_project explicitly.";
+
     private const string RebindInstruction =
         "Call bind_project with forceRebind=true to rebind this session to an already-open project, "
         + "or call open_project with forceRebind=true in read-write/full mode. You can also start a new MCP session for a different TIA project.";
@@ -293,8 +298,7 @@ public sealed class ProjectSessionBinding
 
             if (_state != ProjectBindingSnapshot.VerifiedState || _verifiedIdentity is null)
             {
-                error = "A worker-verified project binding is required before previewing or executing a write. "
-                    + "Call bind_project first, or configure --project and verify it. In read-write/full mode, you can also call open_project explicitly.";
+                error = BindFirstMessage;
                 return false;
             }
 

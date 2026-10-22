@@ -7,6 +7,7 @@ using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -105,19 +106,27 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     }
 
     [Fact]
-    public async Task Cursor_Unbound_Continues()
+    public async Task Cursor_AfterUnbind_IsRejected()
     {
         var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(new WorkerSessionIdentity
+        {
+            WorkerSessionId = "worker-a", PortalProcessId = 42, SessionGeneration = 1, ProjectPath = ProjectPath
+        }, false, out var error), error);
+        var calls = 0;
         using var fixture = Fixture((path, selector, depth) =>
-            Task.FromResult(Success(path, selector, depth, 3)), captureBinding: binding.CaptureSnapshot);
+        {
+            calls++;
+            return Task.FromResult(Success(path, selector, depth, 3));
+        }, captureBinding: binding.CaptureSnapshot);
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+        Assert.True(first.IsSuccess, first.CanonicalText);
+        Assert.True(binding.Clear(null, out error), error);
 
         var next = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
 
-        Assert.True(next.IsSuccess, next.CanonicalText);
-        Assert.Equal(new[] { 1, 2 }, Sequences(next));
-        Assert.Equal(new ProjectBindingCursorState(false, binding.CaptureSnapshot().BindingId, binding.CaptureSnapshot().Revision, null),
-            fixture.Codec.Decode(NextCursor(first)).HostBinding);
+        AssertFailure(next, WorkerFailureCategories.CursorBindingMismatch);
+        Assert.Equal(1, calls);
     }
 
     [Fact]
@@ -471,11 +480,12 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task ContinuationUsesCachedSnapshotAfterPersistentWorkerIsDisposed()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("project-tree-v3-one-shot");
+        var binding = new ProjectSessionBinding(null);
         using var worker = new OpennessWorkerClient(
-            new ProjectSessionBinding(null),
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(worker, binding, "project-tree-v3-one-shot");
         using var fixture = Fixture(worker, scenario: "project-tree-v3-one-shot");
 
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(

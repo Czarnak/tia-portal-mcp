@@ -110,6 +110,16 @@ public static class ProjectCapabilityCatalog
         };
     }
 
+    /// <summary>
+    /// True when <paramref name="method"/> acts on project content and therefore needs a
+    /// worker-verified binding. Status, lifecycle probes, open/create, Portal selection and
+    /// Multiuser inventory are exempt; catalog search is gated like every other content read.
+    /// </summary>
+    public static bool RequiresBoundProject(string method)
+        => method == "search_equipment_catalog"
+            || OperationFor(method) is { } operation
+            && operation is not ("get_project_status" or "open_project" or "create_project");
+
     public static bool Supports(string containerKind, string operation)
     {
         if (string.IsNullOrWhiteSpace(operation) || OperationFor(operation) is not { } mapped) return false;

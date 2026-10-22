@@ -34,8 +34,7 @@ public sealed class ProjectTreeStructuredProtocolTests
     [Fact]
     public async Task BrowseProjectTree_AdvertisesOutputSchemaAndUsesOneCanonicalDocument()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("project-tree-v3-small");
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>(startupProjectPath: "project-tree-v3-small");
         var tool = Assert.Single(
             await harness.Client.ListToolsAsync(),
             candidate => candidate.Name == "browse_project_tree");
@@ -91,8 +90,7 @@ public sealed class ProjectTreeStructuredProtocolTests
     [Fact]
     public async Task BrowseProjectTree_MalformedWorkerPayloadIsNeverEchoed()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("project-tree-v3-malformed");
-        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>(startupProjectPath: "project-tree-v3-malformed");
 
         var result = await CallAsync(harness, new Dictionary<string, object?>
         {

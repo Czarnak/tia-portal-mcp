@@ -40,6 +40,12 @@ public class PlcReadTools
             return Error(WorkerFailureCategories.AccessDenied, string.Join("\n", accessErrors));
         }
 
+        var binding = await workerClient.RequireVerifiedBindingAsync().ConfigureAwait(false);
+        if (!binding.Success)
+        {
+            return Error(binding.FailureCategory!, binding.Error!);
+        }
+
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
             operation => PlcWorkerInvoker.InvokeReadAsync(workerClient, operation, cancellationToken),

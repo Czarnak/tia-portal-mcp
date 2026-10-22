@@ -5,6 +5,7 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Hmi;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -15,12 +16,17 @@ public class HmiReadFakeWorkerTests
 {
     private const string Scenario = "hmi-read-roundtrip";
 
-    private static OpennessWorkerClient CreateClient()
-        => new(
-            new ProjectSessionBinding(null),
+    private static async Task<OpennessWorkerClient> CreateClientAsync(string scenario = Scenario)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        return client;
+    }
 
     private static HmiOperationRequest Op(string id, string operation, Action<HmiOperationRequest>? configure = null)
     {
@@ -35,8 +41,7 @@ public class HmiReadFakeWorkerTests
     [Fact]
     public async Task MixedBatchRoundTripsTypedItemsAndOneFailure()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await HmiReadTools.HmiRead(client, new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped()), new[]
         {
@@ -65,8 +70,7 @@ public class HmiReadFakeWorkerTests
         Environment.SetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG", log);
         try
         {
-            using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-            using var client = CreateClient();
+            using var client = await CreateClientAsync();
 
             var result = await HmiReadTools.HmiRead(client, new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped()), new[]
             {
@@ -107,8 +111,7 @@ public class HmiReadFakeWorkerTests
     [Fact]
     public async Task Paged_FirstContinuationLast_FollowsCursor()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(PagedScenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(PagedScenario);
         var codec = new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped());
 
         var first = await PageAsync(client, codec);
@@ -124,8 +127,7 @@ public class HmiReadFakeWorkerTests
     [Fact]
     public async Task Paged_UnknownSnapshot_IsSnapshotUnavailable()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(PagedScenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(PagedScenario);
         var codec = new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped());
 
         var first = await PageAsync(client, codec);
@@ -141,8 +143,7 @@ public class HmiReadFakeWorkerTests
     [Fact]
     public async Task ProtocolMismatchPayloadIsProtocolError()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await HmiReadTools.HmiRead(client, new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped()), new[] { Op("sys", "list_system_tags", r => r.HmiName = "HMI_1") });
 

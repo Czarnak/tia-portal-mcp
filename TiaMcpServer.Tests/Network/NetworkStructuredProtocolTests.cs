@@ -21,8 +21,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task ReadEnvelope_IsVersionedAndCanonical()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-roundtrip");
 
         var tool = Assert.Single(
             await harness.Client.ListToolsAsync(),
@@ -81,8 +80,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task NetworkRead_MixesPhase2AndPhase3ReadsInRequestOrder()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-roundtrip");
 
         var result = await harness.Client.CallToolAsync(
             "network_read",
@@ -252,8 +250,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task NetworkRead_InvalidSuccessPayloadBecomesProtocolErrorAndLaterOperationsStillRun()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("invalid-network-success-payload");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "invalid-network-success-payload");
 
         var result = await harness.Client.CallToolAsync(
             "network_read",

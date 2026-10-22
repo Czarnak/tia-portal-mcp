@@ -24,7 +24,7 @@ public class ProjectEngineeringTools
             return StructuredStandaloneResult.Create<CompileCheckReport>("compile_check", null,
                 accessDenial.Warnings, StandalonePayloadContract.Failure(accessDenial));
 
-        var bindingGate = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+        var bindingGate = await workerClient.RequireVerifiedBindingAsync(projectPath).ConfigureAwait(false);
         if (!bindingGate.Success)
         {
             return StructuredStandaloneResult.Create<CompileCheckReport>("compile_check", null,

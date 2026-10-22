@@ -6,6 +6,7 @@ using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -26,6 +27,14 @@ public class NetworkOperationFakeWorkerTests
             binding ?? new ProjectSessionBinding(null),
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+
+    private static async Task<OpennessWorkerClient> CreateBoundClientAsync(string projectPath)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        return client;
+    }
 
     private static OpennessWorkerClient CreateWriteClient(
         TempAuditDirectory audit,
@@ -323,8 +332,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_HardwareAndCatalogSucceedInRequestedOrderWithDeclaredJsonResults()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync(Scenario);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -355,8 +363,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_MultiHomedPcStationExposesBothNodesWithDistinctNodeIds()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync(Scenario);
 
         var result = await NetworkReadTools.NetworkRead(client, new[] { ReadHardware("hardware") });
 
@@ -487,8 +494,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task ListNetworkObjects_RoundTripReturnsSixItemsWithCommunicationConnectionUnselectable()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-success");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("list-network-objects-success");
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -530,8 +536,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task InspectNetworkObject_RoundTripReturnsNineAttributesAndEvidence()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("inspect-network-object-success");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("inspect-network-object-success");
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -593,8 +598,7 @@ public class NetworkOperationFakeWorkerTests
         string operationName,
         string scenario)
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync(scenario);
         var target = operationName == "inspect_network_object"
             ? new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" }
             : null;
@@ -626,8 +630,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task ListNetworkObjects_LargeListScenarioReturnsCursorWithTwentyItems()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-large");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("list-network-objects-large");
 
         var result = await NetworkReadTools.NetworkRead(
             client,

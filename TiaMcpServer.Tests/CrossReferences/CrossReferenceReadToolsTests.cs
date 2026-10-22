@@ -5,6 +5,7 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.CrossReferences;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -21,6 +22,18 @@ public class CrossReferenceReadToolsTests
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+
+    private static async Task<OpennessWorkerClient> CreateBoundClientAsync()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
+            logger: null,
+            workerExecutablePath: FakeWorkerLocator.Locate(),
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
+        return client;
+    }
 
     private static CrossReferenceTargetSelector Plc(string softwareName = "PLC_1") => new()
     {
@@ -39,8 +52,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task ReturnsTypedReportForPlcSweep()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync();
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: Scenario);
 
@@ -206,8 +218,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task TargetKindUnsupportedIsTypedFailureNotEmptySuccess()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync();
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc("Unsupported"), projectPath: Scenario);
 
@@ -223,8 +234,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task MismatchedProjectPathIsBindingConflict()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync();
 
         var first = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: Scenario);
         var other = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: @"C:\Somewhere\Else\Other.ap21");
@@ -237,8 +247,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task IncompleteUnusedObjectsCarriesWarning()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync();
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(
             client, Plc(), filter: "UnusedObjects", projectPath: Scenario);
@@ -253,8 +262,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task TextEqualsStructuredContent()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync();
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: Scenario);
 

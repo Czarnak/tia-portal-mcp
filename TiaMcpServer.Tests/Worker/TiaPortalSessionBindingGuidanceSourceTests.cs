@@ -50,8 +50,8 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         Assert.True(refusal.IndexOf("bind_project", StringComparison.Ordinal)
             < refusal.IndexOf("open_project", StringComparison.Ordinal));
 
-        var gateCommentStart = clientSource.IndexOf("Fail-closed gate for every project-mutating write path.", StringComparison.Ordinal);
-        var gateCommentEnd = clientSource.IndexOf("public async Task<WorkerCallResult> RequireVerifiedWriteBindingAsync", gateCommentStart, StringComparison.Ordinal);
+        var gateCommentStart = clientSource.IndexOf("Fail-closed gate for every project-scoped call, read or write.", StringComparison.Ordinal);
+        var gateCommentEnd = clientSource.IndexOf("public async Task<WorkerCallResult> RequireVerifiedBindingAsync(string? projectPath = null)", gateCommentStart, StringComparison.Ordinal);
         Assert.True(gateCommentStart >= 0 && gateCommentEnd > gateCommentStart);
         var gateComment = clientSource.Substring(gateCommentStart, gateCommentEnd - gateCommentStart);
         Assert.Contains("bind_project", gateComment);

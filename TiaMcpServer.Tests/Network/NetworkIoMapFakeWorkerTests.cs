@@ -6,6 +6,7 @@ using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -26,12 +27,19 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
     public void Dispose() => _uiOpen.Dispose();
 
-    private static OpennessWorkerClient CreateClient(McpAccessMode mode = McpAccessMode.ReadWrite)
-        => new(
-            new ProjectSessionBinding(null),
+    private static async Task<OpennessWorkerClient> CreateClientAsync(
+        string scenario = Scenario,
+        McpAccessMode mode = McpAccessMode.ReadWrite)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(mode));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        return client;
+    }
 
     private static NetworkOperationRequest ReadHardware(
         string id,
@@ -53,8 +61,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_ProjectCompletenessFixtureReturnsGroupedDeviceAsOrdinaryHardware()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(ProjectCompletenessScenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(ProjectCompletenessScenario);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -77,7 +84,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_IncludeIoDetailsReturnsStructuredAddressesChannelsAndTagMatches()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -148,7 +155,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_IncludeIoDetailsWithoutTagMatchesReturnsEmptyTagMatchCollections()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -172,7 +179,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_DeviceNameFilterExcludesTheNonMatchingFixtureDevice()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -190,7 +197,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_PlcNameMismatchSuppressesTagMatches()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -221,7 +228,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_WithoutIncludeIoDetailsOmitsIoDetailsEntirely()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -241,7 +248,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_DeviceNameFilterIsForwardedToTheWorker()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -261,7 +268,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_DeviceNameFilterMatchesFixtureWithoutCaseSensitivity()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -283,8 +290,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_MalformedIoDetailsPayloadBecomesProtocolErrorWithoutEchoingIt()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-io-map-malformed");
-        using var client = CreateClient();
+        using var client = await CreateClientAsync("network-io-map-malformed");
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -303,7 +309,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_ReadOnlyModePermitsTheIoMapRead()
     {
-        using var client = CreateClient(McpAccessMode.ReadOnly);
+        using var client = await CreateClientAsync(mode: McpAccessMode.ReadOnly);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -324,7 +330,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     {
         // NetworkWritePlanner.ReadCurrentStateAsync uses the default read (no ioDetails). Even
         // against the io-map scenario, ordinary planning reads must omit optional ioDetails.
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(client, Scenario);
 

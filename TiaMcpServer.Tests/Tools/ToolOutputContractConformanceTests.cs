@@ -544,6 +544,58 @@ public sealed class ToolOutputContractConformanceTests
         Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
 
+    [Fact]
+    public async Task UnboundContentReadsFailClosedCanonically()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var calls = new (string Tool, Dictionary<string, object?> Arguments)[]
+        {
+            ("plc_read", Operations(new { operationId = "block", operation = "get_block_content", blockPath = "PLC_1/Main" })),
+            ("network_read", Operations(new { operationId = "hardware", operation = "read_hardware_config" })),
+            ("hmi_read", Operations(new { operationId = "devices", operation = "list_hmi_devices" })),
+            ("vci_read", Operations(new { operationId = "w", operation = "list_workspaces" })),
+            ("browse_project_tree", new Dictionary<string, object?>()),
+            ("read_cross_references", new Dictionary<string, object?> { ["target"] = XrefTarget }),
+        };
+
+        foreach (var (tool, arguments) in calls)
+        {
+            var result = await harness.Client.CallToolAsync(tool, arguments);
+
+            var violations = StructuredContractInspector.FindViolations(result);
+            Assert.True(violations.Count == 0, tool + ": " + string.Join(Environment.NewLine, violations));
+            Assert.True(result.IsError == true, $"{tool}: {TextOf(result)}");
+            var document = result.StructuredContent!.Value;
+            var error = document.GetProperty(tool == "browse_project_tree" ? "failure" : "error");
+            Assert.Equal("binding_conflict", error.GetProperty("category").GetString());
+            if (tool is "plc_read" or "network_read" or "hmi_read" or "vci_read")
+                Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
+        }
+
+        Assert.DoesNotContain(requests.Methods(), TiaMcpServer.Contracts.Project.ProjectCapabilityCatalog.RequiresBoundProject);
+    }
+
+    [Fact]
+    public async Task UnboundRead_InvalidItem_IsValidationError()
+    {
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full);
+
+        var result = await harness.Client.CallToolAsync(
+            "plc_read",
+            Operations(new { operationId = "bad", operation = "not_a_plc_operation" }));
+
+        Assert.True(result.IsError == true, TextOf(result));
+        Assert.Equal(
+            "validation_error",
+            result.StructuredContent!.Value.GetProperty("error").GetProperty("category").GetString());
+    }
+
+    private static Dictionary<string, object?> Operations(object item)
+        => new() { ["operations"] = new[] { item } };
+
     private static bool HasProbe(string tool, bool expectIsError)
         => StructuredToolProbes.Values.Any(probe =>
             string.Equals(probe.Tool, tool, StringComparison.Ordinal) && probe.ExpectIsError == expectIsError);

@@ -368,11 +368,11 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>
-    /// Fail-closed gate for every project-mutating write path. A startup --project value is
+    /// Fail-closed gate for every project-scoped call, read or write. A startup --project value is
     /// first grounded by one read-only status request; an ordinary unbound session is never
     /// adopted implicitly and must use bind_project, or open_project in read-write/full mode.
     /// </summary>
-    public async Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
+    public async Task<WorkerCallResult> RequireVerifiedBindingAsync(string? projectPath = null)
     {
         if (_projectSessionBinding.TryGetVerified(projectPath, out _, out _))
         {
@@ -698,14 +698,14 @@ public class OpennessWorkerClient : IDisposable
                     "The requested project path does not match the hardware-page continuation.");
             }
 
-            // The cursor identity is authoritative for continuation routing. This also lets an
-            // explicitly paged project continue while the ordinary host binding remains unbound.
+            // The cursor identity is authoritative for continuation routing; the host binding must
+            // still be verified (checked after resolve).
             routingProjectPath = cursorProjectPath;
         }
         else
         {
             // Preserve ordinary read semantics for a configured startup project: verify it before
-            // issuing the candidate read. An explicit project on an unbound host remains unbound.
+            // issuing the candidate read. An unbound host fails closed below.
             var initial = _projectSessionBinding.CaptureSnapshot();
             if (string.Equals(
                     initial.State,
@@ -736,6 +736,16 @@ public class OpennessWorkerClient : IDisposable
                     ? WorkerFailureCategories.CursorBindingMismatch
                     : WorkerFailureCategories.BindingConflict,
                 bindingError!);
+        }
+
+        if (!hostBinding.IsVerified)
+        {
+            return HardwarePageFailure(
+                hostBinding,
+                isContinuation
+                    ? WorkerFailureCategories.CursorBindingMismatch
+                    : WorkerFailureCategories.BindingConflict,
+                ProjectSessionBinding.BindFirstMessage);
         }
 
         if (isContinuation &&
@@ -1908,6 +1918,18 @@ public class OpennessWorkerClient : IDisposable
             return WorkerCallResult.Fail(
                 WorkerFailureCategories.BindingConflict,
                 "The worker/Portal/project binding changed after preview. No operation was performed; request a fresh preview.") with
+            {
+                DispatchState = WorkerDispatchState.NotSent
+            };
+        }
+
+        // Evaluated after configured-project grounding, so a startup --project that just verified
+        // passes; a pinned unbound lease (open/create) is not exempt.
+        if (!bindingBeforeCall.IsVerified && ProjectCapabilityCatalog.RequiresBoundProject(method))
+        {
+            return WorkerCallResult.Fail(
+                WorkerFailureCategories.BindingConflict,
+                ProjectSessionBinding.BindFirstMessage) with
             {
                 DispatchState = WorkerDispatchState.NotSent
             };

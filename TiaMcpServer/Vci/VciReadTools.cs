@@ -40,6 +40,12 @@ public class VciReadTools
             return Error(WorkerFailureCategories.AccessDenied, string.Join("\n", accessErrors));
         }
 
+        var binding = await workerClient.RequireVerifiedBindingAsync().ConfigureAwait(false);
+        if (!binding.Success)
+        {
+            return Error(binding.FailureCategory!, binding.Error!);
+        }
+
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
             operation => workerClient.ReadVciAsync(TiaMcpServer.Contracts.Vci.VciMethods.ForOperation(operation.Operation), VciReadCatalog.ToQuery(operation), operation.ProjectPath),

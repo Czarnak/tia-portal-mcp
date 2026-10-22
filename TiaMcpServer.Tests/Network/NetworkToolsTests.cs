@@ -7,6 +7,7 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using System.ComponentModel;
 using System.Reflection;
@@ -77,6 +78,14 @@ public class NetworkToolsTests
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(mode));
+
+    private static async Task<OpennessWorkerClient> CreateBoundClientAsync(string projectPath)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        return client;
+    }
 
     private static OpennessWorkerClient CreateWriteClient(
         TempAuditDirectory audit,
@@ -216,8 +225,7 @@ public class NetworkToolsTests
     [Fact]
     public async Task NetworkRead_ReturnsDeclaredJsonResultAndCopiesWarnings()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-read-warnings");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("network-read-warnings");
 
         var result = await NetworkRead(client, new[] { ReadHardware("r1", "network-read-warnings") });
 
@@ -235,8 +243,7 @@ public class NetworkToolsTests
     [Fact]
     public async Task NetworkRead_ContinuesAfterWorkerFailureAndAfterPayloadContractFailure()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-mixed-results");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("network-mixed-results");
         var operations = new[]
         {
             ReadHardware("worker-failure", "network-mixed-results", "worker-failure"),

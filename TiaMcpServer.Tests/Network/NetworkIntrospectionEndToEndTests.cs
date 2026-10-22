@@ -46,8 +46,7 @@ public class NetworkIntrospectionEndToEndTests
     [Fact]
     public async Task TwoInterfacesWithE1_ReadListAndInspectRoundTripIndependently()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-qualified-read");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-qualified-read");
         var discovery = AssertCanonical(await CallReadAsync(harness, new object[]
         {
             new { operationId = "hardware", operation = "read_hardware_config", projectPath = "network-qualified-read" },
@@ -75,8 +74,7 @@ public class NetworkIntrospectionEndToEndTests
     [Fact]
     public async Task PagedListResults_StayWholeAndUnderThePerItemBudget()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-large");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "list-network-objects-large");
         var result = await CallReadAsync(
             harness,
             new object[]
@@ -118,8 +116,7 @@ public class NetworkIntrospectionEndToEndTests
     [Fact]
     public async Task CursorFromEarlierFakeWorkerSnapshot_IsRejectedAfterSnapshotChanges()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-state-seq");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-state-seq");
         var before = await ReadStateMarkerAsync(harness);
         var after = await ReadStateMarkerAsync(harness);
         Assert.NotEqual(before, after);

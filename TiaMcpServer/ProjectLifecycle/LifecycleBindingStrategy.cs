@@ -52,7 +52,7 @@ public sealed class LifecycleBindingStrategy(OpennessWorkerClient workerClient) 
     private async Task<WriteBindingPreparation> PrepareVerifiedSourceAsync(
         ProjectBindingSnapshot before, string? projectPath, CancellationToken cancellationToken)
     {
-        var result = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+        var result = await workerClient.RequireVerifiedBindingAsync(projectPath).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         if (!result.Success) return Reject(result);
         var prepared = workerClient.BindingSnapshot;

@@ -5,6 +5,7 @@ using TiaMcpServer.Plc;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -19,12 +20,17 @@ public class PlcWritePlannerTests
 {
     private const string Scenario = "plc-write-roundtrip";
 
-    private static OpennessWorkerClient CreateClient()
-        => new(
-            new ProjectSessionBinding(null),
+    private static async Task<OpennessWorkerClient> CreateClientAsync(string scenario)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        return client;
+    }
 
     private static PlcOperationRequest CreateTag(string id, string? plcName, string table = "Default tag table", string name = "Fresh") => new()
     {
@@ -50,8 +56,7 @@ public class PlcWritePlannerTests
     [InlineData("plc_1")]
     public async Task OmittedPlcNameWithTwoPlcsIsAmbiguous(string? plcName)
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(Scenario);
 
         var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[] { CreateTag("a", "PLC_2"), CreateTag("b", plcName) });
 
@@ -63,8 +68,7 @@ public class PlcWritePlannerTests
     [Fact]
     public async Task StaleContentHashIsStateChangedBeforeAnyWrite()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(Scenario);
         var stale = ContentHashes.Compute("xml", "<Block edited-elsewhere=\"true\"/>");
 
         var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[]
@@ -83,8 +87,7 @@ public class PlcWritePlannerTests
     [Fact]
     public async Task UnreadableOrEmptyContentExportFiresUnverifiable()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(Scenario);
         var anyHash = ContentHashes.Compute("xml", "anything");
 
         var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[]
@@ -107,8 +110,7 @@ public class PlcWritePlannerTests
     public async Task IncompleteInventoryUnmatchedPlcIsGuardNotError()
     {
         const string incomplete = "plc-write-incomplete";
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(incomplete);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(incomplete);
         var items = new[] { CreateTag("hidden", "PLC_9"), CreateTag("known", "PLC_2") };
         foreach (var item in items) item.ProjectPath = incomplete;
 
@@ -123,8 +125,7 @@ public class PlcWritePlannerTests
     [Fact]
     public async Task MissingTargetIsTargetNotFound()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(Scenario);
         var planner = new PlcWritePlanner(client);
 
         var tag = await planner.PlanAsync(Scenario, new[]
@@ -140,8 +141,7 @@ public class PlcWritePlannerTests
     [Fact]
     public async Task RootLevelBlockPathResolves()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(Scenario);
         var hash = await HashOf(client, "Station_1/Main");
 
         var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[]
@@ -162,8 +162,7 @@ public class PlcWritePlannerTests
     [Fact]
     public async Task DependentPlanKeepsEffectAndDependsOn()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(Scenario);
         var planner = new PlcWritePlanner(client);
         var table = new PlcOperationRequest { OperationId = "t1", Operation = "create_tag_table", PlcName = "PLC_2", TableName = "New", ProjectPath = Scenario };
         var tag = CreateTag("t2", "PLC_2", "New");

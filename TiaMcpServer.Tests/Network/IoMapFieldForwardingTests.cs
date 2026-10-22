@@ -3,6 +3,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -22,8 +23,13 @@ public class IoMapFieldForwardingTests : IDisposable
 
     public void Dispose() => _uiOpen.Dispose();
 
-    private static OpennessWorkerClient CreateClient()
-        => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+    private static async Task<OpennessWorkerClient> CreateClientAsync()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
+        return client;
+    }
 
     [Fact]
     public async Task ReadHardwareConfig_ForwardsEveryIoMapFieldExactlyOnce()
@@ -39,7 +45,7 @@ public class IoMapFieldForwardingTests : IDisposable
             IncludeTagMatches = true,
         };
 
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
         var result = await NetworkWorkerInvoker.InvokeReadAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -67,7 +73,7 @@ public class IoMapFieldForwardingTests : IDisposable
             ProjectPath = "echo",
         };
 
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
         var result = await NetworkWorkerInvoker.InvokeReadAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -89,7 +95,7 @@ public class IoMapFieldForwardingTests : IDisposable
     [Fact]
     public async Task SnapshotDefaultRead_ForwardsOnlyDefaultNarrowingAndIoMapFields()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
         var result = await client.ReadHardwareConfigAsync("echo");
 
         Assert.True(result.Success, result.Error);

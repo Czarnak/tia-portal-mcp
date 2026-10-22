@@ -130,8 +130,9 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task ReadHardwarePageCandidatesAsync_ForwardsTheDedicatedInternalRequest()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var call = await client.ReadHardwarePageCandidatesAsync(
             projectPath: "echo",
@@ -154,7 +155,8 @@ public class OpennessWorkerClientIntegrationTests
         Assert.True(request.RootElement.GetProperty("includeIoDetails").GetBoolean());
         Assert.True(request.RootElement.GetProperty("includeTagMatches").GetBoolean());
         Assert.Equal(17, request.RootElement.GetProperty("hardwarePageSize").GetInt32());
-        Assert.Equal(ProjectBindingSnapshot.UnboundState, call.HostBinding.State);
+        Assert.True(call.HostBinding.SameBinding(binding.CaptureSnapshot()));
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, call.HostBinding.State);
     }
 
     [Fact]
@@ -953,30 +955,101 @@ public class OpennessWorkerClientIntegrationTests
     }
 
     [Fact]
-    public async Task UnboundSession_UnrelatedReadSuccess_DoesNotBindOrSwitchProject()
+    public async Task UnboundSession_ContentRead_FailsClosedWithoutWorkerRequest()
     {
-        // An unrelated data read does not bind the host session. The worker still rejects a
-        // different project because that project was never opened in the simulated UI.
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok-with-resolved-path");
+        await AssertUnboundContentCallFailsClosedAsync(
+            client => client.ListTagTablesAsync(plcName: null, projectPath: "ok"),
+            "list_tag_tables");
+    }
+
+    [Fact]
+    public async Task UnboundSession_EquipmentSearch_FailsClosed()
+    {
+        await AssertUnboundContentCallFailsClosedAsync(
+            client => client.SearchEquipmentCatalogAsync("CPU", projectPath: "ok"),
+            "search_equipment_catalog");
+    }
+
+    private static async Task AssertUnboundContentCallFailsClosedAsync(
+        Func<OpennessWorkerClient, Task<WorkerCallResult>> call,
+        string method)
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
+        using var client = CreateClient(binding: binding);
 
-        var succeeded = await client.ReadHardwareConfigAsync("ok-with-resolved-path");
-        var differentProject = await client.ReadHardwareConfigAsync("ok");
+        var result = await call(client);
 
-        Assert.True(succeeded.Success);
-        Assert.NotNull(succeeded.SessionIdentity);
-        Assert.False(differentProject.Success);
-        Assert.Equal(WorkerFailureCategories.BindingConflict, differentProject.FailureCategory);
-
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
+        Assert.Equal(ProjectSessionBinding.BindFirstMessage, result.Error);
+        Assert.DoesNotContain(method, requests.Methods());
         var snapshot = binding.CaptureSnapshot();
         Assert.Equal(ProjectBindingSnapshot.UnboundState, snapshot.State);
-        Assert.False(snapshot.IsVerified);
         Assert.Null(snapshot.ProjectPath);
+    }
+
+    [Fact]
+    public async Task ContentMethodUnderUnboundPin_FailsClosed()
+    {
+        // open/create pin the unbound snapshot; a content call under that lease must not reach the worker.
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+
+        var execution = await client.ExecuteWithPinnedBindingAsync(
+            binding.CaptureSnapshot(),
+            () => client.ListTagTablesAsync(plcName: null, projectPath: null));
+
+        Assert.True(execution.Success);
+        var result = execution.Value!;
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
+        Assert.DoesNotContain("list_tag_tables", requests.Methods());
+    }
+
+    [Fact]
+    public async Task ConfiguredStartupProject_FirstReadGroundsAndSucceeds()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
+        using var uiOpen = new FakeWorkerUiOpenProject("ok");
+        var binding = new ProjectSessionBinding("ok");
+        using var client = CreateClient(binding: binding);
+
+        var result = await client.ListTagTablesAsync(plcName: null, projectPath: null);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(new[] { "get_project_status", "list_tag_tables" }, requests.Methods().Where(method => method != "hello"));
+        Assert.True(binding.IsVerified);
+    }
+
+    [Fact]
+    public async Task ConfiguredStartupProject_GroundingFailure_IsReturned()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
+        using var uiOpen = new FakeWorkerUiOpenProject("worker-error");
+        var binding = new ProjectSessionBinding("worker-error");
+        using var client = CreateClient(binding: binding);
+
+        var result = await client.ListTagTablesAsync(plcName: null, projectPath: null);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Equal("boom", result.Error);
+        Assert.Equal(new[] { "get_project_status" }, requests.Methods().Where(method => method != "hello"));
+        Assert.False(binding.IsVerified);
     }
 
     [Fact]

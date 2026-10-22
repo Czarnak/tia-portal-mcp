@@ -16,11 +16,20 @@ public class HmiReadToolsTests
 {
     private static readonly HmiPageCursorCodec Codec = new(AuthenticatedCursorProtector.CreateProcessScoped());
 
-    private static OpennessWorkerClient NeverStartedClient() => new(
-        new ProjectSessionBinding(null),
-        logger: null,
-        workerExecutablePath: "never-started.exe",
-        accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+    // Verified without a worker, so the bind-first precheck passes and cursor checks stay local.
+    private static OpennessWorkerClient NeverStartedClient()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(new WorkerSessionIdentity
+        {
+            WorkerSessionId = "worker-hmi", SessionGeneration = 1, PortalProcessId = 4242, ProjectPath = @"C:\Projects\Hmi.ap21"
+        }, forceRebind: false, out var error), error);
+        return new(
+            binding,
+            logger: null,
+            workerExecutablePath: "never-started.exe",
+            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+    }
 
     private static string CursorFor(HmiOperationRequest issuedFor, ProjectBindingCursorState binding)
         => Codec.Encode(new HmiPageCursorState(
