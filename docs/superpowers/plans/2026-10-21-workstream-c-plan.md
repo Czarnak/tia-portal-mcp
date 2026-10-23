@@ -69,7 +69,7 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
   - With `preserveUnboundEpoch` removed, unbound cursors keep their epoch everywhere. This is the tree/HMI rule, which hardware pages now adopt.
   - Categories and messages stay byte-identical.
   - The logged tree-cursor message bug does not exist as described. The nearest real defect, oversized tree/HMI cursors, is re-logged and gets its own PR. `Seal` keeps the size data for it.
-- **C-5:** RESOLVED (maintainer, 2026-10-23); see the [C-5 plan](2026-10-23-c5-sealed-network-object-cursors.md).
+- **C-5:** RESOLVED and implemented offline (2026-10-23, source `db2947b`; installed live smoke pending); see the [C-5 plan](2026-10-23-c5-sealed-network-object-cursors.md).
   - Use a host-authenticated wrapper around the existing worker continuation. Keep worker encoding and query/snapshot/range checks internal; do not migrate the worker protocol to typed continuations.
   - Seal the exact host binding and complete worker session identity. Validate, dispatch, project and issue the cursor under the existing serialized pinned binding lease.
   - Foreign-process, malformed, tampered and legacy unsigned public cursors return `invalid_cursor`. Locally stale binding/session continuations return `cursor_binding_mismatch` without invalidating a healthy current binding; actual worker/transport loss keeps existing invalidation and no replay.

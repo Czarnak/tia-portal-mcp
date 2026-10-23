@@ -129,3 +129,30 @@ The maintainer then separately authorizes an installed-candidate, read-only smok
 - [ ] **Step 3: Run `git diff --check`, verify changed Markdown links/anchors and review `git diff --stat`.** Documentation-only edits need no repeat of the unchanged .NET suite. Commit `docs: record C-5 cursor evidence`.
 
 **Handoff:** no push/merge without approval. Merge C-5 before C-9, then give C-9 the merged SHA and the exact cursor/recovery contract for its rebase and combined qualification. Both lane implementations may proceed before this handoff; only integration and final merge order depend on it.
+
+## Offline execution record (2026-10-23)
+
+Source Tasks 1-2 and the review fix are committed on `fix/c5-sealed-network-object-cursors` at
+`db2947ba3aac2f07b33510a6d877dded3f990282`, from the common approved-plans base `5b5f4c1`.
+The installed-candidate live gate and final acceptance are pending, not waived.
+
+- Commits: `8f726bb` authenticates both public routes, `fc840e7` handles identity/lease/failure/size boundaries, and `db2947b` rejects blank worker continuations at the existing payload boundary.
+- Task 1: existing baseline 1 passed; public runtime RED 2/2 failed on the exposed raw token; focused GREEN 130 passed. Task 2: initial table 13 product failures and one fixture-only PowerShell array-wrapping failure, then all cases passed; the later broad gate found one old unsigned-token consumer and migrated it to a real two-call public continuation. Source gate: 2,363 passed, zero failed/skipped.
+- Independent whole-branch review of `5b5f4c1..fc840e7` checked all five Review Focus rows. Its only Important finding was a blank worker `NextCursor` escaping the read engine. Four public empty/space/tab/CRLF regressions failed at runtime before the fix and passed afterward, asserting `protocol_error`, null result, retained warnings/healthy binding and a successful following item. The renewed focused gate passed 2,367 tests, zero failed/skipped. No Critical/Minor findings or other Important findings were reported.
+- Final Release stub build at `db2947b`: 7 existing nullable warnings, 0 errors. The full serialized run used the command in this plan with `--logger 'console;verbosity=normal'` added only for progress visibility, a unique ignored `TestResults/c5-fixed-full-<id>` directory and process-local `TEMP`/`TMP`. All 7,531 tests passed, zero failed/skipped, in 7.9278 minutes. Cobertura: 13,044/13,731 executable lines, line rate 0.9499; the 0.80 threshold passed. New codec 26/26, coordinator 87/87, executor 22/22; Network payload contract 573/583, read tools 72/74.
+- The earlier `fc840e7` full run passed 7,527 tests / 94.99% coverage, but was superseded by the source fix and its renewed gate. It is not the final qualification evidence.
+- `dotnet list TiaMcpServer.slnx package --vulnerable --include-transitive --no-restore --format json` completed successfully for five projects, reporting no known vulnerabilities or diagnostics. The review fix changed no dependencies.
+- Exact commands, failures and results remain in ignored `.superpowers/sdd/2026-10-23-c5-sealed-network-object-cursors/`; full build/test/coverage evidence is under ignored `TestResults/`. No live report has been created because no live run occurred.
+
+Rulings and scope limits:
+
+1. A complete coherent `sessionIdentity` is authoritative when optional `resolvedProjectPath` is absent; check the latter for conflict when present, matching hardware behavior. Requiring it unconditionally rejected valid existing replies.
+2. The broader gate required migrating the additional `NetworkIntrospectionEndToEndTests` consumer from a hardcoded unsigned token to the actual public cursor. The review fix also extends `NetworkPayloadContract` beyond the original file list because the defect belongs at that shared trust boundary; no broad catch was added.
+3. Task evidence was recorded directly in PowerShell ledgers alongside generated briefs, and bounded native searches were used where the worktree index was absent. The same RED/GREEN, commit and verification requirements were retained.
+4. Documentation is committed now as an offline implementation record with the live gate visibly pending, honoring the explicit request to commit docs. This does not mark Task 3's live-dependent acceptance complete or waive the gate.
+5. Existing worker hash/order algorithms, local-context coherence checks and item-boundary cancellation semantics are preserved. The two-call FakeWorker scenario is bounded evidence, not a complete inventory simulator. Full native/installed behavior and performance are not established by offline tests.
+
+Remaining gates: prepare the local acceptance package, obtain separate installation/exact-target
+authorization, run the scoped read-only smoke, record actual evidence, and obtain remote-write
+approval before publishing/merging C-5. Then rebase/qualify C-9 and finalize its matrix. No
+installation, live TIA operation, push, PR creation or merge was performed during this implementation.

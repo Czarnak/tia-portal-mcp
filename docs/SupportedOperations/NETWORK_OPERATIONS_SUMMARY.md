@@ -89,15 +89,46 @@ This is not a smaller per-ID or universal raw-character aggregate limit; reads r
 `objectKinds` is required, non-empty, duplicate-free, and limited to `deviceItem`,
 `networkInterface`, `node`, `subnet`, `ioSystem`, and `communicationConnection`. `deviceName` may
 be used only when every requested kind is device-scoped; it is invalid with `subnet` or
-`ioSystem`. The default page size is 50. Cursors are opaque and bound to the normalized filters,
-stable item order, and the current discovery snapshot. A malformed cursor, a cursor reused with
-different filters, or one reused after snapshot drift is rejected rather than restarted or
-silently retargeted.
+`ioSystem`. The default page size is 50. Public cursors are opaque and authenticated by the host,
+bound to its exact project-binding epoch and worker session identity as well as the normalized
+filters, stable item order and current discovery snapshot. A malformed or stale cursor is
+rejected rather than restarted or silently retargeted.
 
 Each list item reports `kind`, `selectable`, `selector`, captured `evidence`, and `diagnostics`.
 When required identity cannot be read, the item remains visible with `selectable:false` and a
 null selector. Callers must not construct a selector from partial evidence; re-list after project
 changes because selectors are snapshot-scoped locators, not persistent TIA identifiers.
+
+### Network-object continuation cursors
+
+Use the returned `nextCursor` unchanged, keep `objectKinds` and `deviceName` unchanged, and
+continue through `network_read`. Explicit `pageSize` may change within `1..200`. The host seals
+the existing worker continuation together with the binding ID/revision/path and the worker
+session ID, generation, Portal PID and project path. The worker retains its existing
+filter, snapshot and range checks; this is authentication, not encryption or a new snapshot store.
+Both initial and continued calls use the same guarded host path.
+
+| Category | Meaning and recovery |
+|---|---|
+| `invalid_cursor` | Malformed, tampered, wrong-purpose, previous-host-process or legacy unsigned public cursor. Start again without the old cursor; old cursor values are not migrated. |
+| `cursor_binding_mismatch` | The retained host epoch or worker identity no longer matches. Start a fresh sequence under the intended verified binding. A local stale-cursor refusal preserves the healthy current binding. |
+| `cursor_filter_mismatch` | The worker rejected changed query filters. Repeat the original filters or start a new sequence. |
+| `cursor_snapshot_mismatch` | Current discovery evidence differs. Start a new sequence; do not reuse the old offset. |
+| `cursor_out_of_range` | The continuation offset is outside the current result. Start a new sequence. |
+| `protocol_error` | The worker returned malformed payload/identity or a non-null blank continuation. The item fails canonically and later independent reads still run. |
+
+A same-owner `bind_project` reverify that keeps the binding epoch does not invalidate a cursor.
+An actual worker/Portal loss keeps its original failure and invalidation behavior: inspect the
+failure, bind explicitly to recover, and start a fresh sequence. No request is replayed.
+An unbound call still returns the call-level `binding_conflict` before cursor processing.
+
+Public cursor values are limited to 4,096 characters. If issuing one exceeds the limit, the item
+is `omitted` with null result/failure and reason `networkObjectCursorExceededCharLimit`, actual
+size/limit metadata and retry guidance. No unsigned fallback or unusable partial page is returned;
+a terminal page with `nextCursor:null` needs no cursor and can still succeed. Shorten the project
+path and start again, or narrow the request until its result fits one terminal page.
+
+The public request/result schemas and Network `contractVersion:"1.0"` are unchanged.
 
 ### Selector shapes
 
