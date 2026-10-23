@@ -180,8 +180,7 @@ Paged results add:
 
 `nextCursor` is nullable and is omitted at the terminal page. Keep `deviceName`,
 `plcName`, `includeIoDetails`, and `includeTagMatches` unchanged for a continuation. `pageSize` is
-not query identity and may change within `1..200`. A continuation sends only the cursor and the host uses its resolved path; it requires the
-same verified binding and otherwise fails with `cursor_binding_mismatch`. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
+not query identity and may change within `1..200`. A continuation carries no project path; the host uses the cursor's resolved path, requires the same verified binding, and otherwise fails with `cursor_binding_mismatch`. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
 
 Cursors are authenticated with a host-process-lifetime key and intentionally stop working after a
 host restart. They also bind the resolved project, bound/unbound host snapshot, observed worker
@@ -192,7 +191,7 @@ session, stable candidate snapshot, and combined offset. Recovery is category-sp
 | `validation_error` | `pageSize` is outside `1..200`, or a dependent field is invalid. | Correct the first request and start a new sequence. |
 | `invalid_cursor` | Encoding, version, schema, canonical form, or signature is invalid; this also covers a cursor from a previous host process. | Start a new sequence without the old cursor. |
 | `cursor_filter_mismatch` | A cursor-bound filter or detail flag changed. | Retry the unchanged request at the same cursor, or start a new sequence with the new fields. |
-| `cursor_binding_mismatch` | The repeated project path differs, the host binding/path changed, or the observed worker session changed. | Re-read current project status, then start a new sequence; do not reuse the cursor. |
+| `cursor_binding_mismatch` | The host binding/path changed, or the observed worker session changed. | Re-read current project status, then start a new sequence; do not reuse the cursor. |
 | `cursor_snapshot_mismatch` | The stable matching device/subnet set or order changed. | Start a new sequence against the new snapshot. |
 | `cursor_out_of_range` | The saved combined offset is outside the current candidate set. | Start a new sequence. |
 | `protocol_error` | The worker omitted envelope identity or returned malformed/incoherent typed candidate evidence. | Treat the page as unusable; inspect diagnostics and retry only after correcting the host/worker mismatch. |

@@ -197,7 +197,7 @@ Per-item Openness degradation is retained in the envelope `warnings` array rathe
 
 ### Standalone status and compilation contract
 
-`get_project_status` and `compile_check` declare concrete MCP output schemas and return the same canonical JSON document in `content` text and `structuredContent`. Both use contract version `1.0` and the envelope `tool`, `contractVersion`, `success`, `error`, `warnings`, and `result`. Inputs and access modes are unchanged. This output change breaks legacy clients: replace parsing the JSON string in `payload` with reading the object at `result.value`.
+`get_project_status` and `compile_check` declare concrete MCP output schemas and return the same canonical JSON document in `content` text and `structuredContent`. Both use contract version `1.0` and the envelope `tool`, `contractVersion`, `success`, `error`, `warnings`, and `result`. Inputs and access modes are unchanged (C-0 later removed `get_project_status.projectPath`). This output change breaks legacy clients: replace parsing the JSON string in `payload` with reading the object at `result.value`.
 
 `result` contains four explicit members: `status` (`succeeded`, `failed`, or `omitted`), `value`, `failure`, and `omission`. The value is the complete `ProjectStatusInfo` (including `metadata`) or `CompileCheckReport`. Optional/unavailable data is represented by explicit nulls, including within nested metadata. A no-project read succeeds with `result.value.isOpen:false` and does not bind an unbound host session.
 
@@ -274,7 +274,7 @@ switch or open; use `bind_project` for already-open projects and open/create for
 |---|---|---|
 | `open_project` | Opens a standalone project or existing local session and binds its verified engineering identity. | Absolute `.ap21` or existing file-only `.als21` `projectPath`; optional `forceRebind`. |
 | `create_project` | Creates a project and binds the session to it. | Absolute `projectDirectory`, `projectName`; optional `author`, `comment`. |
-| `save_project` | Saves the active project. | No arguments (acts on the bound project). |
+| `save_project` | Saves the active project. | No operation inputs (acts on the bound project). |
 | `save_project_as` | Saves a copy and rebinds the session to the copy. | `targetDirectory`, `targetName`; `rebind` must remain `true`. |
 | `archive_project` | Archives a project. | `archiveDirectory`, `archiveName`; optional `mode`, `saveBeforeArchive`. |
 | `close_project` | Closes the project and clears the session binding. | Optional `saveBeforeClose`. |
@@ -302,7 +302,7 @@ A later call resolves fresh state and guards; the preview provides no continuing
 For example, inspect opening a disposable project with:
 
 ```json
-{"dryRun":true}
+{"projectPath":"<absolute .ap21 path>","dryRun":true}
 ```
 
 Apply with the same operation inputs and `dryRun:false` (or omit `dryRun`). Effects name the exact

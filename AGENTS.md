@@ -1,6 +1,6 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 8 tools in read-only, 19 in read-write (startup default), and the same 19 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled. Content tools (reads, writes, `compile_check`, `save_project`) act only on the bound project and fail closed with `binding_conflict` when unbound; only `bind_project` and `open_project` accept a public `projectPath`, and `get_project_status` takes no arguments.
+MCP server for Siemens TIA Portal V21. Exposes 8 tools in read-only, 19 in read-write (startup default), and the same 19 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled. Content tools (content reads and writes, `compile_check`, and every lifecycle tool except `open_project`/`create_project`) act only on the bound project and fail closed with `binding_conflict` when unbound; only `bind_project` and `open_project` accept a public `projectPath`, and `get_project_status` takes no arguments.
 
 ## Two-process architecture (critical to understand)
 

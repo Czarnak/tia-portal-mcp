@@ -17,7 +17,7 @@ installation that are surprising but expected.
 
 ### Bound-project failures
 
-- `binding_conflict` on a content read, write or compile: there is no verified project binding. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
+- `binding_conflict` on a content read, write or compile: there is no verified project binding. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. After path, PID or generation drift, call `bind_project` with `forceRebind:true`.
 
 ### Hardware pagination cursor failures
 

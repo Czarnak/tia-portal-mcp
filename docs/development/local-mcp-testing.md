@@ -32,8 +32,7 @@ In the Inspector UI:
 
 - Open the Tools tab.
 - Click `List Tools` and verify 19 tools in read-write/full or 8 in read-only. Full adds no tools; lifecycle works in both writable modes.
-- Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open.
-- Call `bind_project` first (or start with a verified `--project`): every content tool acts on the bound project only and returns `binding_conflict` while unbound.
+- Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open. Call `bind_project` first (or start with a verified `--project`): every content tool acts on the bound project only and returns `binding_conflict` while unbound.
 - Then start with the standalone `get_project_status` and `browse_project_tree` tools.
 - In read-write or full mode, call standalone `compile_check` for PLC or block compilation.
 - Then call `plc_read` with an `operations` array whose items use `list_tag_tables`, `get_block_content`, or `get_type_content`, and `read_cross_references` with a `target` copied from `browse_project_tree` output.

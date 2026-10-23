@@ -159,7 +159,7 @@ stays fully supported; a call without `cursor` behaves as before and re-scans.
 
 `hmi_write(operations, dryRun=false)` executes by default against one verified, already-open project.
 Set `dryRun:true` for preview. Each of 1–50 caller-ordered items carries a unique `operationId`
-(at most 256 characters), `operation`, and and optional `hmiName`. HMI selection follows
+(at most 256 characters), `operation`, and an optional `hmiName`. HMI selection follows
 the read rules; all items target the bound project. Unknown fields (including a retired item `projectPath`) fail
 validation before worker activity. Read-only mode neither registers the tool nor permits its nine
 worker methods.

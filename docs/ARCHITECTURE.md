@@ -161,7 +161,7 @@ preview-only live V21 evidence are recorded in the
 | Tool | Purpose |
 |---|---|
 | `bind_project` | Adopt or switch to an already-open project without opening, creating, saving or closing. |
-| `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
+| `get_project_status` | Get status and metadata for the bound project, or for the sole open project when none is bound. Never establishes a new binding. |
 | `browse_project_tree` | Return a canonical, paged v3 point-in-time snapshot on the bound project using typed `startSelector`, `depth`, and `pageSize`, or continue it with `cursor`. |
 | `plc_read` | Execute up to 50 validated PLC read operations (`get_block_content`, `get_type_content`, `list_tag_tables`) on the structured contract. |
 | `read_cross_references` | Read the cross-references of one project-tree target (leaf object, member, or container sweep) on the structured contract. |
