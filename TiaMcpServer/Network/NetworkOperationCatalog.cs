@@ -1,3 +1,4 @@
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Contracts.Network;
@@ -30,8 +31,6 @@ public sealed record NetworkValidationResult(bool IsValid, string Error)
 /// </summary>
 public static class NetworkOperationCatalog
 {
-    public const int MaxBatchSize = 50;
-    public const int MaxOperationIdLength = 256;
     public const int MaxPageSize = 200;
     public const int MaxAttributeNames = 200;
 
@@ -120,45 +119,18 @@ public static class NetworkOperationCatalog
         IReadOnlyList<NetworkOperationRequest>? operations,
         NetworkOperationCategory expectedCategory)
     {
-        if (operations is null || operations.Count == 0)
+        if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
         {
-            return NetworkValidationResult.Invalid("Batch must contain at least one operation.");
-        }
-
-        if (operations.Count > MaxBatchSize)
-        {
-            return NetworkValidationResult.Invalid(
-                $"Batch exceeds the maximum of {MaxBatchSize} operations (received {operations.Count}).");
+            return NetworkValidationResult.Invalid(countError);
         }
 
         var errors = new List<string>();
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var operation in operations)
+        foreach (var operation in operations!)
         {
-            if (operation is null)
+            if (OperationBatchRules.CheckItem(operation, seenIds) is { } itemError)
             {
-                errors.Add("Batch contains a null operation.");
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(operation.OperationId))
-            {
-                errors.Add("Each operation requires a unique operationId.");
-                continue;
-            }
-
-            // operationId is repeated in every public item and in truncation evidence. Bound it
-            // before any response construction so caller-controlled identity text cannot consume
-            // the entire per-item budget or make even the minimal omission impossible to render.
-            if (operation.OperationId.Length > MaxOperationIdLength)
-            {
-                errors.Add($"Each operationId must be at most {MaxOperationIdLength} characters.");
-                continue;
-            }
-
-            if (!seenIds.Add(operation.OperationId))
-            {
-                errors.Add($"Duplicate operationId '{operation.OperationId}'.");
+                errors.Add(itemError);
                 continue;
             }
 

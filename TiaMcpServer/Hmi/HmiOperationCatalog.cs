@@ -1,6 +1,7 @@
 using System.Globalization;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Hmi;
 
@@ -10,8 +11,6 @@ namespace TiaMcpServer.Hmi;
 /// </summary>
 public static class HmiOperationCatalog
 {
-    public const int MaxBatchSize = 50;
-    public const int MaxOperationIdLength = 256;
     public const int DefaultLimit = 100;
     public const int MaxLimit = 2000;
 
@@ -137,21 +136,22 @@ public static class HmiOperationCatalog
 
     public static (bool IsValid, string Error) ValidateRead(IReadOnlyList<HmiOperationRequest>? operations)
     {
-        if (operations is null || operations.Count == 0)
+        if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
         {
-            return (false, "Batch must contain at least one operation.");
-        }
-
-        if (operations.Count > MaxBatchSize)
-        {
-            return (false, $"Batch exceeds the maximum of {MaxBatchSize} operations (received {operations.Count}).");
+            return (false, countError);
         }
 
         var errors = new List<string>();
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var operation in operations)
+        foreach (var operation in operations!)
         {
-            ValidateItem(operation, seenIds, errors);
+            if (OperationBatchRules.CheckItem(operation, seenIds) is { } itemError)
+            {
+                errors.Add(itemError);
+                continue;
+            }
+
+            ValidateItem(operation, errors);
         }
 
         return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
@@ -179,32 +179,8 @@ public static class HmiOperationCatalog
         return errors;
     }
 
-    private static void ValidateItem(HmiOperationRequest? operation, HashSet<string> seenIds, List<string> errors)
+    private static void ValidateItem(HmiOperationRequest operation, List<string> errors)
     {
-        if (operation is null)
-        {
-            errors.Add("Batch contains a null operation.");
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(operation.OperationId))
-        {
-            errors.Add("Each operation requires a unique operationId.");
-            return;
-        }
-
-        if (operation.OperationId.Length > MaxOperationIdLength)
-        {
-            errors.Add($"Each operationId must be at most {MaxOperationIdLength} characters.");
-            return;
-        }
-
-        if (!seenIds.Add(operation.OperationId))
-        {
-            errors.Add($"Duplicate operationId '{operation.OperationId}'.");
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(operation.Operation))
         {
             errors.Add($"Operation name is required for operationId '{operation.OperationId}'.");

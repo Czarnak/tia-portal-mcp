@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Plc;
 using Xunit;
 
@@ -31,7 +32,7 @@ public class PlcOperationCatalogTests
     [Fact]
     public void RejectsMoreThanFiftyItems()
     {
-        var ops = Enumerable.Range(0, PlcOperationCatalog.MaxBatchSize + 1).Select(i => Block($"op{i}")).ToArray();
+        var ops = Enumerable.Range(0, OperationBatchRules.MaxItems + 1).Select(i => Block($"op{i}")).ToArray();
 
         var result = PlcOperationCatalog.ValidateRead(ops);
 
@@ -317,6 +318,41 @@ public class PlcOperationCatalogTests
 
         Assert.False(result.IsValid);
         Assert.Contains("created earlier in this call", result.Error);
+    }
+
+    [Fact]
+    public void CrossItemCheck_DoesNotEchoOversizedOperationId()
+    {
+        var id = new string('o', 300);
+        var ops = new[] { CreateBlock("c", "PLC_1/Blocks/Main"), UpdateBlock(id) };
+
+        var error = PlcOperationCatalog.ValidateWrite(ops).Error;
+
+        Assert.Contains("at most 256 characters", error);
+        Assert.DoesNotContain(id, error);
+        Assert.DoesNotContain("created earlier in this call", error);
+    }
+
+    [Fact]
+    public void CrossItemCheck_StillReportedBesideAnUnrelatedFieldError()
+    {
+        var unrelated = CreateBlock("bad", "PLC_1/Blocks/Other");
+        unrelated.TypePath = "PLC_1/Types/T";
+        var ops = new[] { CreateBlock("c", "PLC_1/Blocks/Main"), UpdateBlock("u"), unrelated };
+
+        var error = PlcOperationCatalog.ValidateWrite(ops).Error;
+
+        Assert.Contains("created earlier in this call", error);
+        Assert.Contains("'typePath' is not valid for create_block", error);
+    }
+
+    [Fact]
+    public void RejectsNullOrEmptyBatch()
+    {
+        Assert.Equal("Batch must contain at least one operation.", PlcOperationCatalog.ValidateRead(null).Error);
+        Assert.Equal(
+            "Batch must contain at least one operation.",
+            PlcOperationCatalog.ValidateRead(Array.Empty<PlcOperationRequest>()).Error);
     }
 
     [Fact]

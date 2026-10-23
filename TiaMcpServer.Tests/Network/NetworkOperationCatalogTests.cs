@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -122,7 +123,7 @@ public class NetworkOperationCatalogTests
     {
         var empty = NetworkOperationCatalog.ValidateRead(Array.Empty<NetworkOperationRequest>());
         var oversized = NetworkOperationCatalog.ValidateRead(
-            Enumerable.Range(0, NetworkOperationCatalog.MaxBatchSize + 1)
+            Enumerable.Range(0, OperationBatchRules.MaxItems + 1)
                 .Select(index => Op($"id{index}", "read_hardware_config"))
                 .ToArray());
 
@@ -130,6 +131,7 @@ public class NetworkOperationCatalogTests
         Assert.Contains("at least one", empty.Error);
         Assert.False(oversized.IsValid);
         Assert.Contains("50", oversized.Error);
+        Assert.Equal("Batch must contain at least one operation.", NetworkOperationCatalog.ValidateRead(null).Error);
     }
 
     [Fact]

@@ -119,6 +119,51 @@ public sealed class VciWriteCatalogTests : IDisposable
     public void ReadsPointToReadTool(string operation)
         => Assert.Contains("use vci_read", VciWriteCatalog.ValidateWrite([Item(operation)]).Error);
 
+    private VciOperationRequest Export(string id)
+    {
+        var item = Item();
+        item.OperationId = id;
+        return item;
+    }
+
+    [Theory]
+    [InlineData("null batch", "Batch must contain at least one operation.")]
+    [InlineData("empty batch", "Batch must contain at least one operation.")]
+    [InlineData("51 items", "Batch exceeds the maximum of 50 operations (received 51).")]
+    [InlineData("null item", "Batch contains a null operation.")]
+    [InlineData("blank id", "Each operation requires a unique operationId.")]
+    [InlineData("257-character id", "Each operationId must be at most 256 characters.")]
+    [InlineData("duplicate id", "Duplicate operationId 'x'.")]
+    public void EnvelopeMessages_UseSharedWording(string batchCase, string expected)
+    {
+        VciOperationRequest[]? batch = batchCase switch
+        {
+            "null batch" => null,
+            "empty batch" => [],
+            "51 items" => Enumerable.Range(0, 51).Select(i => Export($"id{i}")).ToArray(),
+            "null item" => [null!],
+            "blank id" => [Export(" ")],
+            "257-character id" => [Export(new string('i', 257))],
+            "duplicate id" => [Export("x"), Export("x")],
+            _ => throw new ArgumentOutOfRangeException(nameof(batchCase)),
+        };
+
+        Assert.Equal(expected, VciWriteCatalog.ValidateWrite(batch).Error);
+    }
+
+    [Fact]
+    public void OversizedOperationId_IsNeverEchoed()
+    {
+        var id = new string('o', 300);
+        var item = Export(id);
+        item.RootPath = Path.Combine(directory, "not-valid-for-export");
+
+        var error = VciWriteCatalog.ValidateWrite([item]).Error;
+
+        Assert.DoesNotContain(id, error);
+        Assert.Equal("Each operationId must be at most 256 characters.", error);
+    }
+
     [Fact]
     public void BatchBoundariesAndAccessMode()
     {

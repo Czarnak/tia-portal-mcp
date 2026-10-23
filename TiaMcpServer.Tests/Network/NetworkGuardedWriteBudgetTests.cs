@@ -22,10 +22,10 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
     [Fact]
     public void AdmittedEscapedOperationIds_InfeasibleProtectedEnvelopeIsRejectedBeforePlanning()
     {
-        var operations = Enumerable.Range(0, NetworkOperationCatalog.MaxBatchSize)
+        var operations = Enumerable.Range(0, OperationBatchRules.MaxItems)
             .Select(index => new NetworkOperationRequest
             {
-                OperationId = new string('\u4e00', NetworkOperationCatalog.MaxOperationIdLength - 1)
+                OperationId = new string('\u4e00', OperationBatchRules.MaxOperationIdChars - 1)
                     + (char)('\u4e01' + index),
                 Operation = "delete_subnet",
                 Target = new NetworkObjectTarget { Kind = "subnet", SubnetId = "subnet-" + index },

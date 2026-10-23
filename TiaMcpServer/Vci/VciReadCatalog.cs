@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Vci;
 
@@ -16,16 +17,14 @@ public static class VciReadCatalog
 
     public static (bool IsValid, string Error, string Category) ValidateRead(IReadOnlyList<VciOperationRequest>? operations)
     {
-        if (operations is null || operations.Count is < 1 or > 50)
-            return (false, "Batch must contain 1 to 50 operations.", WorkerFailureCategories.ValidationError);
+        if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
+            return (false, countError, WorkerFailureCategories.ValidationError);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var errors = new List<string>();
         string? scopeCategory = null;
-        foreach (var item in operations)
+        foreach (var item in operations!)
         {
-            if (item is null) { errors.Add("Batch contains a null operation."); continue; }
-            if (string.IsNullOrWhiteSpace(item.OperationId) || item.OperationId.Length > 256 || !ids.Add(item.OperationId))
-                errors.Add("Each operationId must be unique, nonblank and at most 256 characters.");
+            if (OperationBatchRules.CheckItem(item, ids) is { } itemError) { errors.Add(itemError); continue; }
             if (string.IsNullOrWhiteSpace(item.Operation)) { errors.Add("Operation name is required."); continue; }
             if (!Fields.TryGetValue(item.Operation, out var allowed))
             {

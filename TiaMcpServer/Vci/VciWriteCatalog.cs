@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Vci;
@@ -23,17 +24,15 @@ public static class VciWriteCatalog
 
     public static (bool IsValid, string Error, string Category) ValidateWrite(IReadOnlyList<VciOperationRequest>? operations)
     {
-        if (operations is null || operations.Count is < 1 or > 50)
-            return (false, "Batch must contain 1 to 50 operations.", WorkerFailureCategories.ValidationError);
+        if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
+            return (false, countError, WorkerFailureCategories.ValidationError);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var errors = new List<string>();
         string? scopeCategory = null;
-        foreach (var item in operations)
+        foreach (var item in operations!)
         {
-            if (item is null) { errors.Add("Batch contains a null operation."); continue; }
+            if (OperationBatchRules.CheckItem(item, ids) is { } itemError) { errors.Add(itemError); continue; }
             void Error(string message) => errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): {message}");
-            if (string.IsNullOrWhiteSpace(item.OperationId) || item.OperationId.Length > 256 || !ids.Add(item.OperationId))
-                Error("operationId must be unique, nonblank and at most 256 characters.");
             if (item.Operation is null || !Specs.TryGetValue(item.Operation, out var spec))
             {
                 Error(VciMethods.Read.Contains(VciMethods.ForOperation(item.Operation!))

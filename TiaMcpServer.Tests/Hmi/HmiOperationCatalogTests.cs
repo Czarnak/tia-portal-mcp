@@ -305,8 +305,10 @@ public class HmiOperationCatalogTests
         var duplicate = HmiOperationCatalog.ValidateRead(duplicates);
         Assert.False(duplicate.IsValid);
         Assert.Contains("Duplicate operationId 'x'", duplicate.Error);
-        Assert.False(HmiOperationCatalog.ValidateRead(null).IsValid);
-        Assert.False(HmiOperationCatalog.ValidateRead(Array.Empty<HmiOperationRequest>()).IsValid);
+        Assert.Equal("Batch must contain at least one operation.", HmiOperationCatalog.ValidateRead(null).Error);
+        Assert.Equal(
+            "Batch must contain at least one operation.",
+            HmiOperationCatalog.ValidateRead(Array.Empty<HmiOperationRequest>()).Error);
     }
 
     [Fact]
