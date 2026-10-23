@@ -69,7 +69,7 @@ public class HmiReadToolsTests
     public async Task Cursor_ChangedFilter_IsCursorFilterMismatch_NoWorkerCall()
     {
         using var client = NeverStartedClient();
-        var binding = ProjectBindingCursorState.FromSnapshot(client.BindingSnapshot, preserveUnboundEpoch: true);
+        var binding = ProjectBindingCursorState.FromSnapshot(client.BindingSnapshot);
         var cursor = CursorFor(new HmiOperationRequest { Operation = "list_tags", TableName = "A" }, binding);
 
         var root = await RunAsync(client,

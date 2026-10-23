@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
@@ -85,7 +86,7 @@ public static class HmiPayloadContract
                 SkipReason: null,
                 warnings);
         }
-        catch (Exception exception) when (exception is JsonException or HmiPageCursorException)
+        catch (Exception exception) when (exception is CursorException or JsonException)
         {
             // An unsealable worker snapshot id is a worker contract violation like any undecodable payload.
             // Server-side diagnostic only: names the operation, never the rejected payload.
@@ -148,7 +149,7 @@ public static class HmiPayloadContract
                 operation.Operation,
                 HmiPageCursorCodec.QueryHash(operation),
                 page.GetProperty("nextOffset").GetInt32(),
-                ProjectBindingCursorState.FromSnapshot(issuer.Binding, preserveUnboundEpoch: true)));
+                ProjectBindingCursorState.FromSnapshot(issuer.Binding)));
         }
 
         return JsonSerializer.SerializeToElement(root);

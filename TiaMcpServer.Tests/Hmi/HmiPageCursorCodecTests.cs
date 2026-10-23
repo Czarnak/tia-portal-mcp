@@ -41,7 +41,7 @@ public class HmiPageCursorCodecTests
         var cursor = codec.Encode(State());
         var tampered = cursor[..^2] + (cursor[^2] == 'A' ? "B" : "A") + cursor[^1];
 
-        var error = Assert.Throws<HmiPageCursorException>(() => codec.Decode(tampered));
+        var error = Assert.Throws<CursorException>(() => codec.Decode(tampered));
 
         Assert.Equal(WorkerFailureCategories.InvalidCursor, error.Category);
     }
@@ -55,9 +55,24 @@ public class HmiPageCursorCodecTests
         using var reader = new AuthenticatedCursorProtector(sameKey ? TestKey : OtherKey, "process-b");
         var cursor = new HmiPageCursorCodec(issuer).Encode(State());
 
-        var error = Assert.Throws<HmiPageCursorException>(() => new HmiPageCursorCodec(reader).Decode(cursor));
+        var error = Assert.Throws<CursorException>(() => new HmiPageCursorCodec(reader).Decode(cursor));
 
         Assert.Equal(WorkerFailureCategories.InvalidCursor, error.Category);
+    }
+
+    [Fact]
+    public void InvalidCursor_KeepsDomainMessage()
+    {
+        const string message = "The supplied hmi_read cursor is invalid.";
+        using var issuer = new AuthenticatedCursorProtector(TestKey, "process-a");
+        using var reader = new AuthenticatedCursorProtector(OtherKey, "process-b");
+        var cursor = new HmiPageCursorCodec(issuer).Encode(State());
+        var tampered = cursor[..^2] + (cursor[^2] == 'A' ? "B" : "A") + cursor[^1];
+
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new HmiPageCursorCodec(issuer).Decode(tampered)).Message);
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new HmiPageCursorCodec(reader).Decode(cursor)).Message);
     }
 
     [Fact]

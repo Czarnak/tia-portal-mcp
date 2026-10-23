@@ -164,10 +164,25 @@ public class ProjectTreeCursorCodecTests
         var cursor = new ProjectTreeCursorCodec(issuer).Encode(
             State("snapshot-1", QueryHash, 10));
 
-        var error = Assert.Throws<ProjectTreeCursorException>(() =>
+        var error = Assert.Throws<CursorException>(() =>
             new ProjectTreeCursorCodec(reader).Decode(cursor));
 
         Assert.Equal(WorkerFailureCategories.SnapshotUnavailable, error.Category);
+    }
+
+    [Fact]
+    public void InvalidCursor_KeepsDomainMessage()
+    {
+        const string message = "The supplied project-tree cursor is invalid.";
+        using var issuer = new AuthenticatedCursorProtector(TestKey, "process-a");
+        using var reader = new AuthenticatedCursorProtector(OtherKey, "process-b");
+        var cursor = new ProjectTreeCursorCodec(issuer).Encode(State("snapshot-1", QueryHash, 0));
+        var parts = cursor.Split('.');
+
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new ProjectTreeCursorCodec(issuer).Decode($"{ChangeByte(parts[0])}.{parts[1]}")).Message);
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new ProjectTreeCursorCodec(reader).Decode(cursor)).Message);
     }
 
     [Fact]
@@ -194,7 +209,7 @@ public class ProjectTreeCursorCodecTests
 
     private static void AssertCategory(string category, Action action)
     {
-        var error = Assert.Throws<ProjectTreeCursorException>(action);
+        var error = Assert.Throws<CursorException>(action);
         Assert.Equal(category, error.Category);
     }
 

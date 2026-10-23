@@ -18,13 +18,14 @@ public class HardwarePageCursorCodecTests
     private static readonly string ProjectPath = ProjectPathNormalization.Canonicalize(@"C:\Projects\Sample.ap21")!;
 
     [Fact]
-    public void UnboundNetworkCaptureAndCodec_RetainLegacyShape()
+    public void UnboundCapture_KeepsEpochAndRoundTrips()
     {
         var first = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, "epoch-a", 0, null, null, null, null, null);
         var later = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, "epoch-b", 2, null, null, null, null, null);
         var captured = ProjectBindingCursorState.FromSnapshot(first);
-        Assert.Equal(new ProjectBindingCursorState(false, null, null, null), captured);
-        Assert.True(captured.Matches(later));
+        Assert.Equal(new ProjectBindingCursorState(false, "epoch-a", 0, null), captured);
+        Assert.True(captured.Matches(first));
+        Assert.False(captured.Matches(later));
         var codec = Codec(TestKey);
         Assert.Equal(captured, codec.Decode(codec.Encode(State(binding: first))).HostBinding);
     }
@@ -35,10 +36,10 @@ public class HardwarePageCursorCodecTests
     public void UnboundEpochComparison_RejectsEitherIdentityOrRevisionChange(string id, long revision)
     {
         var first = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, "epoch-a", 0, null, null, null, null, null);
-        var captured = ProjectBindingCursorState.FromSnapshot(first, preserveUnboundEpoch: true);
-        Assert.True(captured.Matches(first, preserveUnboundEpoch: true));
+        var captured = ProjectBindingCursorState.FromSnapshot(first);
+        Assert.True(captured.Matches(first));
         var later = new ProjectBindingSnapshot(ProjectBindingSnapshot.UnboundState, id, revision, null, null, null, null, null);
-        Assert.False(captured.Matches(later, preserveUnboundEpoch: true));
+        Assert.False(captured.Matches(later));
     }
 
     [Fact]
@@ -213,6 +214,31 @@ public class HardwarePageCursorCodecTests
     }
 
     [Fact]
+    public void Encode_RejectsQueryHashWithTrailingNewline()
+        => AssertCategory(
+            WorkerFailureCategories.InvalidCursor,
+            () => Codec(TestKey).Encode(State() with { QueryHash = State().QueryHash + "\n" }));
+
+    [Fact]
+    public void Decode_RejectsSignedSnapshotHashWithTrailingNewline()
+        => AssertInvalidSignedPayload(AuthenticatedPayloadJson(State() with { SnapshotHash = new string('a', 64) + "\n" }));
+
+    [Fact]
+    public void InvalidCursor_KeepsDomainMessage()
+    {
+        const string message = "The supplied hardware page cursor is invalid.";
+        using var issuer = new AuthenticatedCursorProtector(TestKey, "process-a");
+        using var reader = new AuthenticatedCursorProtector(OtherKey, "process-b");
+        var cursor = new HardwarePageCursorCodec(issuer).Encode(State());
+        var parts = cursor.Split('.');
+
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new HardwarePageCursorCodec(issuer).Decode($"{ChangeByte(parts[0])}.{parts[1]}")).Message);
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new HardwarePageCursorCodec(reader).Decode(cursor)).Message);
+    }
+
+    [Fact]
     public void Decode_WrongPurposeStillMapsToHardwareInvalidCursor()
     {
         using var protector = new AuthenticatedCursorProtector(TestKey, "process-a");
@@ -258,14 +284,32 @@ public class HardwarePageCursorCodecTests
     }
 
     [Fact]
-    public void Validate_UnboundHostCursor_RemainsValidWhileHostIsUnbound()
+    public void Validate_UnboundHostCursor_FromAnotherUnboundEpoch_IsBindingMismatch()
     {
         var state = State(UnboundSnapshot());
 
         var category = HardwarePageCursorValidator.Validate(state, Request(), UnboundSnapshot("new-unbound-id", 9));
 
-        Assert.Null(category);
+        Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, category);
         Assert.False(state.HostBinding.IsBound);
+    }
+
+    [Fact]
+    public void Validate_UnboundHostCursor_SameEpoch_IsValid()
+    {
+        var state = State(UnboundSnapshot());
+
+        var category = HardwarePageCursorValidator.Validate(state, Request(), UnboundSnapshot());
+
+        Assert.Null(category);
+    }
+
+    [Fact]
+    public void Decode_RejectsSignedNullShapedUnboundBinding()
+    {
+        var state = State() with { HostBinding = new ProjectBindingCursorState(false, null, null, null) };
+
+        AssertInvalidSignedPayload(AuthenticatedPayloadJson(state));
     }
 
     private static HardwarePageCursorState State(ProjectBindingSnapshot? binding = null)
@@ -379,7 +423,7 @@ public class HardwarePageCursorCodecTests
 
     private static void AssertCategory(string expected, Action action)
     {
-        var exception = Assert.Throws<HardwarePageCursorException>(action);
+        var exception = Assert.Throws<CursorException>(action);
         Assert.Equal(expected, exception.Category);
         Assert.DoesNotContain("worker-1", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(ProjectPath, exception.Message, StringComparison.OrdinalIgnoreCase);

@@ -60,10 +60,10 @@ internal sealed class HardwarePageProjector
                     operation, payload, candidates, returnedCount,
                     resolvedProjectPath, sessionIdentity, hostBinding, warnings);
             }
-            catch (AuthenticatedCursorSizeException exception)
+            catch (CursorException exception) when (exception.InnerException is AuthenticatedCursorSizeException size)
             {
                 return BoundedOmission(
-                    operation, CursorLimitReason, exception.CursorChars, exception.LimitChars,
+                    operation, CursorLimitReason, size.CursorChars, size.LimitChars,
                     subject: null, warnings, maxItemChars);
             }
         }

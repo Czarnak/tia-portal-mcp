@@ -228,7 +228,7 @@ public class HmiPayloadContractDecodeTests
         Assert.Equal("list_tags", state.Operation);
         Assert.Equal(HmiPageCursorCodec.QueryHash(request), state.QueryHash);
         Assert.Equal(2, state.Offset);
-        Assert.True(state.HostBinding.Matches(Binding, preserveUnboundEpoch: true));
+        Assert.True(state.HostBinding.Matches(Binding));
     }
 
     [Fact]
