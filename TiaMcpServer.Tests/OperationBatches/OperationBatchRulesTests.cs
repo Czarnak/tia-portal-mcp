@@ -1,0 +1,60 @@
+using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Plc;
+using Xunit;
+
+namespace TiaMcpServer.Tests.OperationBatches;
+
+/// <summary>The shared count and per-item envelope rules every batch catalog and the write entry guard use.</summary>
+public class OperationBatchRulesTests
+{
+    private const string LengthMessage = "Each operationId must be at most 256 characters.";
+
+    private static PlcOperationRequest Item(string id) => new() { OperationId = id, Operation = "list_tag_tables" };
+
+    [Theory]
+    [InlineData(0, "Batch must contain at least one operation.")]
+    [InlineData(1, null)]
+    [InlineData(50, null)]
+    [InlineData(51, "Batch exceeds the maximum of 50 operations (received 51).")]
+    public void CheckCount_UsesSharedWording(int count, string? expected)
+    {
+        Assert.Equal(expected, OperationBatchRules.CheckCount(count));
+    }
+
+    [Fact]
+    public void CheckItem_RejectsNullBlankAndDuplicate()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        Assert.Equal("Batch contains a null operation.", OperationBatchRules.CheckItem(null, seen));
+        Assert.Equal("Each operation requires a unique operationId.", OperationBatchRules.CheckItem(Item(""), seen));
+        Assert.Equal("Each operation requires a unique operationId.", OperationBatchRules.CheckItem(Item("  "), seen));
+        Assert.Null(OperationBatchRules.CheckItem(Item("x"), seen));
+        Assert.Equal("Duplicate operationId 'x'.", OperationBatchRules.CheckItem(Item("x"), seen));
+    }
+
+    [Fact]
+    public void CheckItem_BoundsOperationIdWithoutEcho()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var longest = new string('a', 256);
+        var oversized = new string('b', 257);
+
+        Assert.Null(OperationBatchRules.CheckItem(Item(longest), seen));
+        var message = OperationBatchRules.CheckItem(Item(oversized), seen);
+
+        Assert.Equal(LengthMessage, message);
+        Assert.DoesNotContain(oversized, message);
+    }
+
+    [Fact]
+    public void CheckItem_OversizedIdNeverReachesDuplicateCheck()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var oversized = new string('c', 300);
+
+        Assert.Equal(LengthMessage, OperationBatchRules.CheckItem(Item(oversized), seen));
+        Assert.Equal(LengthMessage, OperationBatchRules.CheckItem(Item(oversized), seen));
+        Assert.Empty(seen);
+    }
+}
