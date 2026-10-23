@@ -60,6 +60,15 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
   - `search_equipment_catalog` is gated too.
   - The client's `projectPath` parameters go end to end.
   - Deferred: the worker-side identity backstop, and the tree-cursor message bug, which gets its own PR.
+- **C-2:** RESOLVED (maintainer, 2026-10-23); see the [C-2 plan](2026-10-23-c2-shared-batch-rules.md).
+  - No single-project rule: C-0 removed every item `projectPath`.
+  - One `OperationValidation(IsValid, Category, Error)` record replaces the four result shapes. It keeps the member name `Error`, so existing callers keep compiling.
+  - All three oversized-`operationId` echo sites are fixed: the HmiWrite/VciWrite prefix, PLC's cross-item check and `WriteRun`'s duplicate check. `WriteRun.ValidateInput` uses the shared rules.
+  - Deferred: the unbounded operation-name echo, logged as a follow-up.
+- **C-6:** RESOLVED (maintainer, 2026-10-23); see the [C-6 plan](2026-10-23-c6-shared-cursor-plumbing.md).
+  - With `preserveUnboundEpoch` removed, unbound cursors keep their epoch everywhere. This is the tree/HMI rule, which hardware pages now adopt.
+  - Categories and messages stay byte-identical.
+  - The logged tree-cursor message bug does not exist as described. The nearest real defect, oversized tree/HMI cursors, is re-logged and gets its own PR. `Seal` keeps the size data for it.
 - **C-5:**
   - Bind the worker session identity in the sealed state, or not.
   - Foreign-process category. Recommended: `invalid_cursor`.
@@ -73,6 +82,13 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
 - [C-7 Read batch cancellation](2026-10-21-c7-read-cancellation.md)
 - [C-8 Shared HMI/VCI worker method lists](2026-10-21-c8-worker-method-lists.md)
 - [C-10 Remove `update_tag` `isSafety`](2026-10-21-c10-update-tag-is-safety.md)
+
+## Wave-3 plans
+
+C-2 and C-6 share no source files, so they run in parallel worktrees and can merge in either order. Each adds an evidence bullet to the review plan and edits the improvement log, so the second merge needs a trivial docs rebase.
+
+- [C-2 Shared batch rules](2026-10-23-c2-shared-batch-rules.md)
+- [C-6 Shared cursor plumbing](2026-10-23-c6-shared-cursor-plumbing.md)
 
 ## Wave-1 execution (maintainer, 2026-10-21)
 
