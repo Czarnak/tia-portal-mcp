@@ -565,6 +565,7 @@ public sealed class ToolOutputContractConformanceTests
             var document = result.StructuredContent!.Value;
             var error = document.GetProperty(tool == "browse_project_tree" ? "failure" : "error");
             Assert.Equal("binding_conflict", error.GetProperty("category").GetString());
+            Assert.Equal(TiaMcpServer.Contracts.Project.ProjectSessionBinding.BindFirstMessage, error.GetProperty("message").GetString());
             if (tool is "plc_read" or "network_read" or "hmi_read" or "vci_read")
                 Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
         }
