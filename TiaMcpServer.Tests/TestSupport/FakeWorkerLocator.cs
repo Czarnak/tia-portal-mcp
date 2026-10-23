@@ -9,18 +9,16 @@ internal static class FakeWorkerLocator
     public static string Locate()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        var configuration = directory.Parent!.Name;
         while (directory is not null)
         {
-            foreach (var configuration in new[] { "Debug", "Release" })
+            var candidate = Path.Combine(
+                directory.FullName,
+                "TiaMcpServer.FakeWorker", "bin", configuration, "net10.0",
+                "TiaMcpServer.FakeWorker.exe");
+            if (File.Exists(candidate))
             {
-                var candidate = Path.Combine(
-                    directory.FullName,
-                    "TiaMcpServer.FakeWorker", "bin", configuration, "net10.0",
-                    "TiaMcpServer.FakeWorker.exe");
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
+                return candidate;
             }
 
             directory = directory.Parent!;
