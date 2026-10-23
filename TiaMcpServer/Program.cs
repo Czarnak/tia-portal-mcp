@@ -103,6 +103,11 @@ namespace TiaMcpServer
             builder.Services.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
             builder.Services.AddSingleton(sp => new HardwarePageCursorCodec(
                 sp.GetRequiredService<AuthenticatedCursorProtector>()));
+            builder.Services.AddSingleton(sp => new NetworkObjectPageCursorCodec(
+                sp.GetRequiredService<AuthenticatedCursorProtector>()));
+            builder.Services.AddSingleton(sp => new NetworkObjectPaginationCoordinator(
+                sp.GetRequiredService<OpennessWorkerClient>(),
+                sp.GetRequiredService<NetworkObjectPageCursorCodec>()));
             builder.Services.AddSingleton(sp => new HardwarePageProjector(
                 sp.GetRequiredService<HardwarePageCursorCodec>()));
             builder.Services.AddSingleton(sp => new HardwarePaginationCoordinator(
@@ -124,7 +129,8 @@ namespace TiaMcpServer
                 TimeProvider.System));
             builder.Services.AddSingleton(sp => new NetworkReadOperationExecutor(
                 sp.GetRequiredService<OpennessWorkerClient>(),
-                sp.GetRequiredService<HardwarePaginationCoordinator>()));
+                sp.GetRequiredService<HardwarePaginationCoordinator>(),
+                sp.GetRequiredService<NetworkObjectPaginationCoordinator>()));
 
             builder.Services
                 .AddMcpServer()
