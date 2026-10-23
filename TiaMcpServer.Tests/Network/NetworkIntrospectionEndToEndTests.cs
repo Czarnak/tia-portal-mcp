@@ -75,7 +75,7 @@ public class NetworkIntrospectionEndToEndTests
     public async Task PagedListResults_StayWholeAndUnderThePerItemBudget()
     {
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "list-network-objects-large");
-        var result = await CallReadAsync(
+        var first = await CallReadAsync(
             harness,
             new object[]
             {
@@ -86,21 +86,26 @@ public class NetworkIntrospectionEndToEndTests
                     objectKinds = new[] { "node" },
                     pageSize = 20,
                 },
+            });
+        var firstItem = AssertCanonical(first).GetProperty("batch").GetProperty("operations")[0];
+        var cursor = firstItem.GetProperty("result").GetProperty("nextCursor").GetString();
+        Assert.NotEqual("large-list-page-2", cursor);
+        var second = await CallReadAsync(harness, new object[]
+            {
                 new
                 {
                     operationId = "page-2",
                     operation = "list_network_objects",
                     objectKinds = new[] { "node" },
                     pageSize = 20,
-                    cursor = "large-list-page-2",
+                    cursor,
                 },
             });
 
-        var root = AssertCanonical(result);
-        Assert.False(result.IsError);
-        var items = root.GetProperty("batch").GetProperty("operations");
-        Assert.Equal(2, items.GetArrayLength());
-        foreach (var item in items.EnumerateArray())
+        var secondItem = AssertCanonical(second).GetProperty("batch").GetProperty("operations")[0];
+        Assert.False(first.IsError);
+        Assert.False(second.IsError);
+        foreach (var item in new[] { firstItem, secondItem })
         {
             Assert.Equal("succeeded", item.GetProperty("status").GetString());
             Assert.True(

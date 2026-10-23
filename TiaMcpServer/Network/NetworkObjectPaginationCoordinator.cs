@@ -46,10 +46,20 @@ internal sealed class NetworkObjectPaginationCoordinator(
                 PageSize = operation.PageSize, Cursor = state?.WorkerCursor,
             };
             var worker = await NetworkWorkerInvoker.InvokeReadAsync(workerClient, request).ConfigureAwait(false);
+            if (worker.IsPostOperationFailure && !IsCompleteIdentity(worker.SessionIdentity))
+            {
+                return Failed(operation, WorkerFailureCategories.ProtocolError,
+                    "The network object worker response did not include a complete coherent session identity.", worker.Warnings);
+            }
+            if (state is not null && worker.FailureCategory == WorkerFailureCategories.BindingConflict)
+            {
+                worker = worker with { FailureCategory = WorkerFailureCategories.CursorBindingMismatch };
+            }
             var item = NetworkPayloadContract.Project(operation, worker);
             if (item.Status != OperationBatchStatus.Succeeded) return item;
 
-            if (!SameIdentity(current.ToWorkerIdentity(), worker.SessionIdentity)
+            if (!IsCompleteIdentity(worker.SessionIdentity)
+                || !SameIdentity(current.ToWorkerIdentity(), worker.SessionIdentity)
                 || worker.ResolvedProjectPath is not null
                     && !CursorStateRules.SameProject(worker.ResolvedProjectPath, current.ProjectPath))
             {
@@ -60,13 +70,37 @@ internal sealed class NetworkObjectPaginationCoordinator(
             var payload = CanonicalJson.DeserializeWorkerPayload<NetworkObjectListInfo>(item.Result!.Value.GetRawText());
             if (payload.NextCursor is not null)
             {
-                payload.NextCursor = cursorCodec.Encode(new NetworkObjectPageCursorState(
-                    1, payload.NextCursor, ProjectBindingCursorState.FromSnapshot(current), worker.SessionIdentity!));
+                try
+                {
+                    payload.NextCursor = cursorCodec.Encode(new NetworkObjectPageCursorState(
+                        1, payload.NextCursor, ProjectBindingCursorState.FromSnapshot(current), worker.SessionIdentity!));
+                }
+                catch (CursorException exception) when (exception.InnerException is AuthenticatedCursorSizeException size)
+                {
+                    return item with
+                    {
+                        Status = OperationBatchStatus.Omitted, Result = null,
+                        Omission = new StructuredOperationOmission(
+                            "networkObjectCursorExceededCharLimit", size.LimitChars, size.CursorChars, "network_read",
+                            "Shorten the project path and start a new sequence, or narrow the request until it fits one terminal page."),
+                    };
+                }
             }
             return item with { Result = CanonicalJson.ToElement(payload) };
         }).ConfigureAwait(false);
 
-        return pinned.Success ? pinned.Value! : Failed(operation, pinned.Failure!.FailureCategory!, pinned.Failure.Error!);
+        return pinned.Success ? pinned.Value! : Failed(operation,
+            pinned.Failure!.FailureCategory == WorkerFailureCategories.BindingConflict
+                ? WorkerFailureCategories.CursorBindingMismatch : pinned.Failure.FailureCategory!,
+            pinned.Failure.Error!, pinned.Failure.Warnings);
+    }
+
+    private static bool IsCompleteIdentity(WorkerSessionIdentity? identity)
+    {
+        var path = ProjectPathNormalization.Canonicalize(identity?.ProjectPath);
+        return identity is not null && !string.IsNullOrWhiteSpace(identity.WorkerSessionId)
+            && identity.SessionGeneration >= 0 && identity.PortalProcessId is > 0
+            && path is not null && string.Equals(path, identity.ProjectPath, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool SameIdentity(WorkerSessionIdentity? expected, WorkerSessionIdentity? actual)
