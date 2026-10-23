@@ -1051,9 +1051,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task UnboundSession_DirectStatusSuccess_DoesNotBindSession()
     {
         // The direct status read must never bind an unbound session, even when the worker
-        // reports a resolved project path - unlike every other read/write call site, which
-        // still binds on success (see SuccessfulFirstRequest_BindsToTheResolvedPathAndRejectsADifferentProjectAfterward
-        // above, using ReadHardwareConfigAsync as the vehicle for that unchanged behavior).
+        // reports a resolved project path.
         var binding = new ProjectSessionBinding(null);
         using var boundClient = new OpennessWorkerClient(
             binding,

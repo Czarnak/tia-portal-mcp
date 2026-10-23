@@ -2145,8 +2145,8 @@ public class OpennessWorkerClient : IDisposable
 
     /// <summary>
     /// Verifies worker identity for an existing binding, or promotes an explicitly configured
-    /// startup path after the first matching worker response. Ordinary unbound reads remain
-    /// non-binding. Divergence is a hard failure: a warning after a write would be too late.
+    /// startup path after the first matching worker response. Only status, selection and
+    /// inventory calls run unbound; content reads fail closed until a project is bound. Divergence is a hard failure: a warning after a write would be too late.
     /// </summary>
     private WorkerCallResult ValidateOrPromoteSessionIdentity(
         WorkerCallResult result,
