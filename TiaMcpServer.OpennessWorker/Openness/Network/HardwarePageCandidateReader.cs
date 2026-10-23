@@ -11,7 +11,7 @@ namespace TiaMcpServer.OpennessWorker.Openness.Network;
 /// </summary>
 internal static class HardwarePageCandidateReader
 {
-    private const int DefaultPageSize = 50;
+    private const int DefaultPageSize = 100;
     private const int MaximumPageSize = 200;
 
     public static HardwarePageCandidateResultInfo Read(

@@ -5,7 +5,7 @@ namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 public static class NetworkObjectPageBuilder
 {
-    public const int DefaultPageSize = 50;
+    public const int DefaultPageSize = 100;
     public const int MaxPageSize = 200;
 
     public static int ResolvePageSize(int? requestedPageSize)

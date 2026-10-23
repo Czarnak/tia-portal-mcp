@@ -1410,6 +1410,34 @@ Portal/host/worker processes. No project mutation or restoration was needed.
 The [scoped live report](superpowers/acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md)
 retains the initial bind advisory and unexecuted limits: changed epochs, concurrency and
 worker/transport faults, foreign-process and oversized cursors, malformed-worker injection,
-native filter/snapshot/range faults, other modes and local sessions. C-5 still merges before
-C-9; C-9's rebased combined gate and final paging matrix remain pending. No unchanged .NET
-suite was repeated for this documentation-only follow-up.
+native filter/snapshot/range faults, other modes and local sessions. C-5 merged first through
+PR #172 at `8fe0632`; C-9's post-merge qualification and matrix are recorded below. No unchanged
+.NET suite was repeated for the C-5 documentation-only follow-up.
+
+## Network paging defaults and cross-tool matrix - IMPLEMENTED OFFLINE 2026-10-23 (C-9)
+
+Hardware cursor-only continuations and network-object initial/continuation pages now request
+100 items by default. Hardware remains unpaged when neither paging field is supplied, and its
+first paged request still supplies a size. Explicit sizes 1..200, including 50, remain valid and
+adjustable between pages. Existing budgets can shorten output; follow returned continuation
+metadata and omission guidance. Public field names, Network contract 1.0 and C-5 sealing are
+unchanged. Catalog `maxResults` stays 50 and has no continuation.
+
+The indexed [paging matrix](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#paging-matrix)
+records the distinct tree, hardware, network-object, HMI and VCI paging contracts and links their
+snapshot, lifetime, budget and recovery rules.
+
+Qualified combined candidate `ce2c50b` is based on C-5 merge `8fe0632`. The Release stub build
+had 7 unchanged warnings and 0 errors; combined Network/cursor tests passed 2,305/2,305.
+The full serialized run passed 7,541 tests, zero failed/skipped, with 94.98% line coverage
+(13,043/13,731, above the 80% gate). Independent source review found no actionable findings and
+passed all five Review Focus rows. Earlier hardware and object default RED/GREEN tests remain
+recorded; post-rebase failures also exposed an old description assertion and stale Debug fixture
+selection by Release tests. Both were corrected in test code, reproduced green and included in
+the renewed gate. No production change was needed for those integration fixes.
+
+No separate C-9 live TIA verification was performed or required by the approved plan. C-5's
+scoped live smoke remains separate and does not establish every paging combination or native
+performance. C-9 is ready for publication/integration, subject to separate authorization; no C-9
+installation, push, PR creation or merge occurred. Full evidence and scope rulings are in the
+[C-9 combined record](superpowers/plans/2026-10-23-c9-paging-defaults-and-matrix.md#combined-execution-record-2026-10-23).

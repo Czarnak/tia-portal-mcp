@@ -555,6 +555,59 @@ public class HardwarePagePayloadContractTests
         Assert.Single(decoded.Payload.DeviceCandidates);
     }
 
+    [Theory]
+    [InlineData(50, false)]
+    [InlineData(100, true)]
+    [InlineData(101, false)]
+    public void Decode_CursorOnlyRequiresTheOneHundredCandidatePage(int returnedCount, bool expectedSuccess)
+    {
+        var operation = Operation();
+        operation.PageSize = null;
+        var continuation = new HardwarePageContinuationInfo(
+            1,
+            HardwarePageEvidence.CreateQueryHash(null, null, false, false),
+            SnapshotHash,
+            0);
+        var payload = CandidatePayload(
+            operation,
+            startOffset: 0,
+            totalDevices: 201,
+            totalSubnets: 0,
+            deviceOffsets: Enumerable.Range(0, returnedCount).ToArray(),
+            subnetOffsets: Array.Empty<int>());
+
+        var decoded = HardwarePagePayloadContract.Decode(operation, WorkerCallResult.Ok(payload), continuation);
+
+        Assert.Equal(expectedSuccess, decoded.IsSuccess);
+        if (expectedSuccess)
+        {
+            Assert.Equal(100, decoded.Payload!.DeviceCandidates.Count);
+        }
+        else
+        {
+            AssertProtocolFailure(decoded, payload);
+        }
+    }
+
+    [Fact]
+    public void Decode_ExplicitFiftyAcceptsFiftyWhenMoreThanOneHundredCandidatesRemain()
+    {
+        var operation = Operation();
+        operation.PageSize = 50;
+        var payload = CandidatePayload(
+            operation,
+            startOffset: 0,
+            totalDevices: 201,
+            totalSubnets: 0,
+            deviceOffsets: Enumerable.Range(0, 50).ToArray(),
+            subnetOffsets: Array.Empty<int>());
+
+        var decoded = HardwarePagePayloadContract.Decode(operation, WorkerCallResult.Ok(payload), continuation: null);
+
+        Assert.True(decoded.IsSuccess);
+        Assert.Equal(50, decoded.Payload!.DeviceCandidates.Count);
+    }
+
     private static void AssertProtocolFailure(HardwarePagePayloadContractResult decoded, string? rejectedText)
     {
         Assert.False(decoded.IsSuccess);

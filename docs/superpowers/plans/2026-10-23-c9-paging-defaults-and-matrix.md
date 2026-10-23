@@ -167,7 +167,7 @@ finally {
 - Consumes: the qualified C-5/C-9 combined behavior and actual controller-supplied build/test/coverage/review evidence. It does not generate or rerun that evidence.
 - Produces: one paging matrix in the existing indexed Network reference, with relative links to the existing HMI/VCI/PLC references. No new documentation file or public paging field.
 
-- [ ] **Step 1: Document the final defaults and matrix.**
+- [x] **Step 1: Document the final defaults and matrix.**
   - Change only the hardware cursor-only default sentence from 50 to 100. Keep explicit-50 examples: 50 remains supported.
   - Document network-object default 100 for initial and continuation calls alongside C-5's final sealed-cursor behavior and error/recovery rules.
   - Add the following five matrix rows. Columns are reader, public size/position fields, default/opt-in behavior, bounds, and scan/continuation semantics:
@@ -179,19 +179,61 @@ finally {
   - State that explicit sizes remain adjustable between pages, subject to each row's bounds; follow returned continuation metadata rather than assuming exactly the requested count. Preserve domain-specific lifetime, eviction, budget and recovery distinctions through links.
   - State that `search_equipment_catalog.maxResults` is a truncation cap without continuation and is outside this paging-default change. Do not change its default 50.
   - Add the docs index row above to make the matrix discoverable.
-- [ ] **Step 2: Record qualified evidence under C-9, in the improvement log and in the Workstream C completion state.**
+- [x] **Step 2: Record qualified evidence under C-9, in the improvement log and in the Workstream C completion state.**
   - Include date, exact combined candidate/base, defaults changed, unchanged explicit sizes/max 200/hardware opt-in, focused runtime RED/GREEN evidence, actual full-suite count with zero skips, coverage rate/report, independent review and C-5-first integration.
   - State: no separate C-9 live TIA verification was performed; C-5's scoped smoke is separate evidence and does not qualify every paging combination.
   - Do not rewrite old acceptance reports or claim the current plan-writing session executed implementation.
-- [ ] **Step 3: Validate documentation only.**
+- [x] **Step 3: Validate documentation only.**
   - Run: `git diff --check`
   - Run: `git diff -- docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md docs/README.md docs/IMPROVEMENT_LOG.md docs/superpowers/plans/2026-10-17-codebase-simplification-review.md docs/superpowers/plans/2026-10-21-workstream-c-plan.md`
   - Expected: no whitespace errors; all five matrix rows match qualified code; relative links point to existing files; C-5 recovery categories and explicit-50 examples remain accurate. Check the edited links and anchors directly; do not add or invoke a nonexistent docs-link script.
   - Do not repeat expensive builds/full suites for this documentation-only task.
-- [ ] **Step 4: Commit.** Message: `docs: document paging defaults and matrix`
+- [x] **Step 4: Commit.** Message: `docs: document paging defaults and matrix`
 
 **Task test command:** Step 3's documentation checks.
 
 ## Completion boundary
 
 The PR is ready for the approved integration/release workflow only after C-5 is merged, C-9 is rebased and qualified on that combined state, Task 3 is committed, and the final diff is clean. Report offline versus scoped live evidence separately. Pushing, opening/merging a PR, publishing a package or running live TIA requires the authorization applicable at execution time.
+
+## Source execution checkpoint (2026-10-23)
+
+At this source checkpoint, Tasks 1-2 were implemented on `fix/c9-paging-defaults` at candidate `00d7f36890e4df1b534a6238c833747bc884cd53`, from common base `5b5f4c1`. This was focused offline evidence, not final combined qualification or Task 3 completion; the combined record below supersedes its pending status.
+
+- Commits: `5fdf22c` changes the three hardware defaults, `8c9d199` corrects one test-only nullable-name warning, and `00d7f36` changes the network-object default.
+- Hardware: baseline 112 passed; runtime RED 5 failed / 84 passed; focused GREEN 118 passed, zero failures/skips. The decoder's 100-success and 50-rejection failures were both observed before the default changes; explicit-50 and 101-rejection controls stayed green.
+- Network objects: baseline 116 passed; runtime RED 4 failed / 10 passed; focused GREEN 120 passed, zero failures/skips. Initial/continuation defaults and both mixed-size sequences are pinned independently of production constants.
+- The combined focused gate passed 238 tests. Full-log comparison found exactly the seven unchanged baseline warnings after the nullable test correction; `git diff --check` passed. Task helpers also reran the 118- and 120-test filters successfully. Logs and the per-task ledger are under ignored `.superpowers/sdd/2026-10-23-c9-paging-defaults-and-matrix/`.
+- An independent read-only source review of `5b5f4c1..00d7f36` found no Critical, Important or Minor findings and checked all five Review Focus rows. It explicitly did not establish post-rebase C-5 interaction or live Siemens behavior/performance.
+- Ruling: defer the full suite to the required rebased combined gate; focused source evidence cannot replace it. Use bounded native source navigation because this worktree has no jCodemunch index.
+- At that checkpoint, C-5 merge, C-9 rebase/combined qualification, integration review and Task 3 remained pending. No live TIA, installation or remote write was performed in that phase.
+
+## Combined execution record (2026-10-23)
+
+C-5 PR #172 merged at `8fe0632d1bb270eb43f4e560ed99e48017b67857`; fresh GitHub metadata and
+`origin/main` agreed. C-9 rebased cleanly onto it. Original source commits map to `b0e6e55`
+(hardware), `5404dec` (nullable test correction), `ce750af` (network objects), and `61e7305`
+(source checkpoint). Final qualified candidate is `ce2c50b5d671ef14ee6af8a4f3f471261040cfe9`.
+
+- The first combined focused gate at `61e7305` passed 2,303 and failed two tests; no full suite started. One metadata test still expected 50. The other launched an old Debug FakeWorker from Release tests and repeated page one. Binary inspection confirmed that Debug lacked C-5's second-page fixture token while the freshly built Release fixture contained it.
+- `ce2c50b` changes test support only: metadata assertions cover both defaults of 100, and `FakeWorkerLocator` selects the test assembly's configuration using the existing `StartupProcess` pattern. Both observed failures then passed (2/2), with the stale Debug artifact still present. No production paging change was required for this fix.
+- Renewed Release stub build: 7 unchanged nullable warnings, 0 errors, 8.91 seconds. Programmatic comparison found exactly the same seven baseline warnings, none added/removed.
+- Required combined Network/cursor gate: 2,305 passed, zero failed/skipped, 1.6762 minutes. This includes 17 codec, 38 network-object coordinator, 23 Network FakeWorker, 13 structured protocol, 59 hardware payload, 15 hardware coordinator, 15 worker hardware reader and 14 network-object builder cases; no raw public worker token or default-size regression remained.
+- Full serialized Release run: 7,541 passed, zero failed/skipped, 8.1280 minutes. One nonzero Cobertura report (3,469,687 bytes) records 13,043/13,731 executable lines, line rate 0.9498 (94.98%); the 0.80 gate passed. Host default line `HardwarePaginationCoordinator.cs:95` was hit 36 times and strict decoder line `HardwarePagePayloadContract.cs:103` 62 times. C-5 codec/coordinator retain 26/26 and 87/87 covered lines. Worker default declarations are excluded by the existing CI worker coverage policy; their changed behavior is directly exercised by the passing reader/builder cases.
+- Exact full evidence: ignored `TestResults/c9-combined-final-e76a1c6d540449edbb6bcf1841443e23/{build.log,focused.log,test.log,coverage-check.log}` and `fcdf3d99-4764-46b1-94f2-186be3a10d32/coverage.cobertura.xml` beneath that directory. Failed/targeted logs remain in the earlier `TestResults/c9-combined-e6e9482976634cd5adc6e5b06fa19e53/`. The renewed qualification ran sequentially, outside the sandbox, with process-local `TEMP`/`TMP` and the planned CI settings.
+- Independent whole-branch review of `8fe0632..ce2c50b` found no actionable findings across all five Review Focus rows: strict counts; mixed sizes without loss/duplicates; unpaged hardware/opt-in; budget/terminal semantics; and merged C-5 sealing, identity and defaults. The test-support correction was reviewed against existing configuration detection and project wiring.
+
+Rulings: use bounded native navigation for this unindexed worktree; extend the test-only file list
+to correct the demonstrated fixture-selection defect; gather read-only review/matrix facts while
+immutable-source tests run, but make final review disposition and Task 3 edits only after the
+completed qualification gate. The failed and pre-rebase runs are not final qualification evidence.
+
+Task 3 records the final [five-row matrix](../../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#paging-matrix),
+preserves explicit-50 examples and catalog cap 50, and indexes the matrix directly. Documentation
+checks cover whitespace, links/anchors, scope and the final diff; unchanged .NET suites are not
+repeated for documentation-only edits.
+
+No separate C-9 live TIA run was performed or required by the approved plan. C-5's installed
+`pageSize:1` smoke is separate evidence and does not qualify all paging combinations or native
+performance. No C-9 installation or remote write was performed. Remaining work is publication/integration
+of C-9, subject to authorization at execution time; the C-5-first merge order has been preserved.

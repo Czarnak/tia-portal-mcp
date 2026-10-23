@@ -177,7 +177,8 @@ public class NetworkToolsTests
         Assert.Contains("pageSize", description, StringComparison.Ordinal);
         Assert.Contains("cursor", description, StringComparison.Ordinal);
         Assert.Contains("1..200", description, StringComparison.Ordinal);
-        Assert.Contains("defaults to 50", description, StringComparison.Ordinal);
+        Assert.Contains("defaults to 100", description, StringComparison.Ordinal);
+        Assert.Contains("default 100 on every page", description, StringComparison.Ordinal);
         Assert.Contains("devices first, then subnets", description, StringComparison.Ordinal);
         Assert.Contains("must remain unchanged", description, StringComparison.Ordinal);
     }

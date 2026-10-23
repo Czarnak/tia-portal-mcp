@@ -69,16 +69,17 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
   - With `preserveUnboundEpoch` removed, unbound cursors keep their epoch everywhere. This is the tree/HMI rule, which hardware pages now adopt.
   - Categories and messages stay byte-identical.
   - The logged tree-cursor message bug does not exist as described. The nearest real defect, oversized tree/HMI cursors, is re-logged and gets its own PR. `Seal` keeps the size data for it.
-- **C-5:** RESOLVED, offline-qualified at source `db2947b` and scoped live PASS on 2026-10-23 with installed `4.1.2-local.110.g5647477` in `full` mode on one standalone fixture; see the [C-5 plan](2026-10-23-c5-sealed-network-object-cursors.md) and [scoped report with unexecuted limits](../acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md). C-5 still merges first; C-9's rebased combined qualification and final matrix remain pending.
+- **C-5:** RESOLVED and merged first through PR #172 at `8fe0632` on 2026-10-23. Offline-qualified source `db2947b` received a scoped live PASS with installed `4.1.2-local.110.g5647477` in `full` mode on one standalone fixture; see the [C-5 plan](2026-10-23-c5-sealed-network-object-cursors.md) and [scoped report with unexecuted limits](../acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md). C-9's post-merge evidence is recorded below.
   - Use a host-authenticated wrapper around the existing worker continuation. Keep worker encoding and query/snapshot/range checks internal; do not migrate the worker protocol to typed continuations.
   - Seal the exact host binding and complete worker session identity. Validate, dispatch, project and issue the cursor under the existing serialized pinned binding lease.
   - Foreign-process, malformed, tampered and legacy unsigned public cursors return `invalid_cursor`. Locally stale binding/session continuations return `cursor_binding_mismatch` without invalidating a healthy current binding; actual worker/transport loss keeps existing invalidation and no replay.
   - Apply sealing to all inventory calls, including first pages, through production and compatibility executor routes. Cursor issuance over 4,096 characters becomes a controlled omission; terminal pages need no cursor.
   - Public request/result schemas and Network `contractVersion:"1.0"` stay unchanged. C-5 retains the default of 50; C-9 owns the default changes.
-- **C-9:** RESOLVED (maintainer, 2026-10-23); see the [C-9 plan](2026-10-23-c9-paging-defaults-and-matrix.md).
+- **C-9:** RESOLVED and implemented/offline-qualified on 2026-10-23 at `ce2c50b`, rebased onto C-5 merge `8fe0632`; see the [combined execution record](2026-10-23-c9-paging-defaults-and-matrix.md#combined-execution-record-2026-10-23) and final [paging matrix](../../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#paging-matrix). Publication/integration remains pending.
   - Set `read_hardware_config` cursor-only default and `list_network_objects` initial/continuation default to 100. Preserve explicit sizes, maximum 200 and unpaged hardware calls.
   - Keep parameter names and the other readers' defaults unchanged. Add the final paging matrix under the existing Network operation reference.
   - Implement in parallel with C-5; merge after C-5 and qualify the rebased combined behavior.
+  - Combined Network/cursor gate: 2,305 passed. Release stub build: 7 unchanged warnings / 0 errors. Full serialized suite: 7,541 passed, zero failed/skipped, 94.98% line coverage (80% gate passed). Independent review found no actionable findings across all five Review Focus rows. The two integration failures were corrected in test metadata/configuration selection and requalified; no separate C-9 live run was performed. C-5's scoped live evidence does not qualify every paging combination.
 
 ## Wave-1 plans
 

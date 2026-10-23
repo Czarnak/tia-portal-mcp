@@ -100,7 +100,7 @@ internal static class HardwarePagePayloadContract
 
         var total = (long)payload.TotalDevices + payload.TotalSubnets;
         var returned = payload.DeviceCandidates.Count + payload.SubnetCandidates.Count;
-        var effectivePageSize = operation.PageSize ?? 50;
+        var effectivePageSize = operation.PageSize ?? 100;
         if (total > int.MaxValue
             || payload.StartOffset < 0
             || payload.StartOffset > total

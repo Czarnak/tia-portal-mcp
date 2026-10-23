@@ -89,7 +89,7 @@ This is not a smaller per-ID or universal raw-character aggregate limit; reads r
 `objectKinds` is required, non-empty, duplicate-free, and limited to `deviceItem`,
 `networkInterface`, `node`, `subnet`, `ioSystem`, and `communicationConnection`. `deviceName` may
 be used only when every requested kind is device-scoped; it is invalid with `subnet` or
-`ioSystem`. The default page size is 50. Public cursors are opaque and authenticated by the host,
+`ioSystem`. The default page size is 100 on initial and continued calls. Public cursors are opaque and authenticated by the host,
 bound to its exact project-binding epoch and worker session identity as well as the normalized
 filters, stable item order and current discovery snapshot. A malformed or stale cursor is
 rejected rather than restarted or silently retargeted.
@@ -171,7 +171,7 @@ CLR object is `unrepresentable` and is never published through `ToString()`.
 ## Hardware configuration pagination
 
 `read_hardware_config` pagination is opt-in. Set `pageSize` (`1..200`) on the first request, or
-continue with an opaque `cursor`. A cursor-only continuation defaults to a page size of 50. A
+continue with an opaque `cursor`. A cursor-only continuation defaults to a page size of 100. A
 request with neither field stays on the unpaged path; envelope version/warnings and additive
 connection/root-count evidence follow the current declared contract.
 
@@ -242,6 +242,28 @@ fits, otherwise the entire subject is omitted (never truncated). Both omissions 
 guidance: retry the unchanged request at the same cursor, or start a new narrower sequence. The
 separate 180,000-character batch limit still applies; if it drops a hardware page, use that same
 guidance and never reuse an old cursor after changing bound fields.
+
+## Paging matrix
+
+| Reader | Public size and position fields | Defaults and opt-in behavior | Bounds | Scan and continuation semantics |
+|---|---|---|---|---|
+| [`browse_project_tree`](PROJECT_OPERATIONS_SUMMARY.md#browse_project_tree-v3) | `pageSize`, optional `cursor` | 100 initially and on continuation | `pageSize` 1..200 | Cached point-in-time flat-node snapshot; continuations page the saved snapshot. |
+| [`network_read/read_hardware_config`](#hardware-configuration-pagination) | `pageSize`, optional `cursor` | First paged call supplies size; cursor-only defaults to 100; omitting both fields keeps unpaged output | `pageSize` 1..200 | Devices then subnets; current candidate snapshot checked. Budget projection can shorten the complete returned prefix. |
+| [`network_read/list_network_objects`](#network-object-continuation-cursors) | `pageSize`, optional `cursor` | 100 on every page | `pageSize` 1..200 | Current deterministic inventory checked against the worker snapshot; public cursor is host-sealed. |
+| [HMI paged reads](HMI_OPERATIONS_SUMMARY.md#cursor-paging) | `offset`, `limit`, optional `cursor` | `offset` 0, `limit` 100; `cursor` excludes `offset` | `offset` >= 0; `limit` 1..2000 | Cursor continues the saved snapshot; without a cursor, each call performs a fresh scan. |
+| [`vci_read/list_mappings`](VCI_OPERATIONS_SUMMARY.md#reads) | `offset`, `limit` | `offset` 0, `limit` 100 | `offset` >= 0; `limit` 1..200 | Plain live offset paging without a snapshot or cursor; mapping changes can shift rows. |
+
+The seven HMI paged operations are `list_tags`, `list_system_tags`, `list_alarms`,
+`list_logging_tags`, `list_screen_items`, `list_faceplate_instances`, and `validate`.
+
+Explicit `pageSize` or `limit` may change between pages within the reader's bounds. Follow the
+returned continuation metadata rather than assuming exactly the requested count: terminal pages
+can be shorter, and budget projection can shorten a complete prefix. Snapshot lifetime, eviction,
+budget and recovery rules remain reader-specific; use the linked references when continuing or
+retrying. Related PLC reads are covered in the [PLC reference](PLC_OPERATIONS_SUMMARY.md#supported-read-operations).
+
+The paging-default change leaves `search_equipment_catalog.maxResults` at 50: it is a truncation
+cap without continuation.
 
 ## Structured I/O map
 

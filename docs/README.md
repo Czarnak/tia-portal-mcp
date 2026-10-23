@@ -19,6 +19,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | Document | What you will find |
 | --- | --- |
 | [Architecture](ARCHITECTURE.md) | Two-process topology, tier enforcement, explicit binding/cursor invalidation, transport, canonical JSON, mode-derived confirmation/audit v2, and testing |
+| [Network operations and paging matrix](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#paging-matrix) | Cross-tool paging fields, defaults, bounds, scan/continuation semantics and per-domain recovery references |
 | [HMI operations (`hmi_read`, `hmi_write`)](SupportedOperations/HMI_OPERATIONS_SUMMARY.md) | The 20 read-only WinCC Unified operations and nine writes, read DTO additions, paging/completeness, guards, partial failures, verification and limits |
 | [VCI operations (`vci_read`, `vci_write`)](SupportedOperations/VCI_OPERATIONS_SUMMARY.md) | Standalone workspace and mapping operations, formats, sync rules, path guards, recovery and evidence limits |
 | [hmi_read completion live acceptance](superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md) | Cursor paging and its failure categories, name-scoped `validate` categories, the provisional `{hmi}` cross-reference selector, runtime-settings allow-list, local-session paging, the 42-row regression, and observations O1-O6 |
