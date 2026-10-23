@@ -603,7 +603,7 @@ public sealed class ToolOutputContractConformanceTests
         {
             "plc_read" => ("plc-read-roundtrip", (object)new { operationId = "block", operation = "get_block_content", blockPath = "PLC_1/Main", projectPath = "plc-read-roundtrip" }),
             "plc_write" => ("plc-write-roundtrip", new { operationId = "table", operation = "create_tag_table", plcName = "PLC_2", tableName = "Valves", projectPath = "plc-write-roundtrip" }),
-            "network_read" => ("network-roundtrip", new { operationId = "hardware", deviceName = "PLC_1", projectPath = "network-roundtrip" }),
+            "network_read" => ("network-roundtrip", new { operationId = "hardware", operation = "read_hardware_config", deviceName = "PLC_1", projectPath = "network-roundtrip" }),
             "network_write" => ("network-roundtrip", new { operationId = "add", operation = "add_network_device", typeIdentifier = "OrderNumber:TEST", deviceName = "PLC_1", projectPath = "network-roundtrip" }),
             "hmi_read" => ("hmi-read-roundtrip", new { operationId = "devices", operation = "list_hmi_devices", projectPath = "hmi-read-roundtrip" }),
             "hmi_write" => ("hmi-write-roundtrip", new { operationId = "table", operation = "create_tag_table", tableName = "T", projectPath = "hmi-write-roundtrip" }),
