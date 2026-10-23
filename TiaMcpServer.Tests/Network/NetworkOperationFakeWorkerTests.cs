@@ -2,6 +2,8 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Cursors;
+using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
@@ -641,7 +643,64 @@ public class NetworkOperationFakeWorkerTests
         var resultElement = operation.GetProperty("result");
         Assert.Equal(20, resultElement.GetProperty("items").GetArrayLength());
         Assert.Equal(100, resultElement.GetProperty("totalCount").GetInt32());
-        Assert.Equal("large-list-page-2", resultElement.GetProperty("nextCursor").GetString());
+        var nextCursor = resultElement.GetProperty("nextCursor").GetString();
+        Assert.NotEqual("large-list-page-2", nextCursor);
+        Assert.Equal(2, nextCursor!.Split('.').Length);
+    }
+
+    [Fact]
+    public async Task ListNetworkObjects_PublicCursor_ContinuesAcrossTwoCalls()
+    {
+        using var client = await CreateBoundClientAsync("list-network-objects-large");
+        var operation = new NetworkOperationRequest
+        {
+            OperationId = "page", Operation = "list_network_objects",
+            ObjectKinds = new[] { "node" }, PageSize = 20,
+        };
+        var first = await NetworkReadTools.NetworkRead(client, new[] { operation });
+        Assert.Equal(Text(first), CanonicalJson.Serialize(Structured(first)));
+        var firstPage = Structured(first).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        var cursor = firstPage.GetProperty("nextCursor").GetString();
+        Assert.NotEqual("large-list-page-2", cursor);
+        operation.Cursor = cursor;
+        var second = await NetworkReadTools.NetworkRead(client, new[] { operation });
+        Assert.Equal(Text(second), CanonicalJson.Serialize(Structured(second)));
+        var secondItem = Structured(second).GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("succeeded", secondItem.GetProperty("status").GetString());
+        var secondPage = secondItem.GetProperty("result");
+        Assert.Equal(JsonValueKind.Object, secondPage.ValueKind);
+        Assert.Equal(20, secondPage.GetProperty("returnedCount").GetInt32());
+        Assert.Equal(100, secondPage.GetProperty("totalCount").GetInt32());
+        var ids = firstPage.GetProperty("items").EnumerateArray()
+            .Concat(secondPage.GetProperty("items").EnumerateArray())
+            .Select(item => item.GetProperty("selector").GetProperty("nodeId").GetString()).ToArray();
+        Assert.Equal(Enumerable.Range(1, 40).Select(i => $"node-{i:D3}"), ids);
+    }
+
+    [Fact]
+    public async Task ListNetworkObjects_RegisteredExecutor_UsesInjectedProtector()
+    {
+        using var client = await CreateBoundClientAsync("list-network-objects-large");
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var codec = new NetworkObjectPageCursorCodec(protector);
+        var hardwareCodec = new HardwarePageCursorCodec(protector);
+        NetworkReadTools.RegisterExecutor(client, new NetworkReadOperationExecutor(client,
+            new HardwarePaginationCoordinator(client, hardwareCodec, new HardwarePageProjector(hardwareCodec)),
+            new NetworkObjectPaginationCoordinator(client, codec)));
+        var result = await NetworkReadTools.NetworkRead(client, new[]
+        {
+            new NetworkOperationRequest
+            {
+                OperationId = "registered", Operation = "list_network_objects",
+                ObjectKinds = new[] { "node" }, PageSize = 20,
+            },
+        });
+        Assert.Equal(Text(result), CanonicalJson.Serialize(Structured(result)));
+        var token = Structured(result).GetProperty("batch").GetProperty("operations")[0]
+            .GetProperty("result").GetProperty("nextCursor").GetString();
+        var state = codec.Decode(token!);
+        Assert.Equal("large-list-page-2", state.WorkerCursor);
+        Assert.True(state.HostBinding.Matches(client.BindingSnapshot));
     }
 
     private static JsonElement Structured(CallToolResult result)

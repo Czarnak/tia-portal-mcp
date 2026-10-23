@@ -17,8 +17,10 @@ public class NetworkReadTools
     private const string ToolName = "network_read";
     private static readonly ConditionalWeakTable<OpennessWorkerClient, NetworkReadOperationExecutor>
         CompatibilityExecutors = new();
-    internal static HardwarePageCursorCodec CompatibilityCursorCodec { get; }
-        = new(AuthenticatedCursorProtector.CreateProcessScoped());
+    private static readonly AuthenticatedCursorProtector CompatibilityProtector
+        = AuthenticatedCursorProtector.CreateProcessScoped();
+    internal static HardwarePageCursorCodec CompatibilityCursorCodec { get; } = new(CompatibilityProtector);
+    private static readonly NetworkObjectPageCursorCodec CompatibilityObjectCursorCodec = new(CompatibilityProtector);
 
     [McpServerTool(
         Name = ToolName,
@@ -86,7 +88,8 @@ public class NetworkReadTools
             workerClient,
             CompatibilityCursorCodec,
             projector);
-        return new NetworkReadOperationExecutor(workerClient, coordinator);
+        var objectCoordinator = new NetworkObjectPaginationCoordinator(workerClient, CompatibilityObjectCursorCodec);
+        return new NetworkReadOperationExecutor(workerClient, coordinator, objectCoordinator);
     }
 
     /// <summary>

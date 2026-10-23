@@ -1,4 +1,4 @@
-# Workstream C: PR sequence and wave-1 plans
+# Workstream C: PR sequence and implementation plans
 
 Source: Workstream C of the [codebase simplification review](2026-10-17-codebase-simplification-review.md), re-surveyed against `main` @ `03a2363` on 2026-10-21 (after A, all of B, D-2 and E-3 merged). Each item ships as its own PR, so each gets one release-notes line.
 
@@ -35,14 +35,14 @@ All eleven items are still valid. Changes since the review:
 | 3 | C-2 shared batch rules (S) | C-0 | message text | no |
 | 3 | C-6 shared cursor plumbing (S) | C-0 | no | no |
 | 4 | C-5 host-sealed `list_network_objects` cursor (M) | C-0, C-6 | cursor values, new `cursor_binding_mismatch` | scoped smoke |
-| 4 | C-9 paging default and matrix (S) | C-5 | `read_hardware_config` cursor-only default 50→100 | no |
+| 4 | C-9 paging defaults and matrix (S) | C-0, C-6 for implementation; C-5 for final integration/merge | hardware cursor-only and network-object initial/continuation defaults 50→100 | no |
 
 Why this order:
 
 - **C-0 is the hub.** Its file overlap with the others: C-1 16 files, C-2 8, C-6 7, C-5 6, C-7 6, C-10 6, C-9 4.
 - **C-2 and C-6 go after C-0.** C-0 deletes the code regions they would otherwise rewrite.
 - **C-5 goes after C-6.** It can then use the shared seal/open helper instead of adding a fourth copy.
-- **C-9 goes last.** Its paging matrix documents the final paging behaviour.
+- **C-9 merges last, but implementation runs alongside C-5.** Both start from the same agreed clean `main` base. C-9 rebases after C-5 merges, so its final paging matrix and qualification cover the sealed cursor path.
 
 ### Wave-1 merge order
 
@@ -50,7 +50,7 @@ Each PR is developed in its own worktree from `main`. The order is C-3, C-4, C-1
 
 C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWriteMcpTests` that C-10 also uses. Merging it last means it rebases once. C-8 and C-10 edit different regions of the worker `Program.cs`.
 
-### Decisions still open (later waves)
+### Later-wave decisions
 
 - **C-0:** RESOLVED and implemented (decisions by the maintainer on 2026-10-22, live gate passed 2026-10-23); see the [C-0 plan](2026-10-22-c0-bound-project-content-tools.md).
   - `projectPath` is removed from `get_project_status` and from `save_project_as`'s source assertion.
@@ -69,10 +69,16 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
   - With `preserveUnboundEpoch` removed, unbound cursors keep their epoch everywhere. This is the tree/HMI rule, which hardware pages now adopt.
   - Categories and messages stay byte-identical.
   - The logged tree-cursor message bug does not exist as described. The nearest real defect, oversized tree/HMI cursors, is re-logged and gets its own PR. `Seal` keeps the size data for it.
-- **C-5:**
-  - Bind the worker session identity in the sealed state, or not.
-  - Foreign-process category. Recommended: `invalid_cursor`.
-- **C-9:** also change `list_network_objects`' default from 50 to 100, or not.
+- **C-5:** RESOLVED, offline-qualified at source `db2947b` and scoped live PASS on 2026-10-23 with installed `4.1.2-local.110.g5647477` in `full` mode on one standalone fixture; see the [C-5 plan](2026-10-23-c5-sealed-network-object-cursors.md) and [scoped report with unexecuted limits](../acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md). C-5 still merges first; C-9's rebased combined qualification and final matrix remain pending.
+  - Use a host-authenticated wrapper around the existing worker continuation. Keep worker encoding and query/snapshot/range checks internal; do not migrate the worker protocol to typed continuations.
+  - Seal the exact host binding and complete worker session identity. Validate, dispatch, project and issue the cursor under the existing serialized pinned binding lease.
+  - Foreign-process, malformed, tampered and legacy unsigned public cursors return `invalid_cursor`. Locally stale binding/session continuations return `cursor_binding_mismatch` without invalidating a healthy current binding; actual worker/transport loss keeps existing invalidation and no replay.
+  - Apply sealing to all inventory calls, including first pages, through production and compatibility executor routes. Cursor issuance over 4,096 characters becomes a controlled omission; terminal pages need no cursor.
+  - Public request/result schemas and Network `contractVersion:"1.0"` stay unchanged. C-5 retains the default of 50; C-9 owns the default changes.
+- **C-9:** RESOLVED (maintainer, 2026-10-23); see the [C-9 plan](2026-10-23-c9-paging-defaults-and-matrix.md).
+  - Set `read_hardware_config` cursor-only default and `list_network_objects` initial/continuation default to 100. Preserve explicit sizes, maximum 200 and unpaged hardware calls.
+  - Keep parameter names and the other readers' defaults unchanged. Add the final paging matrix under the existing Network operation reference.
+  - Implement in parallel with C-5; merge after C-5 and qualify the rebased combined behavior.
 
 ## Wave-1 plans
 
@@ -89,6 +95,41 @@ C-2 and C-6 share no source files, so they run in parallel worktrees and can mer
 
 - [C-2 Shared batch rules](2026-10-23-c2-shared-batch-rules.md)
 - [C-6 Shared cursor plumbing](2026-10-23-c6-shared-cursor-plumbing.md)
+
+## Wave-4 plans and execution (maintainer, 2026-10-23)
+
+Planning baseline: clean `main` at `9ff3083`, with C-2 and C-6 merged. The maintainer authorized implementation and committing the plans on 2026-10-23, using the parallel worktrees and serialized validation below. Installation, live operations and remote writes still require separate authorization.
+
+- [C-5 Sealed network object cursors](2026-10-23-c5-sealed-network-object-cursors.md)
+- [C-9 Paging defaults and matrix](2026-10-23-c9-paging-defaults-and-matrix.md)
+
+### Parallel lanes and ownership
+
+At execution time, create one managed worktree and branch per PR using the worktree skill and the app's managed-worktree tools where available; use the returned checkout paths. Both branches start from the same agreed clean `main` commit containing these plans (at least `9ff3083`). Do not copy uncommitted work between checkouts. Record the common base and checkout/branch identities before dispatch.
+
+| Lane | Branch | Owns |
+|---|---|---|
+| C-5 | `fix/c5-sealed-network-object-cursors` | Host codec/coordinator, cursor tests, production registration and compatibility wiring, cursor-related FakeWorker fixtures, inventory cursor reference/evidence |
+| C-9 | `fix/c9-paging-defaults` | Hardware coordinator/payload-validator/worker defaults, network page-builder default, default/count tests, tool-description default text and final paging matrix |
+
+Use one implementer per lane, running its plan tasks in order, and an independent whole-branch reviewer for each. The orchestrator coordinates validation and integration. Agents share the host and must preserve/accommodate others' work. Neither lane starts a live run or remote write independently.
+
+The branches have no implementation prerequisite on each other with the wrapper design. Shared file ownership is by region:
+
+- `NetworkReadTools.cs`: C-5 owns compatibility protector/factory wiring; C-9 owns the tool description's default wording. Do not replace each other's regions.
+- `NETWORK_OPERATIONS_SUMMARY.md`: C-5 owns cursor identity/recovery/migration text; C-9 owns default wording and the cross-domain paging matrix. Its final cursor row is reconciled after C-5 merges.
+- `NetworkOperationFakeWorkerTests.cs`: C-5 owns cursor round trips and raw-token expectation changes. C-9 tests worker defaults in its pure page-builder tests first. C-5 fixtures use explicit page sizes; C-9 adds combined public default coverage after rebase if needed.
+- `TiaMcpServer.FakeWorker/Program.cs`: C-5 owns new cursor scenarios. C-9 uses existing pure worker builders for initial default tests and coordinates any combined fixture adjustment after rebase.
+- The review evidence ledger and improvement log receive separate C-5/C-9 bullets; reconcile those additive edits during C-9's rebase. No source or historical evidence is discarded to resolve a conflict.
+
+### Validation, gates and merge order
+
+1. **Parallel implementation:** both lanes run focused test cycles in their own checkouts. Do not run a full suite while the other lane is building/testing. Any focused tests with shared host resources also take the validation slot; parallel implementation is not permission to race shared processes, ports or installed tools.
+2. **Serialized branch qualification:** the orchestrator reserves one validation slot for each Release stub build/full-suite/coverage run. C-5 runs its full gate before merge; C-9 runs its required full gate on the rebased combined candidate in step 5, with focused tests/source review before that. A pre-rebase C-9 full run is not required and cannot replace its combined gate. Use each plan's unique ignored results directory, process-local `TEMP`/`TMP`, CI single-thread xUnit settings, zero failures/skips and minimum line rate 0.80. Independent reviews and their fixes follow; rerun gates only when changes/failures require them.
+3. **C-5 live gate:** after both lanes' source work is ready and C-5's offline/review gate passes, obtain separate exact-target authorization for the installed-candidate read-only paging smoke in its plan. No Portal/project mutation, restart or concurrent live activity is implied. C-9 has no independent live gate.
+4. **C-5 first:** finish its evidence/docs after the gates, then push/open/merge only with maintainer approval. Record its exact merged SHA.
+5. **C-9 integration:** rebase C-9 onto that merged `main`, preserving C-5's cursor changes and C-9's default changes. Reconcile shared tests/doc regions, finalize the paging matrix, run the named combined focused tests and a serialized full build/suite/coverage gate on the exact rebased source HEAD. Have the integration diff independently reviewed; relevant fixes require renewed verification. A pre-rebase full-suite result does not qualify the rebased candidate. Do not rerun the C-5 live smoke solely for a default/docs change; a change to cursor identity, routing or invalidation needs a fresh affected-gate decision.
+6. **C-9 second:** record final evidence and finish docs, then push/open/merge only with maintainer approval. Documentation-only commits after qualified source need Git/link checks, not another unchanged full suite. Archive worktrees only after explicit cleanup authorization and verified merge/clean state.
 
 ## Wave-1 execution (maintainer, 2026-10-21)
 

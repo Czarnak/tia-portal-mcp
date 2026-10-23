@@ -1612,12 +1612,15 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
 
         case "list-network-objects-large":
-            // Deterministic large-list scenario for budget tests: 20 items (all node kind), a
-            // scripted nextCursor, and a totalCount that matches. No real pagination logic — the
-            // same fixture is returned on every call; the cursor is for binding tests only.
-            Respond(ReadMethod(line) == "list_network_objects"
-                ? Success(ToCamelCaseJson(LargeListNetworkObjectsFixture()))
-                : $$"""{"success":false,"error":"expected list_network_objects, got '{{ReadMethod(line)}}'"}""");
+            using (var request = JsonDocument.Parse(line))
+            {
+                var cursor = request.RootElement.TryGetProperty("networkObjectCursor", out var token) ? token.GetString() : null;
+                Respond(ReadMethod(line) != "list_network_objects"
+                    ? $$"""{"success":false,"error":"expected list_network_objects, got '{{ReadMethod(line)}}'"}"""
+                    : cursor is null or "large-list-page-2"
+                        ? Success(ToCamelCaseJson(LargeListNetworkObjectsFixture(cursor is not null)))
+                        : """{"success":false,"failureCategory":"invalid_cursor","error":"expected original worker cursor"}""");
+            }
             break;
 
         default:
@@ -3448,12 +3451,10 @@ NetworkObjectInspectionInfo InspectNetworkObjectFixture() => new()
     Messages = new List<string>(),
 };
 
-// Deterministic large-list scenario: 20 node entries with distinct nodeIds, a scripted next-page
-// cursor, and a totalCount larger than Items.Count to indicate more pages exist. No real pagination
-// is implemented; the cursor value is stable so budget tests can verify it is forwarded correctly.
-NetworkObjectListInfo LargeListNetworkObjectsFixture()
+// Two disjoint scripted pages verify that the host unwraps the public continuation before dispatch.
+NetworkObjectListInfo LargeListNetworkObjectsFixture(bool secondPage = false)
 {
-    var items = Enumerable.Range(1, 20)
+    var items = Enumerable.Range(secondPage ? 21 : 1, 20)
         .Select(i => new NetworkObjectSummaryInfo
         {
             Kind = NetworkObjectKinds.Node,
@@ -3477,7 +3478,7 @@ NetworkObjectListInfo LargeListNetworkObjectsFixture()
         Items = items,
         TotalCount = 100,
         ReturnedCount = items.Count,
-        NextCursor = "large-list-page-2",
+        NextCursor = secondPage ? "large-list-page-3" : "large-list-page-2",
     };
 }
 

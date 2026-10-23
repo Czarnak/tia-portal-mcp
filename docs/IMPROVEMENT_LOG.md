@@ -1378,3 +1378,38 @@ Content tools (`plc_read`, `plc_write`, `network_read`, `network_write`, `hmi_re
 - Live gate 2026-10-23: installed candidate `4.1.2-local.89.gae13b5d` (built from `ae13b5d`, real V21 assemblies), disposable standalone project and one disposable local session, maintainer-authorized. All six steps passed with no defects: (1) unbound, no `--project`: `plc_read`, `network_read` `search_equipment_catalog`, `hmi_read`, `browse_project_tree`, `read_cross_references` and `vci_read` each returned one root `binding_conflict` with the bind-first text, and `get_project_status {}` reported the open project while the session stayed unbound; (2) a stale `plc_read` item `projectPath` and `close_project {projectPath}` returned canonical `validation_error`, no audit record, project stayed open; (3) after `bind_project`: `plc_read`, two `read_hardware_config` pages, a tree continuation, `read_cross_references`, `compile_check` (0 errors), `plc_write` tag-table create then delete and a `save_project` dry run all succeeded, with audit v2 `projectPath` equal to the bound path on every record; (4) `--project` startup (read-write): the first `plc_read` grounded the binding and succeeded without `bind_project`; (5) local session: after a cold-adopting `bind_project`, `plc_read` and `browse_project_tree` succeeded and the `save_project` dry-run effect named the bound session path (also on a worker-opened session); (6) after `close_project` (read-write, user-confirmed) `plc_read` returned `binding_conflict`.
 - Evidence limits: steps 1, 2 and 5 ran in `full` mode only (the binding gate and argument validation are mode-independent); steps 3, 4 and 6 covered read-write. A whole-project `list_tag_tables` on the large test project was omitted by the 60,000-character item budget (expected behaviour, not a defect).
 - Follow-ups are listed under "Open: bound-project-only content tool follow-ups (C-0, 2026-10-23)".
+
+## Host-authenticated network-object cursors - SCOPED LIVE PASS 2026-10-23 (C-5)
+
+`list_network_objects` public continuations now authenticate the existing worker token together
+with the exact host binding and complete worker identity, using the shared cursor protector.
+Production and compatibility routes both use the pinned lease; no unsigned public fallback is
+accepted. Worker query/snapshot/range logic, request/result schemas, Network contract 1.0 and the
+default of 50 stay unchanged. Local stale cursors preserve a healthy current binding; actual
+worker/transport loss keeps invalidation and no replay. Cursor issuance over 4,096 characters
+produces a bounded omission; terminal pages remain usable without a cursor.
+
+At source `db2947b`, the Release stub build had 7 unchanged warnings / 0 errors and the serialized
+full suite passed 7,531 tests with zero failures/skips. Line coverage was 94.99% (80% gate passed),
+including 100% of the new codec/coordinator. Independent review's one Important malformed-worker
+cursor finding was reproduced in four public cases and fixed at the shared payload boundary;
+later reads and warnings are preserved. The unchanged dependency graph's five-project audit
+reported no known vulnerabilities. Offline evidence and rulings are in the
+[C-5 implementation record](superpowers/plans/2026-10-23-c5-sealed-network-object-cursors.md#offline-execution-record-2026-10-23).
+
+The authorized installed-candidate smoke passed on `4.1.2-local.110.g5647477` (candidate head
+`5647477`, production source `db2947b`) in `full` mode against standalone Fixture A. All 56
+installed runtime files matched the verified package by SHA-256. With explicit `pageSize:1`,
+seven Network read operations produced six successes and one expected tampered-cursor `invalid_cursor`,
+with no omissions or skips. Valid continuation immediately after rejection succeeded in the
+same batch; same-owner reverify retained the binding epoch and original cursor usability;
+a fresh two-page sequence succeeded. All nine canonical text documents exactly matched JSON
+serialization of their structured content. Final project state and AP21 hash were unchanged, with the same
+Portal/host/worker processes. No project mutation or restoration was needed.
+
+The [scoped live report](superpowers/acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md)
+retains the initial bind advisory and unexecuted limits: changed epochs, concurrency and
+worker/transport faults, foreign-process and oversized cursors, malformed-worker injection,
+native filter/snapshot/range faults, other modes and local sessions. C-5 still merges before
+C-9; C-9's rebased combined gate and final paging matrix remain pending. No unchanged .NET
+suite was repeated for this documentation-only follow-up.

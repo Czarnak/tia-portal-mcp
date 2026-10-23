@@ -224,6 +224,10 @@
       Link="Host\Network\HardwarePaginationCoordinator.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkReadOperationExecutor.cs"
       Link="Host\Network\NetworkReadOperationExecutor.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkObjectPageCursorCodec.cs"
+      Link="Host\Network\NetworkObjectPageCursorCodec.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkObjectPaginationCoordinator.cs"
+      Link="Host\Network\NetworkObjectPaginationCoordinator.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkOperationCatalog.cs"
       Link="Host\Network\NetworkOperationCatalog.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWorkerInvoker.cs"

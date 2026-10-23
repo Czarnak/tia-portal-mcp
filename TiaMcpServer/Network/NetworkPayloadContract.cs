@@ -609,6 +609,11 @@ public static class NetworkPayloadContract
 
     private static void ValidateObjectList(NetworkObjectListInfo value)
     {
+        if (value.NextCursor is not null && string.IsNullOrWhiteSpace(value.NextCursor))
+        {
+            throw new JsonException("'nextCursor' must be nonblank when present.");
+        }
+
         if (value.TotalCount < 0)
         {
             throw new JsonException("'totalCount' must not be negative.");

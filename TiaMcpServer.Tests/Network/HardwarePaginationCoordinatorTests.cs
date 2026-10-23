@@ -26,7 +26,8 @@ public class HardwarePaginationCoordinatorTests
             {
                 pagedCalls++;
                 throw new InvalidOperationException("Paged route must not run.");
-            });
+            },
+            _ => throw new InvalidOperationException("Object route must not run."));
 
         var item = await executor.ExecuteAsync(operation);
 
@@ -52,7 +53,8 @@ public class HardwarePaginationCoordinatorTests
             {
                 pagedCalls++;
                 return Task.FromResult(Failed(request, WorkerFailureCategories.InvalidCursor));
-            });
+            },
+            _ => throw new InvalidOperationException("Object route must not run."));
 
         var item = await executor.ExecuteAsync(operation);
 
