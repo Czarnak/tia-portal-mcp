@@ -48,6 +48,16 @@ public class OperationBatchRulesTests
     }
 
     [Fact]
+    public void OperationValidation_InvalidCarriesCategoryAndError()
+    {
+        var validation = OperationValidation.Invalid("invalid_selector", "m");
+
+        Assert.False(validation.IsValid);
+        Assert.Equal("invalid_selector", validation.Category);
+        Assert.Equal("m", validation.Error);
+    }
+
+    [Fact]
     public void CheckItem_OversizedIdNeverReachesDuplicateCheck()
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);

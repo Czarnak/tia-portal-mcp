@@ -4,6 +4,7 @@ using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 
@@ -110,10 +111,10 @@ public static class PlcOperationCatalog
         return false;
     }
 
-    public static (bool IsValid, string Error) ValidateRead(IReadOnlyList<PlcOperationRequest>? operations)
+    public static OperationValidation ValidateRead(IReadOnlyList<PlcOperationRequest>? operations)
         => Validate(operations, write: false);
 
-    public static (bool IsValid, string Error) ValidateWrite(IReadOnlyList<PlcOperationRequest>? operations)
+    public static OperationValidation ValidateWrite(IReadOnlyList<PlcOperationRequest>? operations)
         => Validate(operations, write: true);
 
     public static IReadOnlyList<string> ValidateAccessMode(
@@ -138,11 +139,11 @@ public static class PlcOperationCatalog
         return errors;
     }
 
-    private static (bool IsValid, string Error) Validate(IReadOnlyList<PlcOperationRequest>? operations, bool write)
+    private static OperationValidation Validate(IReadOnlyList<PlcOperationRequest>? operations, bool write)
     {
         if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
         {
-            return (false, countError);
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         }
 
         var errors = new List<string>();
@@ -165,7 +166,9 @@ public static class PlcOperationCatalog
             ValidateWriteCall(envelopeValid, errors);
         }
 
-        return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
+        return errors.Count == 0
+            ? OperationValidation.Valid
+            : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
     private static void ValidateItem(PlcOperationRequest operation, List<string> errors, bool write)

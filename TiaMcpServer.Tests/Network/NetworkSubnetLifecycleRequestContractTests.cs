@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -21,7 +22,7 @@ public class NetworkSubnetLifecycleRequestContractTests
         Assert.Equal(new[] { "create_subnet", "update_subnet", "delete_subnet" }, phase4);
     }
 
-    private static NetworkValidationResult Validate(NetworkOperationRequest request)
+    private static OperationValidation Validate(NetworkOperationRequest request)
         => NetworkOperationCatalog.ValidateWrite(new[] { request });
 
     private static NetworkOperationRequest CreateSubnetOp(

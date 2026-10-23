@@ -3,6 +3,7 @@ using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 
@@ -17,13 +18,6 @@ public sealed record NetworkOperationSpec(
     NetworkOperationCategory Category,
     IReadOnlyList<string> RequiredFields,
     IReadOnlyList<string> OptionalFields);
-
-public sealed record NetworkValidationResult(bool IsValid, string Error)
-{
-    public static NetworkValidationResult Valid() => new(true, string.Empty);
-
-    public static NetworkValidationResult Invalid(string error) => new(false, error);
-}
 
 /// <summary>
 /// Whitelists the dedicated network operations and performs all structural validation before a
@@ -87,10 +81,10 @@ public static class NetworkOperationCatalog
     public static bool TryGetSpec(string operation, out NetworkOperationSpec? spec)
         => Specs.TryGetValue(operation, out spec);
 
-    public static NetworkValidationResult ValidateRead(IReadOnlyList<NetworkOperationRequest>? operations)
+    public static OperationValidation ValidateRead(IReadOnlyList<NetworkOperationRequest>? operations)
         => Validate(operations, NetworkOperationCategory.Read);
 
-    public static NetworkValidationResult ValidateWrite(IReadOnlyList<NetworkOperationRequest>? operations)
+    public static OperationValidation ValidateWrite(IReadOnlyList<NetworkOperationRequest>? operations)
         => Validate(operations, NetworkOperationCategory.Write);
 
     public static IReadOnlyList<string> ValidateAccessMode(
@@ -115,13 +109,13 @@ public static class NetworkOperationCatalog
         return errors;
     }
 
-    private static NetworkValidationResult Validate(
+    private static OperationValidation Validate(
         IReadOnlyList<NetworkOperationRequest>? operations,
         NetworkOperationCategory expectedCategory)
     {
         if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
         {
-            return NetworkValidationResult.Invalid(countError);
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         }
 
         var errors = new List<string>();
@@ -227,8 +221,8 @@ public static class NetworkOperationCatalog
         }
 
         return errors.Count == 0
-            ? NetworkValidationResult.Valid()
-            : NetworkValidationResult.Invalid(string.Join("\n", errors));
+            ? OperationValidation.Valid
+            : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
     private static bool IsFieldPresent(NetworkOperationRequest operation, string field) => field switch

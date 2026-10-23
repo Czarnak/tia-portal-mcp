@@ -1,6 +1,7 @@
 using System.Globalization;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Hmi;
@@ -134,11 +135,11 @@ public static class HmiOperationCatalog
         };
     }
 
-    public static (bool IsValid, string Error) ValidateRead(IReadOnlyList<HmiOperationRequest>? operations)
+    public static OperationValidation ValidateRead(IReadOnlyList<HmiOperationRequest>? operations)
     {
         if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
         {
-            return (false, countError);
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         }
 
         var errors = new List<string>();
@@ -154,7 +155,9 @@ public static class HmiOperationCatalog
             ValidateItem(operation, errors);
         }
 
-        return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
+        return errors.Count == 0
+            ? OperationValidation.Valid
+            : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
     public static IReadOnlyList<string> ValidateAccessMode(

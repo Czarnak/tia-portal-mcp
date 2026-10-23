@@ -36,7 +36,7 @@ public class NetworkReadTools
         var validation = NetworkOperationCatalog.ValidateRead(operations);
         if (!validation.IsValid)
         {
-            return Error(WorkerFailureCategories.ValidationError, validation.Error);
+            return Error(validation.Category, validation.Error);
         }
 
         var mode = workerClient.AccessPolicy.Mode;

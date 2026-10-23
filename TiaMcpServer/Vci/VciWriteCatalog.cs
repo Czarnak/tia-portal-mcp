@@ -22,10 +22,10 @@ public static class VciWriteCatalog
 
     public static IReadOnlyList<string> OperationNames { get; } = Specs.Keys.ToArray();
 
-    public static (bool IsValid, string Error, string Category) ValidateWrite(IReadOnlyList<VciOperationRequest>? operations)
+    public static OperationValidation ValidateWrite(IReadOnlyList<VciOperationRequest>? operations)
     {
         if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
-            return (false, countError, WorkerFailureCategories.ValidationError);
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var errors = new List<string>();
         string? scopeCategory = null;
@@ -64,8 +64,8 @@ public static class VciWriteCatalog
                 Error($"scope: {exception.Message}"); scopeCategory ??= exception.Category;
             }
         }
-        return errors.Count == 0 ? (true, string.Empty, string.Empty)
-            : (false, string.Join("\n", errors), scopeCategory ?? WorkerFailureCategories.ValidationError);
+        return errors.Count == 0 ? OperationValidation.Valid
+            : OperationValidation.Invalid(scopeCategory ?? WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
     public static IReadOnlyList<string> ValidateAccessMode(IReadOnlyList<VciOperationRequest> operations, McpAccessMode mode)

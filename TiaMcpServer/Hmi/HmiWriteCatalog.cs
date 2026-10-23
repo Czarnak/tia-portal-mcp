@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 
@@ -55,10 +56,10 @@ public static class HmiWriteCatalog
 
     public static IReadOnlyList<string> OperationNames { get; } = Specs.Keys.ToArray();
 
-    public static (bool IsValid, string Error) ValidateWrite(IReadOnlyList<HmiWriteOperationRequest>? operations)
+    public static OperationValidation ValidateWrite(IReadOnlyList<HmiWriteOperationRequest>? operations)
     {
         if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
-            return (false, countError);
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         var errors = new List<string>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var r in operations!)
@@ -125,7 +126,9 @@ public static class HmiWriteCatalog
                 }
             }
         }
-        return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
+        return errors.Count == 0
+            ? OperationValidation.Valid
+            : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
     private static bool ValidName(string name) =>

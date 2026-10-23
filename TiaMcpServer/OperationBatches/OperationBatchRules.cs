@@ -1,5 +1,13 @@
 namespace TiaMcpServer.OperationBatches;
 
+/// <summary>The result of a batch catalog's validation, with the failure category it maps to.</summary>
+public sealed record OperationValidation(bool IsValid, string Category, string Error)
+{
+    public static OperationValidation Valid { get; } = new(true, string.Empty, string.Empty);
+
+    public static OperationValidation Invalid(string category, string error) => new(false, category, error);
+}
+
 /// <summary>
 /// The count and per-item envelope rules shared by every batch catalog and the write entry guard,
 /// with one wording. Domain rules (operation names, fields, access mode) stay in each catalog.
