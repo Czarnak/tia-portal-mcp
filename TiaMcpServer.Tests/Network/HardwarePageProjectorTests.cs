@@ -285,6 +285,26 @@ public class HardwarePageProjectorTests
         Assert.Contains("minimal hardware-page omission", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Project_OversizedCursor_ReturnsCursorLimitOmission()
+    {
+        var path = ProjectPathNormalization.Canonicalize(@"C:\Projects\" + new string('\u4e2d', 400) + @"\Sample.ap21")!;
+        var identity = Identity();
+        identity.ProjectPath = path;
+        var binding = new ProjectBindingSnapshot(
+            ProjectBindingSnapshot.VerifiedState, "binding-1", 7, path,
+            identity.WorkerSessionId, identity.SessionGeneration, identity.PortalProcessId, null);
+
+        var item = Projector().Project(
+            Operation(), Payload(2, 0, devices: new[] { DeviceCandidate(0, "device") }),
+            path, identity, binding, Array.Empty<string>());
+
+        Assert.Equal(OperationBatchStatus.Omitted, item.Status);
+        Assert.Equal(HardwarePageProjector.CursorLimitReason, item.Omission!.Reason);
+        Assert.Equal(4096, item.Omission.LimitChars);
+        Assert.True(item.Omission.OriginalChars > 4096);
+    }
+
     private static HardwarePageProjector Projector() => new(Codec());
 
     private static HardwarePageCursorCodec Codec() => new(new TiaMcpServer.Cursors.AuthenticatedCursorProtector(new byte[32], "test-process"));

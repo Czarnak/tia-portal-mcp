@@ -160,7 +160,7 @@ public sealed class HardwarePaginationFakeWorkerTests
         }
 
         using var otherProcess = new AuthenticatedCursorProtector(new byte[32], "other-process");
-        var exception = Assert.Throws<HardwarePageCursorException>(
+        var exception = Assert.Throws<CursorException>(
             () => new HardwarePageCursorCodec(otherProcess).Decode(cursor));
 
         Assert.Equal(WorkerFailureCategories.InvalidCursor, exception.Category);

@@ -431,6 +431,17 @@ public class HardwarePagePayloadContractTests
             root => root["snapshotHash"] = new string('B', 64));
     }
 
+    [Fact]
+    public void Decode_RejectsSnapshotHashWithTrailingNewline()
+    {
+        var operation = Operation();
+
+        AssertRejectedByTypedRules(
+            operation,
+            DeviceRoot(operation),
+            root => root["snapshotHash"] = SnapshotHash + "\n");
+    }
+
     [Theory]
     [InlineData("ordering")]
     [InlineData("query")]

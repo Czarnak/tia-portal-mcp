@@ -214,6 +214,31 @@ public class HardwarePageCursorCodecTests
     }
 
     [Fact]
+    public void Encode_RejectsQueryHashWithTrailingNewline()
+        => AssertCategory(
+            WorkerFailureCategories.InvalidCursor,
+            () => Codec(TestKey).Encode(State() with { QueryHash = State().QueryHash + "\n" }));
+
+    [Fact]
+    public void Decode_RejectsSignedSnapshotHashWithTrailingNewline()
+        => AssertInvalidSignedPayload(AuthenticatedPayloadJson(State() with { SnapshotHash = new string('a', 64) + "\n" }));
+
+    [Fact]
+    public void InvalidCursor_KeepsDomainMessage()
+    {
+        const string message = "The supplied hardware page cursor is invalid.";
+        using var issuer = new AuthenticatedCursorProtector(TestKey, "process-a");
+        using var reader = new AuthenticatedCursorProtector(OtherKey, "process-b");
+        var cursor = new HardwarePageCursorCodec(issuer).Encode(State());
+        var parts = cursor.Split('.');
+
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new HardwarePageCursorCodec(issuer).Decode($"{ChangeByte(parts[0])}.{parts[1]}")).Message);
+        Assert.Equal(message, Assert.ThrowsAny<Exception>(() =>
+            new HardwarePageCursorCodec(reader).Decode(cursor)).Message);
+    }
+
+    [Fact]
     public void Decode_WrongPurposeStillMapsToHardwareInvalidCursor()
     {
         using var protector = new AuthenticatedCursorProtector(TestKey, "process-a");
@@ -398,7 +423,7 @@ public class HardwarePageCursorCodecTests
 
     private static void AssertCategory(string expected, Action action)
     {
-        var exception = Assert.Throws<HardwarePageCursorException>(action);
+        var exception = Assert.Throws<CursorException>(action);
         Assert.Equal(expected, exception.Category);
         Assert.DoesNotContain("worker-1", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(ProjectPath, exception.Message, StringComparison.OrdinalIgnoreCase);

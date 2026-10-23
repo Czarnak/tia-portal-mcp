@@ -1,5 +1,5 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
@@ -17,10 +17,6 @@ internal sealed record HardwarePagePayloadContractResult(
 
 internal static class HardwarePagePayloadContract
 {
-    private static readonly Regex LowercaseSha256 = new(
-        "^[0-9a-f]{64}$",
-        RegexOptions.CultureInvariant);
-
     internal static HardwarePagePayloadContractResult Decode(
         NetworkOperationRequest operation,
         WorkerCallResult workerResult,
@@ -86,7 +82,7 @@ internal static class HardwarePagePayloadContract
         var expectedStartOffset = continuation?.Offset ?? 0;
         if (payload.OrderingVersion <= 0
             || !string.Equals(payload.QueryHash, expectedQueryHash, StringComparison.Ordinal)
-            || !LowercaseSha256.IsMatch(payload.SnapshotHash ?? string.Empty)
+            || !CursorStateRules.IsLowerSha256(payload.SnapshotHash)
             || payload.StartOffset != expectedStartOffset
             || payload.TotalDevices < 0
             || payload.TotalSubnets < 0)

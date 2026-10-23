@@ -1,3 +1,4 @@
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Worker;
 
@@ -50,7 +51,7 @@ public static class HmiWorkerInvoker
         {
             state = codec.Decode(operation.Cursor!);
         }
-        catch (HmiPageCursorException exception)
+        catch (CursorException exception)
         {
             return WorkerCallResult.Fail(exception.Category,
                 "The cursor is invalid or was issued by an earlier server process; restart without a cursor.");

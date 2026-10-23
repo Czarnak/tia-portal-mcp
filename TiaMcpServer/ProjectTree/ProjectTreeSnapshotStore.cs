@@ -1,3 +1,4 @@
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Contracts.Project;
 
 namespace TiaMcpServer.ProjectTree;
@@ -72,7 +73,7 @@ internal sealed class ProjectTreeSnapshotStore : IDisposable
         {
             ThrowIfDisposed();
             var snapshotId = _snapshotIdFactory();
-            if (!ProjectTreeCursorCodec.IsValidSnapshotId(snapshotId))
+            if (!CursorStateRules.IsValidSnapshotId(snapshotId))
             {
                 throw new InvalidOperationException("The snapshot ID factory returned an invalid ID.");
             }
@@ -203,8 +204,8 @@ internal sealed class ProjectTreeSnapshotStore : IDisposable
 
     private void ValidateCandidate(ProjectTreeSnapshotCandidate candidate)
     {
-        if (!ProjectTreeCursorCodec.IsValidSnapshotId(candidate.SnapshotId)
-            || !ProjectTreeCursorCodec.IsValidQueryHash(candidate.QueryHash)
+        if (!CursorStateRules.IsValidSnapshotId(candidate.SnapshotId)
+            || !CursorStateRules.IsLowerSha256(candidate.QueryHash)
             || candidate.Content is null
             || candidate.Content.Query is null
             || candidate.Content.Nodes is null

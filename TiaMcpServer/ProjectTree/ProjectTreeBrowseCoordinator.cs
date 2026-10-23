@@ -1,3 +1,4 @@
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Project;
@@ -82,7 +83,7 @@ public sealed class ProjectTreeBrowseCoordinator
         {
             return Failure(exception.Category, exception.Message);
         }
-        catch (ProjectTreeCursorException exception)
+        catch (CursorException exception)
         {
             return Failure(exception.Category, exception.Message);
         }

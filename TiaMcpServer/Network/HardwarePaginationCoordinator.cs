@@ -1,3 +1,4 @@
+using TiaMcpServer.Cursors;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Network;
@@ -67,7 +68,7 @@ internal sealed class HardwarePaginationCoordinator
             {
                 cursorState = _cursorCodec.Decode(operation.Cursor);
             }
-            catch (HardwarePageCursorException exception)
+            catch (CursorException exception)
             {
                 return Failed(operation, exception.Category, exception.Message);
             }
