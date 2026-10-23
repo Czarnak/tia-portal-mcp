@@ -627,7 +627,8 @@ clear on bind or detach, and `Take` fails `snapshot_unavailable` for an unknown 
 `ProjectBase` or the operation differs. A worker restart loses the store. The worker returns
 `page.snapshotId` only to the host; `HmiPayloadContract` removes it and, while more rows exist, seals
 `{snapshotId, operation, queryHash, offset, hostBinding}` into `page.nextCursor` with `HmiPageCursorCodec`,
-which mirrors `ProjectTreeCursorCodec` on the process-scoped `AuthenticatedCursorProtector`.
+which, like the project-tree and hardware-page codecs, seals and opens through the shared `Seal`/`Open`
+on the process-scoped `AuthenticatedCursorProtector`.
 `HmiWorkerInvoker` checks the cursor before any worker call (`invalid_cursor`,
 `cursor_filter_mismatch`, `cursor_binding_mismatch`). Unlike the project-tree store, the continuation
 still makes one worker call, because rows are read live.

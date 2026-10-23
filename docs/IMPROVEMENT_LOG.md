@@ -29,8 +29,7 @@ well-designed. The three biggest problems, in order of impact:
 ## Open: bound-project-only content tool follow-ups (C-0, 2026-10-23)
 
 - **Worker backstop.** Content reads do not yet require `ExpectedSessionIdentity` on the worker. The host gate is the only fence; make the worker refuse a content read that carries no expected identity.
-- **Tree-cursor message bug.** `ProjectTreeBrowseCoordinator` passes the failure category as the message. Fix in its own PR.
-- **Unreachable `preserveUnboundEpoch` branches.** With content tools gated on a verified binding, the unbound-epoch cursor branches can no longer be reached; remove them in C-6.
+- **Oversized tree and HMI cursors.** A cursor above 4,096 characters, for example from a long bound project path, fails as `invalid_cursor` ("The supplied project-tree cursor is invalid.") on a browse that sent no cursor, or as an HMI `protocol_error`, while hardware pages return a cursor-limit omission. `Seal` keeps the size data as the inner exception. Fix in its own PR.
 - **`ProjectSessionBinding.TryResolveWithSnapshot` unbound-with-path branch.** Now reached only by internal status calls and test helpers; consider narrowing it.
 
 ## Open: closed tool arguments follow-ups (C-1, 2026-10-22)

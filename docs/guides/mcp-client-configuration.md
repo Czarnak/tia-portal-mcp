@@ -83,7 +83,8 @@ Omit the path with the default binding action to select
 the sole open project or list candidates. Reattachment may require a human response to TIA's
 Openness access dialog. Worker ownership is lost on detach. Only `open_project` and `create_project`
 open projects; ordinary reads never open, bind or switch. Read-only never opens, creates, saves or
-closes. A project-tree cursor is invalid after a binding change; restart browsing without it.
+closes. A project-tree cursor whose binding changed returns `cursor_binding_mismatch`; restart browsing
+without it.
 
 For local development without installing the tool, point the client at `dotnet`:
 
