@@ -45,8 +45,7 @@ public sealed class LifecycleBindingStrategy(OpennessWorkerClient workerClient) 
         if (item.Operation == "create_project" && before.State == ProjectBindingSnapshot.UnboundState)
             return WriteBindingPreparation.Prepared(before);
 
-        return await PrepareVerifiedSourceAsync(before,
-            item.Operation == "create_project" ? before.ProjectPath : item.ProjectPath, cancellationToken).ConfigureAwait(false);
+        return await PrepareVerifiedSourceAsync(before, null, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<WriteBindingPreparation> PrepareVerifiedSourceAsync(

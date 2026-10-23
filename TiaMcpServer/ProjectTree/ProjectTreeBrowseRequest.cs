@@ -18,7 +18,6 @@ internal sealed class ProjectTreeRequestException : Exception
 }
 
 internal sealed record ProjectTreeBrowseRequest(
-    string? ProjectPath = null,
     IReadOnlyList<ProjectTreeSelectorSegment>? StartSelector = null,
     int? Depth = null,
     int? PageSize = null,
@@ -68,12 +67,6 @@ internal sealed record ProjectTreeBrowseRequest(
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        if (ProjectPath is not null
-            && !SameProject(ProjectPath, query.ProjectPath))
-        {
-            return WorkerFailureCategories.CursorFilterMismatch;
-        }
-
         if (StartSelector is not null && !SameSelector(StartSelector, query.StartSelector))
         {
             return WorkerFailureCategories.CursorFilterMismatch;
@@ -89,15 +82,6 @@ internal sealed record ProjectTreeBrowseRequest(
         ArgumentNullException.ThrowIfNull(query);
         var bytes = Encoding.UTF8.GetBytes(CanonicalJson.Serialize(query));
         return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-    }
-
-    private static bool SameProject(string? first, string? second)
-    {
-        var normalizedFirst = ProjectPathNormalization.Canonicalize(first);
-        var normalizedSecond = ProjectPathNormalization.Canonicalize(second);
-        return normalizedFirst is not null
-            && normalizedSecond is not null
-            && string.Equals(normalizedFirst, normalizedSecond, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool SameSelector(

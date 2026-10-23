@@ -23,19 +23,18 @@ public class CrossReferenceReadTools
         OpenWorld = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(ReadCrossReferencesResponse))]
-    [Description("Read cross-references of one project-tree target: a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it. Provisional: target { hmi: { hmiName, tagName } } instead of path reads one top-level WinCC Unified HMI tag (tags only, hmiName required; may be replaced by a unified HMI selector). Returns sources with their referenced objects and access locations; isComplete is false when an owner failed or the result was cut, with messages explaining why. An unsupported target kind is a typed failure, not an empty result.")]
+    [Description("Read cross-references of one project-tree target in the bound project: a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it. Provisional: target { hmi: { hmiName, tagName } } instead of path reads one top-level WinCC Unified HMI tag (tags only, hmiName required; may be replaced by a unified HMI selector). Returns sources with their referenced objects and access locations; isComplete is false when an owner failed or the result was cut, with messages explaining why. An unsupported target kind is a typed failure, not an empty result.")]
     public static async Task<CallToolResult> ReadCrossReferences(
         OpennessWorkerClient workerClient,
         [Description("The target: { path: [{ nodeType, name }, ...], member?: { kind, name } } or, provisionally, { hmi: { hmiName, tagName } }, never both. Copy path segments from browse_project_tree output.")] CrossReferenceTargetSelector target,
         [Description("Optional filter: AllObjects, ObjectsWithReferences (default), ObjectsWithoutReferences, or UnusedObjects.")] string? filter = null,
-        [Description("Optional cap on returned sources, 1 or greater. When cut, isComplete is false.")] int? maxResults = null,
-        [Description("Optional .ap21 project or .amc21 local-session engineering path. If omitted, uses the project currently open in TIA Portal.")] string? projectPath = null)
+        [Description("Optional cap on returned sources, 1 or greater. When cut, isComplete is false.")] int? maxResults = null)
     {
         var invalid = Validate(target, filter, maxResults);
         if (invalid is not null)
             return StructuredStandaloneResult.Create<CrossReferenceReport>(ToolName, null, Array.Empty<string>(), invalid);
 
-        var result = await workerClient.ReadCrossReferencesAsync(projectPath, target.ToInfo(), filter, maxResults)
+        var result = await workerClient.ReadCrossReferencesAsync(projectPath: null, target.ToInfo(), filter, maxResults)
             .ConfigureAwait(false);
         var rejection = StandalonePayloadContract.Rejection(result);
         var outcome = rejection is null ? CrossReferencePayloadContract.Project(result) : null;

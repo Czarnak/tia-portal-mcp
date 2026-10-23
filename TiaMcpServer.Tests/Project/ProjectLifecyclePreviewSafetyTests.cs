@@ -131,7 +131,7 @@ public sealed class ProjectLifecyclePreviewSafetyTests
     }
 
     [Fact]
-    public async Task LifecycleDryRuns_ExplicitPathAndUnsavedChoices_ReportFreshConsequences()
+    public async Task LifecycleDryRuns_UnsavedChoices_ReportFreshConsequences()
     {
         using var fixture = new Fixture();
         const string source = "lifecycle-probe-only";
@@ -140,9 +140,9 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         try
         {
             var archive = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
-                directory, "Backup", saveBeforeArchive: false, projectPath: fixture.Source, dryRun: true);
+                directory, "Backup", saveBeforeArchive: false, dryRun: true);
             var close = await ProjectWriteTools.CloseProject(fixture.Client, fixture.Execution,
-                projectPath: fixture.Source, saveBeforeClose: false, dryRun: true);
+                saveBeforeClose: false, dryRun: true);
             foreach (var call in new[] { archive, close })
             {
                 var document = LifecycleTestCalls.Document(call);
@@ -182,11 +182,11 @@ public sealed class ProjectLifecyclePreviewSafetyTests
         try
         {
             var preview = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
-                directory, "Backup", projectPath: fixture.Source, dryRun: true);
+                directory, "Backup", dryRun: true);
             LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
             Directory.Delete(directory);
             var result = await ProjectWriteTools.ArchiveProject(fixture.Client, fixture.Execution,
-                directory, "Backup", projectPath: fixture.Source);
+                directory, "Backup");
             LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
             Assert.False(Directory.Exists(directory));
             Assert.Equal(2, LifecycleTestCalls.AuditCount(fixture.Audit));

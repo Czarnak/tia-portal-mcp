@@ -50,7 +50,6 @@ public sealed class ProjectTreeStructuredProtocolTests
 
         var result = await CallAsync(harness, new Dictionary<string, object?>
         {
-            ["projectPath"] = "project-tree-v3-small",
             ["pageSize"] = 4,
         });
 
@@ -92,10 +91,7 @@ public sealed class ProjectTreeStructuredProtocolTests
     {
         await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>(startupProjectPath: "project-tree-v3-malformed");
 
-        var result = await CallAsync(harness, new Dictionary<string, object?>
-        {
-            ["projectPath"] = "project-tree-v3-malformed",
-        });
+        var result = await CallAsync(harness, new Dictionary<string, object?>());
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         var structured = AssertOneCanonicalDocument(result);
@@ -117,7 +113,6 @@ public sealed class ProjectTreeStructuredProtocolTests
         await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();
         var arguments = new Dictionary<string, object?>
         {
-            ["projectPath"] = "project-tree-v3-small",
             [unknownArgument] = "must-not-be-ignored",
         };
 
@@ -185,7 +180,6 @@ public sealed class ProjectTreeStructuredProtocolTests
     [InlineData("cursor", "\" \"", "invalid_cursor")]
     [InlineData("cursor", "123", "invalid_cursor")]
     [InlineData("depth", "\"two\"", "validation_error")]
-    [InlineData("projectPath", "[]", "validation_error")]
     public async Task BrowseProjectTree_RawArgumentDefectsKeepTheirDomainCategory(string argument, string json, string category)
     {
         await using var harness = await McpProtocolTestHarness.StartAsync<ProjectReadTools>();

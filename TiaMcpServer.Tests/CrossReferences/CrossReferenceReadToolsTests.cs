@@ -54,7 +54,7 @@ public class CrossReferenceReadToolsTests
     {
         using var client = await CreateBoundClientAsync();
 
-        var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: Scenario);
+        var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc());
 
         Assert.False(result.IsError);
         var root = Structured(result);
@@ -220,7 +220,7 @@ public class CrossReferenceReadToolsTests
     {
         using var client = await CreateBoundClientAsync();
 
-        var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc("Unsupported"), projectPath: Scenario);
+        var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc("Unsupported"));
 
         Assert.False(result.IsError);
         var root = Structured(result);
@@ -232,25 +232,12 @@ public class CrossReferenceReadToolsTests
     }
 
     [Fact]
-    public async Task MismatchedProjectPathIsBindingConflict()
-    {
-        using var client = await CreateBoundClientAsync();
-
-        var first = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: Scenario);
-        var other = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: @"C:\Somewhere\Else\Other.ap21");
-
-        Assert.False(first.IsError);
-        Assert.True(other.IsError);
-        Assert.Equal("binding_conflict", Category(other));
-    }
-
-    [Fact]
     public async Task IncompleteUnusedObjectsCarriesWarning()
     {
         using var client = await CreateBoundClientAsync();
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(
-            client, Plc(), filter: "UnusedObjects", projectPath: Scenario);
+            client, Plc(), filter: "UnusedObjects");
 
         var root = Structured(result);
         Assert.False(root.GetProperty("result").GetProperty("value").GetProperty("isComplete").GetBoolean());
@@ -264,7 +251,7 @@ public class CrossReferenceReadToolsTests
     {
         using var client = await CreateBoundClientAsync();
 
-        var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), projectPath: Scenario);
+        var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc());
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
         Assert.Equal(text, Structured(result).GetRawText());

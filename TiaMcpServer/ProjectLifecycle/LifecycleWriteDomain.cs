@@ -67,12 +67,12 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             return Invalid("Exactly one host-supplied lifecycle operation is required.");
         try
         {
-            if (item.ProjectPath is not null && !Path.IsPathFullyQualified(item.ProjectPath))
-                return Invalid("ProjectPath must be an absolute path.");
             switch (ToolName)
             {
                 case "open_project":
                     if (string.IsNullOrWhiteSpace(item.ProjectPath)) return Invalid("Project path is required.");
+                    if (!Path.IsPathFullyQualified(item.ProjectPath))
+                        return Invalid("ProjectPath must be an absolute path.");
                     if (Path.GetExtension(item.ProjectPath) is { } extension
                         && !string.Equals(extension, ".ap21", StringComparison.OrdinalIgnoreCase)
                         && !string.Equals(extension, ".als21", StringComparison.OrdinalIgnoreCase))
@@ -221,10 +221,10 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
     {
         "open_project" => workerClient.OpenProjectAsync(item.ProjectPath!, item.ForceRebind),
         "create_project" => workerClient.CreateProjectAsync(item.ProjectDirectory!, item.ProjectName!, item.Author, item.Comment),
-        "save_project" => workerClient.SaveProjectAsync(item.ProjectPath),
-        "save_project_as" => workerClient.SaveProjectAsAsync(item.ProjectPath, item.TargetDirectory!, item.TargetName!, item.Rebind),
-        "archive_project" => workerClient.ArchiveProjectAsync(item.ProjectPath, item.ArchiveDirectory!, item.ArchiveName!, item.Mode, item.SaveBeforeArchive),
-        "close_project" => workerClient.CloseProjectAsync(item.ProjectPath, item.SaveBeforeClose),
+        "save_project" => workerClient.SaveProjectAsync(projectPath: null),
+        "save_project_as" => workerClient.SaveProjectAsAsync(projectPath: null, item.TargetDirectory!, item.TargetName!, item.Rebind),
+        "archive_project" => workerClient.ArchiveProjectAsync(projectPath: null, item.ArchiveDirectory!, item.ArchiveName!, item.Mode, item.SaveBeforeArchive),
+        "close_project" => workerClient.CloseProjectAsync(projectPath: null, saveBeforeClose: item.SaveBeforeClose),
         _ => throw new InvalidOperationException("Unknown lifecycle operation.")
     };
 

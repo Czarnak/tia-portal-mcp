@@ -25,7 +25,7 @@ public sealed class StandaloneCompileToolTests
         var binding = new ProjectSessionBinding(scenario);
         using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
-        var response = await ProjectEngineeringTools.CompileCheck(client, projectPath: scenario);
+        var response = await ProjectEngineeringTools.CompileCheck(client);
         var root = StandaloneStatusToolTests.Document(response);
         Assert.False(((CallToolResult)(object)response).IsError);
         Assert.Equal(passed, root.GetProperty("success").GetBoolean());
@@ -48,7 +48,7 @@ public sealed class StandaloneCompileToolTests
         var binding = new ProjectSessionBinding(scenario);
         using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
-        var response = await ProjectEngineeringTools.CompileCheck(client, projectPath: scenario);
+        var response = await ProjectEngineeringTools.CompileCheck(client);
         var root = StandaloneStatusToolTests.Document(response);
         Assert.False(((CallToolResult)(object)response).IsError);
         Assert.False(root.GetProperty("success").GetBoolean());
@@ -83,7 +83,7 @@ public sealed class StandaloneCompileToolTests
         var binding = new ProjectSessionBinding(scenario);
         using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
-        var response = await ProjectEngineeringTools.CompileCheck(client, projectPath: scenario);
+        var response = await ProjectEngineeringTools.CompileCheck(client);
         var root = StandaloneStatusToolTests.Document(response);
         Assert.False(response.IsError);
         Assert.False(root.GetProperty("success").GetBoolean());

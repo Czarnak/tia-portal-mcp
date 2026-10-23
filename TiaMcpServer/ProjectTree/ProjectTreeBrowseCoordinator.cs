@@ -99,7 +99,7 @@ public sealed class ProjectTreeBrowseCoordinator
     {
         ProjectTreeNodeTypes.Validate(request.StartSelector);
         var call = await _browseSnapshot(
-            request.ProjectPath,
+            null,
             request.StartSelector,
             request.Depth).ConfigureAwait(false);
         var worker = call.WorkerResult;

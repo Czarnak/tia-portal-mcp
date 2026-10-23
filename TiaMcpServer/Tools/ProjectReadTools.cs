@@ -18,12 +18,11 @@ public class ProjectReadTools
 {
     [McpServerTool(Name = "get_project_status", ReadOnly = true, Destructive = false, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(GetProjectStatusResponse))]
-    [Description("Get status and metadata for the active TIA Portal project.")]
+    [Description("Get status and metadata for the bound project, or for the sole open project when none is bound. Never binds.")]
     public static async Task<CallToolResult> GetProjectStatus(
-        OpennessWorkerClient workerClient,
-        [Description("Optional .ap21 project or .amc21 local-session engineering path already open in TIA Portal. If omitted, uses the current project.")] string? projectPath = null)
+        OpennessWorkerClient workerClient)
     {
-        var result = await workerClient.GetProjectStatusAsync(projectPath).ConfigureAwait(false);
+        var result = await workerClient.GetProjectStatusAsync(null).ConfigureAwait(false);
         var rejection = StandalonePayloadContract.Rejection(result);
         return StructuredStandaloneResult.Create("get_project_status",
             rejection is null ? StandalonePayloadContract.DecodeStatus(result) : null,
@@ -37,17 +36,16 @@ public class ProjectReadTools
         OpenWorld = false,
         UseStructuredContent = true,
         OutputSchemaType = typeof(BrowseProjectTreeResponse))]
-    [Description("Browse a point-in-time TIA project tree through typed, bounded, resumable flat-node pages.")]
+    [Description("Browse a point-in-time tree of the bound TIA project through typed, bounded, resumable flat-node pages.")]
     public static async Task<CallToolResult> BrowseProjectTree(
         ProjectTreeBrowseCoordinator coordinator,
-        [Description("Optional .ap21 project or .amc21 local-session engineering path. If omitted, uses the project currently open in TIA Portal. On continuation, omit it or repeat the same project.")] string? projectPath = null,
         [Description("Optional ordered selector segments { nodeType, name }. Names match case-insensitively, node types exactly, and each segment must identify one direct child. On continuation, omit it or repeat the equivalent selector.")] ProjectTreeSelectorSegment[]? startSelector = null,
         [Description("Optional maximum depth from the selected root. Must be 1 or greater. On continuation, omit it or repeat the same depth.")] int? depth = null,
         [Description("Optional number of flat nodes requested for this page, from 1 through 200; defaults to 100 and may change between continuation pages.")] int? pageSize = null,
         [Description("Opaque cursor for the same point-in-time snapshot. Cursors can be replayed until idle expiry or eviction, but become unavailable after the server process restarts; restart without a cursor to observe again.")] string? cursor = null)
     {
         var rendered = await coordinator.BrowseAsync(
-            new ProjectTreeBrowseRequest(projectPath, startSelector, depth, pageSize, cursor)).ConfigureAwait(false);
+            new ProjectTreeBrowseRequest(StartSelector: startSelector, Depth: depth, PageSize: pageSize, Cursor: cursor)).ConfigureAwait(false);
         return StructuredToolResult.CreateCanonical(rendered.CanonicalText, isError: !rendered.IsSuccess);
     }
 }
@@ -120,7 +118,6 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
 
         foreach (var (name, isValid) in new (string, bool)[]
                  {
-                     ("projectPath", IsOptionalString(arguments, "projectPath")),
                      ("depth", IsOptionalInteger(arguments, "depth")),
                      ("pageSize", IsOptionalInteger(arguments, "pageSize")),
                  })

@@ -72,14 +72,11 @@ public sealed class ToolOutputContractConformanceTests
             new Dictionary<string, object?>()),
         new ToolProbe("compile_check", "omitted", false, "compile-oversized",
             new Dictionary<string, object?>()),
-        new ToolProbe("get_project_status", "succeeded", false, null,
-            new Dictionary<string, object?> { ["projectPath"] = "status-no-project" }),
-        new ToolProbe("get_project_status", "rejected", true, "network-roundtrip",
-            new Dictionary<string, object?> { ["projectPath"] = "different-project" }),
-        new ToolProbe("get_project_status", "malformed", false, null,
-            new Dictionary<string, object?> { ["projectPath"] = "status-malformed" }),
-        new ToolProbe("get_project_status", "omitted", false, null,
-            new Dictionary<string, object?> { ["projectPath"] = "status-oversized" }),
+        new ToolProbe("get_project_status", "succeeded", false, null, new()),
+        new ToolProbe("get_project_status", "rejected", true, null,
+            new Dictionary<string, object?> { ["unexpectedArgument"] = true }),
+        new ToolProbe("get_project_status", "malformed", false, null, new()),
+        new ToolProbe("get_project_status", "omitted", false, null, new()),
         new ToolProbe(
             "network_read",
             "rejected",
@@ -358,6 +355,7 @@ public sealed class ToolOutputContractConformanceTests
             "bind_project/succeeded" => "C:/Projects/Binding.ap21",
             "bind_project/rejected" => null,
             "bind_project/ambiguous" => "C:/Projects/Binding.ap21",
+            "get_project_status/succeeded" => "status-no-project",
             "get_project_status/malformed" => "status-malformed",
             "get_project_status/omitted" => "status-oversized",
             "network_read/succeeded" => "network-roundtrip",
@@ -378,7 +376,7 @@ public sealed class ToolOutputContractConformanceTests
             "bind_project/ambiguous" => new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, sourcePath), new FakeWorkerPortals.Entry(43, "C:/Projects/Other.ap21")),
             _ => null
         };
-        using var uiOpen = probe.Name is "get_project_status/malformed" or
+        using var uiOpen = probe.Name is "get_project_status/succeeded" or "get_project_status/malformed" or
             "get_project_status/omitted" or "network_read/succeeded" or "plc_read/succeeded" or "vci_read/succeeded" or "hmi_read/succeeded" or
             "read_cross_references/succeeded" or "read_cross_references/omittedSources" or
             "browse_project_tree/succeeded"
@@ -629,6 +627,57 @@ public sealed class ToolOutputContractConformanceTests
             requests.Methods().Skip(before.Count),
             TiaMcpServer.Contracts.Project.ProjectCapabilityCatalog.RequiresBoundProject);
         Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
+    public static TheoryData<string> RetiredRootPathTools => new()
+    {
+        "get_project_status", "browse_project_tree", "read_cross_references", "compile_check",
+        "save_project", "save_project_as", "archive_project", "close_project",
+    };
+
+    [Theory]
+    [MemberData(nameof(RetiredRootPathTools))]
+    public async Task RetiredRootProjectPathIsRejectedCanonically(string tool)
+    {
+        var isRead = tool is "get_project_status" or "browse_project_tree" or "read_cross_references";
+        var bound = tool switch
+        {
+            "get_project_status" => "direct-status-only",
+            "browse_project_tree" => "project-tree-v3-snapshot",
+            "read_cross_references" => "xref-roundtrip",
+            "compile_check" => "compile-passed",
+            _ => "C:/Projects/guarded-lifecycle-root.ap21",
+        };
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        var valid = tool switch
+        {
+            "read_cross_references" => new Dictionary<string, object?> { ["target"] = XrefTarget },
+            "browse_project_tree" => new() { ["startSelector"] = new[] { new { nodeType = "Device", name = "PLC_1" } }, ["depth"] = 1 },
+            "save_project_as" => new() { ["targetDirectory"] = audit.Path, ["targetName"] = "Copy" },
+            "archive_project" => new() { ["archiveDirectory"] = audit.Path, ["archiveName"] = "Archive" },
+            _ => new Dictionary<string, object?>(),
+        };
+        var retired = new Dictionary<string, object?>(valid) { ["projectPath"] = bound };
+        using var uiOpen = isRead
+            ? FakeWorkerUiOpenProject.ForWorkerRelativePath(bound)
+            : new FakeWorkerUiOpenProject(bound);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.ReadWrite, audit.Path, bound);
+        var before = requests.Methods().ToList();
+
+        var result = await harness.Client.CallToolAsync(tool, retired);
+
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, tool);
+        Assert.Contains("unknown argument", TextOf(result), StringComparison.Ordinal);
+        Assert.Contains("projectPath", TextOf(result), StringComparison.Ordinal);
+        Assert.Empty(requests.Methods().Skip(before.Count));
+        Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+
+        // Control: the same call without projectPath is not an argument-shape failure.
+        var control = await harness.Client.CallToolAsync(tool, valid);
+        Assert.DoesNotContain("unknown argument", TextOf(control), StringComparison.Ordinal);
     }
 
     private static Dictionary<string, object?> Operations(object item)

@@ -165,7 +165,7 @@ public class ProjectMetadataTests
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-with-metadata");
         using var client = CreateClient(FakeWorkerLocator.Locate());
 
-        var response = await ProjectReadTools.GetProjectStatus(client, "status-with-metadata");
+        var response = await ProjectReadTools.GetProjectStatus(client);
         var status = PayloadFromEnvelope(response);
         var metadata = status.GetProperty("metadata");
 

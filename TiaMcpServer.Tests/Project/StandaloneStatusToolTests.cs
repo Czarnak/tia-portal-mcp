@@ -23,9 +23,10 @@ public sealed class StandaloneStatusToolTests
     [Fact]
     public async Task NoProject_StatusIsStructured_WithoutBindingAnUnboundSession()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-no-project");
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
-        var root = Document(await ProjectReadTools.GetProjectStatus(client, "status-no-project"));
+        var root = Document(await ProjectReadTools.GetProjectStatus(client));
         Assert.Equal("get_project_status", root.GetProperty("tool").GetString());
         Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
         Assert.True(root.GetProperty("success").GetBoolean());
@@ -44,7 +45,7 @@ public sealed class StandaloneStatusToolTests
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-oversized");
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
             workerExecutablePath: FakeWorkerLocator.Locate());
-        var response = await ProjectReadTools.GetProjectStatus(client, "status-oversized");
+        var response = await ProjectReadTools.GetProjectStatus(client);
         var root = Document(response);
         Assert.False(((CallToolResult)(object)response).IsError);
         Assert.False(root.GetProperty("success").GetBoolean());

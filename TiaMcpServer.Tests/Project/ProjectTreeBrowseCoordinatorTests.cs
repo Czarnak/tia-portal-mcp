@@ -17,6 +17,9 @@ namespace TiaMcpServer.Tests.Project;
 public sealed class ProjectTreeBrowseCoordinatorTests
 {
     private static readonly DateTimeOffset Instant = new(2026, 9, 8, 8, 0, 0, TimeSpan.Zero);
+    private static IReadOnlyList<ProjectTreeSelectorSegment> Named(string name)
+        => Selector((ProjectTreeNodeTypes.Device, name));
+
     private static readonly string ProjectPath = ProjectPathNormalization.Canonicalize(@"C:\Projects\Tree.ap21")!;
     private static readonly ProjectBindingSnapshot DefaultUnbound = new ProjectSessionBinding(null).CaptureSnapshot();
 
@@ -267,13 +270,11 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         using var fixture = Fixture((projectPath, startSelector, depth) =>
             Task.FromResult(Success(projectPath, startSelector, depth, 6)));
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
-            ProjectPath,
             selector,
             Depth: 2,
             PageSize: 2));
 
         var second = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
-            ProjectPath.ToLowerInvariant(),
             Selector((ProjectTreeNodeTypes.Device, "plc_1")),
             Depth: 2,
             PageSize: 3,
@@ -307,8 +308,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task OnePageResultIsNotRetainedButFinalMultiPageResultRemainsReplayable()
     {
         using var fixture = Fixture((projectPath, startSelector, depth) => Task.FromResult(
-            Success(projectPath, startSelector, depth, projectPath == "one" ? 1 : 3)));
-        var one = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("one", PageSize: 2));
+            Success(projectPath, startSelector, depth, startSelector?[0].Name == "one" ? 1 : 3)));
+        var one = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("one"), PageSize: 2));
         var oneResult = one.Response.Result!;
         var syntheticOneCursor = fixture.Codec.Encode(new ProjectTreeCursorState(
             oneResult.Snapshot.SnapshotId,
@@ -318,7 +319,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: syntheticOneCursor)),
             WorkerFailureCategories.SnapshotUnavailable);
 
-        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("many", PageSize: 2));
+        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("many"), PageSize: 2));
         var finalCursor = NextCursor(first);
         var final = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: finalCursor));
         var replay = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: finalCursor));
@@ -377,14 +378,14 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         using var fixture = Fixture((projectPath, startSelector, depth) =>
             Task.FromResult(Success(projectPath, startSelector, depth, 2)), clock, store);
 
-        var expiring = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("expires", PageSize: 1));
+        var expiring = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("expires"), PageSize: 1));
         clock.Advance(TimeSpan.FromMinutes(11));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(expiring))),
             WorkerFailureCategories.SnapshotUnavailable);
 
-        var evicted = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("evicted", PageSize: 1));
-        await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("replacement", PageSize: 1));
+        var evicted = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("evicted"), PageSize: 1));
+        await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("replacement"), PageSize: 1));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(evicted))),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -397,7 +398,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         using var fixture = Fixture((projectPath, startSelector, depth) =>
         {
             calls++;
-            return Task.FromResult(projectPath switch
+            return Task.FromResult(startSelector?[0].Name switch
             {
                 "worker" => WorkerCallResult.Fail(
                     WorkerFailureCategories.TargetNotFound,
@@ -416,11 +417,11 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         AssertFailure(invalidSelector, WorkerFailureCategories.InvalidSelector);
         Assert.Equal(0, calls);
 
-        var worker = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("worker"));
+        var worker = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("worker")));
         AssertFailure(worker, WorkerFailureCategories.TargetNotFound);
         Assert.Equal(new[] { "worker warning" }, worker.Response.Warnings);
 
-        var protocol = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("protocol"));
+        var protocol = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("protocol")));
         AssertFailure(protocol, WorkerFailureCategories.ProtocolError);
         Assert.DoesNotContain("PROJECT_TREE_SECRET_MARKER", protocol.CanonicalText, StringComparison.Ordinal);
     }
@@ -489,7 +490,6 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         using var fixture = Fixture(worker, scenario: "project-tree-v3-one-shot");
 
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
-            "project-tree-v3-one-shot",
             PageSize: 2));
         Assert.True(first.IsSuccess, first.CanonicalText);
         worker.Dispose();

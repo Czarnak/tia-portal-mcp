@@ -1313,12 +1313,14 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task DirectGetProjectStatus_UsesGetProjectStatusOperationOnly()
     {
-        using var client = CreateClient();
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "direct-status-only");
 
         // "direct-status-only" fails the call unless the worker request's method is exactly
         // get_project_status - proving the user-facing tool never routes through the internal
         // lifecycle probe.
-        var result = await ProjectReadTools.GetProjectStatus(client, projectPath: "direct-status-only");
+        var result = await ProjectReadTools.GetProjectStatus(client);
         using var doc = System.Text.Json.JsonDocument.Parse(((System.Text.Json.JsonElement)result.StructuredContent!).GetRawText());
 
         LifecycleTestCalls.Succeeded(doc.RootElement);
@@ -1327,9 +1329,10 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task NoProjectOpen_DirectStatusReturnsIsOpenFalse()
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-no-project");
         using var client = CreateClient();
 
-        var result = await ProjectReadTools.GetProjectStatus(client, projectPath: "status-no-project");
+        var result = await ProjectReadTools.GetProjectStatus(client);
         using var doc = System.Text.Json.JsonDocument.Parse(((System.Text.Json.JsonElement)result.StructuredContent!).GetRawText());
 
         LifecycleTestCalls.Succeeded(doc.RootElement);
@@ -1556,7 +1559,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var result = await ProjectWriteTools.ArchiveProject(client,
             LifecycleTestCalls.Execution(client, audit),
-            archiveDirectory, "Backup", mode: "Compressed", projectPath: projectPath, dryRun: true);
+            archiveDirectory, "Backup", mode: "Compressed", dryRun: true);
 
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
         var document = LifecycleTestCalls.Document(result);

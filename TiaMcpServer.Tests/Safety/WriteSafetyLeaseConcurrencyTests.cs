@@ -67,8 +67,8 @@ public sealed class WriteSafetyLeaseConcurrencyTests
                 });
             await blockerEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-            var firstApply = ProjectWriteTools.SaveProject(client, execution, projectPath);
-            var secondApply = ProjectWriteTools.SaveProject(client, execution, projectPath);
+            var firstApply = ProjectWriteTools.SaveProject(client, execution);
+            var secondApply = ProjectWriteTools.SaveProject(client, execution);
 
             releaseBlocker.TrySetResult(true);
             var blockerResult = await blocker.WaitAsync(TimeSpan.FromSeconds(5));
