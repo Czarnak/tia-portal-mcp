@@ -55,7 +55,7 @@ public class ReadToolCancellationTests
         {
             new PlcOperationRequest
             {
-                OperationId = "b", Operation = "get_block_content", BlockPath = "PLC_1/Main", ProjectPath = PlcScenario,
+                OperationId = "b", Operation = "get_block_content", BlockPath = "PLC_1/Main",
             },
         };
 

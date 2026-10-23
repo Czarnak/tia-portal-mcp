@@ -470,7 +470,7 @@ public sealed class BindProjectToolProtocolTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, fixture.AuditPath);
         var arguments = new Dictionary<string, object?> { ["dryRun"] = true, ["operations"] = new[] { new
         {
-            operationId = "add", operation = "add_network_device", projectPath = source,
+            operationId = "add", operation = "add_network_device",
             typeIdentifier = "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0", deviceName = "PLC_1"
         } } };
         var blocked = await harness.Client.CallToolAsync("network_write", arguments);

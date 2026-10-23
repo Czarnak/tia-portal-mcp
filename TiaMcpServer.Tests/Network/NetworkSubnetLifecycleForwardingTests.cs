@@ -143,7 +143,6 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "create-1",
             Operation = "create_subnet",
-            ProjectPath = EchoProjectPath,
             Subnet = new NetworkSubnetDefinition
             {
                 Name = "Subnet_1",
@@ -165,7 +164,6 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "update-1",
             Operation = "update_subnet",
-            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-42" },
             SubnetChanges = new NetworkSubnetChanges { Name = "Renamed" },
         };
@@ -184,7 +182,6 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "delete-1",
             Operation = "delete_subnet",
-            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-7" },
         };
 
@@ -206,7 +203,6 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "create-2",
             Operation = "create_subnet",
-            ProjectPath = EchoProjectPath,
             Subnet = new NetworkSubnetDefinition
             {
                 Name = "Profibus_1",
@@ -244,7 +240,6 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "update-2",
             Operation = "update_subnet",
-            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-42" },
             SubnetChanges = new NetworkSubnetChanges { Name = "Renamed" },
         };
@@ -278,7 +273,6 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "update-3",
             Operation = "update_subnet",
-            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-99" },
             SubnetChanges = new NetworkSubnetChanges
             {
@@ -311,7 +305,6 @@ public class NetworkSubnetLifecycleForwardingTests
         {
             OperationId = "delete-2",
             Operation = "delete_subnet",
-            ProjectPath = EchoProjectPath,
             Target = new NetworkObjectTarget { SubnetId = "subnet-7" },
         };
 

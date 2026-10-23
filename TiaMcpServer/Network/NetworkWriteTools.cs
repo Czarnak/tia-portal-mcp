@@ -15,12 +15,12 @@ public class NetworkWriteTools
     public static Task<CallToolResult> NetworkWrite(
         OpennessWorkerClient workerClient,
         WriteExecution execution,
-        [Description("Ordered network write operations, all constrained to the same project.")] NetworkOperationRequest[] operations,
+        [Description("Ordered network write operations.")] NetworkOperationRequest[] operations,
         [Description("True previews effects and guards without mutation; omitted or false executes.")] bool dryRun = false,
         CancellationToken cancellationToken = default)
         => execution.RunAsync(new NetworkWriteDomain(workerClient),
             new WriteCall<NetworkOperationRequest>(
-                operations?.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item?.ProjectPath))?.ProjectPath,
+                ProjectPath: null,
                 operations ?? [], dryRun), cancellationToken: cancellationToken);
 
 }

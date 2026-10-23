@@ -120,9 +120,6 @@ public sealed class NetworkGuardedWriteDomainTests
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
         var before = requests.Methods().Length;
-        var left = NetworkGuardedWriteFixture.Delete("left"); left.ProjectPath = "C:/one.ap21";
-        var right = NetworkGuardedWriteFixture.Delete("right"); right.ProjectPath = "C:/two.ap21";
-        Assert.Equal("validation_error", (await fixture.RunAsync(false, left, right)).Error!.Category);
         Assert.Equal("validation_error", (await fixture.RunAsync(false, Enumerable.Range(0, 51).Select(i => NetworkGuardedWriteFixture.Delete(i.ToString())).ToArray())).Error!.Category);
         Assert.Equal(before, requests.Methods().Length);
     }

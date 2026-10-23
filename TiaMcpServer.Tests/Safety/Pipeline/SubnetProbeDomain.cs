@@ -59,11 +59,10 @@ public sealed class SubnetProbeDomain
 
     public string ContractVersion => "subnet-probe/1";
 
-    public static NetworkOperationRequest DeleteSubnet(string operationId, string subnetId, string projectPath) => new()
+    public static NetworkOperationRequest DeleteSubnet(string operationId, string subnetId) => new()
     {
         OperationId = operationId,
         Operation = DeleteSubnetOperation,
-        ProjectPath = projectPath,
         Target = new NetworkObjectTarget { Kind = NetworkObjectKinds.Subnet, SubnetId = subnetId },
     };
 

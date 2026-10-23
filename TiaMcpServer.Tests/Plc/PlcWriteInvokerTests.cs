@@ -68,7 +68,7 @@ public sealed class PlcWriteInvokerTests
     private static (PlcOperationRequest Request, List<object> Expected) Build(string operation)
     {
         Assert.True(PlcOperationCatalog.TryGetWriteFields(operation, out var required, out var optional));
-        var request = new PlcOperationRequest { OperationId = "item-1", Operation = operation, ProjectPath = "echo" };
+        var request = new PlcOperationRequest { OperationId = "item-1", Operation = operation };
         var expected = new List<object>();
         foreach (var field in required.Concat(optional))
         {
@@ -111,10 +111,9 @@ public sealed class PlcWriteInvokerTests
 
     [Theory]
     [MemberData(nameof(AllWriteOperations))]
-    public async Task WriteUsesPinnedProjectPathOrItemFallback(string operation)
+    public async Task WriteUsesPinnedProjectPath(string operation)
     {
         var (request, _) = Build(operation);
-        request.ProjectPath = "other-project";
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
             binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(),
@@ -126,11 +125,6 @@ public sealed class PlcWriteInvokerTests
         Assert.True(result.Success, result.Error);
         using var echoed = JsonDocument.Parse(result.Payload);
         Assert.Equal(Path.GetFullPath("echo"), echoed.RootElement.GetProperty("projectPath").GetString());
-
-        var fallback = await new PlcWriteDomain(client).MutateAsync(null, request);
-        Assert.Equal(WorkerFailureCategories.BindingConflict, fallback.FailureCategory);
-        Assert.Equal(WorkerDispatchState.NotSent, fallback.DispatchState);
-        Assert.Equal("other-project", request.ProjectPath);
     }
 
     [Theory]
@@ -147,7 +141,7 @@ public sealed class PlcWriteInvokerTests
         var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request, null);
         Assert.True(result.Success, result.Error);
         var baseline = await PlcWorkerInvoker.InvokeWriteAsync(
-            client, new PlcOperationRequest { OperationId = "baseline", Operation = operation, ProjectPath = "echo" }, null);
+            client, new PlcOperationRequest { OperationId = "baseline", Operation = operation }, null);
         Assert.True(baseline.Success, baseline.Error);
 
         foreach (var group in expected.Select(Render).GroupBy(v => v, StringComparer.Ordinal))
@@ -189,7 +183,6 @@ public sealed class PlcWriteInvokerTests
         {
             OperationId = "invalid-format",
             Operation = "update_block_logic",
-            ProjectPath = "must-not-start",
             BlockPath = "PLC/Blocks/Main",
             Content = "secret submitted content",
             ExpectedContentHash = Hash,

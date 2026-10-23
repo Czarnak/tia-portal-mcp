@@ -103,7 +103,7 @@ internal sealed class HardwarePaginationCoordinator
         }
 
         var call = new HardwarePageCandidateCall(
-            ProjectPath: cursorState?.ResolvedProjectPath ?? operation.ProjectPath,
+            ProjectPath: cursorState?.ResolvedProjectPath,
             operation.DeviceName,
             operation.PlcName,
             operation.IncludeIoDetails ?? false,

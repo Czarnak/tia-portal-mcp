@@ -52,14 +52,12 @@ public class NetworkOperationFakeWorkerTests
     {
         OperationId = operationId,
         Operation = "read_hardware_config",
-        ProjectPath = Scenario,
     };
 
     private static NetworkOperationRequest SearchCatalog(string operationId) => new()
     {
         OperationId = operationId,
         Operation = "search_equipment_catalog",
-        ProjectPath = Scenario,
         Query = "OrderNumber:TEST",
     };
 
@@ -67,7 +65,6 @@ public class NetworkOperationFakeWorkerTests
     {
         OperationId = operationId,
         Operation = "add_network_device",
-        ProjectPath = Scenario,
         TypeIdentifier = "OrderNumber:TEST",
         DeviceName = "AddedPLC",
     };
@@ -76,7 +73,6 @@ public class NetworkOperationFakeWorkerTests
     {
         OperationId = operationId,
         Operation = "configure_network_device",
-        ProjectPath = Scenario,
         Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
         Changes = new NetworkDeviceChanges { IpAddress = ipAddress },
     };
@@ -289,7 +285,6 @@ public class NetworkOperationFakeWorkerTests
             {
                 OperationId = "configure",
                 Operation = "configure_network_device",
-                ProjectPath = scenario,
                 Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
                 Changes = new NetworkDeviceChanges
                 {
@@ -301,7 +296,6 @@ public class NetworkOperationFakeWorkerTests
             {
                 OperationId = "later",
                 Operation = "add_network_device",
-                ProjectPath = scenario,
                 TypeIdentifier = "OrderNumber:TEST",
                 DeviceName = "LaterDevice",
             },
@@ -439,7 +433,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "configure",
                     Operation = "configure_network_device",
-                    ProjectPath = "network-ambiguous-node",
                     Target = new NetworkObjectTarget { DeviceName = "PC_1", NodeId = "dup-node" },
                     Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.55" },
                 },
@@ -475,7 +468,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "configure",
                     Operation = "configure_network_device",
-                    ProjectPath = Scenario,
                     Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
                     Changes = new NetworkDeviceChanges
                     {
@@ -504,7 +496,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "list-1",
                     Operation = "list_network_objects",
-                    ProjectPath = "list-network-objects-success",
                     ObjectKinds = new[] { "node", "communicationConnection" },
                 },
             });
@@ -546,7 +537,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "inspect-1",
                     Operation = "inspect_network_object",
-                    ProjectPath = "inspect-network-object-success",
                     Target = new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" },
                 },
             });
@@ -614,7 +604,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "malformed-1",
                     Operation = operationName,
-                    ProjectPath = scenario,
                     Target = target,
                     ObjectKinds = objectKinds,
                 },
@@ -640,7 +629,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "large-1",
                     Operation = "list_network_objects",
-                    ProjectPath = "list-network-objects-large",
                     ObjectKinds = new[] { "node" },
                     PageSize = 20,
                 },

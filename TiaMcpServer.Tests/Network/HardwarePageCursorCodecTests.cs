@@ -235,17 +235,6 @@ public class HardwarePageCursorCodecTests
     }
 
     [Fact]
-    public void Validate_ExplicitProjectPathMismatch_ReturnsBindingMismatchBeforeWorkerCall()
-    {
-        var state = State();
-        var request = Request(projectPath: @"C:\Projects\Other.ap21");
-
-        var category = HardwarePageCursorValidator.Validate(state, request, BoundSnapshot());
-
-        Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, category);
-    }
-
-    [Fact]
     public void Validate_HostBindingSnapshotMismatch_ReturnsBindingMismatchBeforeWorkerCall()
     {
         var state = State();
@@ -266,21 +255,6 @@ public class HardwarePageCursorCodecTests
 
         Assert.Null(smallerPage);
         Assert.Null(largerPage);
-    }
-
-    [Fact]
-    public void Validate_OmittedProjectPathAndEquivalentNormalizedPath_AreAccepted()
-    {
-        var state = State();
-
-        var omitted = HardwarePageCursorValidator.Validate(state, Request(), BoundSnapshot());
-        var equivalent = HardwarePageCursorValidator.Validate(
-            state,
-            Request(projectPath: @"C:\Projects\.\Sample.ap21"),
-            BoundSnapshot());
-
-        Assert.Null(omitted);
-        Assert.Null(equivalent);
     }
 
     [Fact]
@@ -313,13 +287,11 @@ public class HardwarePageCursorCodecTests
 
     private static NetworkOperationRequest Request(
         string? deviceName = "plc_1",
-        string? projectPath = null,
         int? pageSize = 25)
         => new()
         {
             OperationId = "read-page",
             Operation = "read_hardware_config",
-            ProjectPath = projectPath,
             DeviceName = deviceName,
             PlcName = "PLC_Main",
             IncludeIoDetails = true,

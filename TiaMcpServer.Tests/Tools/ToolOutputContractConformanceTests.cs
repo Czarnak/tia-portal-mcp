@@ -195,7 +195,6 @@ public sealed class ToolOutputContractConformanceTests
                     {
                         operationId = "add",
                         operation = "add_network_device",
-                        projectPath = "network-roundtrip",
                         typeIdentifier = "OrderNumber:TEST",
                         deviceName = "PLC_1",
                     },
@@ -203,7 +202,6 @@ public sealed class ToolOutputContractConformanceTests
                     {
                         operationId = "configure",
                         operation = "configure_network_device",
-                        projectPath = "network-roundtrip",
                         target = new { deviceName = "PLC_1", nodeId = "node-1" },
                         changes = new { ipAddress = "192.168.0.10" },
                     },
@@ -242,7 +240,6 @@ public sealed class ToolOutputContractConformanceTests
                     {
                         operationId = "table",
                         operation = "create_tag_table",
-                        projectPath = "plc-write-roundtrip",
                         plcName = "PLC_2",
                         tableName = "Valves",
                     },
@@ -250,7 +247,6 @@ public sealed class ToolOutputContractConformanceTests
                     {
                         operationId = "tag",
                         operation = "create_tag",
-                        projectPath = "plc-write-roundtrip",
                         plcName = "PLC_2",
                         tableName = "Valves",
                         name = "Valve1",
@@ -591,6 +587,48 @@ public sealed class ToolOutputContractConformanceTests
         Assert.Equal(
             "validation_error",
             result.StructuredContent!.Value.GetProperty("error").GetProperty("category").GetString());
+    }
+
+    public static TheoryData<string> RetiredItemPathTools => new()
+    {
+        "plc_read", "plc_write", "network_read", "network_write",
+        "hmi_read", "hmi_write", "vci_read", "vci_write",
+    };
+
+    [Theory]
+    [MemberData(nameof(RetiredItemPathTools))]
+    public async Task RetiredProjectPathIsRejectedCanonically(string tool)
+    {
+        var (bound, item) = tool switch
+        {
+            "plc_read" => ("plc-read-roundtrip", (object)new { operationId = "block", operation = "get_block_content", blockPath = "PLC_1/Main", projectPath = "plc-read-roundtrip" }),
+            "plc_write" => ("plc-write-roundtrip", new { operationId = "table", operation = "create_tag_table", plcName = "PLC_2", tableName = "Valves", projectPath = "plc-write-roundtrip" }),
+            "network_read" => ("network-roundtrip", new { operationId = "hardware", deviceName = "PLC_1", projectPath = "network-roundtrip" }),
+            "network_write" => ("network-roundtrip", new { operationId = "add", operation = "add_network_device", typeIdentifier = "OrderNumber:TEST", deviceName = "PLC_1", projectPath = "network-roundtrip" }),
+            "hmi_read" => ("hmi-read-roundtrip", new { operationId = "devices", operation = "list_hmi_devices", projectPath = "hmi-read-roundtrip" }),
+            "hmi_write" => ("hmi-write-roundtrip", new { operationId = "table", operation = "create_tag_table", tableName = "T", projectPath = "hmi-write-roundtrip" }),
+            "vci_read" => ("vci-read-roundtrip", new { operationId = "w", operation = "list_workspaces", projectPath = "vci-read-roundtrip" }),
+            "vci_write" => ("vci-write-roundtrip", new { operationId = "v", operation = "export", workspaceName = "Fixture", scope = new[] { new { nodeType = "Device", name = "Fixture" } }, projectPath = "vci-write-roundtrip" }),
+            _ => throw new ArgumentOutOfRangeException(nameof(tool)),
+        };
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var uiOpen = tool.EndsWith("_read", StringComparison.Ordinal)
+            ? FakeWorkerUiOpenProject.ForWorkerRelativePath(bound)
+            : new FakeWorkerUiOpenProject(bound);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
+            McpAccessMode.Full, audit.Path, bound);
+        var before = requests.Methods().ToList();
+
+        var result = await harness.Client.CallToolAsync(tool, Operations(item));
+
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, tool);
+        Assert.Contains("projectPath", TextOf(result), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            requests.Methods().Skip(before.Count),
+            TiaMcpServer.Contracts.Project.ProjectCapabilityCatalog.RequiresBoundProject);
+        Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
 
     private static Dictionary<string, object?> Operations(object item)

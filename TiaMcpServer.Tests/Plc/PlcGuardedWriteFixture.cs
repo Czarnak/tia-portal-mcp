@@ -63,7 +63,7 @@ internal sealed class PlcGuardedWriteFixture : IDisposable
 
     public Task<CallToolResult> RunRawAsync(bool dryRun, params PlcOperationRequest[] operations)
         => Runner.RunAsync(new PlcWriteDomain(Client),
-            new WriteCall<PlcOperationRequest>(operations.FirstOrDefault(o => o.ProjectPath is not null)?.ProjectPath ?? _path, operations, dryRun));
+            new WriteCall<PlcOperationRequest>(ProjectPath: null, operations, dryRun));
 
     public static PlcGuardedWriteResponse Document(CallToolResult result)
         => CanonicalJson.Deserialize<PlcGuardedWriteResponse>(((JsonElement)result.StructuredContent!).GetRawText());

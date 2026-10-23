@@ -75,14 +75,11 @@ public class VciReadCatalogTests
     }
 
     [Fact]
-    public void NullMembersAndMultipleProjectsReject()
+    public void NullMembersReject()
     {
         Assert.False(VciReadCatalog.ValidateRead(new VciOperationRequest[] { null! }).IsValid);
         Assert.False(VciReadCatalog.ValidateRead(new[] { new VciOperationRequest { OperationId = "r", Operation = null! } }).IsValid);
         var request = new VciOperationRequest { OperationId = "r", Operation = "supported_formats", Scope = [null!] };
         Assert.False(VciReadCatalog.ValidateRead(new[] { request }).IsValid);
-        var first = Mapping(); first.ProjectPath = "A";
-        var second = Mapping(); second.OperationId = "s"; second.ProjectPath = "B";
-        Assert.False(VciReadCatalog.ValidateRead(new[] { first, second }).IsValid);
     }
 }

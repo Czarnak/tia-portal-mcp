@@ -360,16 +360,6 @@ public static class PlcOperationCatalog
                     + "is created earlier in this call, so no content hash can exist for it. Read it after the call.");
             }
         }
-
-        var distinctPaths = operations
-            .Where(operation => operation is not null && !string.IsNullOrWhiteSpace(operation.ProjectPath))
-            .Select(operation => WriteProjectPaths.Normalize(operation.ProjectPath))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-        if (distinctPaths > 1)
-        {
-            errors.Add("All write operations in a batch must target the same project path.");
-        }
     }
 
     /// <summary>Spelling-independent identity of a block path ('PLC/Name' equals 'PLC/Blocks/Name').</summary>

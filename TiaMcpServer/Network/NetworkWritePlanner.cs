@@ -183,7 +183,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
     /// a diagnostic about another attribute no longer discards the readable ones.</summary>
     internal static async Task<Dictionary<string, NetworkAttributeInfo>> ReadAttributesAsync(OpennessWorkerClient client, string? projectPath, NetworkObjectTarget target, IReadOnlyList<string> names)
     {
-        var request = new NetworkOperationRequest { OperationId = "verify", Operation = "inspect_network_object", ProjectPath = projectPath,
+        var request = new NetworkOperationRequest { OperationId = "verify", Operation = "inspect_network_object",
             Target = target, AttributeNames = names };
         var projected = NetworkPayloadContract.Project(request, await NetworkWorkerInvoker.InvokeReadAsync(client, request).ConfigureAwait(false));
         if (projected.Result is not { } result) return new();

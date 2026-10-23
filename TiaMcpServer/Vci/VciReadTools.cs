@@ -48,7 +48,7 @@ public class VciReadTools
 
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
             operations,
-            operation => workerClient.ReadVciAsync(TiaMcpServer.Contracts.Vci.VciMethods.ForOperation(operation.Operation), VciReadCatalog.ToQuery(operation), operation.ProjectPath),
+            operation => workerClient.ReadVciAsync(TiaMcpServer.Contracts.Vci.VciMethods.ForOperation(operation.Operation), VciReadCatalog.ToQuery(operation), projectPath: null),
             VciPayloadContract.Project,
             cancellationToken)
             .ConfigureAwait(false);

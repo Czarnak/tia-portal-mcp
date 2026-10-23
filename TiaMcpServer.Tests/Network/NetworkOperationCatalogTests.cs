@@ -232,19 +232,6 @@ public class NetworkOperationCatalogTests
     }
 
     [Fact]
-    public void ValidateWrite_RejectsMixedNormalizedProjectPaths()
-    {
-        var result = NetworkOperationCatalog.ValidateWrite(new[]
-        {
-            Configure("a", "PLC_1", adjust: operation => operation.ProjectPath = @"C:\\Projects\\One.ap21"),
-            Configure("b", "PLC_2", adjust: operation => operation.ProjectPath = @"C:\\Projects\\Two.ap21"),
-        });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("same project", result.Error);
-    }
-
-    [Fact]
     public void ValidateWrite_AcceptsAnExactTargetWithOneChange()
     {
         var result = NetworkOperationCatalog.ValidateWrite(new[] { Configure() });

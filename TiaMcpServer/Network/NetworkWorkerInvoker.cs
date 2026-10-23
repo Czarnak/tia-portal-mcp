@@ -12,23 +12,23 @@ public static class NetworkWorkerInvoker
         NetworkOperationRequest operation)         => operation.Operation switch
         {
             "read_hardware_config" => client.ReadHardwareConfigAsync(
-                operation.ProjectPath,
+                projectPath: null,
                 operation.DeviceName,
                 operation.PlcName,
                 operation.IncludeIoDetails ?? false,
                 operation.IncludeTagMatches ?? false),
             "search_equipment_catalog" => client.SearchEquipmentCatalogAsync(
-                operation.Query!, operation.ProjectPath, operation.MaxResults),
+                operation.Query!, projectPath: null, operation.MaxResults),
             "list_network_objects" => client.ListNetworkObjectsAsync(
                 operation.ObjectKinds!,
                 operation.DeviceName,
                 operation.PageSize,
                 operation.Cursor,
-                operation.ProjectPath),
+                projectPath: null),
             "inspect_network_object" => client.InspectNetworkObjectAsync(
                 MapSelector(operation.Target!),
                 operation.AttributeNames,
-                operation.ProjectPath),
+                projectPath: null),
             _ => Task.FromResult(WorkerCallResult.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"Unsupported network read operation '{operation.Operation}'.")),
@@ -86,7 +86,7 @@ public static class NetworkWorkerInvoker
         NetworkOperationRequest operation,
         string? commonProjectPath)
     {
-        var projectPath = commonProjectPath ?? operation.ProjectPath;
+        var projectPath = commonProjectPath;
         return operation.Operation switch
         {
             "add_network_device" => client.AddNetworkDeviceAsync(

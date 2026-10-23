@@ -103,7 +103,6 @@ public class NetworkToolsTests
     {
         OperationId = id,
         Operation = "read_hardware_config",
-        ProjectPath = projectPath,
         DeviceName = deviceName,
     };
 
@@ -115,7 +114,6 @@ public class NetworkToolsTests
     {
         OperationId = id,
         Operation = "add_network_device",
-        ProjectPath = projectPath,
         TypeIdentifier = "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
         DeviceName = deviceName,
         DeviceItemName = deviceItemName,
@@ -128,7 +126,6 @@ public class NetworkToolsTests
     {
         OperationId = id,
         Operation = "configure_network_device",
-        ProjectPath = projectPath,
         Target = new NetworkObjectTarget { DeviceName = deviceName, NodeId = "node-1" },
         Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.10" },
     };
@@ -347,25 +344,6 @@ public class NetworkToolsTests
     }
 
 
-
-    [Fact]
-    public async Task NetworkWrite_RejectsMixedProjectPathsBeforeWorkerStartup()
-    {
-        using var audit = new TempAuditDirectory();
-        var operations = new[]
-        {
-            AddDevice("first", @"C:\a.ap21"),
-            ConfigureDevice("second", @"C:\b.ap21"),
-        };
-
-        using var client = CreateClient();
-        using var requests = new FakeWorkerRequestLog(audit.Path);
-        var result = await NetworkWrite(client, NetworkGuardedWriteFixture.CreateRunner(client, audit.Path), operations);
-        Assert.Empty(requests.Methods());
-
-        Assert.True(result.IsError);
-        Assert.Contains("same project path", ReadText(result));
-    }
 
     [Fact]
     public async Task NetworkWrite_ReadOnlyDefenseRejectsBeforeSnapshot()

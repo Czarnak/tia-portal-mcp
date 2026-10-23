@@ -126,13 +126,6 @@ public static class HmiWriteCatalog
                 }
             }
         }
-        var distinctPaths = operations
-            .Where(operation => operation is not null && !string.IsNullOrWhiteSpace(operation.ProjectPath))
-            .Select(operation => WriteProjectPaths.Normalize(operation.ProjectPath))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-        if (distinctPaths > 1)
-            errors.Add("All write operations in a batch must target the same project path.");
         return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
     }
 

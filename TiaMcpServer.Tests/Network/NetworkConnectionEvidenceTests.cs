@@ -194,7 +194,7 @@ public sealed class NetworkConnectionEvidenceTests
             workerExecutablePath: FakeWorkerLocator.Locate());
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
         var result = await NetworkReadTools.NetworkRead(client, new[] { new NetworkOperationRequest
-        { OperationId = "hardware", Operation = "read_hardware_config", ProjectPath = scenario } });
+        { OperationId = "hardware", Operation = "read_hardware_config"} });
         Assert.False(result.IsError);
         var item = Assert.IsType<JsonElement>(result.StructuredContent).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", item.GetProperty("status").GetString());

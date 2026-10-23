@@ -144,7 +144,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
 
     internal async Task<Evidence> ReadInventoryAsync(string? projectPath)
     {
-        var request = new PlcOperationRequest { OperationId = "plan", Operation = "list_tag_tables", ProjectPath = projectPath };
+        var request = new PlcOperationRequest { OperationId = "plan", Operation = "list_tag_tables" };
         var projected = PlcPayloadContract.Project(request, await client.ListTagTablesAsync(null, projectPath).ConfigureAwait(false));
         return projected.Result is { } result
             ? new Evidence(CanonicalJson.Deserialize<PlcTagInventoryInfo>(result.GetRawText()), null)

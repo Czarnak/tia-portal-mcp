@@ -38,7 +38,6 @@ public class IoMapFieldForwardingTests : IDisposable
         {
             OperationId = "read-io-map",
             Operation = "read_hardware_config",
-            ProjectPath = "echo",
             DeviceName = "ET 200SP station_1",
             PlcName = "PLC_1",
             IncludeIoDetails = true,
@@ -70,7 +69,6 @@ public class IoMapFieldForwardingTests : IDisposable
         {
             OperationId = "read-plain",
             Operation = "read_hardware_config",
-            ProjectPath = "echo",
         };
 
         using var client = await CreateClientAsync();

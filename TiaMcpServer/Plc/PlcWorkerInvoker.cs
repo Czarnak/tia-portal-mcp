@@ -18,16 +18,16 @@ public static class PlcWorkerInvoker
             {
                 "get_block_content" => client.GetBlockContentAsync(
                     operation.BlockPath!,
-                    operation.ProjectPath,
+                    projectPath: null,
                     PlcFormatNames.Normalize(operation.Operation, operation.Format),
                     operation.WithDependencies),
                 "get_type_content" => client.GetTypeContentAsync(
                     operation.TypePath!,
                     PlcFormatNames.Normalize(operation.Operation, operation.Format),
-                    operation.ProjectPath,
+                    projectPath: null,
                     operation.WithDependencies),
                 "list_tag_tables" => client.ListTagTablesAsync(
-                    operation.PlcName, operation.ProjectPath, operation.TableName, operation.FolderPath),
+                    operation.PlcName, projectPath: null, operation.TableName, operation.FolderPath),
                 _ => Task.FromResult(WorkerCallResult.Fail(
                     WorkerFailureCategories.ValidationError,
                     $"Unsupported PLC read operation '{operation.Operation}'.")),
@@ -47,7 +47,7 @@ public static class PlcWorkerInvoker
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var projectPath = commonProjectPath ?? op.ProjectPath;
+        var projectPath = commonProjectPath;
         return op.Operation switch
         {
             "update_block_logic" => InvokeUpdateBlockLogic(client, op, projectPath),

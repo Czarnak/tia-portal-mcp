@@ -24,7 +24,7 @@ public class PlcReadTools
     [Description("Run up to 50 PLC read operations in one call. Valid operations: get_block_content (blockPath, optional format xml|source and withDependencies), get_type_content (typePath, optional format and withDependencies), and list_tag_tables (optional plcName, omitted reads every PLC; optional tableName and folderPath narrow to one table or one tag-table folder). Reads run independently, so a failing item does not stop later operations. Content results are { format, content, contentHash, warnings }; contentHash is null for withDependencies reads. list_tag_tables returns { isComplete, messages, plcs[] } as declared JSON. A result larger than the budget is omitted whole with guidance; narrow it or re-run that operationId in its own plc_read call.")]
     public static async Task<CallToolResult> PlcRead(
         OpennessWorkerClient workerClient,
-        [Description("Ordered list of PLC read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] PlcOperationRequest[] operations,
+        [Description("Ordered list of PLC read operations. Each item is { operationId, operation, ...operation parameters }.")] PlcOperationRequest[] operations,
         CancellationToken cancellationToken = default)
     {
         var validation = PlcOperationCatalog.ValidateRead(operations);

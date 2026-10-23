@@ -111,32 +111,6 @@ public class HmiGuardedWriteMcpTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task MixedProjectPathsAreDeniedBeforeWorkerActivity(bool dryRun)
-    {
-        using var audit = new TempAuditDirectory();
-        using var requests = new FakeWorkerRequestLog(audit.Path);
-        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
-        var before = requests.Methods();
-        var result = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
-        {
-            ["dryRun"] = dryRun,
-            ["operations"] = new[]
-            {
-                new { operationId = "first", operation = "create_tag_table", tableName = "First", projectPath = Path.Combine(audit.Path, "A.ap21") },
-                new { operationId = "second", operation = "create_tag_table", tableName = "Second", projectPath = Path.Combine(audit.Path, "B.ap21") },
-            },
-        });
-        var root = NetworkGuardedWriteMcpTests.Document(result);
-
-        Assert.True(result.IsError);
-        Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
-        Assert.Equal(before, requests.Methods());
-        AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
-    }
-
-    [Theory]
     [InlineData("CleanupFails", false)]
     [InlineData("Missing", true)]
     public async Task FailedCreateReadbackDistinguishesCleanupOutcome(string plcTag, bool verified)

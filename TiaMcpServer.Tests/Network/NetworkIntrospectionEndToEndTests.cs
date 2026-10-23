@@ -23,7 +23,7 @@ public class NetworkIntrospectionEndToEndTests
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
-        var operation = new NetworkOperationRequest { OperationId = "inspect", Operation = "inspect_network_object", ProjectPath = "echo",
+        var operation = new NetworkOperationRequest { OperationId = "inspect", Operation = "inspect_network_object",
             Target = new() { Kind = "node", DeviceName = "Station", NodeId = "E1", InterfaceName = "PROFINET interface_1", NodeIndex = 0,
                 InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1, TypeIdentifier = "OrderNumber:CPU" },
                     new NetworkInterfacePathSegment { Name = "PROFINET interface_1", PositionNumber = 32768 } } } };
@@ -49,8 +49,8 @@ public class NetworkIntrospectionEndToEndTests
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-qualified-read");
         var discovery = AssertCanonical(await CallReadAsync(harness, new object[]
         {
-            new { operationId = "hardware", operation = "read_hardware_config", projectPath = "network-qualified-read" },
-            new { operationId = "list", operation = "list_network_objects", projectPath = "network-qualified-read", objectKinds = new[] { "node" } },
+            new { operationId = "hardware", operation = "read_hardware_config"},
+            new { operationId = "list", operation = "list_network_objects", objectKinds = new[] { "node" } },
         }));
         var operations = discovery.GetProperty("batch").GetProperty("operations");
         Assert.All(operations.EnumerateArray(), operation => Assert.Equal("succeeded", operation.GetProperty("status").GetString()));
@@ -62,7 +62,7 @@ public class NetworkIntrospectionEndToEndTests
             Assert.Equal(CanonicalJson.Serialize(readSelector), CanonicalJson.Serialize(list[index].GetProperty("selector")));
             Assert.Equal(index == 0 ? 32768 : 33024, readSelector.GetProperty("interfacePath")[1].GetProperty("positionNumber").GetInt32());
             var inspected = AssertCanonical(await CallReadAsync(harness, new object[] { new
-                { operationId = "inspect", operation = "inspect_network_object", projectPath = "network-qualified-read", target = readSelector } }));
+                { operationId = "inspect", operation = "inspect_network_object", target = readSelector } }));
             var item = inspected.GetProperty("batch").GetProperty("operations")[0];
             Assert.Equal("succeeded", item.GetProperty("status").GetString());
             Assert.Equal(index == 0 ? "X1" : "X2", item.GetProperty("result").GetProperty("evidence").GetProperty("nodeName").GetString());
@@ -83,7 +83,6 @@ public class NetworkIntrospectionEndToEndTests
                 {
                     operationId = "page-1",
                     operation = "list_network_objects",
-                    projectPath = "list-network-objects-large",
                     objectKinds = new[] { "node" },
                     pageSize = 20,
                 },
@@ -91,7 +90,6 @@ public class NetworkIntrospectionEndToEndTests
                 {
                     operationId = "page-2",
                     operation = "list_network_objects",
-                    projectPath = "list-network-objects-large",
                     objectKinds = new[] { "node" },
                     pageSize = 20,
                     cursor = "large-list-page-2",
@@ -161,7 +159,6 @@ public class NetworkIntrospectionEndToEndTests
                 {
                     operationId = "state",
                     operation = "read_hardware_config",
-                    projectPath = "network-state-seq",
                 },
             });
         var root = AssertCanonical(result);

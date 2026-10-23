@@ -30,7 +30,7 @@ public class HmiReadFakeWorkerTests
 
     private static HmiOperationRequest Op(string id, string operation, Action<HmiOperationRequest>? configure = null)
     {
-        var request = new HmiOperationRequest { OperationId = id, Operation = operation, ProjectPath = Scenario };
+        var request = new HmiOperationRequest { OperationId = id, Operation = operation};
         configure?.Invoke(request);
         return request;
     }
@@ -93,7 +93,7 @@ public class HmiReadFakeWorkerTests
     private static HmiOperationRequest PagedOp(string? cursor = null)
         => new()
         {
-            OperationId = "tags", Operation = "list_tags", ProjectPath = PagedScenario,
+            OperationId = "tags", Operation = "list_tags",
             HmiName = "HMI_1", Limit = 2, Cursor = cursor,
         };
 

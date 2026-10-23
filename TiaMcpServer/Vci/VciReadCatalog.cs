@@ -56,9 +56,6 @@ public static class VciReadCatalog
             if (item.Operation == "supported_formats" && (item.Scope is not { Count: > 0 } || item.Scope[^1] is null || !VciScope.IsLeaf(item.Scope[^1].NodeType)))
                 errors.Add("supported_formats requires scope naming one terminal leaf.");
         }
-        if (operations.Where(item => item is not null && !string.IsNullOrWhiteSpace(item.ProjectPath))
-            .Select(item => item.ProjectPath!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
-            errors.Add("All operations must target the same project path.");
         return errors.Count == 0 ? (true, string.Empty, string.Empty)
             : (false, string.Join("\n", errors), scopeCategory ?? WorkerFailureCategories.ValidationError);
     }

@@ -254,7 +254,6 @@ public sealed class HardwarePaginationFakeWorkerTests
                 {
                     OperationId = "hardware",
                     Operation = "read_hardware_config",
-                    ProjectPath = projectPath,
                     PageSize = paged ? pageSize : null,
                     Cursor = cursor,
                     DeviceName = deviceName,

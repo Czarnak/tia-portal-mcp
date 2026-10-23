@@ -141,7 +141,7 @@ public sealed class WriteExecutionFakeWorkerTests
             SubnetProbeDomain.Catalog,
             TimeProvider.System);
         var call = new WriteCall<NetworkOperationRequest>(
-            Scenario, new[] { SubnetProbeDomain.DeleteSubnet("delete", subnetId, Scenario) }, dryRun);
+            Scenario, new[] { SubnetProbeDomain.DeleteSubnet("delete", subnetId) }, dryRun);
         return execution.RunAsync(new SubnetProbeDomain(client), call);
     }
 

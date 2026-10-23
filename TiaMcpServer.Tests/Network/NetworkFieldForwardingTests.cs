@@ -69,7 +69,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "item-1",
             Operation = operationName,
-            ProjectPath = "echo",
         };
         var expected = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var fieldName in spec!.RequiredFields.Concat(spec.OptionalFields))
@@ -128,7 +127,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "add-1",
             Operation = "add_network_device",
-            ProjectPath = "echo",
             TypeIdentifier = "OrderNumber:6ES7",
             DeviceName = "PLC_1",
         };
@@ -148,7 +146,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "add-distinct-names",
             Operation = "add_network_device",
-            ProjectPath = "echo",
             TypeIdentifier = "OrderNumber:6ES7",
             DeviceName = "MCP_Station",
             DeviceItemName = "MCP_PLC",
@@ -170,7 +167,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "cfg-1",
             Operation = "configure_network_device",
-            ProjectPath = "echo",
             Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-7" },
             Changes = new NetworkDeviceChanges
             {
@@ -240,7 +236,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "list-1",
             Operation = "list_network_objects",
-            ProjectPath = "echo",
             ObjectKinds = new[] { NetworkObjectKinds.Node, NetworkObjectKinds.Subnet },
             DeviceName = "PLC_1",
             PageSize = 42,
@@ -277,7 +272,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "list-copy",
             Operation = "list_network_objects",
-            ProjectPath = "echo",
             ObjectKinds = mutableKinds,
         };
 
@@ -305,7 +299,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "inspect-1",
             Operation = "inspect_network_object",
-            ProjectPath = "echo",
             Target = new NetworkObjectTarget
             {
                 Kind = NetworkObjectKinds.Node,
@@ -344,7 +337,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "inspect-path",
             Operation = "inspect_network_object",
-            ProjectPath = "echo",
             Target = new NetworkObjectTarget
             {
                 Kind = NetworkObjectKinds.DeviceItem,

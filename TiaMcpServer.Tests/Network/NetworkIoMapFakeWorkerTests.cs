@@ -51,7 +51,6 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     {
         OperationId = id,
         Operation = "read_hardware_config",
-        ProjectPath = scenario,
         DeviceName = deviceName,
         PlcName = plcName,
         IncludeIoDetails = includeIoDetails,
