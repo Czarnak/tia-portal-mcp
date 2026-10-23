@@ -26,6 +26,13 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: shared batch rules follow-ups (C-2, 2026-10-23)
+
+- **Operation names are echoed with no length limit.** The unknown-operation and wrong-category
+  messages of all six batch catalogs (Network, PLC, HMI read, HMI write, VCI read, VCI write)
+  repeat the caller's operation name uncapped, while `operationId` is now bounded at 256
+  characters and never echoed past that. Cap it the same way.
+
 ## Open: bound-project-only content tool follow-ups (C-0, 2026-10-23)
 
 - **Worker backstop.** Content reads do not yet require `ExpectedSessionIdentity` on the worker. The host gate is the only fence; make the worker refuse a content read that carries no expected identity.
