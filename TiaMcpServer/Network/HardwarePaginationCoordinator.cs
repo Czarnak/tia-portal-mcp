@@ -92,7 +92,7 @@ internal sealed class HardwarePaginationCoordinator
                 cursorState.Offset);
         }
 
-        var pageSize = operation.PageSize ?? (cursorState is not null ? 50 : 0);
+        var pageSize = operation.PageSize ?? (cursorState is not null ? 100 : 0);
         if (pageSize < 1 || pageSize > 200)
         {
             return Failed(

@@ -204,11 +204,13 @@ public class HardwarePageCandidateReaderTests
         Assert.DoesNotContain("page-level", result.DeviceCandidates[0].Messages);
     }
 
-    [Fact]
-    public void Read_DefaultsToFiftyOnlyForACursorOnlyRequest()
+    [Theory]
+    [InlineData(null, 100)]
+    [InlineData(50, 50)]
+    public void Read_DefaultsToOneHundredOnlyForACursorOnlyRequest(int? pageSize, int expectedCount)
     {
         var descriptors = new HardwarePageDescriptorSet(
-            Enumerable.Range(0, 60).Select(index => Device($"D{index:D2}", $"devices/{index}", index)));
+            Enumerable.Range(0, 201).Select(index => Device($"D{index:D3}", $"devices/{index}", index)));
         var source = Source(descriptors);
 
         var continued = HardwarePageCandidateReader.Read(
@@ -217,7 +219,7 @@ public class HardwarePageCandidateReaderTests
             plcName: null,
             includeIoDetails: false,
             includeTagMatches: false,
-            requestedPageSize: null,
+            requestedPageSize: pageSize,
             Continuation(descriptors, offset: 0));
         var firstPageException = Assert.Throws<WorkerOperationException>(() =>
             HardwarePageCandidateReader.Read(
@@ -229,7 +231,7 @@ public class HardwarePageCandidateReaderTests
                 requestedPageSize: null,
                 continuation: null));
 
-        Assert.Equal(50, continued.DeviceCandidates.Count);
+        Assert.Equal(expectedCount, continued.DeviceCandidates.Count);
         Assert.Equal(WorkerFailureCategories.ValidationError, firstPageException.FailureCategory);
     }
 

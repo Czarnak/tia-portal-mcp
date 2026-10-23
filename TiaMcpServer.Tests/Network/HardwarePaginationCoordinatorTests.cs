@@ -132,7 +132,7 @@ public class HardwarePaginationCoordinatorTests
     }
 
     [Fact]
-    public async Task Coordinator_CursorOnlyUsesPageSizeFiftyAndInjectsCursorPathIdentityAndBinding()
+    public async Task Coordinator_CursorOnlyUsesPageSizeOneHundredAndInjectsIdentityAndBinding()
     {
         var binding = Unbound();
         HardwarePageCandidateCall? observed = null;
@@ -141,19 +141,57 @@ public class HardwarePaginationCoordinatorTests
             call =>
             {
                 observed = call;
-                return Task.FromResult(Success(call, binding, totalDevices: 0));
+                return Task.FromResult(Success(call, binding, totalDevices: 201, returnedDevices: 100));
             });
         var operation = Operation(pageSize: null);
         operation.Cursor = Cursor(binding, offset: 0);
 
         var item = await coordinator.ExecuteAsync(operation);
 
-        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
         Assert.NotNull(observed);
-        Assert.Equal(50, observed!.PageSize);
+        Assert.Equal(100, observed!.PageSize);
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        var page = CanonicalJson.Deserialize<HardwareConfigInfo>(item.Result!.Value.GetRawText());
+        Assert.Equal(100, page.Devices.Count);
         Assert.Equal("worker-session", observed.ExpectedSessionIdentity!.WorkerSessionId);
         Assert.True(binding.SameBinding(observed.RequiredHostBinding!));
         Assert.Equal(0, observed.Continuation!.Offset);
+    }
+
+    [Fact]
+    public async Task Coordinator_MixedExplicitAndDefaultPagesCoverEveryCandidateOnce()
+    {
+        var binding = Bound();
+        var names = Enumerable.Range(0, 351).Select(index => $"device-{index}").ToArray();
+        var coordinator = Coordinator(
+            binding,
+            call => Task.FromResult(Success(
+                call,
+                binding,
+                totalDevices: names.Length,
+                returnedDevices: Math.Min(call.PageSize, names.Length - (call.Continuation?.Offset ?? 0)))));
+        var counts = new List<int>();
+        var returnedNames = new List<string>();
+        string? cursor = null;
+
+        foreach (var pageSize in new int?[] { 50, null, 50, null, null })
+        {
+            var operation = Operation(pageSize);
+            operation.Cursor = cursor;
+            var item = await coordinator.ExecuteAsync(operation);
+
+            Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+            var page = CanonicalJson.Deserialize<HardwareConfigInfo>(item.Result!.Value.GetRawText());
+            counts.Add(page.Devices.Count);
+            returnedNames.AddRange(page.Devices.Select(device => device.Name));
+            Assert.NotNull(page.Pagination);
+            cursor = page.Pagination.NextCursor;
+        }
+
+        Assert.Equal(new[] { 50, 100, 50, 100, 51 }, counts);
+        Assert.Equal(names, returnedNames);
+        Assert.Equal(351, returnedNames.Distinct(StringComparer.Ordinal).Count());
+        Assert.Null(cursor);
     }
 
     [Fact]
