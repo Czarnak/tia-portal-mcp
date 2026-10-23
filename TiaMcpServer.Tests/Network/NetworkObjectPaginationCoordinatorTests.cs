@@ -225,6 +225,40 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         Assert.True(fixture.Client.BindingSnapshot.IsVerified);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("\t")]
+    [InlineData("\r\n")]
+    public async Task BlankWorkerCursor_IsProtocolErrorAndLaterItemStillRuns(string cursor)
+    {
+        var response = Page();
+        response.Payload = CanonicalJson.Serialize(new NetworkObjectListInfo
+        {
+            TotalCount = 0, ReturnedCount = 0, NextCursor = cursor,
+        });
+        response.Warnings = new() { "worker page diagnostic" };
+        using var fixture = new Fixture(response, Page());
+        var before = fixture.Client.BindingSnapshot;
+
+        var result = await NetworkReadTools.NetworkRead(fixture.Client, new[] { Operation(), Operation(id: "later") });
+
+        Assert.False(result.IsError);
+        var items = AssertCanonical(result).GetProperty("batch").GetProperty("operations");
+        Assert.Equal(2, items.GetArrayLength());
+        Assert.Equal("failed", items[0].GetProperty("status").GetString());
+        Assert.Equal(WorkerFailureCategories.ProtocolError,
+            items[0].GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(JsonValueKind.Null, items[0].GetProperty("result").ValueKind);
+        Assert.Equal("worker page diagnostic", Assert.Single(items[0].GetProperty("warnings").EnumerateArray()).GetString());
+        Assert.DoesNotContain("nextCursor", items[0].GetRawText());
+        Assert.Equal("succeeded", items[1].GetProperty("status").GetString());
+        var nextCursor = items[1].GetProperty("result").GetProperty("nextCursor").GetString();
+        Assert.Equal("worker-next", fixture.Codec.Decode(nextCursor!).WorkerCursor);
+        Assert.True(before.SameBinding(fixture.Client.BindingSnapshot));
+        Assert.Equal(2, fixture.InventoryRequests.Length);
+    }
+
     [Fact]
     public async Task OversizedIssuedCursor_IsBoundedOmission()
     {
