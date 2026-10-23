@@ -26,6 +26,13 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
+## Open: bound-project-only content tool follow-ups (C-0, 2026-10-23)
+
+- **Worker backstop.** Content reads do not yet require `ExpectedSessionIdentity` on the worker. The host gate is the only fence; make the worker refuse a content read that carries no expected identity.
+- **Tree-cursor message bug.** `ProjectTreeBrowseCoordinator` passes the failure category as the message. Fix in its own PR.
+- **Unreachable `preserveUnboundEpoch` branches.** With content tools gated on a verified binding, the unbound-epoch cursor branches can no longer be reached; remove them in C-6.
+- **`ProjectSessionBinding.TryResolveWithSnapshot` unbound-with-path branch.** Now reached only by internal status calls and test helpers; consider narrowing it.
+
 ## Open: closed tool arguments follow-ups (C-1, 2026-10-22)
 
 C-1 is done: all 19 tools reject argument-shape errors, at the root or inside items, with the
@@ -500,7 +507,17 @@ Three further follow-ups, all raised by the Phase 3 final review and deliberatel
 Phase 0 → 1.2 + 1.6 (the two false-success traps) → 2.2 (one-line concurrency guard) → rest of
 Phase 1 → 2.1 persistent worker → 2.3 payload bounds → 2.4 tool collapse → Phase 3 opportunistically
 alongside whichever files each phase already touches.
-## Session binding now protects the default case — DONE 2026-07-20 (Round 4)
+## Bound-project-only content tools - DONE 2026-10-23 (C-0)
+
+Content tools (`plc_read`, `plc_write`, `network_read`, `network_write`, `hmi_read`, `hmi_write`, `vci_read`, `vci_write`, `browse_project_tree`, `read_cross_references`, `compile_check`, `save_project` and the other lifecycle tools except `open_project`) no longer take a `projectPath`, at the root or per item. `get_project_status` and `save_project_as` lost theirs too; only `bind_project` and `open_project` keep a public `projectPath`. With no verified binding (a configured `--project` is grounded by status first) a content call returns one root `binding_conflict` with the bind-first text and never reaches the worker. A retired `projectPath` is a canonical `validation_error` with no audit record. Audit v2 `projectPath` holds the pinned binding's path. Ships as a MINOR release.
+
+- Regression evidence: gate tests `RetiredProjectPathIsRejectedCanonically` (8 batch tools, item `projectPath`), `RetiredRootProjectPathIsRejectedCanonically` and `OnlyBindAndOpenAcceptProjectPath` (root), bind-first text asserted at the MCP surface, `AuditProjectPath_IsPinnedBindingPath`, `AuditProjectPath_OnGateRejection_IsPreGateSnapshotPath`, `WriteSendsTheBoundPath`.
+- Full offline evidence @ae13b5d: stub build 0 errors, 7 existing warnings (none new); full suite 7405 passed, 0 failed, 0 skipped; line coverage 94.46% (threshold 80%).
+- Live gate 2026-10-23: installed candidate `4.1.2-local.89.gae13b5d` (built from `ae13b5d`, real V21 assemblies), disposable standalone project and one disposable local session, maintainer-authorized. All six steps passed with no defects: (1) unbound, no `--project`: `plc_read`, `network_read` `search_equipment_catalog`, `hmi_read`, `browse_project_tree`, `read_cross_references` and `vci_read` each returned one root `binding_conflict` with the bind-first text, and `get_project_status {}` reported the open project while the session stayed unbound; (2) a stale `plc_read` item `projectPath` and `close_project {projectPath}` returned canonical `validation_error`, no audit record, project stayed open; (3) after `bind_project`: `plc_read`, two `read_hardware_config` pages, a tree continuation, `read_cross_references`, `compile_check` (0 errors), `plc_write` tag-table create then delete and a `save_project` dry run all succeeded, with audit v2 `projectPath` equal to the bound path on every record; (4) `--project` startup (read-write): the first `plc_read` grounded the binding and succeeded without `bind_project`; (5) local session: after a cold-adopting `bind_project`, `plc_read` and `browse_project_tree` succeeded and the `save_project` dry-run effect named the bound session path (also on a worker-opened session); (6) after `close_project` (read-write, user-confirmed) `plc_read` returned `binding_conflict`.
+- Evidence limits: steps 1, 2 and 5 ran in `full` mode only (the binding gate and argument validation are mode-independent); steps 3, 4 and 6 covered read-write. A whole-project `list_tag_tables` on the large test project was omitted by the 60,000-character item budget (expected behaviour, not a defect).
+- Follow-ups are listed under "Open: bound-project-only content tool follow-ups (C-0, 2026-10-23)".
+
+## Session binding now protects the default case — DONE 2026-07-20 (Round 4) — superseded by C-0
 
 The chosen fix binds a session from the worker-reported active-project path after its first
 successful call; the worker report is the ground truth. For project-scoped operations, once bound, a
@@ -513,7 +530,7 @@ projectPath to use the open project, or call open_project to switch." `get_proje
 is a known exception deferred to Round 5 because its lifecycle RPC also serves guarded write-state
 probes; do not use it to switch projects. Use `open_project` for a deliberate session switch.
 
-## Read-side project-open policy — DONE 2026-07-20 (Round 4)
+## Read-side project-open policy — DONE 2026-07-20 (Round 4) — superseded by C-0
 
 Project-scoped read paths use the read-side open policy. A request targeting a project other than the
 one open in TIA Portal is refused; callers omit `projectPath` to use the active project or use
@@ -732,7 +749,7 @@ unpaged canonical request, worker method, and output remain unchanged. The publi
 stable devices followed by stable subnets, with separate arrays and exact totals. Host-process
 HMAC cursors bind filters, resolved project, bound/unbound host snapshot, worker session, candidate
 snapshot, and offset; continuation calls reuse the envelope-only worker session identity and can
-remain explicitly unbound.
+remain explicitly unbound. (Superseded by C-0: continuations now require the verified binding.)
 
 The worker enumerates the complete descriptor set before materializing a bounded window. The host
 strictly decodes that typed evidence and projects the largest complete canonical prefix at or below

@@ -43,7 +43,6 @@ These three operations never existed in the retired generic `preview_write_batch
 {
   "operationId": "create-pb-1",
   "operation": "create_subnet",
-  "projectPath": "C:\\Projects\\Fixture.ap21",
   "subnet": {
     "name": "PROFIBUS_LINE_2",
     "networkType": "Profibus",
@@ -59,7 +58,6 @@ These three operations never existed in the retired generic `preview_write_batch
 {
   "operationId": "update-pb-1",
   "operation": "update_subnet",
-  "projectPath": "C:\\Projects\\Fixture.ap21",
   "target": {
     "kind": "subnet",
     "subnetId": "590-5"
@@ -78,7 +76,6 @@ These three operations never existed in the retired generic `preview_write_batch
 {
   "operationId": "delete-pb-1",
   "operation": "delete_subnet",
-  "projectPath": "C:\\Projects\\Fixture.ap21",
   "target": {
     "kind": "subnet",
     "subnetId": "590-5"

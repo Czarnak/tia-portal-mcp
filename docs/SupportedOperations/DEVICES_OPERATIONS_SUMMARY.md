@@ -8,7 +8,7 @@
 | `network_read` | `search_equipment_catalog` | Requires `query`; accepts bounded `maxResults`; returns catalog type identifiers for candidate devices. |
 | `network_write` (guarded) | `add_network_device` | Requires an exact catalog `typeIdentifier` and `deviceName`; accepts optional `deviceItemName`. |
 | `network_write` (guarded) | `configure_network_device` | Requires `target: { deviceName, nodeId }` naming an existing node and `changes` with at least one of `ipAddress`, `subnetMask`, `pnDeviceNameAutoGeneration`, `pnDeviceName`, `subnet: { subnetId }`, and `ioSystem: { subnetId, number }`. |
-| `browse_project_tree` | `browse_project_tree` | Recursively discovers the same direct and grouped devices as flat `Device` nodes; accepts optional `projectPath`, `startSelector`, `depth`, `pageSize`, and `cursor`. |
+| `browse_project_tree` | `browse_project_tree` | Recursively discovers the same direct and grouped devices as flat `Device` nodes; accepts optional `startSelector`, `depth`, `pageSize`, and `cursor`. |
 
 `add_network_device` and `configure_network_device` are data writes. Preview with `dryRun:true`; execute with `dryRun:false` or omitted `dryRun`, without server elicitation. Exact already-open verified binding is required; no tokens, rollback or automatic replay. The catalog identifier and device name are validated before the worker performs the change.
 

@@ -145,7 +145,6 @@ connection/root-count evidence follow the current declared contract.
     {
       "operationId": "hardware-page",
       "operation": "read_hardware_config",
-      "projectPath": "C:\\Sandbox\\Line.ap21",
       "deviceName": "PLC_1",          // optional, cursor-bound
       "plcName": "PLC_1",             // optional, cursor-bound
       "includeIoDetails": true,        // optional, cursor-bound
@@ -179,11 +178,10 @@ Paged results add:
 }
 ```
 
-`nextCursor` is nullable and is omitted at the terminal page. Keep `projectPath`, `deviceName`,
+`nextCursor` is nullable and is omitted at the terminal page. Keep `deviceName`,
 `plcName`, `includeIoDetails`, and `includeTagMatches` unchanged for a continuation. `pageSize` is
-not query identity and may change within `1..200`. A continuation may omit `projectPath`; the host
-then uses the cursor's resolved path. Repeating it is allowed only when it resolves to the same
-path. Explicit-project paging does not bind an otherwise unbound host.
+not query identity and may change within `1..200`. A continuation sends only the cursor and the host uses its resolved path; it requires the
+same verified binding and otherwise fails with `cursor_binding_mismatch`. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
 
 Cursors are authenticated with a host-process-lifetime key and intentionally stop working after a
 host restart. They also bind the resolved project, bound/unbound host snapshot, observed worker
@@ -226,7 +224,6 @@ sees no optional I/O-map expansion; Network no longer uses safety-token state ha
     {
       "operationId": "io-map",
       "operation": "read_hardware_config",
-      "projectPath": "C:\\Sandbox\\Line.ap21",
       "deviceName": "ET 200SP station_1",   // optional: ordinal-ignore-case, exactly one match
       "plcName": "PLC_1",                   // optional: exact ordinal PLC name for tag matching
       "includeIoDetails": true,             // required for any I/O map output
@@ -536,7 +533,6 @@ A PC station (`PC_1`) with two ports — one PLC-facing (`nodeId: "node-plc"`), 
     {
       "operationId": "configure",
       "operation": "configure_network_device",
-      "projectPath": "C:\\Sandbox\\Line.ap21",
       "target": { "deviceName": "PC_1", "nodeId": "node-plc" },
       "changes": { "ipAddress": "192.168.0.99" }
     }

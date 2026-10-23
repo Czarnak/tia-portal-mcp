@@ -4,9 +4,9 @@
 
 | Entry point | Operation | Inputs and behavior |
 |---|---|---|
-| `get_project_status` | `get_project_status` | Optional `projectPath` assertion; reads status and metadata without opening, binding, or switching in any mode. |
-| `browse_project_tree` | `browse_project_tree` | v3: optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`; use `cursor` to continue an immutable snapshot. |
-| `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, and `blockPath`; compiles the selected scope and returns compiler messages. Available in read-write and full modes. |
+| `get_project_status` | `get_project_status` | No arguments; reads status and metadata without opening, binding, or switching in any mode. |
+| `browse_project_tree` | `browse_project_tree` | v3: typed `startSelector`, `depth`, and `pageSize`; use `cursor` to continue an immutable snapshot. |
+| `compile_check` | `compile_check` | Optional `plcName` and `blockPath`; compiles the selected scope and returns compiler messages. Available in read-write and full modes. |
 
 ### Explicit binding (`bind_project`)
 
@@ -101,7 +101,6 @@ The initial-request fields are:
 
 | Field | Behavior |
 | --- | --- |
-| `projectPath` | Optional project assertion. In read-only mode it must identify the project already open in TIA Portal; it never opens or switches a project. |
 | `startSelector` | Optional root-to-target array of `{ nodeType, name }` segments. `nodeType` is case-sensitive and drawn from the closed v3 vocabulary; `name` is an exact ordinal-ignore-case match among direct children. Zero or multiple matches fail closed. |
 | `depth` | Optional maximum returned depth from the selected root, inclusive; minimum `1`. |
 | `pageSize` | Optional requested node count from `1` through `200`; default `100`. Canonical size projection may return fewer complete nodes. |
@@ -112,14 +111,13 @@ The initial-request fields are:
 The v2 request was:
 
 ```json
-{ "projectPath": null, "depth": 2, "startPath": "PLC_1" }
+{ "depth": 2, "startPath": "PLC_1" }
 ```
 
 The v3 request is:
 
 ```json
 {
-  "projectPath": null,
   "depth": 2,
   "startSelector": [
     { "nodeType": "Device", "name": "PLC_1" }
@@ -276,10 +274,10 @@ switch or open; use `bind_project` for already-open projects and open/create for
 |---|---|---|
 | `open_project` | Opens a standalone project or existing local session and binds its verified engineering identity. | Absolute `.ap21` or existing file-only `.als21` `projectPath`; optional `forceRebind`. |
 | `create_project` | Creates a project and binds the session to it. | Absolute `projectDirectory`, `projectName`; optional `author`, `comment`. |
-| `save_project` | Saves the active project. | Optional `projectPath`. |
-| `save_project_as` | Saves a copy and rebinds the session to the copy. | `targetDirectory`, `targetName`; optional source `projectPath`; `rebind` must remain `true`. |
-| `archive_project` | Archives a project. | `archiveDirectory`, `archiveName`; optional `mode`, `saveBeforeArchive`, `projectPath`. |
-| `close_project` | Closes the project and clears the session binding. | Optional `projectPath`, `saveBeforeClose`. |
+| `save_project` | Saves the active project. | No arguments (acts on the bound project). |
+| `save_project_as` | Saves a copy and rebinds the session to the copy. | `targetDirectory`, `targetName`; `rebind` must remain `true`. |
+| `archive_project` | Archives a project. | `archiveDirectory`, `archiveName`; optional `mode`, `saveBeforeArchive`. |
+| `close_project` | Closes the project and clears the session binding. | Optional `saveBeforeClose`. |
 
 Supported archive modes are `None`, `DiscardRestorableData`, `Compressed`, and `DiscardRestorableDataAndCompressed`. Lifecycle tools are single-tool operations and cannot be included in a batch.
 
@@ -289,7 +287,7 @@ Lifecycle root arguments are strict. An unknown, missing, mistyped or retired ar
 rejected before the tool runs with the tool's canonical document (`validation_error`,
 `isError:true`) and no audit record. JSON `null` is rejected for non-nullable boolean arguments
 (`dryRun`, `saveBeforeClose`, `forceRebind`, `rebind`, `saveBeforeArchive`); omit the argument
-instead. Optional string arguments such as `projectPath` accept `null`. Non-nullable string
+instead. A retired argument such as a lifecycle `projectPath` (other than on `open_project`) is rejected the same way, with no worker request. Non-nullable string
 arguments still accept `null`; see the improvement log.
 
 ### Single-call writes and dry runs
@@ -304,7 +302,7 @@ A later call resolves fresh state and guards; the preview provides no continuing
 For example, inspect opening a disposable project with:
 
 ```json
-{"projectPath":"C:\\Projects\\Sandbox\\Line.ap21","dryRun":true}
+{"dryRun":true}
 ```
 
 Apply with the same operation inputs and `dryRun:false` (or omit `dryRun`). Effects name the exact
@@ -440,7 +438,7 @@ tool, including a dry run. Server elicitation asks once per actual read-write li
 - `save_project_as` requires rebinding because Siemens `SaveAs` switches the active project to the copy.
 - Archive output is rejected when the archive directory is inside the project folder.
 - After a timeout or worker crash, inspect the current project state before deciding whether another call is safe; the server does not automatically retry lifecycle writes.
-- `get_project_status(projectPath)` is non-binding and never switches. Use `bind_project` to select an already-open project, or `open_project` to open one deliberately.
+- `get_project_status` takes no arguments, is non-binding and never switches. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` to select an already-open project, or `open_project` to open one deliberately.
 
 ## Current limits
 

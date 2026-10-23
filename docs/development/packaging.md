@@ -41,7 +41,7 @@ this request targets 'B'. This operation does not switch projects implicitly. Ca
 the intended projectPath and forceRebind=true to select an already-open project. You can call
 open_project to switch.` Read-only instead ends with `Open the intended project in TIA Portal
 before retrying.`
-`get_project_status(projectPath)` is read-only and non-binding: do not use it to switch projects.
+`get_project_status` takes no arguments and is read-only and non-binding: do not use it to switch projects. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
 Reattachment may show TIA's human-answerable Openness access dialog; worker ownership does not
 survive detach. Project-tree cursors reject any binding change, including switching away and back.
 

@@ -1,6 +1,6 @@
 # Project overview
 
-MCP server for Siemens TIA Portal V21. Exposes 8 tools in read-only, 19 in read-write (startup default), and the same 19 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled.
+MCP server for Siemens TIA Portal V21. Exposes 8 tools in read-only, 19 in read-write (startup default), and the same 19 in full mode. Read-write permits in-project edits, compile, and lifecycle with one confirmation prompt per actual lifecycle call. Full runs lifecycle without server elicitation and adds no tools or operations; PLC run/stop was removed. The installer defaults to read-only. Windows-only, requires TIA Portal V21 with Openness enabled. Content tools (reads, writes, `compile_check`, `save_project`) act only on the bound project and fail closed with `binding_conflict` when unbound; only `bind_project` and `open_project` accept a public `projectPath`, and `get_project_status` takes no arguments.
 
 ## Two-process architecture (critical to understand)
 
@@ -98,7 +98,7 @@ Access tiers are capability presets in the shared `OperationPolicyCatalog`, enfo
 host dispatch before worker activity, and worker dispatch before Siemens calls. Unknown operations
 are denied in every mode. `SessionSelection` is permitted in every mode: `bind_project` adopts or
 switches to an already-open project without opening, creating, saving or closing. Ordinary reads
-never bind or switch. Only `open_project` and `create_project` open a project; there are no implicit
+never bind or switch. Content tools take no `projectPath`: with no verified binding (a configured `--project` is grounded by status first) they return `binding_conflict` and the caller must `bind_project` first; a retired `projectPath` is a canonical `validation_error`. Only `open_project` and `create_project` open a project; there are no implicit
 opens. Worker ownership does not survive detach. Read-only never opens, creates, saves or closes.
 Lifecycle confirmation follows access mode. `plc_write`, `network_write`, `hmi_write` and `vci_write` use guarded writes with no server elicitation; no tool uses safety tokens.
 

@@ -52,7 +52,7 @@ C-1 touches the most shared files: C-7's four read tools, and the `PlcGuardedWri
 
 ### Decisions still open (later waves)
 
-- **C-0:** resolved by the maintainer on 2026-10-22; see the [C-0 plan](2026-10-22-c0-bound-project-content-tools.md).
+- **C-0:** RESOLVED and implemented (decisions by the maintainer on 2026-10-22, live gate passed 2026-10-23); see the [C-0 plan](2026-10-22-c0-bound-project-content-tools.md).
   - `projectPath` is removed from `get_project_status` and from `save_project_as`'s source assertion.
   - An unbound batch read returns one call-level root error.
   - "Bind first" uses `binding_conflict`.
