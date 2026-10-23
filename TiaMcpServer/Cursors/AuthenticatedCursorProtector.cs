@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 
 namespace TiaMcpServer.Cursors;
@@ -173,6 +174,56 @@ internal sealed class AuthenticatedCursorProtector : IDisposable
         {
             throw new AuthenticatedCursorException();
         }
+    }
+
+    /// <exception cref="CursorException">Null, invalid or oversized state: invalid_cursor; size data is the inner exception.</exception>
+    internal string Seal<TState>(CursorKind kind, TState state, Func<TState, bool> isValid)
+        where TState : class
+    {
+        ArgumentNullException.ThrowIfNull(kind);
+        ArgumentNullException.ThrowIfNull(isValid);
+        if (state is null || !isValid(state))
+        {
+            throw new CursorException(WorkerFailureCategories.InvalidCursor, kind.InvalidMessage);
+        }
+
+        try
+        {
+            return Protect(kind.Purpose, state);
+        }
+        catch (AuthenticatedCursorSizeException size)
+        {
+            throw new CursorException(WorkerFailureCategories.InvalidCursor, kind.InvalidMessage, size);
+        }
+    }
+
+    /// <exception cref="CursorException">Other process: the kind's foreign-process category; anything else: invalid_cursor.</exception>
+    internal TState Open<TState>(CursorKind kind, string cursor, Func<TState, bool> isValid)
+        where TState : class
+    {
+        ArgumentNullException.ThrowIfNull(kind);
+        ArgumentNullException.ThrowIfNull(isValid);
+        AuthenticatedCursorResult<TState> result;
+        try
+        {
+            result = Unprotect<TState>(kind.Purpose, cursor);
+        }
+        catch (Exception exception) when (exception is AuthenticatedCursorException or JsonException)
+        {
+            throw new CursorException(WorkerFailureCategories.InvalidCursor, kind.InvalidMessage);
+        }
+
+        if (result.Status == AuthenticatedCursorStatus.ForeignProcess)
+        {
+            throw new CursorException(kind.ForeignProcessCategory, kind.InvalidMessage);
+        }
+
+        if (result.State is null || !isValid(result.State))
+        {
+            throw new CursorException(WorkerFailureCategories.InvalidCursor, kind.InvalidMessage);
+        }
+
+        return result.State;
     }
 
     public void Dispose()

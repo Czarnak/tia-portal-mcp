@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using Xunit;
 
@@ -177,6 +178,83 @@ public class AuthenticatedCursorProtectorTests
         Assert.Equal(TestKey, callerKey);
         Assert.Throws<ObjectDisposedException>(() => protector.Protect(Purpose, new TestState("value")));
         Assert.Throws<ObjectDisposedException>(() => protector.Unprotect<TestState>(Purpose, cursor));
+    }
+
+    private static readonly CursorKind TestKind = new(
+        Purpose,
+        "The supplied test cursor is invalid.",
+        WorkerFailureCategories.SnapshotUnavailable);
+
+    private static bool IsValidTestState(TestState state) => state.Value != "invalid";
+
+    [Fact]
+    public void SealOpen_RoundTripsAValidState()
+    {
+        using var protector = new AuthenticatedCursorProtector(TestKey, ProcessInstanceId);
+        var state = new TestState("value");
+
+        var cursor = protector.Seal(TestKind, state, IsValidTestState);
+
+        Assert.Equal(state, protector.Open<TestState>(TestKind, cursor, IsValidTestState));
+    }
+
+    [Fact]
+    public void Open_ForeignProcess_UsesTheKindsCategoryAndMessage()
+    {
+        using var issuer = new AuthenticatedCursorProtector(TestKey, "process-b");
+        using var reader = new AuthenticatedCursorProtector(TestKey, ProcessInstanceId);
+        var cursor = issuer.Seal(TestKind, new TestState("value"), IsValidTestState);
+
+        var exception = Assert.Throws<CursorException>(() =>
+            reader.Open<TestState>(TestKind, cursor, IsValidTestState));
+
+        Assert.Equal(WorkerFailureCategories.SnapshotUnavailable, exception.Category);
+        Assert.Equal(TestKind.InvalidMessage, exception.Message);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Open_TamperedOrInvalidState_IsInvalidCursor(bool tamper)
+    {
+        using var protector = new AuthenticatedCursorProtector(TestKey, ProcessInstanceId);
+        var cursor = protector.Seal(TestKind, new TestState("value"), IsValidTestState);
+        var parts = cursor.Split('.');
+        var supplied = tamper ? $"{ChangeByte(parts[0])}.{parts[1]}" : cursor;
+        Func<TestState, bool> isValid = tamper ? IsValidTestState : _ => false;
+
+        var exception = Assert.Throws<CursorException>(() =>
+            protector.Open(TestKind, supplied, isValid));
+
+        Assert.Equal(WorkerFailureCategories.InvalidCursor, exception.Category);
+        Assert.Equal(TestKind.InvalidMessage, exception.Message);
+    }
+
+    [Fact]
+    public void Seal_InvalidState_IsInvalidCursorWithKindMessage()
+    {
+        using var protector = new AuthenticatedCursorProtector(TestKey, ProcessInstanceId);
+
+        var exception = Assert.Throws<CursorException>(() =>
+            protector.Seal(TestKind, new TestState("invalid"), IsValidTestState));
+
+        Assert.Equal(WorkerFailureCategories.InvalidCursor, exception.Category);
+        Assert.Equal(TestKind.InvalidMessage, exception.Message);
+    }
+
+    [Fact]
+    public void Seal_Oversized_KeepsSizeDataAsInnerException()
+    {
+        using var protector = new AuthenticatedCursorProtector(TestKey, ProcessInstanceId);
+        var (state, _) = BoundaryCursor(4098);
+
+        var exception = Assert.Throws<CursorException>(() =>
+            protector.Seal(TestKind, state, IsValidTestState));
+
+        Assert.Equal(WorkerFailureCategories.InvalidCursor, exception.Category);
+        var size = Assert.IsType<AuthenticatedCursorSizeException>(exception.InnerException);
+        Assert.Equal(4096, size.LimitChars);
+        Assert.True(size.CursorChars > 4096);
     }
 
     public static IEnumerable<object[]> NonCanonicalEnvelopes()
