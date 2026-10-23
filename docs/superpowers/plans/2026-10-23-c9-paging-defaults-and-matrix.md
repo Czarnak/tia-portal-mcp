@@ -195,3 +195,15 @@ finally {
 ## Completion boundary
 
 The PR is ready for the approved integration/release workflow only after C-5 is merged, C-9 is rebased and qualified on that combined state, Task 3 is committed, and the final diff is clean. Report offline versus scoped live evidence separately. Pushing, opening/merging a PR, publishing a package or running live TIA requires the authorization applicable at execution time.
+
+## Source execution checkpoint (2026-10-23)
+
+Tasks 1-2 are implemented on `fix/c9-paging-defaults` at source candidate `00d7f36890e4df1b534a6238c833747bc884cd53`, from common base `5b5f4c1`. This is focused offline evidence, not the final combined qualification or Task 3 completion.
+
+- Commits: `5fdf22c` changes the three hardware defaults, `8c9d199` corrects one test-only nullable-name warning, and `00d7f36` changes the network-object default.
+- Hardware: baseline 112 passed; runtime RED 5 failed / 84 passed; focused GREEN 118 passed, zero failures/skips. The decoder's 100-success and 50-rejection failures were both observed before the default changes; explicit-50 and 101-rejection controls stayed green.
+- Network objects: baseline 116 passed; runtime RED 4 failed / 10 passed; focused GREEN 120 passed, zero failures/skips. Initial/continuation defaults and both mixed-size sequences are pinned independently of production constants.
+- The combined focused gate passed 238 tests. Full-log comparison found exactly the seven unchanged baseline warnings after the nullable test correction; `git diff --check` passed. Task helpers also reran the 118- and 120-test filters successfully. Logs and the per-task ledger are under ignored `.superpowers/sdd/2026-10-23-c9-paging-defaults-and-matrix/`.
+- An independent read-only source review of `5b5f4c1..00d7f36` found no Critical, Important or Minor findings and checked all five Review Focus rows. It explicitly did not establish post-rebase C-5 interaction or live Siemens behavior/performance.
+- Ruling: defer the full suite to the required rebased combined gate; focused source evidence cannot replace it. Use bounded native source navigation because this worktree has no jCodemunch index.
+- Still pending: C-5 merge, C-9 rebase/combined build/full suite/coverage, integration review and Task 3's final matrix/evidence. No live TIA, installation or remote write was performed.
