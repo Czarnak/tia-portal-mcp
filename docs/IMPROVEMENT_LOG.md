@@ -26,13 +26,6 @@ well-designed. The three biggest problems, in order of impact:
 
 ---
 
-## Open: installed network-object cursor smoke (C-5, 2026-10-23)
-
-Host-authenticated cursors are implemented and offline-qualified at `db2947b`. The installed
-candidate's read-only round-trip/tamper/same-owner reverify smoke still needs exact-target
-maintainer authorization. No live result is claimed. C-9's combined gate and final paging matrix
-remain behind C-5's acceptance/merge order; see the [wave-4 plans](superpowers/plans/2026-10-21-workstream-c-plan.md#wave-4-plans-and-execution-maintainer-2026-10-23).
-
 ## Open: shared batch rules follow-ups (C-2, 2026-10-23)
 
 - **Operation names are echoed with no length limit.** The unknown-operation and wrong-category
@@ -1386,7 +1379,7 @@ Content tools (`plc_read`, `plc_write`, `network_read`, `network_write`, `hmi_re
 - Evidence limits: steps 1, 2 and 5 ran in `full` mode only (the binding gate and argument validation are mode-independent); steps 3, 4 and 6 covered read-write. A whole-project `list_tag_tables` on the large test project was omitted by the 60,000-character item budget (expected behaviour, not a defect).
 - Follow-ups are listed under "Open: bound-project-only content tool follow-ups (C-0, 2026-10-23)".
 
-## Host-authenticated network-object cursors - IMPLEMENTED OFFLINE 2026-10-23 (C-5)
+## Host-authenticated network-object cursors - SCOPED LIVE PASS 2026-10-23 (C-5)
 
 `list_network_objects` public continuations now authenticate the existing worker token together
 with the exact host binding and complete worker identity, using the shared cursor protector.
@@ -1401,6 +1394,22 @@ full suite passed 7,531 tests with zero failures/skips. Line coverage was 94.99%
 including 100% of the new codec/coordinator. Independent review's one Important malformed-worker
 cursor finding was reproduced in four public cases and fixed at the shared payload boundary;
 later reads and warnings are preserved. The unchanged dependency graph's five-project audit
-reported no known vulnerabilities. Live acceptance is still open above; offline results do not
-establish native Siemens behavior. Full evidence and rulings are in the
+reported no known vulnerabilities. Offline evidence and rulings are in the
 [C-5 implementation record](superpowers/plans/2026-10-23-c5-sealed-network-object-cursors.md#offline-execution-record-2026-10-23).
+
+The authorized installed-candidate smoke passed on `4.1.2-local.110.g5647477` (candidate head
+`5647477`, production source `db2947b`) in `full` mode against standalone Fixture A. All 56
+installed runtime files matched the verified package by SHA-256. With explicit `pageSize:1`,
+seven Network read operations produced six successes and one expected tampered-cursor `invalid_cursor`,
+with no omissions or skips. Valid continuation immediately after rejection succeeded in the
+same batch; same-owner reverify retained the binding epoch and original cursor usability;
+a fresh two-page sequence succeeded. All nine canonical text documents exactly matched JSON
+serialization of their structured content. Final project state and AP21 hash were unchanged, with the same
+Portal/host/worker processes. No project mutation or restoration was needed.
+
+The [scoped live report](superpowers/acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md)
+retains the initial bind advisory and unexecuted limits: changed epochs, concurrency and
+worker/transport faults, foreign-process and oversized cursors, malformed-worker injection,
+native filter/snapshot/range faults, other modes and local sessions. C-5 still merges before
+C-9; C-9's rebased combined gate and final paging matrix remain pending. No unchanged .NET
+suite was repeated for this documentation-only follow-up.

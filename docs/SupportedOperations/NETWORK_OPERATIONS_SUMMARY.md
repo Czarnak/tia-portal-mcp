@@ -130,6 +130,11 @@ path and start again, or narrow the request until its result fits one terminal p
 
 The public request/result schemas and Network `contractVersion:"1.0"` are unchanged.
 
+The [2026-10-23 scoped installed-candidate smoke](../superpowers/acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md)
+passed initial/continued paging, tamper rejection, same-owner reverify and a fresh sequence in
+`full` mode on one standalone fixture with `pageSize:1`. The report retains unexecuted fault,
+mode and local-session cases; C-9's default changes and combined qualification are separate.
+
 ### Selector shapes
 
 | Kind | Required selector identity | Additional verification evidence |

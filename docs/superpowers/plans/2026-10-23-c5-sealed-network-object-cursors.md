@@ -124,9 +124,9 @@ The maintainer then separately authorizes an installed-candidate, read-only smok
 
 **Interfaces:** consume the exact offline/review/live evidence above. C-9 owns the cross-domain matrix and default wording; coordinate shared document sections without rewriting its changes.
 
-- [ ] **Step 1: Document public host authentication, retained internal worker continuation, worker/binding identity, foreign-process `invalid_cursor`, stale `cursor_binding_mismatch`, restart-from-first-page migration, issuance-size omission and preserved transport-loss recovery.** Record no schema or `contractVersion` bump and no default change in C-5.
-- [ ] **Step 2: Record exact qualified HEAD and bounded evidence under C-5 and in the improvement log.** Preserve failed/unexecuted cases; do not mark a live gate passed without observed evidence or a maintainer's explicit scoped acceptance.
-- [ ] **Step 3: Run `git diff --check`, verify changed Markdown links/anchors and review `git diff --stat`.** Documentation-only edits need no repeat of the unchanged .NET suite. Commit `docs: record C-5 cursor evidence`.
+- [x] **Step 1: Document public host authentication, retained internal worker continuation, worker/binding identity, foreign-process `invalid_cursor`, stale `cursor_binding_mismatch`, restart-from-first-page migration, issuance-size omission and preserved transport-loss recovery.** Record no schema or `contractVersion` bump and no default change in C-5.
+- [x] **Step 2: Record exact qualified HEAD and bounded evidence under C-5 and in the improvement log.** Preserve failed/unexecuted cases; do not mark a live gate passed without observed evidence or a maintainer's explicit scoped acceptance.
+- [x] **Step 3: Run `git diff --check`, verify changed Markdown links/anchors and review `git diff --stat`.** Documentation-only edits need no repeat of the unchanged .NET suite. Commit `docs: record C-5 cursor evidence`.
 
 **Handoff:** no push/merge without approval. Merge C-5 before C-9, then give C-9 the merged SHA and the exact cursor/recovery contract for its rebase and combined qualification. Both lane implementations may proceed before this handoff; only integration and final merge order depend on it.
 
@@ -152,7 +152,30 @@ Rulings and scope limits:
 4. Documentation is committed now as an offline implementation record with the live gate visibly pending, honoring the explicit request to commit docs. This does not mark Task 3's live-dependent acceptance complete or waive the gate.
 5. Existing worker hash/order algorithms, local-context coherence checks and item-boundary cancellation semantics are preserved. The two-call FakeWorker scenario is bounded evidence, not a complete inventory simulator. Full native/installed behavior and performance are not established by offline tests.
 
-Remaining gates: prepare the local acceptance package, obtain separate installation/exact-target
-authorization, run the scoped read-only smoke, record actual evidence, and obtain remote-write
-approval before publishing/merging C-5. Then rebase/qualify C-9 and finalize its matrix. No
-installation, live TIA operation, push, PR creation or merge was performed during this implementation.
+At this offline checkpoint, remaining gates were package preparation, separate installation/exact-target
+authorization, the scoped read-only smoke, actual evidence, and remote-write approval before
+publishing/merging C-5. No installation, live TIA operation, push, PR creation or merge was performed
+during that offline phase. The following record supersedes the pending package/live status.
+
+## Installed-candidate live execution record (2026-10-23)
+
+The maintainer installed `4.1.2-local.110.g5647477` and identified the exact already-open disposable
+standalone target in response to the pending authorization request. The scoped read-only gate
+**passed** on that installed candidate in `full` mode. Source remains `db2947b`; package HEAD
+`5647477` adds documentation only. All 56 installed runtime files matched the verified real-reference
+package by SHA-256.
+
+- Explicit `pageSize:1`, `objectKinds:["deviceItem"]`: first page and continuation succeeded, with one item per page and total 1,087. Public cursor purpose was `network-object-page` with the complete host/worker tuple around the retained internal token.
+- An interior-character tamper returned per-item `invalid_cursor`, null result and no omission. A valid continuation immediately afterward succeeded in the same batch, preserving the original second item.
+- Same-owner binding with `forceRebind:true` returned `unchanged`. Exact host binding tuple/revision 1, worker session identity and process issuer stayed equal. The original cursor remained usable; fresh first/second pages also succeeded and matched the original sequence.
+- All nine text documents exactly matched JSON serialization of `structuredContent`. Seven Network operations yielded six successes and one expected rejection, zero omitted/skipped. Only initial binding carried the generic access-dialog advisory; all subsequent warnings were empty.
+- Final status retained the same path, open state, `isModified:false`, last-modified time and size. AP21 SHA-256 and Portal/host/worker PID plus creation time were unchanged. No project mutation, lifecycle operation, compile, online operation or restoration occurred.
+
+The [scoped report](../acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md)
+retains provenance, checks and unexecuted limits. De-identified receipts are in ignored
+`TestResults/c5-live-20261023/verification-manifest.json`; no real target name/path/selector or raw
+cursor is stored there. No .NET suite rerun was needed for these documentation-only edits.
+
+Remaining gates: approval for remote publication/integration of C-5, then C-9's rebase, serialized
+combined qualification and final matrix. No push, PR creation or merge occurred in this gate;
+C-5-before-C-9 integration order is unchanged.
