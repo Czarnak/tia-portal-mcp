@@ -76,7 +76,7 @@ internal sealed class PlcGuardedWriteFixture : IDisposable
         return item.Result!.Value.GetProperty("contentHash").GetString()!;
     }
 
-    public async Task<string> InventoryAsync() => (await Client.ListTagTablesAsync(null, _path)).Payload;
+    public async Task<string> InventoryAsync() => (await Client.ListTagTablesAsync(plcName: null)).Payload;
 
     public void Dispose() => Client.Dispose();
 
