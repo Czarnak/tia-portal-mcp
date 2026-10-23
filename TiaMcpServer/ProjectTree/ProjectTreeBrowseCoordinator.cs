@@ -146,7 +146,7 @@ public sealed class ProjectTreeBrowseCoordinator
         int pageSize)
     {
         var state = _cursorCodec.Decode(request.Cursor!);
-        if (!state.HostBinding.Matches(_captureBinding(), preserveUnboundEpoch: true))
+        if (!state.HostBinding.Matches(_captureBinding()))
         {
             return Failure(
                 WorkerFailureCategories.CursorBindingMismatch,

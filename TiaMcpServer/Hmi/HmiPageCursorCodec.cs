@@ -98,7 +98,7 @@ public sealed class HmiPageCursorCodec
             || !ProjectTreeCursorCodec.IsValidQueryHash(state.QueryHash)
             || state.Offset < 0
             || state.HostBinding is null
-            || !ProjectTreeCursorCodec.IsValidHostBinding(state.HostBinding))
+            || !state.HostBinding.IsValid())
         {
             throw new JsonException("hmi_read cursor payload values are invalid.");
         }

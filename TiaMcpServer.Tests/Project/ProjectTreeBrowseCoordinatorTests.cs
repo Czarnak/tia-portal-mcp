@@ -295,7 +295,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var outOfRange = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            Offset: 999, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
+            Offset: 999, ProjectBindingCursorState.FromSnapshot(Unbound())));
 
         var mismatch = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
             Depth: 3,
@@ -314,7 +314,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var syntheticOneCursor = fixture.Codec.Encode(new ProjectTreeCursorState(
             oneResult.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(oneResult.Query),
-            Offset: 0, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
+            Offset: 0, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: syntheticOneCursor)),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -343,7 +343,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var foreign = Codec(0x80).Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            1, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
+            1, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: foreign)),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -351,7 +351,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var mismatched = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             new string('a', 64),
-            1, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
+            1, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: mismatched)),
             WorkerFailureCategories.CursorFilterMismatch);
@@ -359,7 +359,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var outOfRange = fixture.Codec.Encode(new ProjectTreeCursorState(
             result.Snapshot.SnapshotId,
             ProjectTreeBrowseRequest.CreateQueryHash(result.Query),
-            99, ProjectBindingCursorState.FromSnapshot(Unbound(), preserveUnboundEpoch: true)));
+            99, ProjectBindingCursorState.FromSnapshot(Unbound())));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: outOfRange)),
             WorkerFailureCategories.CursorOutOfRange);

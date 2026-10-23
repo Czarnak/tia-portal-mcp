@@ -63,7 +63,7 @@ public static class HmiWorkerInvoker
                 "The cursor was issued for a different operation or filters; repeat the original filters or restart without a cursor.");
         }
 
-        if (!state.HostBinding.Matches(client.BindingSnapshot, preserveUnboundEpoch: true))
+        if (!state.HostBinding.Matches(client.BindingSnapshot))
         {
             return WorkerCallResult.Fail(WorkerFailureCategories.CursorBindingMismatch,
                 "The project binding changed since the cursor was issued; restart without a cursor.");

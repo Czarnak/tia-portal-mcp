@@ -91,25 +91,9 @@ internal sealed class ProjectTreeCursorCodec
             || !IsValidQueryHash(state.QueryHash)
             || state.Offset < 0
             || state.HostBinding is null
-            || !IsValidHostBinding(state.HostBinding))
+            || !state.HostBinding.IsValid())
         {
             throw new JsonException("Project-tree cursor payload values are invalid.");
         }
-    }
-
-    internal static bool IsValidHostBinding(ProjectBindingCursorState binding)
-    {
-        if (!binding.IsBound)
-        {
-            return !string.IsNullOrWhiteSpace(binding.BindingId)
-                && binding.Revision is >= 0
-                && binding.NormalizedProjectPath is null;
-        }
-
-        var path = ProjectPathNormalization.Canonicalize(binding.NormalizedProjectPath);
-        return !string.IsNullOrWhiteSpace(binding.BindingId)
-            && binding.Revision is >= 0
-            && path is not null
-            && string.Equals(binding.NormalizedProjectPath, path, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -71,7 +71,7 @@ internal sealed class HardwarePageCursorCodec
             || state.SessionIdentity.PortalProcessId <= 0
             || !SameProject(state.SessionIdentity.ProjectPath, state.ResolvedProjectPath)
             || state.HostBinding is null
-            || !IsValidHostBinding(state.HostBinding)
+            || !state.HostBinding.IsValid()
             || (state.HostBinding.IsBound
                 && !SameProject(state.HostBinding.NormalizedProjectPath, state.ResolvedProjectPath))
             || !LowercaseSha256.IsMatch(state.QueryHash ?? string.Empty)
@@ -81,22 +81,6 @@ internal sealed class HardwarePageCursorCodec
         {
             throw new JsonException("Cursor payload values are invalid.");
         }
-    }
-
-    private static bool IsValidHostBinding(ProjectBindingCursorState binding)
-    {
-        if (!binding.IsBound)
-        {
-            return binding.BindingId is null
-                && binding.Revision is null
-                && binding.NormalizedProjectPath is null;
-        }
-
-        var normalizedPath = ProjectPathNormalization.Canonicalize(binding.NormalizedProjectPath);
-        return !string.IsNullOrWhiteSpace(binding.BindingId)
-            && binding.Revision is >= 0
-            && normalizedPath is not null
-            && string.Equals(binding.NormalizedProjectPath, normalizedPath, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool SameProject(string? first, string? second)
