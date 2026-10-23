@@ -134,13 +134,4 @@ internal static class HardwarePageCursorValidator
             ? null
             : WorkerFailureCategories.CursorBindingMismatch;
     }
-
-    private static bool SameProject(string? first, string? second)
-    {
-        var normalizedFirst = ProjectPathNormalization.Canonicalize(first);
-        var normalizedSecond = ProjectPathNormalization.Canonicalize(second);
-        return normalizedFirst is not null
-            && normalizedSecond is not null
-            && string.Equals(normalizedFirst, normalizedSecond, StringComparison.OrdinalIgnoreCase);
-    }
 }
