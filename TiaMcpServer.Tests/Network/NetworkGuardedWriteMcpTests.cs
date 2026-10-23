@@ -60,7 +60,7 @@ public sealed class NetworkGuardedWriteMcpTests
             "network-guarded");
         var before = requests.Methods();
         Assert.Contains("hello", before);
-        Assert.Contains("read_hardware_config", before);
+        Assert.Contains("get_project_status", before);
         var args = Arguments();
         args[key] = JsonSerializer.Deserialize<JsonElement>(json);
         var reply = await harness.Client.CallToolAsync("network_write", args);

@@ -130,23 +130,8 @@ internal static class HardwarePageCursorValidator
             return WorkerFailureCategories.CursorFilterMismatch;
         }
 
-        if (request.ProjectPath is not null
-            && !SameProject(request.ProjectPath, state.ResolvedProjectPath))
-        {
-            return WorkerFailureCategories.CursorBindingMismatch;
-        }
-
         return state.HostBinding.Matches(currentBinding)
             ? null
             : WorkerFailureCategories.CursorBindingMismatch;
-    }
-
-    private static bool SameProject(string? first, string? second)
-    {
-        var normalizedFirst = ProjectPathNormalization.Canonicalize(first);
-        var normalizedSecond = ProjectPathNormalization.Canonicalize(second);
-        return normalizedFirst is not null
-            && normalizedSecond is not null
-            && string.Equals(normalizedFirst, normalizedSecond, StringComparison.OrdinalIgnoreCase);
     }
 }

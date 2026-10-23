@@ -135,8 +135,6 @@ public sealed class VciWriteCatalogTests : IDisposable
         var items = Enumerable.Range(0, 50).Select(i => { var r = Item(); r.OperationId = i.ToString(); return r; }).ToList();
         Assert.True(VciWriteCatalog.ValidateWrite(items).IsValid);
         items.Add(Item()); Assert.False(VciWriteCatalog.ValidateWrite(items).IsValid);
-        items = [Item(), Item()]; items[1].OperationId = "b"; items[0].ProjectPath = "A"; items[1].ProjectPath = "B";
-        Assert.False(VciWriteCatalog.ValidateWrite(items).IsValid);
         Assert.Single(VciWriteCatalog.ValidateAccessMode([Item()], McpAccessMode.ReadOnly));
         Assert.Empty(VciWriteCatalog.ValidateAccessMode([Item()], McpAccessMode.ReadWrite));
         Assert.Empty(VciWriteCatalog.ValidateAccessMode([Item()], McpAccessMode.Full));

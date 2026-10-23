@@ -32,8 +32,8 @@ In the Inspector UI:
 
 - Open the Tools tab.
 - Click `List Tools` and verify 19 tools in read-write/full or 8 in read-only. Full adds no tools; lifecycle works in both writable modes.
-- Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open.
-- Start with the standalone `get_project_status` and `browse_project_tree` tools.
+- Call `bind_project` to select the already-open fixture. With multiple projects use its advertised path; switching requires `forceRebind:true`. Reattachment may show TIA's Openness access dialog, which a human must answer. Ordinary reads never bind, switch or open. Do this first (or start with a verified `--project`): every content tool acts on the bound project only and returns `binding_conflict` while unbound.
+- Then start with the standalone `get_project_status` and `browse_project_tree` tools.
 - In read-write or full mode, call standalone `compile_check` for PLC or block compilation.
 - Then call `plc_read` with an `operations` array whose items use `list_tag_tables`, `get_block_content`, or `get_type_content`, and `read_cross_references` with a `target` copied from `browse_project_tree` output.
 - Use `network_read` with `search_equipment_catalog` before hardware insertion so you can copy an exact `typeIdentifier`.
@@ -44,14 +44,13 @@ In the Inspector UI:
 For a bounded project-tree read, migrate the v2 request:
 
 ```json
-{ "projectPath": null, "depth": 2, "startPath": "PLC_1" }
+{ "depth": 2, "startPath": "PLC_1" }
 ```
 
 to the v3 request:
 
 ```json
 {
-  "projectPath": null,
   "depth": 2,
   "startSelector": [
     { "nodeType": "Device", "name": "PLC_1" }
@@ -70,7 +69,7 @@ To target a returned descendant, index the complete snapshot by `nodeId`, follow
 In read-write mode, call standalone `compile_check` with inputs such as:
 
 ```json
-{ "projectPath": null, "plcName": "PLC_1", "blockPath": "PLC_1/Blocks/Main" }
+{ "plcName": "PLC_1", "blockPath": "PLC_1/Blocks/Main" }
 ```
 
 Then use this read smoke-test for `plc_read` (independent items; a failing item does not stop the others):
@@ -99,7 +98,7 @@ A value over the value budget (60,000 characters by default, `--max-item-chars`)
 ```json
 {
   "operations": [
-    { "operationId": "hardware", "operation": "read_hardware_config", "projectPath": "C:\\Projects\\Sandbox\\Line.ap21" },
+    { "operationId": "hardware", "operation": "read_hardware_config" },
     { "operationId": "catalog", "operation": "search_equipment_catalog", "query": "1516", "maxResults": 5 }
   ]
 }
@@ -127,7 +126,7 @@ For separately authorized creation, call `network_write` with explicit `dryRun:f
 ```json
 {
   "operations": [
-    { "operationId": "hardware", "operation": "read_hardware_config", "projectPath": "C:\\Projects\\Sandbox\\Line.ap21" }
+    { "operationId": "hardware", "operation": "read_hardware_config" }
   ]
 }
 ```
@@ -141,7 +140,6 @@ With that `nodeId` in hand, preview a `configure_network_device` write against t
     {
       "operationId": "configure",
       "operation": "configure_network_device",
-      "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
       "target": { "deviceName": "PLC_1", "nodeId": "<nodeId from read_hardware_config>" },
       "changes": {
         "ipAddress": "192.168.0.10",
@@ -162,7 +160,6 @@ For separately authorized execution, call `network_write` with explicit `dryRun:
     {
       "operationId": "configure",
       "operation": "configure_network_device",
-      "projectPath": "C:\\Projects\\Sandbox\\Line.ap21",
       "target": { "deviceName": "PLC_1", "nodeId": "<nodeId from read_hardware_config>" },
       "changes": {
         "ipAddress": "192.168.0.10",

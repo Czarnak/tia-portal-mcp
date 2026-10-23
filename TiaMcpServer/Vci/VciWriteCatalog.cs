@@ -65,9 +65,6 @@ public static class VciWriteCatalog
                 Error($"scope: {exception.Message}"); scopeCategory ??= exception.Category;
             }
         }
-        if (operations.Where(item => item is not null && !string.IsNullOrWhiteSpace(item.ProjectPath))
-            .Select(item => WriteProjectPaths.Normalize(item.ProjectPath)).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
-            errors.Add("All write operations in a batch must target the same project path.");
         return errors.Count == 0 ? (true, string.Empty, string.Empty)
             : (false, string.Join("\n", errors), scopeCategory ?? WorkerFailureCategories.ValidationError);
     }

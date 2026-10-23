@@ -6,7 +6,7 @@ Both tools return one canonical JSON document as matching text and `structuredCo
 
 ## Reads
 
-Each read item has `operationId` and `operation`; an optional `projectPath` asserts the bound project. Read items run independently, so one failed item does not stop the others.
+Each read item has `operationId` and `operation`; the call acts on the bound project (unbound calls fail with `binding_conflict`; call `bind_project` first). Read items run independently, so one failed item does not stop the others.
 
 | Operation | Allowed fields beyond the common fields | Result |
 | --- | --- | --- |
@@ -30,7 +30,7 @@ The requested `format`, if supported by that leaf, wins (case-insensitive match,
 
 ## Writes and safeguards
 
-Every write item has `operationId`, `operation`, `workspaceName`, and optional `projectPath`. `vci_write(operations, dryRun=false)` executes when `dryRun` is omitted or false; `dryRun:true` returns `preview` with planned leaf counts, effects and guards, without mutation or status reads. It sends **no server elicitation** in either writable mode. Client permission and request timeout settings still apply.
+Every write item has `operationId`, `operation`, and `workspaceName`. `vci_write(operations, dryRun=false)` executes when `dryRun` is omitted or false; `dryRun:true` returns `preview` with planned leaf counts, effects and guards, without mutation or status reads. It sends **no server elicitation** in either writable mode. Client permission and request timeout settings still apply.
 
 Binding-gate failures preserve their original category, including `worker_timeout`, `worker_crashed`,
 `portal_lost` and `protocol_error`, in the top-level error and audit. A gate denial stops before planning

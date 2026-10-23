@@ -6,6 +6,7 @@ using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -26,16 +27,22 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
     public void Dispose() => _uiOpen.Dispose();
 
-    private static OpennessWorkerClient CreateClient(McpAccessMode mode = McpAccessMode.ReadWrite)
-        => new(
-            new ProjectSessionBinding(null),
+    private static async Task<OpennessWorkerClient> CreateClientAsync(
+        string scenario = Scenario,
+        McpAccessMode mode = McpAccessMode.ReadWrite)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(mode));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
+        return client;
+    }
 
     private static NetworkOperationRequest ReadHardware(
         string id,
-        string scenario,
         bool? includeIoDetails = null,
         bool? includeTagMatches = null,
         string? deviceName = null,
@@ -43,7 +50,6 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     {
         OperationId = id,
         Operation = "read_hardware_config",
-        ProjectPath = scenario,
         DeviceName = deviceName,
         PlcName = plcName,
         IncludeIoDetails = includeIoDetails,
@@ -53,12 +59,11 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_ProjectCompletenessFixtureReturnsGroupedDeviceAsOrdinaryHardware()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(ProjectCompletenessScenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(ProjectCompletenessScenario);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("complete", ProjectCompletenessScenario) });
+            new[] { ReadHardware("complete") });
 
         Assert.False(result.IsError);
         var operation = AssertOneCanonicalDocument(result)
@@ -77,13 +82,13 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_IncludeIoDetailsReturnsStructuredAddressesChannelsAndTagMatches()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
             new[]
             {
-                ReadHardware("io-map", Scenario, includeIoDetails: true, includeTagMatches: true),
+                ReadHardware("io-map", includeIoDetails: true, includeTagMatches: true),
             });
 
         Assert.False(result.IsError);
@@ -148,11 +153,11 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_IncludeIoDetailsWithoutTagMatchesReturnsEmptyTagMatchCollections()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("no-tag-matches", Scenario, includeIoDetails: true, includeTagMatches: false) });
+            new[] { ReadHardware("no-tag-matches", includeIoDetails: true, includeTagMatches: false) });
 
         Assert.False(result.IsError);
         var channels = AssertOneCanonicalDocument(result)
@@ -172,11 +177,11 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_DeviceNameFilterExcludesTheNonMatchingFixtureDevice()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("other-device", Scenario, deviceName: "OTHER_PLC") });
+            new[] { ReadHardware("other-device", deviceName: "OTHER_PLC") });
 
         Assert.False(result.IsError);
         var operation = AssertOneCanonicalDocument(result)
@@ -190,13 +195,13 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_PlcNameMismatchSuppressesTagMatches()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
             new[]
             {
-                ReadHardware("plc-name-mismatch", Scenario, includeIoDetails: true, includeTagMatches: true, plcName: "plc_1"),
+                ReadHardware("plc-name-mismatch", includeIoDetails: true, includeTagMatches: true, plcName: "plc_1"),
             });
 
         Assert.False(result.IsError);
@@ -221,11 +226,11 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_WithoutIncludeIoDetailsOmitsIoDetailsEntirely()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("plain", Scenario) });
+            new[] { ReadHardware("plain") });
 
         Assert.False(result.IsError);
         var canonicalText = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
@@ -241,13 +246,13 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_DeviceNameFilterIsForwardedToTheWorker()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
             new[]
             {
-                ReadHardware("filtered", Scenario, includeIoDetails: true, deviceName: "PLC_1", plcName: "PLC_1"),
+                ReadHardware("filtered", includeIoDetails: true, deviceName: "PLC_1", plcName: "PLC_1"),
             });
 
         Assert.False(result.IsError);
@@ -261,13 +266,13 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_DeviceNameFilterMatchesFixtureWithoutCaseSensitivity()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await NetworkReadTools.NetworkRead(
             client,
             new[]
             {
-                ReadHardware("mixed-case-device", Scenario, deviceName: "plc_1"),
+                ReadHardware("mixed-case-device", deviceName: "plc_1"),
             });
 
         Assert.False(result.IsError);
@@ -283,12 +288,11 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_MalformedIoDetailsPayloadBecomesProtocolErrorWithoutEchoingIt()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-io-map-malformed");
-        using var client = CreateClient();
+        using var client = await CreateClientAsync("network-io-map-malformed");
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("malformed", "network-io-map-malformed", includeIoDetails: true) });
+            new[] { ReadHardware("malformed", includeIoDetails: true) });
 
         // The batch ran (tool call is not an error), but the item failed the declared contract.
         Assert.False(result.IsError);
@@ -303,13 +307,13 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     [Fact]
     public async Task NetworkRead_ReadOnlyModePermitsTheIoMapRead()
     {
-        using var client = CreateClient(McpAccessMode.ReadOnly);
+        using var client = await CreateClientAsync(mode: McpAccessMode.ReadOnly);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
             new[]
             {
-                ReadHardware("readonly", Scenario, includeIoDetails: true, includeTagMatches: true),
+                ReadHardware("readonly", includeIoDetails: true, includeTagMatches: true),
             });
 
         Assert.False(result.IsError);
@@ -324,9 +328,9 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     {
         // NetworkWritePlanner.ReadCurrentStateAsync uses the default read (no ioDetails). Even
         // against the io-map scenario, ordinary planning reads must omit optional ioDetails.
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(client, Scenario);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(client);
 
         Assert.True(snapshot.Success, snapshot.Error);
         var canonical = CanonicalJson.Serialize(snapshot.State!);

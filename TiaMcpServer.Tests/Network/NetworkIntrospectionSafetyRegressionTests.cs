@@ -18,7 +18,7 @@ public class NetworkIntrospectionSafetyRegressionTests
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
             audit.Path,
             startupProjectPath: "network-roundtrip");
-        var operations = ConfigureOperation("network-roundtrip", "PLC_1", "node-1");
+        var operations = ConfigureOperation("PLC_1", "node-1");
 
         var preview = AssertCanonical(await CallWriteAsync(harness, operations));
         var appliedResult = await CallWriteAsync(harness, operations, dryRun: false);
@@ -38,7 +38,7 @@ public class NetworkIntrospectionSafetyRegressionTests
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
             audit.Path,
             startupProjectPath: "network-guarded-traversal-nodeEnumeration");
-        var operations = ConfigureOperation("network-guarded-traversal-nodeEnumeration", "PLC_Grouped", "node-2");
+        var operations = ConfigureOperation("PLC_Grouped", "node-2");
 
         var preview = AssertCanonical(await CallWriteAsync(harness, operations));
         var rejectedResult = await CallWriteAsync(harness, operations, dryRun: false);
@@ -55,14 +55,13 @@ public class NetworkIntrospectionSafetyRegressionTests
         Assert.DoesNotContain("configure_network_device", requests.Methods());
     }
 
-    private static object[] ConfigureOperation(string projectPath, string deviceName, string nodeId)
+    private static object[] ConfigureOperation(string deviceName, string nodeId)
         => new object[]
         {
             new
             {
                 operationId = "configure",
                 operation = "configure_network_device",
-                projectPath,
                 target = new { deviceName, nodeId },
                 changes = new { ipAddress = "192.168.0.99" },
             },

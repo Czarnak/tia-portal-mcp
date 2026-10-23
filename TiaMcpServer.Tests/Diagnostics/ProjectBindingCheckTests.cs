@@ -54,7 +54,9 @@ public class ProjectBindingCheckTests
         var result = check.Run();
 
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
-        Assert.Contains("No project binding", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            "No project binding is configured. Project tools fail until bind_project binds an already-open project.",
+            result.Message);
         Assert.NotNull(result.Remediation);
         Assert.Contains("bind_project", result.Remediation);
     }

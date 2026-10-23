@@ -69,7 +69,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "item-1",
             Operation = operationName,
-            ProjectPath = "echo",
         };
         var expected = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var fieldName in spec!.RequiredFields.Concat(spec.OptionalFields))
@@ -84,7 +83,7 @@ public class NetworkFieldForwardingTests
         using var client = await CreateClientAsync();
         var result = spec.Category == NetworkOperationCategory.Read
             ? await NetworkWorkerInvoker.InvokeReadAsync(client, operation)
-            : await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+            : await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -109,7 +108,7 @@ public class NetworkFieldForwardingTests
                 InterfaceName = owner, InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
                     new NetworkInterfacePathSegment { Name = owner, PositionNumber = position, TypeIdentifier = "optional-type" } } },
             Changes = new() { IpAddress = "192.168.12.99" } };
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
         Assert.True(result.Success, result.Error);
         var request = JsonSerializer.Deserialize<WorkerRequest>(result.Payload, WorkerJson.Envelope)!;
         Assert.NotNull(request.NetworkObjectTarget);
@@ -128,13 +127,12 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "add-1",
             Operation = "add_network_device",
-            ProjectPath = "echo",
             TypeIdentifier = "OrderNumber:6ES7",
             DeviceName = "PLC_1",
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -148,14 +146,13 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "add-distinct-names",
             Operation = "add_network_device",
-            ProjectPath = "echo",
             TypeIdentifier = "OrderNumber:6ES7",
             DeviceName = "MCP_Station",
             DeviceItemName = "MCP_PLC",
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -170,7 +167,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "cfg-1",
             Operation = "configure_network_device",
-            ProjectPath = "echo",
             Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-7" },
             Changes = new NetworkDeviceChanges
             {
@@ -183,7 +179,7 @@ public class NetworkFieldForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -240,7 +236,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "list-1",
             Operation = "list_network_objects",
-            ProjectPath = "echo",
             ObjectKinds = new[] { NetworkObjectKinds.Node, NetworkObjectKinds.Subnet },
             DeviceName = "PLC_1",
             PageSize = 42,
@@ -277,7 +272,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "list-copy",
             Operation = "list_network_objects",
-            ProjectPath = "echo",
             ObjectKinds = mutableKinds,
         };
 
@@ -305,7 +299,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "inspect-1",
             Operation = "inspect_network_object",
-            ProjectPath = "echo",
             Target = new NetworkObjectTarget
             {
                 Kind = NetworkObjectKinds.Node,
@@ -344,7 +337,6 @@ public class NetworkFieldForwardingTests
         {
             OperationId = "inspect-path",
             Operation = "inspect_network_object",
-            ProjectPath = "echo",
             Target = new NetworkObjectTarget
             {
                 Kind = NetworkObjectKinds.DeviceItem,

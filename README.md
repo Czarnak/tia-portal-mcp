@@ -25,7 +25,7 @@ safety tokens and no PLC run/stop.
 ### PLC reads and cross-references
 
 - `plc_read` - run up to 50 PLC read operations in one call: `get_block_content`, `get_type_content` and `list_tag_tables`. Each item carries a unique `operationId`, an `operation` name, and that operation's parameters. Items run independently, so a failing item does not stop the others. Results are structured JSON with `contractVersion` `1.0`; a value over the value budget (60,000 characters by default) is omitted whole with narrowing guidance, never cut.
-- `read_cross_references` - read the cross-references of one project-tree target (a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it). Arguments: `target`, `filter`, `maxResults`, `projectPath`. Both reads are available in every access mode and never open or switch a project.
+- `read_cross_references` - read the cross-references of one project-tree target (a block, type, tag, constant, or a PLC, software unit or folder swept over every owner beneath it). Arguments: `target`, `filter`, `maxResults`. Both reads are available in every access mode and act on the bound project only; they never open or switch a project, and without a verified binding they fail closed with `binding_conflict` (call `bind_project` first).
 
 ### HMI reads and writes
 
@@ -71,8 +71,8 @@ Large hardware reads can opt into cursor pagination with `pageSize` (`1..200`) o
 ### Project tools
 
 - `bind_project` — default `bind` adopts an already-open project in any mode; omit the path to adopt the sole open project or list candidates. Use `forceRebind:true` to switch. Explicit `list_portals` discovers without adoption; five Project Server inventory actions inspect the persistent attached instance without changing project binding. Reattachment may show TIA's human-answerable Openness access dialog. See [Multiuser inventory and acceptance limits](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md).
-- `get_project_status` — inspect active project metadata without opening, binding, or switching projects; a supplied path is an assertion.
-- `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata in block-node `details` (default-on string fields: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName`), `projectPath`, typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
+- `get_project_status` — inspect active project metadata without opening, binding, or switching projects; it takes no arguments.
+- `browse_project_tree` — browse a canonical, paged v3 point-in-time project-tree snapshot with optional typed PLC block header author, version, family, and header-name metadata in block-node `details` (default-on string fields: `HeaderAuthor`, `HeaderVersion`, `HeaderFamily`, and `HeaderName`), typed `startSelector`, `depth`, and `pageSize`; continue with the returned opaque `cursor`.
 - `compile_check` — compile a PLC or selected block and return compiler messages; available in read-write and full modes.
 - `open_project` / `create_project` / `save_project` / `save_project_as` / `archive_project` / `close_project` - guarded single-call lifecycle writes in read-write and full. Read-write asks once per actual call; full proceeds without server elicitation. Set `dryRun:true` to inspect effects and guards without mutation or elicitation. These tools advertise structured outputs and accept no public confirmation list or safety token; they remain single-tool only.
 

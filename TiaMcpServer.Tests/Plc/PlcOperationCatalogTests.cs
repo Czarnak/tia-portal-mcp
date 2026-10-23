@@ -327,20 +327,6 @@ public class PlcOperationCatalogTests
         Assert.True(PlcOperationCatalog.ValidateWrite(ops).IsValid);
     }
 
-    [Fact]
-    public void RejectsDifferingProjectPaths()
-    {
-        var a = UpdateBlock("a");
-        a.ProjectPath = Path.Combine(Path.GetTempPath(), "one.ap21");
-        var b = UpdateBlock("b");
-        b.ProjectPath = Path.Combine(Path.GetTempPath(), "two.ap21");
-
-        var result = PlcOperationCatalog.ValidateWrite(new[] { a, b });
-
-        Assert.False(result.IsValid);
-        Assert.Contains("same project path", result.Error);
-    }
-
     [Theory]
     [InlineData("create_block_group")]
     [InlineData("delete_block_group")]

@@ -3,6 +3,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -14,15 +15,15 @@ public sealed class ProjectTreeWorkerProtocolTests
     [Fact]
     public async Task BrowseProjectTreeV3Snapshot_SendsTypedSelectorAndReturnsTypedTreeResult()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("project-tree-v3-snapshot");
+        var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(
-            new ProjectSessionBinding(null),
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "project-tree-v3-snapshot");
 
         var call = await client.BrowseProjectTreeV3SnapshotAsync(
-            projectPath: "project-tree-v3-snapshot",
             startSelector: new[]
             {
                 new ProjectTreeSelectorSegment { NodeType = "Device", Name = "PLC_1" }
@@ -31,7 +32,7 @@ public sealed class ProjectTreeWorkerProtocolTests
 
         var result = call.WorkerResult;
         Assert.True(result.Success, result.Error);
-        Assert.Equal(ProjectBindingSnapshot.UnboundState, call.HostBinding.State);
+        Assert.True(call.HostBinding.SameBinding(binding.CaptureSnapshot()));
         using var response = JsonDocument.Parse(result.Payload);
         Assert.False(response.RootElement.TryGetProperty("hostBinding", out _));
         Assert.False(response.RootElement.TryGetProperty("workerResult", out _));

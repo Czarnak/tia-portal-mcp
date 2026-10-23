@@ -15,11 +15,15 @@ installation that are surprising but expected.
 - `get_block_content` on an S7-300/S7-400 CPU returns a warning that the s7dcl rung text is unavailable: expected. Those CPU families do not support Siemens document export at all. The Simatic ML XML document is exported by a separate API and is present, so the payload is complete for reading and for `update_block_logic`; only the supplementary human-readable rung text is missing.
 - `get_block_content` or `get_type_content` returns `status:omitted` with `reason:"resultExceededItemCharLimit"`: the export is larger than the value budget (60,000 characters by default), so it has no `contentHash` and cannot be updated. Restart the server with `--max-item-chars` (or `TIA_MCP_MAX_ITEM_CHARS`) at or above the reported `originalChars`, raise `--max-document-chars` above that with headroom, and read the block in its own call. See [response size limits](mcp-client-configuration.md#response-size-limits).
 
+### Bound-project failures
+
+- `binding_conflict` on a content read, write or compile: there is no verified project binding. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. After path, PID or generation drift, call `bind_project` with `forceRebind:true`.
+
 ### Hardware pagination cursor failures
 
 - `invalid_cursor`: the cursor is malformed, has an unsupported shape/version, failed signature validation, or came from a previous MCP host process. Host restarts intentionally invalidate every hardware cursor. Start again without the cursor.
 - `cursor_filter_mismatch`: `deviceName`, `plcName`, `includeIoDetails`, or `includeTagMatches` changed. Retry the unchanged request at the same cursor, or start a new sequence with the new fields; never combine the old cursor with changed fields.
-- `cursor_binding_mismatch`: a repeated `projectPath` differs, the host binding/path changed, or the live worker session changed. Confirm the current project and start a new sequence.
+- `cursor_binding_mismatch`: the host binding/path changed, or the live worker session changed. Confirm the current project and start a new sequence.
 - `cursor_snapshot_mismatch`: matching devices/subnets or their stable order changed. Start a new sequence against the new project snapshot.
 - `cursor_out_of_range`: the saved combined offset is no longer valid. Start a new sequence.
 - `protocol_error`: the worker response omitted its authoritative session identity or returned malformed/incoherent page evidence. Do not use the page; inspect host/worker diagnostics before starting over.

@@ -21,8 +21,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task ReadEnvelope_IsVersionedAndCanonical()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-roundtrip");
 
         var tool = Assert.Single(
             await harness.Client.ListToolsAsync(),
@@ -39,7 +38,6 @@ public class NetworkStructuredProtocolTests
                     {
                         operationId = "hardware",
                         operation = "read_hardware_config",
-                        projectPath = "network-roundtrip"
                     }
                 }
             });
@@ -81,8 +79,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task NetworkRead_MixesPhase2AndPhase3ReadsInRequestOrder()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-roundtrip");
 
         var result = await harness.Client.CallToolAsync(
             "network_read",
@@ -94,13 +91,11 @@ public class NetworkStructuredProtocolTests
                     {
                         operationId = "phase2-hardware",
                         operation = "read_hardware_config",
-                        projectPath = "network-roundtrip",
                     },
                     new
                     {
                         operationId = "phase3-list",
                         operation = "list_network_objects",
-                        projectPath = "network-roundtrip",
                         objectKinds = new[] { "node" },
                         pageSize = 20,
                     },
@@ -108,7 +103,6 @@ public class NetworkStructuredProtocolTests
                     {
                         operationId = "phase3-inspect",
                         operation = "inspect_network_object",
-                        projectPath = "network-roundtrip",
                         target = new { kind = "node", deviceName = "PLC_1", nodeId = "node-1" },
                         attributeNames = new[] { "stringAttribute" },
                     },
@@ -145,14 +139,14 @@ public class NetworkStructuredProtocolTests
         Assert.True(error.IsError);
         AssertOnlyPopulated(errorRoot, "error", "error");
 
-        var preview = await CallWriteAsync(harness, WriteOperations("network-roundtrip"));
+        var preview = await CallWriteAsync(harness, WriteOperations());
         var previewRoot = AssertOneCanonicalDocument(preview);
         Assert.False(preview.IsError);
         AssertOnlyPopulated(previewRoot, "preview", "none");
         Assert.NotEmpty(previewRoot.GetProperty("effects").EnumerateArray());
 
         var applied = await CallWriteAsync(
-            harness, WriteOperations("network-roundtrip"), dryRun: false);
+            harness, WriteOperations(), dryRun: false);
         var appliedRoot = AssertOneCanonicalDocument(applied);
         Assert.False(applied.IsError);
         AssertOnlyPopulated(appliedRoot, "applied", "batch");
@@ -166,7 +160,7 @@ public class NetworkStructuredProtocolTests
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkWriteTools>(
             audit.Path,
             startupProjectPath: "network-write-item-failure");
-        var operations = WriteOperations("network-write-item-failure");
+        var operations = WriteOperations();
 
         var preview = AssertOneCanonicalDocument(await CallWriteAsync(harness, operations));
         var applied = await CallWriteAsync(
@@ -201,7 +195,7 @@ public class NetworkStructuredProtocolTests
             audit.Path,
             startupProjectPath: scenario);
 
-        var before = await ReadHardwareConfigAsync(harness, scenario);
+        var before = await ReadHardwareConfigAsync(harness);
         var beforePlc = FindNodeByNodeId(before, "node-plc");
         var beforeDb = FindNodeByNodeId(before, "node-db");
         Assert.Equal("192.168.0.20", beforePlc.GetProperty("ipAddress").GetString());
@@ -213,7 +207,6 @@ public class NetworkStructuredProtocolTests
             {
                 operationId = "configure",
                 operation = "configure_network_device",
-                projectPath = scenario,
                 target = new { deviceName = "PC_1", nodeId = "node-plc" },
                 changes = new { ipAddress = "192.168.0.99" },
             },
@@ -235,7 +228,7 @@ public class NetworkStructuredProtocolTests
             "succeeded",
             appliedRoot.GetProperty("batch").GetProperty("operations")[0].GetProperty("status").GetString());
 
-        var after = await ReadHardwareConfigAsync(harness, scenario);
+        var after = await ReadHardwareConfigAsync(harness);
         var afterPlc = FindNodeByNodeId(after, "node-plc");
         var afterDb = FindNodeByNodeId(after, "node-db");
 
@@ -252,8 +245,7 @@ public class NetworkStructuredProtocolTests
     [Fact]
     public async Task NetworkRead_InvalidSuccessPayloadBecomesProtocolErrorAndLaterOperationsStillRun()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("invalid-network-success-payload");
-        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>();
+        await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "invalid-network-success-payload");
 
         var result = await harness.Client.CallToolAsync(
             "network_read",
@@ -265,14 +257,12 @@ public class NetworkStructuredProtocolTests
                     {
                         operationId = "bad-catalog",
                         operation = "search_equipment_catalog",
-                        projectPath = "invalid-network-success-payload",
                         query = "OrderNumber:TEST",
                     },
                     new
                     {
                         operationId = "good-hardware",
                         operation = "read_hardware_config",
-                        projectPath = "invalid-network-success-payload",
                     },
                 },
             });
@@ -311,7 +301,6 @@ public class NetworkStructuredProtocolTests
             {
                 operationId = "bad-create",
                 operation = "add_network_device",
-                projectPath = "invalid-network-success-payload",
                 typeIdentifier = "OrderNumber:TEST",
                 deviceName = "PLC_1",
             },
@@ -319,7 +308,6 @@ public class NetworkStructuredProtocolTests
             {
                 operationId = "never-reached",
                 operation = "add_network_device",
-                projectPath = "invalid-network-success-payload",
                 typeIdentifier = "OrderNumber:TEST",
                 deviceName = "PLC_2",
             },
@@ -452,7 +440,7 @@ public class NetworkStructuredProtocolTests
 
     /// <summary>Runs one read_hardware_config through the actual MCP protocol and returns its
     /// decoded HardwareConfigInfo result element.</summary>
-    private static async Task<JsonElement> ReadHardwareConfigAsync(McpProtocolTestHarness harness, string projectPath)
+    private static async Task<JsonElement> ReadHardwareConfigAsync(McpProtocolTestHarness harness)
     {
         var result = await harness.Client.CallToolAsync(
             "network_read",
@@ -460,7 +448,7 @@ public class NetworkStructuredProtocolTests
             {
                 ["operations"] = new object[]
                 {
-                    new { operationId = "read", operation = "read_hardware_config", projectPath },
+                    new { operationId = "read", operation = "read_hardware_config" },
                 },
             });
 
@@ -480,13 +468,12 @@ public class NetworkStructuredProtocolTests
             .SelectMany(networkInterface => networkInterface.GetProperty("nodes").EnumerateArray())
             .Single(node => node.GetProperty("nodeId").GetString() == nodeId);
 
-    private static object[] WriteOperations(string projectPath) => new object[]
+    private static object[] WriteOperations() => new object[]
     {
         new
         {
             operationId = "add",
             operation = "add_network_device",
-            projectPath,
             typeIdentifier = "OrderNumber:TEST",
             deviceName = "AddedPLC"
         },
@@ -494,7 +481,6 @@ public class NetworkStructuredProtocolTests
         {
             operationId = "configure",
             operation = "configure_network_device",
-            projectPath,
             target = new { deviceName = "PLC_1", nodeId = "node-1" },
             changes = new { ipAddress = "192.168.0.10" }
         },

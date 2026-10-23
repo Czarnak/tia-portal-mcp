@@ -195,13 +195,13 @@ public sealed class LifecycleBindingStrategyTests
 
     private static LifecycleWriteItem Item(string operation, string target, bool force = false) => new(operation)
     {
-        ProjectPath = operation == "create_project" ? null : target,
+        ProjectPath = operation == "open_project" ? target : null,
         ForceRebind = force,
         ProjectDirectory = operation == "create_project" ? Path.GetDirectoryName(target) : null,
         ProjectName = operation == "create_project" ? Path.GetFileNameWithoutExtension(target) : null
     };
 
-    private static WriteCall<LifecycleWriteItem> Call(LifecycleWriteItem item) => new(item.ProjectPath, new[] { item }, false);
+    private static WriteCall<LifecycleWriteItem> Call(LifecycleWriteItem item) => new(new[] { item }, false);
 
     private static string Source(string name = "Source") => FixturePath(name);
 

@@ -6,6 +6,7 @@ using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -27,6 +28,14 @@ public class NetworkOperationFakeWorkerTests
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
 
+    private static async Task<OpennessWorkerClient> CreateBoundClientAsync(string projectPath)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = CreateClient(binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        return client;
+    }
+
     private static OpennessWorkerClient CreateWriteClient(
         TempAuditDirectory audit,
         out WriteExecution safety,
@@ -43,14 +52,12 @@ public class NetworkOperationFakeWorkerTests
     {
         OperationId = operationId,
         Operation = "read_hardware_config",
-        ProjectPath = Scenario,
     };
 
     private static NetworkOperationRequest SearchCatalog(string operationId) => new()
     {
         OperationId = operationId,
         Operation = "search_equipment_catalog",
-        ProjectPath = Scenario,
         Query = "OrderNumber:TEST",
     };
 
@@ -58,7 +65,6 @@ public class NetworkOperationFakeWorkerTests
     {
         OperationId = operationId,
         Operation = "add_network_device",
-        ProjectPath = Scenario,
         TypeIdentifier = "OrderNumber:TEST",
         DeviceName = "AddedPLC",
     };
@@ -67,7 +73,6 @@ public class NetworkOperationFakeWorkerTests
     {
         OperationId = operationId,
         Operation = "configure_network_device",
-        ProjectPath = Scenario,
         Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
         Changes = new NetworkDeviceChanges { IpAddress = ipAddress },
     };
@@ -87,13 +92,13 @@ public class NetworkOperationFakeWorkerTests
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
         var operation = QualifiedConfigure("prepare");
         var domain = new NetworkWriteDomain(fixture.Client);
-        Assert.True((await domain.PlanAsync("network-qualified-read", new[] { operation })).Success);
+        Assert.True((await domain.PlanAsync(new[] { operation })).Success);
         operation.Target!.InterfacePath![1].Name = "PROFINET interface_2";
         operation.Target.InterfacePath[1].PositionNumber = 33024;
-        Assert.True((await domain.ReplanAsync("network-qualified-read", operation)).Success);
-        var result = await domain.MutateAsync("network-qualified-read", operation);
+        Assert.True((await domain.ReplanAsync(operation)).Success);
+        var result = await domain.MutateAsync(operation);
         Assert.Equal("succeeded", domain.Project(operation, result).Status);
-        var state = (await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read")).State!;
+        var state = (await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client)).State!;
         Assert.Equal("192.168.12.99", state.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].IpAddress);
         Assert.Equal("192.168.13.20", state.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
     }
@@ -104,17 +109,17 @@ public class NetworkOperationFakeWorkerTests
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
         var operation = QualifiedConfigure("X1");
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, operation, "network-qualified-read");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, operation);
         Assert.True(result.Success, result.Error);
         Assert.Equal("succeeded", NetworkPayloadContract.Project(operation, result, true).Status);
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read");
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.True(snapshot.Success, snapshot.Error);
         var owners = snapshot.State!.Devices[0].Items[0].Items;
         Assert.Equal("192.168.12.99", owners[0].NetworkInterfaces[0].Nodes[0].IpAddress);
         Assert.Equal("192.168.13.20", owners[1].NetworkInterfaces[0].Nodes[0].IpAddress);
         var second = QualifiedConfigure("X2", 33024); second.Changes = new() { IpAddress = "192.168.13.99" };
-        Assert.True((await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, second, "network-qualified-read")).Success);
-        snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read");
+        Assert.True((await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, second)).Success);
+        snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         owners = snapshot.State!.Devices[0].Items[0].Items;
         Assert.Equal("192.168.12.99", owners[0].NetworkInterfaces[0].Nodes[0].IpAddress);
         Assert.Equal("192.168.13.99", owners[1].NetworkInterfaces[0].Nodes[0].IpAddress);
@@ -135,7 +140,7 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal(JsonValueKind.Array, path.ValueKind);
         Assert.Equal(32768, path[1].GetProperty("positionNumber").GetInt32());
         Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.Equal("192.168.13.20", snapshot.State!.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
     }
 
@@ -144,7 +149,7 @@ public class NetworkOperationFakeWorkerTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
-        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         var priorMask = before.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].SubnetMask;
         Assert.NotNull(priorMask);
         var operation = QualifiedConfigure("partial"); operation.Changes = new() { IpAddress = "192.168.12.99", SubnetMask = "255.255.0.0" };
@@ -163,7 +168,7 @@ public class NetworkOperationFakeWorkerTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
-        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-partial");
+        var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         var priorMask = before.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].SubnetMask;
         Assert.NotNull(priorMask);
         var operation = QualifiedConfigure("skipped"); operation.Changes = new() { SubnetMask = "255.255.0.0" };
@@ -259,9 +264,9 @@ public class NetworkOperationFakeWorkerTests
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
         var operation = QualifiedConfigure("unknown"); operation.Changes = new() { IpAddress = "192.168.12.99", IoSystem = new() { SubnetId = "missing", Number = 1 } };
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, operation, "network-qualified-read");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, operation);
         Assert.False(result.Success);
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-qualified-read");
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.Equal("192.168.12.2", snapshot.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0].IpAddress);
     }
 
@@ -280,7 +285,6 @@ public class NetworkOperationFakeWorkerTests
             {
                 OperationId = "configure",
                 Operation = "configure_network_device",
-                ProjectPath = scenario,
                 Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
                 Changes = new NetworkDeviceChanges
                 {
@@ -292,7 +296,6 @@ public class NetworkOperationFakeWorkerTests
             {
                 OperationId = "later",
                 Operation = "add_network_device",
-                ProjectPath = scenario,
                 TypeIdentifier = "OrderNumber:TEST",
                 DeviceName = "LaterDevice",
             },
@@ -323,8 +326,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_HardwareAndCatalogSucceedInRequestedOrderWithDeclaredJsonResults()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync(Scenario);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -355,8 +357,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_MultiHomedPcStationExposesBothNodesWithDistinctNodeIds()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync(Scenario);
 
         var result = await NetworkReadTools.NetworkRead(client, new[] { ReadHardware("hardware") });
 
@@ -432,7 +433,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "configure",
                     Operation = "configure_network_device",
-                    ProjectPath = "network-ambiguous-node",
                     Target = new NetworkObjectTarget { DeviceName = "PC_1", NodeId = "dup-node" },
                     Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.55" },
                 },
@@ -468,7 +468,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "configure",
                     Operation = "configure_network_device",
-                    ProjectPath = Scenario,
                     Target = new NetworkObjectTarget { DeviceName = "PLC_1", NodeId = "node-1" },
                     Changes = new NetworkDeviceChanges
                     {
@@ -487,8 +486,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task ListNetworkObjects_RoundTripReturnsSixItemsWithCommunicationConnectionUnselectable()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-success");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("list-network-objects-success");
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -498,7 +496,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "list-1",
                     Operation = "list_network_objects",
-                    ProjectPath = "list-network-objects-success",
                     ObjectKinds = new[] { "node", "communicationConnection" },
                 },
             });
@@ -530,8 +527,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task InspectNetworkObject_RoundTripReturnsNineAttributesAndEvidence()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("inspect-network-object-success");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("inspect-network-object-success");
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -541,7 +537,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "inspect-1",
                     Operation = "inspect_network_object",
-                    ProjectPath = "inspect-network-object-success",
                     Target = new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" },
                 },
             });
@@ -593,8 +588,7 @@ public class NetworkOperationFakeWorkerTests
         string operationName,
         string scenario)
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync(scenario);
         var target = operationName == "inspect_network_object"
             ? new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" }
             : null;
@@ -610,7 +604,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "malformed-1",
                     Operation = operationName,
-                    ProjectPath = scenario,
                     Target = target,
                     ObjectKinds = objectKinds,
                 },
@@ -626,8 +619,7 @@ public class NetworkOperationFakeWorkerTests
     [Fact]
     public async Task ListNetworkObjects_LargeListScenarioReturnsCursorWithTwentyItems()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("list-network-objects-large");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("list-network-objects-large");
 
         var result = await NetworkReadTools.NetworkRead(
             client,
@@ -637,7 +629,6 @@ public class NetworkOperationFakeWorkerTests
                 {
                     OperationId = "large-1",
                     Operation = "list_network_objects",
-                    ProjectPath = "list-network-objects-large",
                     ObjectKinds = new[] { "node" },
                     PageSize = 20,
                 },

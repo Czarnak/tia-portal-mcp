@@ -16,8 +16,7 @@ public class VciReadMcpTests
     [Fact]
     public async Task ThreeReadsRoundtripAsDeclaredObjects()
     {
-        using var ui = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        await using var harness = await McpProtocolTestHarness.StartAsync<VciReadTools>(accessMode: McpAccessMode.ReadOnly);
+        await using var harness = await McpProtocolTestHarness.StartAsync<VciReadTools>(startupProjectPath: Scenario, accessMode: McpAccessMode.ReadOnly);
         var tool = Assert.Single(await harness.Client.ListToolsAsync());
         Assert.True(tool.ProtocolTool.Annotations!.ReadOnlyHint);
         Assert.False(tool.ProtocolTool.Annotations.DestructiveHint);
@@ -29,9 +28,9 @@ public class VciReadMcpTests
         {
             ["operations"] = new object[]
             {
-                new { operationId = "w", operation = "list_workspaces", projectPath = Scenario },
-                new { operationId = "m", operation = "list_mappings", projectPath = Scenario, workspaceName = "Fixture", withStatus = true, offset = 2, limit = 7, scope = Leaf },
-                new { operationId = "f", operation = "supported_formats", projectPath = Scenario, scope = Leaf },
+                new { operationId = "w", operation = "list_workspaces"},
+                new { operationId = "m", operation = "list_mappings", workspaceName = "Fixture", withStatus = true, offset = 2, limit = 7, scope = Leaf },
+                new { operationId = "f", operation = "supported_formats", scope = Leaf },
             }
         });
         Assert.False(result.IsError);
@@ -56,12 +55,11 @@ public class VciReadMcpTests
     [InlineData("MissingMember", "protocol_error")]
     public async Task ItemFailureContinuesBatchWithoutMcpError(string workspaceName, string category)
     {
-        using var ui = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        await using var harness = await McpProtocolTestHarness.StartAsync<VciReadTools>(accessMode: McpAccessMode.ReadOnly);
+        await using var harness = await McpProtocolTestHarness.StartAsync<VciReadTools>(startupProjectPath: Scenario, accessMode: McpAccessMode.ReadOnly);
         var result = await harness.Client.CallToolAsync("vci_read", new Dictionary<string, object?> { ["operations"] = new object[]
         {
-            new { operationId = "bad", operation = "list_mappings", workspaceName, projectPath = Scenario },
-            new { operationId = "ok", operation = "list_workspaces", projectPath = Scenario },
+            new { operationId = "bad", operation = "list_mappings", workspaceName},
+            new { operationId = "ok", operation = "list_workspaces"},
         } });
         Assert.False(result.IsError);
         var root = result.StructuredContent!.Value;

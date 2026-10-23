@@ -131,10 +131,10 @@ public class McpToolSchemaTests
     [Theory]
     [InlineData(nameof(ProjectWriteTools.OpenProject), "dryRun,forceRebind,projectPath")]
     [InlineData(nameof(ProjectWriteTools.CreateProject), "author,comment,dryRun,projectDirectory,projectName")]
-    [InlineData(nameof(ProjectWriteTools.SaveProject), "dryRun,projectPath")]
-    [InlineData(nameof(ProjectWriteTools.SaveProjectAs), "dryRun,projectPath,rebind,targetDirectory,targetName")]
-    [InlineData(nameof(ProjectWriteTools.ArchiveProject), "archiveDirectory,archiveName,dryRun,mode,projectPath,saveBeforeArchive")]
-    [InlineData(nameof(ProjectWriteTools.CloseProject), "dryRun,projectPath,saveBeforeClose")]
+    [InlineData(nameof(ProjectWriteTools.SaveProject), "dryRun")]
+    [InlineData(nameof(ProjectWriteTools.SaveProjectAs), "dryRun,rebind,targetDirectory,targetName")]
+    [InlineData(nameof(ProjectWriteTools.ArchiveProject), "archiveDirectory,archiveName,dryRun,mode,saveBeforeArchive")]
+    [InlineData(nameof(ProjectWriteTools.CloseProject), "dryRun,saveBeforeClose")]
     public void LifecycleSchemas_ExposeExactlyModelInputs(string methodName, string expected)
     {
         var properties = SchemaPropertyNames(typeof(ProjectWriteTools), methodName);
@@ -396,7 +396,7 @@ public class McpToolSchemaTests
         var properties = schema.GetProperty("properties");
 
         Assert.Equal(
-            new[] { "cursor", "depth", "pageSize", "projectPath", "startSelector" },
+            new[] { "cursor", "depth", "pageSize", "startSelector" },
             properties.EnumerateObject().Select(property => property.Name).Order().ToArray());
         Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
         Assert.False(properties.TryGetProperty("startPath", out _));
@@ -422,6 +422,20 @@ public class McpToolSchemaTests
     }
 
     [Fact]
+    public async Task OnlyBindAndOpenAcceptProjectPath()
+    {
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full);
+
+        var withPath = (await harness.Client.ListToolsAsync())
+            .Where(tool => tool.ProtocolTool.InputSchema.GetProperty("properties").TryGetProperty("projectPath", out _))
+            .Select(tool => tool.Name)
+            .Order()
+            .ToArray();
+
+        Assert.Equal(new[] { "bind_project", "open_project" }, withPath);
+    }
+
+    [Fact]
     public void CompileCheck_SchemaExposesOnlyModelInputs()
     {
         var properties = SchemaPropertyNames(
@@ -429,7 +443,7 @@ public class McpToolSchemaTests
             nameof(ProjectEngineeringTools.CompileCheck));
 
         Assert.Equal(
-            new[] { "blockPath", "plcName", "projectPath" },
+            new[] { "blockPath", "plcName" },
             properties.OrderBy(name => name).ToArray());
         Assert.DoesNotContain("workerClient", properties);
         Assert.DoesNotContain("confirm", properties);

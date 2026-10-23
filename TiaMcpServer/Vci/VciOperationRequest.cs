@@ -10,8 +10,6 @@ public sealed class VciOperationRequest : IOperationBatchItem
 {
     public string OperationId { get; set; } = string.Empty;
     public string Operation { get; set; } = string.Empty;
-    [Description("Optional bound standalone project path assertion; never opens or switches a project.")]
-    public string? ProjectPath { get; set; }
     public string? WorkspaceName { get; set; }
     [Description("VCI selector segments {nodeType,name} starting at Device. Software units and system block folders are unsupported.")]
     public List<ProjectTreeSelectorSegment>? Scope { get; set; }

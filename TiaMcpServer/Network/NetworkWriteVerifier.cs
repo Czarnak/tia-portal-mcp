@@ -18,7 +18,7 @@ public sealed class NetworkWriteVerifier
         IReadOnlyDictionary<string, NetworkWriteEffect> current)
     { _client = client; _initial = initial; _current = current; }
 
-    public async Task<NetworkWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch,
+    public async Task<NetworkWriteVerification> VerifyAsync(StructuredOperationBatch batch,
         IReadOnlyDictionary<string, NetworkMutationVerificationInfo> immediate)
     {
         var operations = new List<NetworkOperationVerification>();
@@ -134,7 +134,7 @@ public sealed class NetworkWriteVerifier
             }
         }
         if (operations.Count == 0) return new(true, operations, checks, null);
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client).ConfigureAwait(false);
         // Reuse preparation's ordinary-project structural gate after mutation as well.
         var readable = snapshot.Success && NetworkWritePlanner.DiscoveryComplete(snapshot.State!);
         var state = readable ? snapshot.State : null;
@@ -154,7 +154,7 @@ public sealed class NetworkWriteVerifier
                 && state.Subnets.All(s => !string.IsNullOrWhiteSpace(s.SubnetId))
                 && state.Subnets.Count(s => s.SubnetId == key.Identity) == 1)
             {
-                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath,
+                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client,
                     new() { Kind = NetworkObjectKinds.Subnet, SubnetId = key.Identity }, new[] { key.Field }).ConfigureAwait(false);
                 var value = attributes.TryGetValue(key.Field, out var attribute) ? AttributeText(attribute) : null;
                 observation = (value, value is not null);
@@ -165,7 +165,7 @@ public sealed class NetworkWriteVerifier
                 && NetworkWritePlanner.TryResolveAffected(state, key.NodeIdentity!, out var qualified, out _)
                 && constraints.GetValueOrDefault(key.NodeIdentity!)?.All(identity => NetworkWritePlanner.TryResolveAffected(state, identity, out _, out _)) != false)
             {
-                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client, projectPath,
+                var attributes = await NetworkWritePlanner.ReadAttributesAsync(_client,
                     NetworkWritePlanner.NodeTarget(qualified!.DeviceName, qualified.NodeId, qualified.InterfacePath!), new[] { key.Field }).ConfigureAwait(false);
                 var value = attributes.TryGetValue(key.Field, out var attribute) ? AttributeText(attribute) : null;
                 observation = (value, value is not null);

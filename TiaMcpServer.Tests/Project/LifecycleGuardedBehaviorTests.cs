@@ -44,6 +44,7 @@ public sealed class LifecycleGuardedBehaviorTests
     public static IEnumerable<object[]> BehaviorMatrix()
         => from operation in new[] { "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project" }
            from behavior in new[] { "rejected", "dryRun", "success", "worker-failure", "malformed", "verification-failure" }
+           where behavior != "rejected" || operation is not ("save_project" or "close_project")
            select new object[] { operation, behavior };
 
     [Theory]
@@ -52,7 +53,16 @@ public sealed class LifecycleGuardedBehaviorTests
     {
         using var fixture = new Fixture(behavior);
         var item = fixture.Item(operation);
-        if (behavior == "rejected") item = item with { ProjectPath = "relative-path" };
+        if (behavior == "rejected")
+        {
+            item = operation switch
+            {
+                "open_project" => item with { ProjectPath = "relative-path" },
+                "create_project" => item with { ProjectDirectory = "relative-directory" },
+                "save_project_as" => item with { TargetDirectory = "relative-directory" },
+                _ => item with { ArchiveDirectory = "relative-directory" },
+            };
+        }
         var dryRun = behavior == "dryRun";
         var result = await ProjectWriteTools.ExecuteAsync(fixture.Client, fixture.Execution, item,
             new(null), dryRun);
@@ -171,7 +181,7 @@ public sealed class LifecycleGuardedBehaviorTests
 
         public LifecycleWriteItem Item(string operation) => new(operation)
         {
-            ProjectPath = operation == "open_project" ? _destination : operation == "create_project" ? null : _source,
+            ProjectPath = operation == "open_project" ? _destination : null,
             ForceRebind = true, ProjectDirectory = _root, ProjectName = "Created",
             TargetDirectory = _root, TargetName = "Copy", ArchiveDirectory = Path.Combine(_root, "Archives"), ArchiveName = "Archive"
         };

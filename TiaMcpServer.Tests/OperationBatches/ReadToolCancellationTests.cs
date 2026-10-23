@@ -7,6 +7,7 @@ using TiaMcpServer.Network;
 using TiaMcpServer.Plc;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Vci;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -23,12 +24,18 @@ public class ReadToolCancellationTests
 {
     private const string PlcScenario = "plc-read-roundtrip";
 
-    private static OpennessWorkerClient CreateClient()
-        => new(
-            new ProjectSessionBinding(null),
+    // Bound first, so the bind-first precheck passes and the cancellation check is what stops the call.
+    private static async Task<OpennessWorkerClient> CreateClientAsync()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, PlcScenario);
+        return client;
+    }
 
     private static CancellationToken Cancelled()
     {
@@ -43,13 +50,12 @@ public class ReadToolCancellationTests
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
         using var log = new FakeWorkerRequestLog(audit.Path);
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(PlcScenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
         var operations = new[]
         {
             new PlcOperationRequest
             {
-                OperationId = "b", Operation = "get_block_content", BlockPath = "PLC_1/Main", ProjectPath = PlcScenario,
+                OperationId = "b", Operation = "get_block_content", BlockPath = "PLC_1/Main",
             },
         };
 
@@ -72,7 +78,8 @@ public class ReadToolCancellationTests
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
         using var log = new FakeWorkerRequestLog(audit.Path);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
+        var before = log.Methods().Length;
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             NetworkReadTools.NetworkRead(
@@ -80,7 +87,7 @@ public class ReadToolCancellationTests
                 new[] { new NetworkOperationRequest { OperationId = "n", Operation = "search_equipment_catalog", Query = "CPU" } },
                 Cancelled()));
 
-        Assert.Empty(log.Methods());
+        Assert.Equal(before, log.Methods().Length);
     }
 
     [Fact]
@@ -89,7 +96,8 @@ public class ReadToolCancellationTests
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
         using var log = new FakeWorkerRequestLog(audit.Path);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
+        var before = log.Methods().Length;
         var codec = new HmiPageCursorCodec(AuthenticatedCursorProtector.CreateProcessScoped());
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -99,7 +107,7 @@ public class ReadToolCancellationTests
                 new[] { new HmiOperationRequest { OperationId = "h", Operation = "list_hmi_devices" } },
                 Cancelled()));
 
-        Assert.Empty(log.Methods());
+        Assert.Equal(before, log.Methods().Length);
     }
 
     [Fact]
@@ -108,7 +116,8 @@ public class ReadToolCancellationTests
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
         using var log = new FakeWorkerRequestLog(audit.Path);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
+        var before = log.Methods().Length;
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             VciReadTools.VciRead(
@@ -116,6 +125,6 @@ public class ReadToolCancellationTests
                 new[] { new VciOperationRequest { OperationId = "v", Operation = "list_workspaces" } },
                 Cancelled()));
 
-        Assert.Empty(log.Methods());
+        Assert.Equal(before, log.Methods().Length);
     }
 }

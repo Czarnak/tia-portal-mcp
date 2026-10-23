@@ -10,7 +10,6 @@ public sealed class HmiWriteOperationRequest : IOperationBatchItem
 {
     public string OperationId { get; set; } = string.Empty;
     public string Operation { get; set; } = string.Empty;
-    public string? ProjectPath { get; set; }
     public string? HmiName { get; set; }
     public string? TableName { get; set; }
     public string? GroupPath { get; set; }

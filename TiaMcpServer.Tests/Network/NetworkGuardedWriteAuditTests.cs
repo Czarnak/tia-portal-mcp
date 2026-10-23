@@ -17,7 +17,6 @@ public sealed class NetworkGuardedWriteAuditTests
     [InlineData(McpAccessMode.ReadWrite, false, "validation", "error", "none")]
     [InlineData(McpAccessMode.ReadWrite, false, "null-items", "error", "none")]
     [InlineData(McpAccessMode.ReadWrite, false, "null-item", "error", "none")]
-    [InlineData(McpAccessMode.ReadWrite, false, "mixed-projects", "error", "none")]
     [InlineData(McpAccessMode.ReadWrite, false, "binding", "error", "none")]
     [InlineData(McpAccessMode.ReadWrite, false, "network-guarded-partial", "applied", "none")]
     [InlineData(McpAccessMode.ReadWrite, false, "network-guarded-incomplete", "blocked", "none")]
@@ -37,12 +36,6 @@ public sealed class NetworkGuardedWriteAuditTests
         if (scenario == "validation") args["operations"] = Array.Empty<object>();
         if (scenario == "null-items") args["operations"] = null;
         if (scenario == "null-item") args["operations"] = new object?[] { null };
-        if (scenario == "mixed-projects")
-        {
-            var first = NetworkGuardedWriteFixture.Delete("first"); first.ProjectPath = "C:/one.ap21";
-            var second = NetworkGuardedWriteFixture.Delete("second"); second.ProjectPath = "C:/two.ap21";
-            args["operations"] = new[] { first, second };
-        }
         if (scenario == "network-guarded-partial")
         {
             var partial = NetworkGuardedWriteFixture.Configure("partial");

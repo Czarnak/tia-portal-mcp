@@ -22,7 +22,7 @@ public sealed class VciWritePlannerTests
         using var f = await Fixture.Create();
         f.Put(new() { Leaves = 5, MappedLeaves = 2, FormatFallbacks = 1, WorkspaceRootPath = f.Root });
         var first = Item(); first.Format = "sCl"; first.RelativeDirectory = "out";
-        var result = await new VciWritePlanner(f.Client).PlanAsync(null, [first, Item(id: "b", workspace: "Other")]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync([first, Item(id: "b", workspace: "Other")]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
         Assert.Equal(2, f.Plans.Length);
         Assert.All(f.Plans, r => Assert.Null(r.VciQuery));
@@ -40,7 +40,7 @@ public sealed class VciWritePlannerTests
         using var f = await Fixture.Create();
         f.Put(new() { KeyCollisions = Enumerable.Range(0, 12).Select(i => "collision-" + i).ToList(),
             Unrepresentable = ["CON: reserved"], WorkspaceConflict = "duplicate", Unverifiable = "unreadable" });
-        var result = await new VciWritePlanner(f.Client).PlanAsync(null, [Item()]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync([Item()]);
         Assert.True(result.Plan.Success);
         var guards = result.Guards["a"];
         Assert.Equal(4, guards.Count);
@@ -61,7 +61,7 @@ public sealed class VciWritePlannerTests
     public async Task InfoGuardsFirePerOperation(string operation, string? guard)
     {
         using var f = await Fixture.Create();
-        var result = await new VciWritePlanner(f.Client).PlanAsync(null, [Item(operation)]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync([Item(operation)]);
         Assert.True(result.Plan.Success);
         if (guard is null) Assert.Empty(result.Guards["a"]);
         else Assert.Equal(guard, Assert.Single(result.Guards["a"]).Id);
@@ -75,7 +75,7 @@ public sealed class VciWritePlannerTests
         using var f = await Fixture.Create();
         var item = Item("create_workspace", dependent ? "b" : "a");
         item.RootPath = Path.Combine(Path.GetDirectoryName(f.Client.BindingSnapshot.ProjectPath)!, "workspace");
-        var result = await new VciWritePlanner(f.Client).PlanAsync(null, dependent ? [Item("delete_workspace"), item] : [item]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync(dependent ? [Item("delete_workspace"), item] : [item]);
         Assert.False(result.Plan.Success); Assert.Equal("validation_error", result.Plan.Error!.Category);
         Assert.Equal(dependent ? 1 : 0, f.Plans.Length);
     }
@@ -88,10 +88,10 @@ public sealed class VciWritePlannerTests
     {
         using var f = await Fixture.Create(); f.Fail(category, "fixture failure");
         var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync(null, [Item()]);
+        var result = await planner.PlanAsync([Item()]);
         Assert.False(result.Plan.Success); Assert.Empty(result.Guards);
         Assert.Equal(category, result.Plan.Error!.Category); Assert.Equal("fixture failure", result.Plan.Error.Message);
-        var late = await planner.ReplanAsync(null, Item());
+        var late = await planner.ReplanAsync(Item());
         Assert.False(late.Replan.Success); Assert.Equal(category, late.Replan.Error!.Category);
     }
 
@@ -101,14 +101,14 @@ public sealed class VciWritePlannerTests
         using var f = await Fixture.Create();
         var create = Item("create_workspace"); create.RootPath = f.Root;
         var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync(null, [create, Item(id: "b", workspace: "FIXTURE"), Item("delete_mapping", "c")]);
+        var result = await planner.PlanAsync([create, Item(id: "b", workspace: "FIXTURE"), Item("delete_mapping", "c")]);
         Assert.True(result.Plan.Success);
         Assert.Single(f.Plans);
         Assert.Equal("a", result.Plan.Items[1].DependsOn); Assert.Null(result.Plan.Items[1].Effect);
         Assert.Equal("b", result.Plan.Items[2].DependsOn); Assert.Null(result.Plan.Items[2].Effect);
         Assert.Empty(result.Guards["b"]);
         f.Put(new() { Leaves = 4, MappedLeaves = 1, WorkspaceRootPath = f.Root });
-        var replan = await planner.ReplanAsync(null, Item(id: "b"));
+        var replan = await planner.ReplanAsync(Item(id: "b"));
         Assert.True(replan.Replan.Success); Assert.Equal(4, replan.Replan.Plan!.Effect!.Leaves);
         Assert.Null(replan.Replan.Plan.DependsOn); Assert.Equal(2, f.Plans.Length);
     }
@@ -120,10 +120,10 @@ public sealed class VciWritePlannerTests
         var first = Item("create_workspace"); first.RootPath = f.Root;
         var second = Item("create_workspace", "b"); second.RootPath = f.Root;
         var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync(null, [first, second]);
+        var result = await planner.PlanAsync([first, second]);
         Assert.Equal("a", result.Plan.Items[1].DependsOn); Assert.Single(f.Plans);
         f.Put(new() { WorkspaceConflict = "workspace now exists" });
-        var late = await planner.ReplanAsync(null, second);
+        var late = await planner.ReplanAsync(second);
         Assert.True(late.Replan.Success);
         Assert.Equal("vci_workspace_exists", Assert.Single(late.Guards).Id);
     }
@@ -135,7 +135,7 @@ public sealed class VciWritePlannerTests
     public async Task InvalidTypedPlanFailsClosed(string payload)
     {
         using var f = await Fixture.Create(); f.Raw(payload);
-        Assert.Equal("protocol_error", (await new VciWritePlanner(f.Client).PlanAsync(null, [Item()])).Plan.Error!.Category);
+        Assert.Equal("protocol_error", (await new VciWritePlanner(f.Client).PlanAsync([Item()])).Plan.Error!.Category);
     }
 
     [Theory]
@@ -154,7 +154,7 @@ public sealed class VciWritePlannerTests
         if (fault == "null-collisions") info.KeyCollisions = null!;
         if (fault == "blank-offender") info.Unrepresentable = [" "];
         f.Put(info);
-        Assert.Equal("protocol_error", (await new VciWritePlanner(f.Client).PlanAsync(null, [Item()])).Plan.Error!.Category);
+        Assert.Equal("protocol_error", (await new VciWritePlanner(f.Client).PlanAsync([Item()])).Plan.Error!.Category);
     }
 
     // A scripted peer exercises real bound dispatch without launching Siemens code.

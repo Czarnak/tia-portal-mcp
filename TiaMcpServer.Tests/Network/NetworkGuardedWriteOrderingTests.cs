@@ -51,6 +51,8 @@ public sealed class NetworkGuardedWriteOrderingTests
         try
         {
             using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-owner-drift");
+            // The caller's earlier read observes the original owner; every later read sees it changed.
+            Assert.True((await fixture.Client.ReadHardwareConfigAsync()).Success);
             var operation = new NetworkOperationRequest { OperationId = "write", Operation = "configure_network_device", Target = new()
             { DeviceName = "S7-1500/ET200MP station_1", NodeId = "E1", InterfacePath = new[]
                 { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
@@ -234,7 +236,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
         await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), NetworkGuardedWriteFixture.Configure("second", "10.0.0.2"));
         var relevant = requests.Methods().Where(m => m is "read_hardware_config" or "configure_network_device").ToArray();
-        Assert.Equal(new[] { "read_hardware_config", "read_hardware_config", "configure_network_device", "read_hardware_config", "configure_network_device", "read_hardware_config" }, relevant);
+        Assert.Equal(new[] { "read_hardware_config", "configure_network_device", "read_hardware_config", "configure_network_device", "read_hardware_config" }, relevant);
     }
     [Fact]
     public async Task ReturnedPlanCannotMutateRetainedInventory()
@@ -243,10 +245,10 @@ public sealed class NetworkGuardedWriteOrderingTests
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
         var domain = new NetworkWriteDomain(fixture.Client);
         var operation = NetworkGuardedWriteFixture.Delete();
-        var plan = await domain.PlanAsync("network-guarded", new[] { operation });
+        var plan = await domain.PlanAsync(new[] { operation });
         plan.Items[0].Effect!.AffectedNodes[0].NodeId = "caller-corruption";
-        var projected = domain.Project(operation, await domain.MutateAsync("network-guarded", operation));
-        var verification = await domain.VerifyAsync("network-guarded", StructuredOperationBatch.FromItems(new[] { projected }));
+        var projected = domain.Project(operation, await domain.MutateAsync(operation));
+        var verification = await domain.VerifyAsync(StructuredOperationBatch.FromItems(new[] { projected }));
         Assert.True(verification!.Success);
         Assert.DoesNotContain(verification.FinalChecks, c => c.Subject?.NodeId == "caller-corruption");
         Assert.Contains(verification.FinalChecks, c => c.Subject?.NodeId == "node-2");

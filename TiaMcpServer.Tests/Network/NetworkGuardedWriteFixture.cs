@@ -41,7 +41,7 @@ internal sealed class NetworkGuardedWriteFixture : IDisposable
     }
     public async Task<NetworkGuardedWriteResponse> RunAsync(bool dryRun, params NetworkOperationRequest[] operations)
     {
-        var result = await Runner.RunAsync(new NetworkWriteDomain(Client), new WriteCall<NetworkOperationRequest>(_path, operations, dryRun));
+        var result = await Runner.RunAsync(new NetworkWriteDomain(Client), new WriteCall<NetworkOperationRequest>(operations, dryRun));
         return CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(((JsonElement)result.StructuredContent!).GetRawText());
     }
     public void Dispose() => Client.Dispose();

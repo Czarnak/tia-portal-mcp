@@ -257,8 +257,7 @@ public sealed class WriteConfirmationPipelineTests
     public async Task LateGuardForDifferentTarget_CannotReuseUserApprovalById()
     {
         var confirmation = new UserConfirmation(true, (_, _) => ValueTask.FromResult(Confirmed()), TimeSpan.FromSeconds(1));
-        var call = new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath,
-            new[] { new FakeWriteItem("a", Guards: new[] { Ack }), new FakeWriteItem("b", DependsOn: "a", LateGuards: new[] { Ack }) }, false);
+        var call = new WriteCall<FakeWriteItem>(new[] { new FakeWriteItem("a", Guards: new[] { Ack }), new FakeWriteItem("b", DependsOn: "a", LateGuards: new[] { Ack }) }, false);
 
         var result = await _execution.RunAsync(_domain, call, new WriteConfirmationContext(confirmation));
         var doc = Document(result);
@@ -309,7 +308,7 @@ public sealed class WriteConfirmationPipelineTests
     }
 
     private static WriteCall<FakeWriteItem> Call(IReadOnlyList<string>? guards = null, bool dryRun = false)
-        => new(FakeWriteBindingGate.ProjectPath, new[] { new FakeWriteItem("a", Guards: guards ?? new[] { Ack }) }, dryRun);
+        => new(new[] { new FakeWriteItem("a", Guards: guards ?? new[] { Ack }) }, dryRun);
 
     private static ElicitResult Confirmed() => Reply("accept", true);
 

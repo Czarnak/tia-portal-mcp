@@ -36,6 +36,10 @@ var portalDisposalRevision = 0L;
 // starts. Ordinary requests never establish this mutable session state.
 string? fakeProjectPath = ProjectPathNormalization.Canonicalize(
     Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_UI_OPEN_PROJECT"));
+// Binding fixtures opt in so the first identity-less get_project_status grounds the UI-open
+// project before any scenario script runs. Launches without the flag keep every scripted response.
+var statusGroundingDeclared =
+    Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_STATUS_GROUNDING") == "1";
 string? fakeSessionContainerPath = null;
 var portalInventoryDeclaration = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_PORTALS");
 var portalInventoryDeclared = portalInventoryDeclaration is not null;
@@ -495,6 +499,20 @@ while ((line = Console.In.ReadLine()) is not null)
         || currentProjectPath is null && currentMethod == "get_basic_project_status"))
     {
         Respond(GuardedLifecycleResponse(line, guardedLifecycleScenario));
+        continue;
+    }
+
+    // The open-policy gate above already proved the request targets the UI-open project.
+    // network-binding-mismatch keeps modelling a worker that resolves a different project.
+    if (statusGroundingDeclared && currentMethod == "get_project_status" && currentExpectedSessionIdentity is null)
+    {
+        var grounded = DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = fakeProjectPath });
+        Respond(scenario == "network-binding-mismatch"
+            ? SuccessWithResolvedPath(grounded, @"C:\FakeWorker\Different.ap21")
+            : Success(grounded));
+        // One-shot: only the bootstrap answer changes; later identity-less status calls
+        // (recovery probes, configured-project grounding) reach their scenario scripts again.
+        statusGroundingDeclared = false;
         continue;
     }
 

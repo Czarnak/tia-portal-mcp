@@ -9,11 +9,10 @@ public sealed record WriteToolError(string Category, string Message);
 public sealed record WriteEffect<TEffect>(string OperationId, TEffect Effect);
 
 /// <summary>
-/// One guarded write call as the tool received it: the project, the ordered items, whether this is
-/// a dry run.
+/// One guarded write call as the tool received it: the ordered items and whether this is a dry run.
+/// It always targets the pinned binding.
 /// </summary>
 public sealed record WriteCall<TItem>(
-    string? ProjectPath,
     IReadOnlyList<TItem> Items,
     bool DryRun)
     where TItem : IOperationBatchItem;

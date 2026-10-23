@@ -33,9 +33,9 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
         var errors = NetworkOperationCatalog.ValidateAccessMode(items, accessMode);
         return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
     }
-    public async Task<WritePlan<NetworkWriteEffect>> PlanAsync(string? path, IReadOnlyList<NetworkOperationRequest> items)
+    public async Task<WritePlan<NetworkWriteEffect>> PlanAsync(IReadOnlyList<NetworkOperationRequest> items)
     {
-        var plan = await _planner.PlanAsync(path, items).ConfigureAwait(false);
+        var plan = await _planner.PlanAsync(items).ConfigureAwait(false);
         if (plan.Success && NetworkWritePayloadBudget.MeasurePreparedCore(items, plan.Items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
             return WritePlan<NetworkWriteEffect>.Fail(WorkerFailureCategories.ValidationError, BudgetRefusal);
         if (plan.Success) _items = items.ToArray();
@@ -62,9 +62,9 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
         }
         return guards;
     }
-    public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(string? path, NetworkOperationRequest item)
+    public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(NetworkOperationRequest item)
     {
-        var replan = await _planner.ReplanAsync(path, _prepared.GetValueOrDefault(item.OperationId) ?? item).ConfigureAwait(false);
+        var replan = await _planner.ReplanAsync(_prepared.GetValueOrDefault(item.OperationId) ?? item).ConfigureAwait(false);
         if (replan.Success)
         {
             var updated = replan.Plan!.Effect!;
@@ -87,8 +87,8 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
         }
         return replan;
     }
-    public Task<WorkerCallResult> MutateAsync(string? path, NetworkOperationRequest item)
-    { _attempted.Add(item.OperationId); return NetworkWorkerInvoker.InvokeWriteAsync(client, _prepared.GetValueOrDefault(item.OperationId) ?? item, path); }
+    public Task<WorkerCallResult> MutateAsync(NetworkOperationRequest item)
+    { _attempted.Add(item.OperationId); return NetworkWorkerInvoker.InvokeWriteAsync(client, _prepared.GetValueOrDefault(item.OperationId) ?? item); }
     public StructuredOperationItem Project(NetworkOperationRequest item, WorkerCallResult result)
     {
         var projected = NetworkPayloadContract.Project(_prepared.GetValueOrDefault(item.OperationId) ?? item, result, requireVerification: true);
@@ -96,8 +96,8 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
             _immediate[item.OperationId] = CanonicalJson.Deserialize<NetworkMutationVerificationInfo>(verification.GetRawText());
         return projected;
     }
-    public async Task<NetworkWriteVerification?> VerifyAsync(string? path, StructuredOperationBatch batch)
-        => await new NetworkWriteVerifier(client, _initial, _current).VerifyAsync(path,
+    public async Task<NetworkWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
+        => await new NetworkWriteVerifier(client, _initial, _current).VerifyAsync(
             StructuredOperationBatch.FromItems(batch.Operations.Where(item => _attempted.Contains(item.OperationId)).ToArray()), _immediate).ConfigureAwait(false);
     public bool VerificationSucceeded(NetworkWriteVerification? verification) => verification?.Success == true;
     public NetworkGuardedWriteResponse Compose(WriteReport<NetworkWriteEffect, NetworkWriteVerification> report) => NetworkWritePayloadBudget.Apply(new(

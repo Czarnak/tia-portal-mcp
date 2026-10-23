@@ -87,8 +87,8 @@ The worker never chooses the first running Portal or first open project. It sele
 path when one was supplied, or a sole candidate when there is genuinely only one. Multiple possible
 Portals/projects fail with `target_ambiguous` before Attach or mutation. A later path, PID, worker, or
 project-generation mismatch fails with `binding_conflict` and invalidates the binding; call
-`bind_project` with `forceRebind=true` for an already-open project, or start a new MCP session. `get_project_status(projectPath)`
-is read-only and non-binding: do not use it to switch projects. Use `bind_project` for adopting or
+`bind_project` with `forceRebind=true` for an already-open project, or start a new MCP session. `get_project_status`
+is read-only, takes no arguments and is non-binding: do not use it to switch projects. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` for adopting or
 switching to an already-open project; use `open_project` only for opening one.
 
 Call `bind_project` without a path to adopt the sole open project or receive the candidate list;
@@ -207,7 +207,7 @@ to read-only. To preview registration without changing client configuration:
 tia-mcp install codex --access-mode full --dry-run
 ```
 
-`--project` configures an assertion; a read's `projectPath` never opens or switches projects in
+`--project` configures an assertion; content tools take no `projectPath` and never open or switch projects in
 any mode. Bind an already-open project explicitly with `bind_project` before writable operations.
 
 Enable read-only mode:
@@ -240,7 +240,7 @@ The following operations are **not available** in read-only mode:
 - All project lifecycle operations (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`)
 - All data mutations (`plc_write`, `network_write`, `hmi_write` and `vci_write`)
 
-In read-only mode, the server operates only on an already-open project. It never opens, creates, saves or closes a project. Explicit `bind_project` can switch the selected session; ordinary reads cannot. A read's `projectPath` is an assertion that must match the open project. Project-tree cursors reject binding changes with `cursor_binding_mismatch`, even after switching back to the original path.
+In read-only mode, the server operates only on an already-open project. It never opens, creates, saves or closes a project. Explicit `bind_project` can switch the selected session; ordinary reads cannot. Content tools act on the bound project only and fail closed with `binding_conflict` when unbound. Project-tree cursors reject binding changes with `cursor_binding_mismatch`, even after switching back to the original path.
 
 Read-only mode is a security boundary enforced at three layers:
 

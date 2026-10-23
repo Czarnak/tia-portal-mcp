@@ -141,13 +141,13 @@ public sealed class WriteExecutionFakeWorkerTests
             SubnetProbeDomain.Catalog,
             TimeProvider.System);
         var call = new WriteCall<NetworkOperationRequest>(
-            Scenario, new[] { SubnetProbeDomain.DeleteSubnet("delete", subnetId, Scenario) }, dryRun);
+            new[] { SubnetProbeDomain.DeleteSubnet("delete", subnetId) }, dryRun);
         return execution.RunAsync(new SubnetProbeDomain(client), call);
     }
 
     private static async Task<IReadOnlyList<string>> SubnetIdsAsync(OpennessWorkerClient client)
     {
-        var state = await NetworkWritePlanner.ReadCurrentStateAsync(client, Scenario);
+        var state = await NetworkWritePlanner.ReadCurrentStateAsync(client);
         Assert.True(state.Success, state.Error);
         return state.State!.Subnets.Select(subnet => subnet.SubnetId).ToArray();
     }

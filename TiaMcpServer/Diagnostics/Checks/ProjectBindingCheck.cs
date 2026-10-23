@@ -46,7 +46,7 @@ public sealed class ProjectBindingCheck : IDiagnosticCheck
             var writable = _accessMode is McpAccessMode.ReadWrite or McpAccessMode.Full;
             var message = writable
                 ? $"{(_accessMode == McpAccessMode.Full ? "Full" : "Read-write")} mode has no explicit project binding. Bind an already-open project before using project tools."
-                : "No project binding is configured. Read-only calls would rely on an unverified project currently open in TIA Portal.";
+                : "No project binding is configured. Project tools fail until bind_project binds an already-open project.";
 
             return new DiagnosticCheckResult(
                 Id,

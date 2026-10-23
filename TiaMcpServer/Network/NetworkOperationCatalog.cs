@@ -43,7 +43,6 @@ public static class NetworkOperationCatalog
     {
         "operationId",
         "operation",
-        "projectPath",
     };
 
     /// <summary>
@@ -252,19 +251,6 @@ public static class NetworkOperationCatalog
             if (spec.Name == "delete_subnet")
             {
                 ValidateDeleteSubnet(operation, errors);
-            }
-        }
-
-        if (expectedCategory == NetworkOperationCategory.Write)
-        {
-            var distinctPaths = operations
-                .Where(operation => operation is not null && !string.IsNullOrWhiteSpace(operation.ProjectPath))
-                .Select(operation => WriteProjectPaths.Normalize(operation!.ProjectPath))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            if (distinctPaths.Length > 1)
-            {
-                errors.Add("All write operations in a batch must target the same project path.");
             }
         }
 

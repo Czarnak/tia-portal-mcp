@@ -40,13 +40,13 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
     }
     public string ResolvedHmiName(string operationId) => _resolved[operationId];
 
-    public async Task<HmiPlanResult> PlanAsync(string? projectPath, IReadOnlyList<HmiWriteOperationRequest> items)
+    public async Task<HmiPlanResult> PlanAsync(IReadOnlyList<HmiWriteOperationRequest> items)
     {
         _resolved.Clear(); _deleteTags.Clear(); _createdDeleteTags.Clear();
         var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
         try
         {
-            var devices = await Read<HmiDeviceListInfo>(projectPath, "list_hmi_devices", new());
+            var devices = await Read<HmiDeviceListInfo>("list_hmi_devices", new());
             var contexts = new Dictionary<string, Context>(Names);
             var plans = new List<ItemPlan<HmiWriteEffect>>();
             var queryCount = 0;
@@ -55,7 +55,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
                 var hmi = ResolveHmi(devices, item.HmiName);
                 _resolved[item.OperationId] = hmi;
                 if (!contexts.TryGetValue(hmi, out var context))
-                    contexts[hmi] = context = new(await Load(projectPath, hmi, devices));
+                    contexts[hmi] = context = new(await Load(hmi, devices));
 
                 string? provisional = null;
                 if (item.TriggerTag is { } trigger && trigger.Contains('.'))
@@ -66,7 +66,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
                         if (origin.Name is null && origin.Bound) provisional = trigger;
                         else if (origin.Name is { } original && context.MemberReads.Add(original))
                         {
-                            var detail = await Read<HmiTagDetailInfo>(projectPath, "get_tag", new() { HmiName = hmi, TagName = original });
+                            var detail = await Read<HmiTagDetailInfo>("get_tag", new() { HmiName = hmi, TagName = original });
                             context.Evidence = context.Evidence with
                             {
                                 Complete = context.Evidence.Complete && detail.IsComplete && !detail.MembersTruncated,
@@ -93,7 +93,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
                         {
                             queryCount++;
                             context.ReferenceReads.Add(original);
-                            var (references, complete) = await ReadReferences(projectPath, hmi, original);
+                            var (references, complete) = await ReadReferences(hmi, original);
                             context.Evidence = context.Evidence with { References = context.Evidence.References.Concat(references).ToArray(), Complete = context.Evidence.Complete && complete };
                         }
                     }
@@ -132,12 +132,12 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         catch (ReadFailure failure) { return Failed(new(failure.Category, failure.Message)); }
     }
 
-    public async Task<HmiReplanResult> ReplanAsync(string? projectPath, HmiWriteOperationRequest item)
+    public async Task<HmiReplanResult> ReplanAsync(HmiWriteOperationRequest item)
     {
         try
         {
             var hmi = ResolvedHmiName(item.OperationId);
-            var evidence = await LoadItem(projectPath, hmi, item);
+            var evidence = await LoadItem(hmi, item);
             var state = HmiWorkingState.Create(evidence);
             var resolution = state.Resolve(item);
             if (resolution.Error is { } error) return new(ItemReplan<HmiWriteEffect>.Fail(error.Category, error.Message), []);
@@ -149,7 +149,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
                 if (covered is null || removes.Tags.Any(t => !covered.Contains(t))) evidence = evidence with { Complete = false };
                 else foreach (var tag in removes.Tags.Where(t => created?.Contains(t) != true))
                 {
-                    var (references, complete) = await ReadReferences(projectPath, hmi, tag);
+                    var (references, complete) = await ReadReferences(hmi, tag);
                     evidence = evidence with { References = evidence.References.Concat(references).ToArray(), Complete = evidence.Complete && complete };
                 }
                 resolution = HmiWorkingState.Create(evidence).Resolve(item);
@@ -181,16 +181,16 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         return matches[0].SoftwareName;
     }
 
-    private async Task<HmiEvidence> Load(string? path, string hmi, HmiDeviceListInfo devices)
+    private async Task<HmiEvidence> Load(string hmi, HmiDeviceListInfo devices)
     {
-        var evidence = await LoadCommon(path, hmi, true, true, true);
-        var (tags, tagsComplete) = await Tags(path, hmi, null);
-        var (alarms, alarmsComplete) = await Alarms(path, hmi);
+        var evidence = await LoadCommon(hmi, true, true, true);
+        var (tags, tagsComplete) = await Tags(hmi, null);
+        var (alarms, alarmsComplete) = await Alarms(hmi);
         return evidence with { Devices = devices.Devices, Tags = tags, Alarms = alarms, Complete = evidence.Complete && devices.IsComplete && tagsComplete && alarmsComplete };
     }
-    private async Task<HmiEvidence> LoadCommon(string? path, string hmi, bool cultures, bool connections, bool classes)
+    private async Task<HmiEvidence> LoadCommon(string hmi, bool cultures, bool connections, bool classes)
     {
-        var tables = await Read<HmiTagTableTreeInfo>(path, "list_tag_tables", new() { HmiName = hmi });
+        var tables = await Read<HmiTagTableTreeInfo>("list_tag_tables", new() { HmiName = hmi });
         var flattened = new List<HmiTableEvidence>(); var groups = new List<string>();
         void Flatten(IEnumerable<HmiTagTableInfo> ts, IEnumerable<HmiTagTableGroupInfo> gs, string? parent)
         {
@@ -202,15 +202,15 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
             }
         }
         Flatten(tables.Tables, tables.Groups, tables.GroupPath);
-        var languages = cultures ? await Read<HmiProjectLanguagesInfo>(path, "list_project_languages", new() { HmiName = hmi }) : new();
-        var cs = connections ? await Read<HmiConnectionListInfo>(path, "list_connections", new() { HmiName = hmi }) : new();
-        var ac = classes ? await Read<HmiAlarmClassesInfo>(path, "list_alarm_classes", new() { HmiName = hmi }) : new();
+        var languages = cultures ? await Read<HmiProjectLanguagesInfo>("list_project_languages", new() { HmiName = hmi }) : new();
+        var cs = connections ? await Read<HmiConnectionListInfo>("list_connections", new() { HmiName = hmi }) : new();
+        var ac = classes ? await Read<HmiAlarmClassesInfo>("list_alarm_classes", new() { HmiName = hmi }) : new();
         return new() { HmiName = hmi, Tables = flattened, Groups = groups, Cultures = languages.Languages, Connections = cs.Connections.Select(c => c.Name).ToArray(), AlarmClasses = ac.AlarmClasses.Select(c => c.Name).ToArray(), Complete = tables.IsComplete && languages.IsComplete && cs.IsComplete && ac.IsComplete };
     }
 
-    private async Task<HmiEvidence> LoadItem(string? path, string hmi, HmiWriteOperationRequest item)
+    private async Task<HmiEvidence> LoadItem(string hmi, HmiWriteOperationRequest item)
     {
-        var evidence = await LoadCommon(path, hmi, new[] { item.Comment, item.DisplayName, item.EventText, item.InfoText }.Any(t => t is not null), item.Connection is not null, item.AlarmClass is not null);
+        var evidence = await LoadCommon(hmi, new[] { item.Comment, item.DisplayName, item.EventText, item.InfoText }.Any(t => t is not null), item.Connection is not null, item.AlarmClass is not null);
         var tags = new List<HmiTagRowInfo>(); var alarms = new List<HmiAlarmRowInfo>(); var members = new List<string>();
         var complete = evidence.Complete;
         var tagNames = new Dictionary<string, bool>(Names);
@@ -222,7 +222,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         if (item.TriggerTag is { } trigger) NeedTag(trigger.Split('.')[0], true);
         foreach (var (name, required) in tagNames)
         {
-            var detail = await Read<HmiTagDetailInfo>(path, "get_tag", new() { HmiName = hmi, TagName = name }, optional: !required);
+            var detail = await Read<HmiTagDetailInfo>("get_tag", new() { HmiName = hmi, TagName = name }, optional: !required);
             if (detail is null) continue;
             tags.Add(detail.Tag); members.AddRange(MemberPaths(detail.Members, name));
             complete &= detail.IsComplete && (!(item.TriggerTag?.Contains('.') == true && Names.Equals(item.TriggerTag.Split('.')[0], name)) || !detail.MembersTruncated);
@@ -231,33 +231,33 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         {
             foreach (var name in new[] { item.AlarmName, item.NewName }.OfType<string>().Distinct(Names))
             {
-                var detail = await Read<HmiAlarmDetailInfo>(path, "get_alarm", new() { HmiName = hmi, AlarmName = name, AlarmKind = item.AlarmKind }, optional: item.Operation == "create_alarm" || !Names.Equals(name, item.AlarmName));
+                var detail = await Read<HmiAlarmDetailInfo>("get_alarm", new() { HmiName = hmi, AlarmName = name, AlarmKind = item.AlarmKind }, optional: item.Operation == "create_alarm" || !Names.Equals(name, item.AlarmName));
                 if (detail is null) continue;
                 alarms.Add(detail.Alarm); complete &= detail.IsComplete;
             }
         }
         if (item.Operation == "delete_tag_table")
         {
-            var tableTags = await Tags(path, hmi, item.TableName); tags.AddRange(tableTags.Rows); complete &= tableTags.Complete;
+            var tableTags = await Tags(hmi, item.TableName); tags.AddRange(tableTags.Rows); complete &= tableTags.Complete;
         }
         if (item.Operation is "delete_tag" or "delete_tag_table")
         {
-            var currentAlarms = await Alarms(path, hmi); alarms.AddRange(currentAlarms.Rows); complete &= currentAlarms.Complete;
+            var currentAlarms = await Alarms(hmi); alarms.AddRange(currentAlarms.Rows); complete &= currentAlarms.Complete;
         }
         return evidence with { Tags = tags, Alarms = alarms, MemberPaths = members, Complete = complete };
     }
 
-    private Task<(List<HmiTagRowInfo> Rows, bool Complete)> Tags(string? path, string hmi, string? table)
-        => Pages<HmiTagListInfo, HmiTagRowInfo>(path, "list_tags", new() { HmiName = hmi, TableName = table }, p => (p.Tags, p.Page, p.IsComplete));
-    private Task<(List<HmiAlarmRowInfo> Rows, bool Complete)> Alarms(string? path, string hmi)
-        => Pages<HmiAlarmListInfo, HmiAlarmRowInfo>(path, "list_alarms", new() { HmiName = hmi }, p => (p.Alarms, p.Page, p.IsComplete));
-    private async Task<(List<TRow> Rows, bool Complete)> Pages<T, TRow>(string? path, string operation, HmiQueryInfo query, Func<T, (List<TRow> Rows, HmiPage Page, bool Complete)> unpack) where T : class
+    private Task<(List<HmiTagRowInfo> Rows, bool Complete)> Tags(string hmi, string? table)
+        => Pages<HmiTagListInfo, HmiTagRowInfo>("list_tags", new() { HmiName = hmi, TableName = table }, p => (p.Tags, p.Page, p.IsComplete));
+    private Task<(List<HmiAlarmRowInfo> Rows, bool Complete)> Alarms(string hmi)
+        => Pages<HmiAlarmListInfo, HmiAlarmRowInfo>("list_alarms", new() { HmiName = hmi }, p => (p.Alarms, p.Page, p.IsComplete));
+    private async Task<(List<TRow> Rows, bool Complete)> Pages<T, TRow>(string operation, HmiQueryInfo query, Func<T, (List<TRow> Rows, HmiPage Page, bool Complete)> unpack) where T : class
     {
         var rows = new List<TRow>(); var complete = true; int? total = null; string? snapshot = null;
         query.Offset = 0; query.Limit = 2000;
         while (true)
         {
-            var (pageRows, page, pageComplete) = unpack(await Read<T>(path, operation, query));
+            var (pageRows, page, pageComplete) = unpack(await Read<T>(operation, query));
             rows.AddRange(pageRows); complete &= pageComplete;
             if (page.Offset != query.Offset || page.Limit != 2000 || page.Total < rows.Count || total is not null && total != page.Total) return (rows, false);
             total = page.Total;
@@ -279,9 +279,9 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
             foreach (var nested in MemberPaths(member.Members, path)) yield return nested;
         }
     }
-    private async Task<T> Read<T>(string? path, string operation, HmiQueryInfo query, bool optional = false) where T : class
+    private async Task<T> Read<T>(string operation, HmiQueryInfo query, bool optional = false) where T : class
     {
-        var result = await client.ReadHmiAsync(HmiOperationCatalog.WorkerMethod(operation), query, path).ConfigureAwait(false);
+        var result = await client.ReadHmiAsync(HmiOperationCatalog.WorkerMethod(operation), query).ConfigureAwait(false);
         if (!result.Success)
         {
             if (optional && result.FailureCategory == WorkerFailureCategories.TargetNotFound) return null!;
@@ -324,9 +324,9 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
             case HmiAlarmClassesInfo v: Rows(v.AlarmClasses, c => Name(c.Name)); break;
         }
     }
-    private async Task<(IReadOnlyList<HmiReference> References, bool Complete)> ReadReferences(string? path, string hmi, string tag)
+    private async Task<(IReadOnlyList<HmiReference> References, bool Complete)> ReadReferences(string hmi, string tag)
     {
-        var result = await client.ReadCrossReferencesAsync(path, new() { Hmi = new() { HmiName = hmi, TagName = tag } }, CrossReferenceFilterNames.AllObjects, null).ConfigureAwait(false);
+        var result = await client.ReadCrossReferencesAsync(selector: new() { Hmi = new() { HmiName = hmi, TagName = tag } }, filter: CrossReferenceFilterNames.AllObjects, maxResults: null).ConfigureAwait(false);
         if (!result.Success) throw new ReadFailure(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "Tag references could not be read.");
         try
         {

@@ -25,7 +25,7 @@ public class HmiReadTools
     public static async Task<CallToolResult> HmiRead(
         OpennessWorkerClient workerClient,
         HmiPageCursorCodec cursorCodec,
-        [Description("Ordered list of HMI read operations. Each item is { operationId, operation, projectPath?, ...operation parameters }.")] HmiOperationRequest[] operations,
+        [Description("Ordered list of HMI read operations. Each item is { operationId, operation, ...operation parameters }.")] HmiOperationRequest[] operations,
         CancellationToken cancellationToken = default)
     {
         var validation = HmiOperationCatalog.ValidateRead(operations);
@@ -39,6 +39,12 @@ public class HmiReadTools
         if (accessErrors.Count != 0)
         {
             return Error(WorkerFailureCategories.AccessDenied, string.Join("\n", accessErrors));
+        }
+
+        var binding = await workerClient.RequireVerifiedBindingAsync().ConfigureAwait(false);
+        if (!binding.Success)
+        {
+            return Error(binding.FailureCategory!, binding.Error!);
         }
 
         var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(

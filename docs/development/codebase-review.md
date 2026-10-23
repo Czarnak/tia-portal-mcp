@@ -39,8 +39,8 @@ Starting list. The rules marked *(target)* come from the 2026-10-17 decisions an
 implemented:
 
 - Content tools act only on the session binding and take no `projectPath`. `projectPath` exists
-  only where it selects or creates a target: `bind_project`, `open_project`, `create_project`, and
-  the destination of `save_project_as`. *(target, Q6)*
+  only on `bind_project` and `open_project`; `create_project` and `save_project_as` name their
+  targets with `projectDirectory`/`projectName` and `targetDirectory`/`targetName`. (Q6)
 - Every tool has a closed input schema. An argument-shape error returns the tool's canonical
   document with `validation_error` and `isError: true`, and writes no audit record. *(target, Q4)*
 - Failure categories come from `WorkerFailureCategories` constants, never string literals.

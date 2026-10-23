@@ -59,11 +59,10 @@ public sealed class SubnetProbeDomain
 
     public string ContractVersion => "subnet-probe/1";
 
-    public static NetworkOperationRequest DeleteSubnet(string operationId, string subnetId, string projectPath) => new()
+    public static NetworkOperationRequest DeleteSubnet(string operationId, string subnetId) => new()
     {
         OperationId = operationId,
         Operation = DeleteSubnetOperation,
-        ProjectPath = projectPath,
         Target = new NetworkObjectTarget { Kind = NetworkObjectKinds.Subnet, SubnetId = subnetId },
     };
 
@@ -84,10 +83,9 @@ public sealed class SubnetProbeDomain
     }
 
     public async Task<WritePlan<SubnetDeleteEffect>> PlanAsync(
-        string? projectPath,
         IReadOnlyList<NetworkOperationRequest> items)
     {
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client).ConfigureAwait(false);
         if (!snapshot.Success)
         {
             return WritePlan<SubnetDeleteEffect>.Fail(snapshot.FailureCategory!, snapshot.Error!);
@@ -127,18 +125,18 @@ public sealed class SubnetProbeDomain
             .ToArray();
 
     /// <summary>Never called: this domain plans no dependent items.</summary>
-    public Task<ItemReplan<SubnetDeleteEffect>> ReplanAsync(string? projectPath, NetworkOperationRequest item)
+    public Task<ItemReplan<SubnetDeleteEffect>> ReplanAsync(NetworkOperationRequest item)
         => throw new InvalidOperationException("SubnetProbeDomain plans no dependent items.");
 
-    public Task<WorkerCallResult> MutateAsync(string? projectPath, NetworkOperationRequest item)
-        => NetworkWorkerInvoker.InvokeWriteAsync(_client, item, projectPath);
+    public Task<WorkerCallResult> MutateAsync(NetworkOperationRequest item)
+        => NetworkWorkerInvoker.InvokeWriteAsync(_client, item);
 
     public StructuredOperationItem Project(NetworkOperationRequest item, WorkerCallResult result)
         => NetworkPayloadContract.Project(item, result);
 
-    public async Task<SubnetCountVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
+    public async Task<SubnetCountVerification?> VerifyAsync(StructuredOperationBatch batch)
     {
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client, projectPath).ConfigureAwait(false);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(_client).ConfigureAwait(false);
         return snapshot.Success && _subnetCountBefore is { } before
             ? new SubnetCountVerification(before, snapshot.State!.Subnets.Count)
             : null;

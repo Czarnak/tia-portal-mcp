@@ -20,7 +20,7 @@ public sealed class StandaloneToolsProtocolTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full);
-        var response = await harness.Client.CallToolAsync("get_project_status", new Dictionary<string, object?> { ["projectPath"] = scenario });
+        var response = await harness.Client.CallToolAsync("get_project_status", new Dictionary<string, object?>());
         Assert.Empty(StructuredContractInspector.FindViolations(response));
         Assert.False(response.IsError);
         var root = response.StructuredContent!.Value;
@@ -66,6 +66,7 @@ public sealed class StandaloneToolsProtocolTests
     [InlineData(McpAccessMode.Full)]
     public async Task ModeDiscovery_AdvertisesConcreteSchemasAndStatusStaysReadOnly(McpAccessMode mode)
     {
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-no-project");
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);
         var tools = await harness.Client.ListToolsAsync();
         Assert.Equal(mode == McpAccessMode.ReadOnly ? 8 : 19, tools.Count);
@@ -73,8 +74,8 @@ public sealed class StandaloneToolsProtocolTests
         var statusSchema = statusTool.ProtocolTool.OutputSchema!.Value;
         Assert.Equal(new[] { "contractVersion", "error", "result", "success", "tool", "warnings" },
             statusSchema.GetProperty("properties").EnumerateObject().Select(p => p.Name).Order());
-        Assert.Equal(new[] { "projectPath" }, statusTool.ProtocolTool.InputSchema.GetProperty("properties").EnumerateObject().Select(p => p.Name));
-        var status = await harness.Client.CallToolAsync("get_project_status", new Dictionary<string, object?> { ["projectPath"] = "status-no-project" });
+        Assert.Empty(statusTool.ProtocolTool.InputSchema.GetProperty("properties").EnumerateObject());
+        var status = await harness.Client.CallToolAsync("get_project_status", new Dictionary<string, object?>());
         Assert.Empty(StructuredContractInspector.FindViolations(status));
         Assert.True(status.StructuredContent!.Value.GetProperty("success").GetBoolean());
 
@@ -88,7 +89,7 @@ public sealed class StandaloneToolsProtocolTests
         {
             var compileTool = Assert.Single(tools, tool => tool.Name == "compile_check");
             Assert.NotNull(compileTool.ProtocolTool.OutputSchema);
-            Assert.Equal(new[] { "blockPath", "plcName", "projectPath" },
+            Assert.Equal(new[] { "blockPath", "plcName" },
                 compileTool.ProtocolTool.InputSchema.GetProperty("properties").EnumerateObject().Select(p => p.Name).Order());
         }
     }

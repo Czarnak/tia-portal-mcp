@@ -7,7 +7,6 @@ using TiaMcpServer.Contracts.Worker;
 namespace TiaMcpServer.Network;
 
 internal sealed record HardwarePageCandidateCall(
-    string? ProjectPath,
     string? DeviceName,
     string? PlcName,
     bool IncludeIoDetails,
@@ -33,15 +32,14 @@ internal sealed class HardwarePaginationCoordinator
             projector,
             () => workerClient.BindingSnapshot,
             call => workerClient.ReadHardwarePageCandidatesAsync(
-                call.ProjectPath,
-                call.DeviceName,
-                call.PlcName,
-                call.IncludeIoDetails,
-                call.IncludeTagMatches,
-                call.PageSize,
-                call.Continuation,
-                call.RequiredHostBinding,
-                call.ExpectedSessionIdentity))
+                deviceName: call.DeviceName,
+                plcName: call.PlcName,
+                includeIoDetails: call.IncludeIoDetails,
+                includeTagMatches: call.IncludeTagMatches,
+                pageSize: call.PageSize,
+                continuation: call.Continuation,
+                requiredHostBinding: call.RequiredHostBinding,
+                expectedSessionIdentity: call.ExpectedSessionIdentity))
     {
     }
 
@@ -103,7 +101,6 @@ internal sealed class HardwarePaginationCoordinator
         }
 
         var call = new HardwarePageCandidateCall(
-            ProjectPath: cursorState?.ResolvedProjectPath ?? operation.ProjectPath,
             operation.DeviceName,
             operation.PlcName,
             operation.IncludeIoDetails ?? false,

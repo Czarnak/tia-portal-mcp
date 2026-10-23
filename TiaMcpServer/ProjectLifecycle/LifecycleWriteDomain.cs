@@ -67,12 +67,12 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             return Invalid("Exactly one host-supplied lifecycle operation is required.");
         try
         {
-            if (item.ProjectPath is not null && !Path.IsPathFullyQualified(item.ProjectPath))
-                return Invalid("ProjectPath must be an absolute path.");
             switch (ToolName)
             {
                 case "open_project":
                     if (string.IsNullOrWhiteSpace(item.ProjectPath)) return Invalid("Project path is required.");
+                    if (!Path.IsPathFullyQualified(item.ProjectPath))
+                        return Invalid("ProjectPath must be an absolute path.");
                     if (Path.GetExtension(item.ProjectPath) is { } extension
                         && !string.Equals(extension, ".ap21", StringComparison.OrdinalIgnoreCase)
                         && !string.Equals(extension, ".als21", StringComparison.OrdinalIgnoreCase))
@@ -108,7 +108,7 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         return WriteValidation.Valid();
     }
 
-    public async Task<WritePlan<LifecycleEffects>> PlanAsync(string? projectPath, IReadOnlyList<LifecycleWriteItem> items)
+    public async Task<WritePlan<LifecycleEffects>> PlanAsync(IReadOnlyList<LifecycleWriteItem> items)
     {
         var binding = workerClient.BindingSnapshot;
         var sourcePath = ProjectPathNormalization.Canonicalize(binding.ProjectPath);
@@ -210,21 +210,21 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
         return guards;
     }
 
-    public async Task<ItemReplan<LifecycleEffects>> ReplanAsync(string? projectPath, LifecycleWriteItem requestedItem)
+    public async Task<ItemReplan<LifecycleEffects>> ReplanAsync(LifecycleWriteItem requestedItem)
     {
-        var plan = await PlanAsync(projectPath, new[] { requestedItem }).ConfigureAwait(false);
+        var plan = await PlanAsync(new[] { requestedItem }).ConfigureAwait(false);
         return plan.Success ? ItemReplan<LifecycleEffects>.Ok(plan.Items.Single())
             : ItemReplan<LifecycleEffects>.Fail(plan.Error!.Category, plan.Error.Message);
     }
 
-    public Task<WorkerCallResult> MutateAsync(string? projectPath, LifecycleWriteItem requestedItem) => item.Operation switch
+    public Task<WorkerCallResult> MutateAsync(LifecycleWriteItem requestedItem) => item.Operation switch
     {
         "open_project" => workerClient.OpenProjectAsync(item.ProjectPath!, item.ForceRebind),
         "create_project" => workerClient.CreateProjectAsync(item.ProjectDirectory!, item.ProjectName!, item.Author, item.Comment),
-        "save_project" => workerClient.SaveProjectAsync(item.ProjectPath),
-        "save_project_as" => workerClient.SaveProjectAsAsync(item.ProjectPath, item.TargetDirectory!, item.TargetName!, item.Rebind),
-        "archive_project" => workerClient.ArchiveProjectAsync(item.ProjectPath, item.ArchiveDirectory!, item.ArchiveName!, item.Mode, item.SaveBeforeArchive),
-        "close_project" => workerClient.CloseProjectAsync(item.ProjectPath, item.SaveBeforeClose),
+        "save_project" => workerClient.SaveProjectAsync(),
+        "save_project_as" => workerClient.SaveProjectAsAsync(item.TargetDirectory!, item.TargetName!, item.Rebind),
+        "archive_project" => workerClient.ArchiveProjectAsync(item.ArchiveDirectory!, item.ArchiveName!, item.Mode, item.SaveBeforeArchive),
+        "close_project" => workerClient.CloseProjectAsync(saveBeforeClose: item.SaveBeforeClose),
         _ => throw new InvalidOperationException("Unknown lifecycle operation.")
     };
 
@@ -258,7 +258,7 @@ public sealed class LifecycleWriteDomain(OpennessWorkerClient workerClient, Life
             _mutation.Failure, null, null, result.Warnings);
     }
 
-    public async Task<StandaloneToolOutcome<ProjectStatusInfo>?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
+    public async Task<StandaloneToolOutcome<ProjectStatusInfo>?> VerifyAsync(StructuredOperationBatch batch)
     {
         if (_mutation?.Status != OperationBatchStatus.Succeeded) return null;
         var closed = item.Operation == "close_project";

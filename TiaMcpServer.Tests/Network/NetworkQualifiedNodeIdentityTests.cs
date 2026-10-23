@@ -105,7 +105,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         using var audit = new TempAuditDirectory(); using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
         var preview = await f.RunAsync(true, NetworkGuardedWriteFixture.Delete());
         Assert.True(preview.Success); Assert.All(preview.Effects[0].Effect!.AffectedNodes, n => Assert.NotEmpty(n.InterfacePath!));
-        var state = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, "network-guarded")).State!;
+        var state = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client)).State!;
         var identity = preview.Effects[0].Effect!.AffectedNodes[0];
         Assert.True(NetworkWritePlanner.TryResolveAffected(state, identity, out var detached, out _));
         identity.InterfacePath![0].Name = "Caller changed owner";
@@ -134,7 +134,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
     public async Task ConnectedDeletion_PreservesBothQualifiedNodes()
     {
         using var audit = new TempAuditDirectory(); using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-delete");
-        var baseline = await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, "network-qualified-delete");
+        var baseline = await NetworkWritePlanner.ReadCurrentStateAsync(f.Client);
         var result = await f.RunAsync(false, NetworkGuardedWriteFixture.Delete());
         Assert.True(result.Success);
         Assert.Equal(2, result.Effects[0].Effect!.AffectedNodes.Count);
@@ -142,7 +142,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("network_delete_connected_subnet", Assert.Single(result.Guards).Id);
         Assert.All(result.Effects[0].Effect!.AffectedNodes, n => Assert.NotNull(n.InterfacePath));
         Assert.Equal(2, result.Verification!.FinalChecks.Count(c => c.Kind == "node" && c.Field == "removedSubnet" && c.Subject!.SubnetId == "subnet-1" && c.Status == "passed"));
-        var final = await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, "network-qualified-delete");
+        var final = await NetworkWritePlanner.ReadCurrentStateAsync(f.Client);
         Assert.Equal(baseline.State!.RootDeviceCount, final.State!.RootDeviceCount);
         Assert.All(final.State.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes), n =>
         { Assert.True(n.ConnectionEvidence!.Complete); Assert.Null(n.ConnectionEvidence.SubnetId); Assert.Null(n.ConnectionEvidence.IoSystemSubnetId); Assert.Null(n.ConnectionEvidence.IoSystemNumber); });
@@ -225,7 +225,7 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Equal("passed", Assert.Single(result.Verification!.Operations).Status);
         Assert.Contains(result.Verification.FinalChecks, c => c.Kind == "write" && c.Field == "finalHardwareState" && c.Status == "unverified");
         Assert.Single(log.Methods(), m => m == "configure_network_device");
-        var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
+        var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client)).State!;
         var nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
         Assert.Equal("192.168.12.7", nodes[0].IpAddress); Assert.Equal("192.168.13.20", nodes[1].IpAddress);
     }
@@ -236,12 +236,12 @@ public sealed class NetworkQualifiedNodeIdentityTests
         using var audit = new TempAuditDirectory(); using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
         var x1 = Configure(32768, "192.168.12.7", "x1"); var x2 = Configure(33024, "192.168.13.8", "x2");
         Assert.True((await f.RunAsync(false, reverse ? x2 : x1)).Success);
-        var first = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
+        var first = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client)).State!;
         var nodes = first.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
         Assert.Equal(reverse ? "192.168.12.2" : "192.168.12.7", nodes[0].IpAddress);
         Assert.Equal(reverse ? "192.168.13.8" : "192.168.13.20", nodes[1].IpAddress);
         Assert.True((await f.RunAsync(false, reverse ? x1 : x2)).Success);
-        var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client, scenario)).State!;
+        var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client)).State!;
         nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
         Assert.Equal("192.168.12.7", nodes[0].IpAddress); Assert.Equal("192.168.13.8", nodes[1].IpAddress);
     }

@@ -36,12 +36,12 @@ public sealed class OpennessWriteBindingGateTests
         await NetworkVerifiedWriteFixture.VerifyAsync(client, binding, Scenario);
         var gate = new OpennessWriteBindingGate(client);
 
-        var required = await gate.RequireVerifiedWriteBindingAsync(Scenario);
+        var required = await gate.RequireVerifiedWriteBindingAsync();
         var invoked = 0;
         var lease = await gate.RunUnderLeaseAsync(gate.CurrentBinding, async () =>
         {
             invoked++;
-            var read = await client.ReadHardwareConfigAsync(Scenario);
+            var read = await client.ReadHardwareConfigAsync();
             return read.Success ? "ran" : "read failed";
         });
 
@@ -84,7 +84,7 @@ public sealed class OpennessWriteBindingGateTests
         using var client = CreateClient(binding);
         var gate = new OpennessWriteBindingGate(client);
 
-        var required = await gate.RequireVerifiedWriteBindingAsync(Scenario);
+        var required = await gate.RequireVerifiedWriteBindingAsync();
 
         Assert.False(required.Success);
         Assert.Equal(WorkerFailureCategories.BindingConflict, required.FailureCategory);

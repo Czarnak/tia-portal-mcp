@@ -10,10 +10,21 @@ namespace TiaMcpServer.Tests.TestSupport;
 internal sealed class FakeWorkerUiOpenProject : IDisposable
 {
     private const string Variable = "TIA_MCP_FAKE_WORKER_UI_OPEN_PROJECT";
+    private const string StatusGroundingVariable = "TIA_MCP_FAKE_WORKER_STATUS_GROUNDING";
     private readonly string? _previous = Environment.GetEnvironmentVariable(Variable);
+    private readonly string? _previousStatusGrounding = Environment.GetEnvironmentVariable(StatusGroundingVariable);
 
-    public FakeWorkerUiOpenProject(string? projectPath)
-        => Environment.SetEnvironmentVariable(Variable, ProjectPathNormalization.Canonicalize(projectPath));
+    /// <param name="projectPath">The project already open in the simulated UI.</param>
+    /// <param name="groundsStatus">
+    /// When true, the launched worker answers its first identity-less <c>get_project_status</c> for
+    /// that project before any scenario script runs, so a binding fixture can ground every scenario.
+    /// Later identity-less status requests reach the scenario script again.
+    /// </param>
+    public FakeWorkerUiOpenProject(string? projectPath, bool groundsStatus = false)
+    {
+        Environment.SetEnvironmentVariable(Variable, ProjectPathNormalization.Canonicalize(projectPath));
+        if (groundsStatus) Environment.SetEnvironmentVariable(StatusGroundingVariable, "1");
+    }
 
     /// <summary>
     /// Unbound transport and MCP protocol tests send scenario keywords relative to the
@@ -25,5 +36,9 @@ internal sealed class FakeWorkerUiOpenProject : IDisposable
             ? requestedPath
             : Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, requestedPath));
 
-    public void Dispose() => Environment.SetEnvironmentVariable(Variable, _previous);
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable(Variable, _previous);
+        Environment.SetEnvironmentVariable(StatusGroundingVariable, _previousStatusGrounding);
+    }
 }

@@ -21,9 +21,9 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     private sealed record ItemOutcome(PlcWorkingState? State, PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards,
         IReadOnlyList<CheckedPrecondition> Preconditions, WriteToolError? Error);
 
-    public async Task<PlcPlanResult> PlanAsync(string? projectPath, IReadOnlyList<PlcOperationRequest> items)
+    public async Task<PlcPlanResult> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
-        var evidence = await ReadInventoryAsync(projectPath).ConfigureAwait(false);
+        var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         if (evidence.Error is { } inventoryError) return Failed(inventoryError);
         var states = new Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState>(ReferenceEqualityComparer.Instance);
         // One budget per call keeps every diff of the call inside the per-call excerpt bound.
@@ -32,7 +32,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
         foreach (var item in items)
         {
-            var outcome = await ResolveAsync(projectPath, item, evidence.Inventory!, states, budget).ConfigureAwait(false);
+            var outcome = await ResolveAsync(item, evidence.Inventory!, states, budget).ConfigureAwait(false);
             if (outcome.Error is { } error) return Failed(error);
             var effect = outcome.Effect ?? throw new InvalidOperationException($"Operation '{item.OperationId}' resolved without an effect or an error.");
             var dependsOn = outcome.State?.LastTouchedBy(effect.Target);
@@ -46,19 +46,19 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     }
 
     /// <summary>Re-reads real state for one dependent item just before its own mutation.</summary>
-    public async Task<PlcReplanResult> ReplanAsync(string? projectPath, PlcOperationRequest item)
+    public async Task<PlcReplanResult> ReplanAsync(PlcOperationRequest item)
     {
-        var evidence = await ReadInventoryAsync(projectPath).ConfigureAwait(false);
+        var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         var outcome = evidence.Error is { } inventoryError
             ? new ItemOutcome(null, null, Array.Empty<FiredGuard>(), Array.Empty<CheckedPrecondition>(), inventoryError)
-            : await ResolveAsync(projectPath, item, evidence.Inventory!,
+            : await ResolveAsync(item, evidence.Inventory!,
                 new Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState>(ReferenceEqualityComparer.Instance), new PlcContentDiffBudget()).ConfigureAwait(false);
         return outcome.Error is { } error
             ? new PlcReplanResult(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>())
             : new PlcReplanResult(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards);
     }
 
-    private async Task<ItemOutcome> ResolveAsync(string? projectPath, PlcOperationRequest item, PlcTagInventoryInfo inventory,
+    private async Task<ItemOutcome> ResolveAsync(PlcOperationRequest item, PlcTagInventoryInfo inventory,
         Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState> states, PlcContentDiffBudget budget)
     {
         var (plc, matchError) = MatchPlc(item, inventory);
@@ -74,7 +74,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         if (matchError is not null) return Fail(matchError);
         if (!states.TryGetValue(plc!, out var state))
         {
-            var (tree, treeError) = await ReadTreeAsync(projectPath, plc!).ConfigureAwait(false);
+            var (tree, treeError) = await ReadTreeAsync(plc!).ConfigureAwait(false);
             if (treeError is not null) return Fail(treeError);
             states[plc!] = state = PlcWorkingState.Create(plc!, inventory.IsComplete, tree!);
         }
@@ -84,17 +84,17 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         var effect = resolution.Effect!;
         if (item.Operation is not ("update_block_logic" or "update_type_content"))
             return new ItemOutcome(state, effect, resolution.Guards, Array.Empty<CheckedPrecondition>(), null);
-        return await ResolveContentAsync(projectPath, item, state, effect, resolution.Guards, budget).ConfigureAwait(false);
+        return await ResolveContentAsync(item, state, effect, resolution.Guards, budget).ConfigureAwait(false);
     }
 
     /// <summary>Exports the target in the write's format: the hash check and the diff evidence.</summary>
-    private async Task<ItemOutcome> ResolveContentAsync(string? projectPath, PlcOperationRequest item, PlcWorkingState state,
+    private async Task<ItemOutcome> ResolveContentAsync(PlcOperationRequest item, PlcWorkingState state,
         PlcWriteEffect effect, IReadOnlyList<FiredGuard> guards, PlcContentDiffBudget budget)
     {
         var format = PlcFormatNames.Normalize(item.Operation, item.Format);
         var export = item.Operation == "update_block_logic"
-            ? await client.GetBlockContentAsync(item.BlockPath!, projectPath, format).ConfigureAwait(false)
-            : await client.GetTypeContentAsync(item.TypePath!, format, projectPath).ConfigureAwait(false);
+            ? await client.GetBlockContentAsync(item.BlockPath!, format: format).ConfigureAwait(false)
+            : await client.GetTypeContentAsync(item.TypePath!, format: format).ConfigureAwait(false);
         if (!export.Success && export.FailureCategory is WorkerFailureCategories.TargetNotFound or WorkerFailureCategories.TargetAmbiguous)
             return Fail(new(export.FailureCategory!, $"Operation '{item.OperationId}': {export.Error}"));
         if (!export.Success || string.IsNullOrEmpty(export.Payload))
@@ -142,17 +142,17 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             : item.TypePath is not null ? PlcTypeAddress.Parse(item.TypePath).PlcName
             : item.PlcName;
 
-    internal async Task<Evidence> ReadInventoryAsync(string? projectPath)
+    internal async Task<Evidence> ReadInventoryAsync()
     {
-        var request = new PlcOperationRequest { OperationId = "plan", Operation = "list_tag_tables", ProjectPath = projectPath };
-        var projected = PlcPayloadContract.Project(request, await client.ListTagTablesAsync(null, projectPath).ConfigureAwait(false));
+        var request = new PlcOperationRequest { OperationId = "plan", Operation = "list_tag_tables" };
+        var projected = PlcPayloadContract.Project(request, await client.ListTagTablesAsync(plcName: null).ConfigureAwait(false));
         return projected.Result is { } result
             ? new Evidence(CanonicalJson.Deserialize<PlcTagInventoryInfo>(result.GetRawText()), null)
             : new Evidence(null, new(projected.Failure?.Category ?? WorkerFailureCategories.WorkerOperationFailed,
                 $"The PLC tag inventory could not be read: {projected.Failure?.Message}"));
     }
 
-    internal async Task<(ProjectTreeObservation? Tree, WriteToolError? Error)> ReadTreeAsync(string? projectPath, PlcTagInventoryPlcInfo plc)
+    internal async Task<(ProjectTreeObservation? Tree, WriteToolError? Error)> ReadTreeAsync(PlcTagInventoryPlcInfo plc)
     {
         if (string.IsNullOrWhiteSpace(plc.DeviceName))
             return (null, new(WorkerFailureCategories.WorkerOperationFailed, $"The device of PLC '{plc.PlcName}' could not be identified, so its project tree cannot be read."));
@@ -161,7 +161,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.Device, Name = plc.DeviceName },
             new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.PlcSoftware, Name = plc.PlcName },
         };
-        var call = await client.BrowseProjectTreeV3SnapshotAsync(projectPath, selector).ConfigureAwait(false);
+        var call = await client.BrowseProjectTreeV3SnapshotAsync(startSelector: selector).ConfigureAwait(false);
         if (!call.WorkerResult.Success)
             return (null, new(call.WorkerResult.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                 $"The project tree of PLC '{plc.PlcName}' could not be read: {call.WorkerResult.Error}"));

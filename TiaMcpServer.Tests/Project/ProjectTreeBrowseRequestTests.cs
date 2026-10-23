@@ -52,12 +52,11 @@ public class ProjectTreeBrowseRequestTests
     }
 
     [Fact]
-    public void ValidateRepeatedQuery_AllowsEquivalentPathAndSelectorNameCasing()
+    public void ValidateRepeatedQuery_AllowsEquivalentSelectorNameCasing()
     {
         var query = new ProjectTreeQuery(ProjectPath, Selector(("Device", "PLC_1")), Depth: 2);
 
         var error = new ProjectTreeBrowseRequest(
-            ProjectPath.ToLowerInvariant(),
             Selector(("Device", "plc_1")),
             Depth: 2).ValidateRepeatedQuery(query);
 

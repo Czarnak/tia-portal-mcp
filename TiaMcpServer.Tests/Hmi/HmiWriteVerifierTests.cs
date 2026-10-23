@@ -29,8 +29,7 @@ public class HmiWriteVerifierTests
         => new(r.OperationId, r.Operation, failure is null ? "succeeded" : "failed", result is null ? null : JsonDocument.Parse(WorkerJson.SerializePayload(result)).RootElement.Clone(),
             failure is null ? null : new(failure, "setter rejected"), null, null, []);
     private static Task<HmiWriteVerification> Verify(Fixture f, HmiWriteOperationRequest[] items, params StructuredOperationItem[] outcomes)
-        => new HmiWriteVerifier(f.Client, items, items.ToDictionary(i => i.OperationId, Effect)).VerifyAsync(null,
-            StructuredOperationBatch.FromItems(outcomes.Length == 0 ? items.Select(i => Outcome(i)).ToArray() : outcomes));
+        => new HmiWriteVerifier(f.Client, items, items.ToDictionary(i => i.OperationId, Effect)).VerifyAsync(StructuredOperationBatch.FromItems(outcomes.Length == 0 ? items.Select(i => Outcome(i)).ToArray() : outcomes));
 
     [Fact]
     public async Task TablesUseOnlyListReadAndCheckExactNameGroupAndCount()
@@ -330,7 +329,7 @@ public class HmiWriteVerifierTests
         using var f = await Fixture.Create(); var r = Alarm(kind: "analog"); r.ConditionValue = JsonSerializer.SerializeToElement(50); r.Priority = 7;
         f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", ConditionValue = new(type, JsonSerializer.SerializeToElement(actual)) } });
         var batch = StructuredOperationBatch.FromItems([Outcome(r, "worker_operation_failed", new() { ObjectName = "A", AppliedProperties = ["ConditionValue"], FailedProperty = "Priority" })]);
-        var v = await new HmiWriteVerifier(f.Client, [r], new Dictionary<string, HmiWriteEffect> { [r.OperationId] = Effect(r) }).VerifyAsync(null, batch);
+        var v = await new HmiWriteVerifier(f.Client, [r], new Dictionary<string, HmiWriteEffect> { [r.OperationId] = Effect(r) }).VerifyAsync(batch);
         Assert.Equal(success, v.Success);
         Assert.Contains(v.Operations, o => o.Check == "conditionValue.type" && o.Expected == "System.Int32" && o.Actual == type && o.Success == success);
         Assert.Contains(v.Operations, o => o.Check == "observed.priority");
@@ -468,12 +467,13 @@ public class HmiWriteVerifierTests
     {
         private readonly string directory = Path.Combine(Path.GetTempPath(), "hmi-verifier-" + Guid.NewGuid().ToString("N"));
         private readonly Dictionary<string, string> payloads = new();
+        private readonly ProjectSessionBinding binding;
         public OpennessWorkerClient Client { get; }
         public WorkerRequest[] Requests => File.ReadAllLines(Path.Combine(directory, "requests")).Select(l => JsonSerializer.Deserialize<WorkerRequest>(l, WorkerJson.Request)!).Where(r => r.Method is not ("get_project_status" or "hello")).ToArray();
         private Fixture()
         {
             Directory.CreateDirectory(directory);
-            Client = new(new ProjectSessionBinding(null));
+            binding = new ProjectSessionBinding(null); Client = new(binding);
             var script = """
                 param([string]$Root)
                 while (($line = [Console]::In.ReadLine()) -ne $null) {
@@ -515,7 +515,8 @@ public class HmiWriteVerifierTests
         public static async Task<Fixture> Create()
         {
             var f = new Fixture(); var status = await f.Client.GetProjectStatusAsync(null);
-            Assert.True(status.Success, status.Error); return f;
+            Assert.True(status.Success, status.Error);
+            Assert.True(f.binding.BindVerified(status.SessionIdentity!, forceRebind: false, out var bindError), bindError); return f;
         }
         public void Put<T>(string key, T payload) => PutRaw(key, WorkerJson.SerializePayload(payload));
         public void PutRaw(string key, string payload) { payloads[key] = payload; File.WriteAllText(Path.Combine(directory, "payloads"), JsonSerializer.Serialize(payloads)); }

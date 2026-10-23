@@ -63,7 +63,7 @@ internal sealed class PlcGuardedWriteFixture : IDisposable
 
     public Task<CallToolResult> RunRawAsync(bool dryRun, params PlcOperationRequest[] operations)
         => Runner.RunAsync(new PlcWriteDomain(Client),
-            new WriteCall<PlcOperationRequest>(operations.FirstOrDefault(o => o.ProjectPath is not null)?.ProjectPath ?? _path, operations, dryRun));
+            new WriteCall<PlcOperationRequest>(operations, dryRun));
 
     public static PlcGuardedWriteResponse Document(CallToolResult result)
         => CanonicalJson.Deserialize<PlcGuardedWriteResponse>(((JsonElement)result.StructuredContent!).GetRawText());
@@ -76,7 +76,7 @@ internal sealed class PlcGuardedWriteFixture : IDisposable
         return item.Result!.Value.GetProperty("contentHash").GetString()!;
     }
 
-    public async Task<string> InventoryAsync() => (await Client.ListTagTablesAsync(null, _path)).Payload;
+    public async Task<string> InventoryAsync() => (await Client.ListTagTablesAsync(plcName: null)).Payload;
 
     public void Dispose() => Client.Dispose();
 
@@ -99,9 +99,9 @@ internal sealed class PlcGuardedWriteFixture : IDisposable
 
         public ProjectBindingSnapshot CurrentBinding => inner.CurrentBinding;
 
-        public async Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
+        public async Task<WorkerCallResult> RequireVerifiedWriteBindingAsync()
         {
-            var result = await inner.RequireVerifiedWriteBindingAsync(projectPath);
+            var result = await inner.RequireVerifiedWriteBindingAsync();
             afterGate();
             return result;
         }

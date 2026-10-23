@@ -6,6 +6,7 @@ using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -29,13 +30,14 @@ public sealed class HardwarePaginationFakeWorkerTests
     // out, which silently shifts the trimming boundary — this is what made the assertion below
     // pass on some machines/checkouts and fail on others (observed: CI). Using an already-rooted
     // literal makes Canonicalize a no-op, so the resolved path — and the boundary — stop depending
-    // on the checkout location.
-    private const string TrimmingScenarioProjectPath = @"C:\FakeWorker\hardware-pagination-trimming";
+    // on the checkout location. The cursor of a bound read also carries the host binding's path,
+    // so the literal is kept short to stay inside the fixture's calibrated headroom.
+    private const string TrimmingScenarioProjectPath = @"C:\hardware-pagination-trimming";
 
     [Fact]
     public async Task NetworkRead_PagedHardwareReconstructsTheStableDeviceThenSubnetSequence()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(Scenario);
 
         var first = await ReadPage(client, pageSize: 2, projectPath: Scenario);
         var second = await ReadPage(
@@ -81,7 +83,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [InlineData("hardware-pagination-wrong-payload")]
     public async Task NetworkRead_InvalidCandidateResponsesFailClosedAsProtocolErrors(string scenario)
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(scenario);
 
         var operation = await ReadOperation(client, pageSize: 1, projectPath: scenario);
 
@@ -97,7 +99,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_ChangedCursorBoundFilterFailsBeforeTheWorker()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync("hardware-pagination-telemetry");
         var first = await ReadPage(client, 1, "hardware-pagination-telemetry");
         var operation = await ReadOperation(client, 1, cursor: Cursor(first), deviceName: "PLC_DUP");
         var resumed = await ReadPage(client, 1, cursor: Cursor(first));
@@ -109,7 +111,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_ChangedCursorBoundDetailFlagFailsBeforeTheWorker()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync("hardware-pagination-telemetry");
         var first = await ReadPage(client, 1, "hardware-pagination-telemetry");
         var operation = await ReadOperation(client, 1, cursor: Cursor(first), includeIoDetails: true);
         var resumed = await ReadPage(client, 1, cursor: Cursor(first));
@@ -124,7 +126,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [InlineData("hardware-pagination-identity-drift", WorkerFailureCategories.CursorBindingMismatch)]
     public async Task NetworkRead_ContinuationWorkerDriftUsesTheApprovedFailureCategory(string scenario, string category)
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(scenario);
         var first = await ReadPage(client, 1, scenario);
         var operation = await ReadOperation(client, 1, cursor: Cursor(first));
 
@@ -136,8 +138,12 @@ public sealed class HardwarePaginationFakeWorkerTests
     {
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
         var first = await ReadPage(client, 1, Scenario);
-        Assert.True(binding.Bind(@"C:\Different\Project.ap21", forceRebind: false, out var error), error);
+        // Same worker identity, new binding epoch: the read precheck passes, the cursor does not.
+        var identity = binding.CaptureSnapshot().ToWorkerIdentity()!;
+        Assert.True(binding.Clear(null, out var error), error);
+        Assert.True(binding.BindVerified(identity, forceRebind: false, out error), error);
 
         var operation = await ReadOperation(client, 1, cursor: Cursor(first));
 
@@ -148,7 +154,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     public async Task NetworkRead_CursorSignedByAnotherProcessScopedCodecIsInvalid()
     {
         string cursor;
-        using (var firstClient = CreateClient())
+        using (var firstClient = await CreateClientAsync(Scenario))
         {
             cursor = Cursor(await ReadPage(firstClient, 1, Scenario));
         }
@@ -161,15 +167,18 @@ public sealed class HardwarePaginationFakeWorkerTests
     }
 
     [Fact]
-    public async Task NetworkRead_UnpagedFixtureIsCanonicalAndPagedContinuationStaysUnbound()
+    public async Task NetworkRead_UnpagedFixtureIsCanonicalAndPagedContinuationStaysOnTheBinding()
     {
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
+        var bound = binding.CaptureSnapshot();
         var unpaged = await ReadPage(client, 50, Scenario, paged: false);
         var first = await ReadPage(client, 1, Scenario);
         var second = await ReadPage(client, 4, cursor: Cursor(first));
 
-        Assert.Equal(ProjectBindingSnapshot.UnboundState, client.BindingSnapshot.State);
+        Assert.True(bound.SameBinding(client.BindingSnapshot));
+        Assert.Equal(ProjectBindingSnapshot.VerifiedState, client.BindingSnapshot.State);
         Assert.Equal(
             CanonicalJson.Serialize(CanonicalJson.Deserialize<HardwareConfigInfo>(unpaged.GetRawText())),
             CanonicalJson.Serialize(new HardwareConfigInfo
@@ -185,7 +194,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_CanonicalItemTrimmingResumesWithTheUnemittedCandidatesAndDiagnostics()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync(TrimmingScenarioProjectPath);
         var first = await ReadPage(client, 6, TrimmingScenarioProjectPath);
         var second = await ReadPage(client, 6, cursor: Cursor(first));
 
@@ -202,8 +211,13 @@ public sealed class HardwarePaginationFakeWorkerTests
                 + second.GetProperty("devices").GetArrayLength() + second.GetProperty("subnets").GetArrayLength());
     }
 
-    private static OpennessWorkerClient CreateClient()
-        => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+    private static async Task<OpennessWorkerClient> CreateClientAsync(string projectPath)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        return client;
+    }
 
     private static async Task<JsonElement> ReadPage(
         OpennessWorkerClient client,
@@ -240,7 +254,6 @@ public sealed class HardwarePaginationFakeWorkerTests
                 {
                     OperationId = "hardware",
                     Operation = "read_hardware_config",
-                    ProjectPath = projectPath,
                     PageSize = paged ? pageSize : null,
                     Cursor = cursor,
                     DeviceName = deviceName,

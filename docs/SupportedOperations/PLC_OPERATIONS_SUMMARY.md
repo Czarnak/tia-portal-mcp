@@ -4,12 +4,12 @@
 
 | Entry point | Operation | Inputs | Behavior |
 |---|---|---|---|
-| `browse_project_tree` | `browse_project_tree` | Optional `projectPath`, `depth`, `startSelector`, `pageSize`; continuation `cursor` | Locates PLC software, blocks, groups, types, and other project objects; cursors reject binding changes. |
+| `browse_project_tree` | `browse_project_tree` | Optional `depth`, `startSelector`, `pageSize`; continuation `cursor` | Locates PLC software, blocks, groups, types, and other project objects; cursors reject binding changes. |
 | `plc_read` | `get_block_content` | Required `blockPath`; optional `format`, `withDependencies` | Reads an existing block as XML/SimaticML (default) or an eligible external source. See [IMPORT_EXPORT_OPTIONS_SUMMARY.md](IMPORT_EXPORT_OPTIONS_SUMMARY.md). |
 | `plc_read` | `get_type_content` | Required `typePath`; optional `format`, `withDependencies` | Reads an existing PLC type as `.udt` source (default) or XML/SimaticML. |
 | `plc_read` | `list_tag_tables` | Optional `plcName`, `folderPath`, `tableName` | Lists PLC tag tables and the exposed tag and constant information. |
-| `read_cross_references` | `read_cross_references` | Required `target`; optional `filter`, `maxResults`, `projectPath` | Reads the cross-references of one project-tree target. Filters are `AllObjects`, `ObjectsWithReferences` (default), `ObjectsWithoutReferences`, and `UnusedObjects`. |
-| `compile_check` | `compile_check` | Optional `projectPath`, `plcName`, `blockPath` | Compiles the PLC or selected block scope and returns compiler messages. |
+| `read_cross_references` | `read_cross_references` | Required `target`; optional `filter`, `maxResults` | Reads the cross-references of one project-tree target. Filters are `AllObjects`, `ObjectsWithReferences` (default), `ObjectsWithoutReferences`, and `UnusedObjects`. |
+| `compile_check` | `compile_check` | Optional `plcName`, `blockPath` | Compiles the PLC or selected block scope and returns compiler messages. |
 
 `plc_read` and `read_cross_references` are registered in every access mode. `execute_read_batch` was
 retired; use these two tools instead. Tree browsing and compilation are standalone tools. `compile_check`
@@ -25,7 +25,7 @@ tool counts are 8/19/19. Read-only never opens, creates, saves or closes a proje
 ## PLC reads (`plc_read`)
 
 `plc_read(operations)` takes at most 50 items. Each has a unique, non-blank `operationId` of at most
-256 characters, an `operation`, an optional `projectPath`, and that operation's parameters. Items run
+256 characters, an `operation`, and that operation's parameters. Items run
 in caller order and independently: a failed item does not stop the others. Unknown fields are
 rejected. The response is one structured document (`contractVersion` `1.0`, root `warnings` array,
 explicit nulls), delivered identically as text and `structuredContent`. `isError` is true only for a
@@ -45,8 +45,8 @@ rejection before anything ran.
   and `folderPath` the tables directly in one folder (written as the inventory emits it, `/` or
   `/Line/Cell`); both are case-insensitive and combine with `plcName`. A narrowing that matches no
   table fails the item with `target_not_found`, unless part of the tree was unreadable.
-- A `projectPath` that differs from the bound project fails only that item with `binding_conflict`.
-  Reads never bind, switch or open a project.
+- Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
+  An unbound call returns one root error, never per-item failures. Reads never bind, switch or open a project.
 
 Budget: a value over the value budget or a document over the response budget (60,000 and 180,000
 characters by default) is never cut. The affected item `result` is omitted whole with an omission
@@ -99,13 +99,12 @@ Its zero counts are fallback values, not evidence of an error-free compilation.
 
 ## Cross-reference coverage (`read_cross_references`)
 
-`read_cross_references(target, filter?, maxResults?, projectPath?)` reads one target per call.
+`read_cross_references(target, filter?, maxResults?)` reads one target per call.
 `target` is `{ path: [{ nodeType, name }, ...], member?: { kind, name } }`: copy the `path` segments
 from `browse_project_tree` output (matching is case-insensitive as in the tree; siblings that differ
 only in case are `target_ambiguous`). `member` addresses leaves the tree does not model, under a
 `TagTable` path, with `kind` one of `Tag`, `SystemConstant` or `UserConstant` (exact case). `filter`
-and `maxResults` (1 or greater) are validated before any worker call; `projectPath` is a target
-constraint only.
+and `maxResults` (1 or greater) are validated before any worker call.
 
 Provisionally, `target` may instead be `{ hmi: { hmiName, tagName } }` for one top-level WinCC
 Unified HMI tag; it may be replaced by a unified HMI selector once alarms or screens need
@@ -159,9 +158,8 @@ owners themselves; they only enumerate the owners beneath them. See Appendix B o
 `plc_write(operations, dryRun=false)` runs up to 50 PLC software writes in caller order against one
 verified, already-open project. Omitted `dryRun` or `dryRun:false` executes; `dryRun:true` returns
 `phase:preview` with effects, `dependsOn` and guards, without mutation. No confirmation prompt is sent
-in any mode. Each item has a unique, non-blank `operationId` of at most 256 characters; an optional
-`projectPath` must normalize to the same project on every item that names one (otherwise
-`validation_error`). The tool never
+in any mode. Each item has a unique, non-blank `operationId` of at most 256 characters; the tool acts on the
+bound project only (an item `projectPath` is rejected as `validation_error`). The tool never
 saves, downloads, or controls a PLC.
 
 | Operation | Required inputs | Optional inputs |

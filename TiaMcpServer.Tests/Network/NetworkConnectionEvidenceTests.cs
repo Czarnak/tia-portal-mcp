@@ -4,6 +4,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Network;
 using TiaMcpServer.OpennessWorker.Openness.Network;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using System.Text.Json;
 using Xunit;
@@ -188,11 +189,12 @@ public sealed class NetworkConnectionEvidenceTests
     public async Task FakeWorker_OrdinaryReadPreservesCompleteAndDegradedEvidence(bool degraded)
     {
         var scenario = degraded ? "network-connection-evidence-degraded" : "network-connection-evidence";
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
-        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), logger: null,
+        var binding = new ProjectSessionBinding(null);
+        using var client = new OpennessWorkerClient(binding, logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
         var result = await NetworkReadTools.NetworkRead(client, new[] { new NetworkOperationRequest
-        { OperationId = "hardware", Operation = "read_hardware_config", ProjectPath = scenario } });
+        { OperationId = "hardware", Operation = "read_hardware_config"} });
         Assert.False(result.IsError);
         var item = Assert.IsType<JsonElement>(result.StructuredContent).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", item.GetProperty("status").GetString());

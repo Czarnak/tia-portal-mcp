@@ -10,14 +10,14 @@ namespace TiaMcpServer.Vci;
 
 public sealed class VciWritePlanner(OpennessWorkerClient client)
 {
-    public async Task<VciPlanResult> PlanAsync(string? projectPath, IReadOnlyList<VciOperationRequest> items)
+    public async Task<VciPlanResult> PlanAsync(IReadOnlyList<VciOperationRequest> items)
     {
         var previous = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var plans = new List<ItemPlan<VciWriteEffect>>();
         var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
         foreach (var item in items)
         {
-            if (ProjectFolderError(projectPath, item) is { } pathError) return Failed(pathError);
+            if (ProjectFolderError(item) is { } pathError) return Failed(pathError);
             if (previous.TryGetValue(item.WorkspaceName!, out var predecessor))
             {
                 // The predecessor changes this workspace; inventory is unknown until its mutation finishes.
@@ -26,7 +26,7 @@ public sealed class VciWritePlanner(OpennessWorkerClient client)
             }
             else
             {
-                var resolved = await ReplanAsync(projectPath, item).ConfigureAwait(false);
+                var resolved = await ReplanAsync(item).ConfigureAwait(false);
                 if (!resolved.Replan.Success) return Failed(resolved.Replan.Error!);
                 plans.Add(resolved.Replan.Plan!); guards[item.OperationId] = resolved.Guards;
             }
@@ -35,12 +35,12 @@ public sealed class VciWritePlanner(OpennessWorkerClient client)
         return new(WritePlan<VciWriteEffect>.Ok(plans), guards);
     }
 
-    public async Task<VciReplanResult> ReplanAsync(string? projectPath, VciOperationRequest item)
+    public async Task<VciReplanResult> ReplanAsync(VciOperationRequest item)
     {
-        if (ProjectFolderError(projectPath, item) is { } error)
+        if (ProjectFolderError(item) is { } error)
             return new(ItemReplan<VciWriteEffect>.Fail(error.Category, error.Message), []);
         var result = await client.WriteVciAsync(VciMethods.Plan,
-            VciWriteCatalog.ToWorkerRequest(item, string.Empty, string.Empty), projectPath).ConfigureAwait(false);
+            VciWriteCatalog.ToWorkerRequest(item, string.Empty, string.Empty)).ConfigureAwait(false);
         if (!result.Success)
             return new(ItemReplan<VciWriteEffect>.Fail(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                 result.Error ?? "VCI planning failed."), []);
@@ -63,9 +63,9 @@ public sealed class VciWritePlanner(OpennessWorkerClient client)
         }
     }
 
-    private WriteToolError? ProjectFolderError(string? projectPath, VciOperationRequest item)
+    private WriteToolError? ProjectFolderError(VciOperationRequest item)
     {
-        var boundPath = client.BindingSnapshot.ProjectPath ?? projectPath;
+        var boundPath = client.BindingSnapshot.ProjectPath;
         return item.Operation == "create_workspace" && item.RootPath is not null && boundPath is not null
             && ArchiveDirectoryGuard.IsWithinProjectFolder(item.RootPath, boundPath)
             ? new(WorkerFailureCategories.ValidationError, "rootPath must not be inside the bound project's folder.") : null;

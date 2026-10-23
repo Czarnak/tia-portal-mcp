@@ -21,7 +21,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.True(response.Success);
         Assert.Contains(response.Guards, g => g.Id == "network_state_unverifiable" && g.Severity == "block");
         Assert.Null(response.Batch);
-        var state = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-guarded-incomplete");
+        var state = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.Single(state.State!.Subnets);
         Assert.DoesNotContain("delete_subnet", requests.Methods());
     }
@@ -85,7 +85,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.Equal("none", record.RootElement.GetProperty("confirmation").GetProperty("by").GetString());
         Assert.All(record.RootElement.GetProperty("guards").EnumerateArray(), guard =>
             Assert.Equal(System.Text.Json.JsonValueKind.Null, guard.GetProperty("satisfiedBy").ValueKind));
-        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
+        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.NotEmpty(read.State!.Subnets[0].ConnectionEvidence!.Messages);
         Assert.Equal(kind == "root", read.State.Messages.Count != 0);
     }
@@ -120,9 +120,6 @@ public sealed class NetworkGuardedWriteDomainTests
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
         var before = requests.Methods().Length;
-        var left = NetworkGuardedWriteFixture.Delete("left"); left.ProjectPath = "C:/one.ap21";
-        var right = NetworkGuardedWriteFixture.Delete("right"); right.ProjectPath = "C:/two.ap21";
-        Assert.Equal("validation_error", (await fixture.RunAsync(false, left, right)).Error!.Category);
         Assert.Equal("validation_error", (await fixture.RunAsync(false, Enumerable.Range(0, 51).Select(i => NetworkGuardedWriteFixture.Delete(i.ToString())).ToArray())).Error!.Category);
         Assert.Equal(before, requests.Methods().Length);
     }

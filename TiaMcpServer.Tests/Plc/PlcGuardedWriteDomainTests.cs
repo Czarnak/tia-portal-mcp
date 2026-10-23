@@ -44,7 +44,7 @@ public sealed class PlcGuardedWriteDomainTests
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
-        var identity = (await fixture.Client.ListTagTablesAsync(null, Roundtrip)).SessionIdentity!;
+        var identity = (await fixture.Client.ListTagTablesAsync(plcName: null)).SessionIdentity!;
         fixture.AfterGate = () => Assert.True(fixture.Binding.BindVerified(new WorkerSessionIdentity
         {
             WorkerSessionId = identity.WorkerSessionId, SessionGeneration = identity.SessionGeneration + 1,
@@ -64,7 +64,7 @@ public sealed class PlcGuardedWriteDomainTests
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
-        var identity = (await fixture.Client.ListTagTablesAsync(null, Roundtrip)).SessionIdentity!;
+        var identity = (await fixture.Client.ListTagTablesAsync(plcName: null)).SessionIdentity!;
         fixture.AfterGate = () =>
         {
             fixture.Binding.Invalidate("test revision change");
@@ -79,31 +79,11 @@ public sealed class PlcGuardedWriteDomainTests
     }
 
     [Fact]
-    public async Task MismatchedProjectPath_IsBindingConflictBeforeWorker()
-    {
-        using var audit = new TempAuditDirectory();
-        using var requests = new FakeWorkerRequestLog(audit.Path);
-        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
-        var before = requests.Methods().Length;
-        var item = CreateTag("tag", "Fresh");
-        item.ProjectPath = @"C:\Projects\Other.ap21";
-
-        var response = await fixture.RunAsync(false, item);
-
-        Assert.Equal("error", response.Phase);
-        Assert.Equal(WorkerFailureCategories.BindingConflict, response.Error!.Category);
-        Assert.Empty(requests.Methods().Skip(before).Intersect(WriteMethods.Append("list_tag_tables")));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData(Roundtrip)]
-    public async Task CreateTableThenTagInOneCall_Applies(string? tableProjectPath)
+    public async Task CreateTableThenTagInOneCall_Applies()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
         var table = CreateTable("table");
-        table.ProjectPath = tableProjectPath;
 
         var response = await fixture.RunAsync(false, table, CreateTag("tag", "Valve1", table: "Valves"));
 

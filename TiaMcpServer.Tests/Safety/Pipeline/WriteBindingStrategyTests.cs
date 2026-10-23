@@ -100,7 +100,7 @@ public sealed class WriteBindingStrategyTests
         Assert.Equal(0, _domain.MutationCount);
     }
 
-    private static WriteCall<FakeWriteItem> Call() => new(null, new[] { new FakeWriteItem("a") }, false);
+    private static WriteCall<FakeWriteItem> Call() => new(new[] { new FakeWriteItem("a") }, false);
 
     private sealed class PreparedStrategy(ProjectBindingSnapshot binding) : IWriteBindingStrategy<FakeWriteItem>
     {

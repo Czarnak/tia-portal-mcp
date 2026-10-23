@@ -117,7 +117,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         else
         {
             var beforeGate = _gate.CurrentBinding;
-            var gate = await _gate.RequireVerifiedWriteBindingAsync(_call.ProjectPath).ConfigureAwait(false);
+            var gate = await _gate.RequireVerifiedWriteBindingAsync().ConfigureAwait(false);
             if (!gate.Success)
             {
                 return Finish(Failure(WritePhases.Error, new WriteToolError(
@@ -216,7 +216,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private async Task<WriteReport<TEffect, TVerification>> RunLeasedAsync()
     {
         _cancellationToken.ThrowIfCancellationRequested();
-        var plan = await _domain.PlanAsync(_call.ProjectPath, Items).ConfigureAwait(false);
+        var plan = await _domain.PlanAsync(Items).ConfigureAwait(false);
         if (!plan.Success)
         {
             return Failure(WritePhases.Error, plan.Error ?? new WriteToolError(
@@ -314,7 +314,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         }
 
         // The host lease excludes other host requests; it does not exclude edits in the TIA UI.
-        var fresh = await _domain.PlanAsync(_call.ProjectPath, Items).ConfigureAwait(false);
+        var fresh = await _domain.PlanAsync(Items).ConfigureAwait(false);
         _cancellationToken.ThrowIfCancellationRequested();
         if (!fresh.Success || fresh.Items.Count != Items.Count || fresh.Items.Any(item => item is null))
         {
@@ -370,7 +370,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
         _current = -1;
         _batch = FinalizeBatch();
-        var verification = await _domain.VerifyAsync(_call.ProjectPath, _batch).ConfigureAwait(false);
+        var verification = await _domain.VerifyAsync(_batch).ConfigureAwait(false);
         _cancellationToken.ThrowIfCancellationRequested();
         var verified = _domain.VerificationSucceeded(verification);
         if (!verified)
@@ -405,7 +405,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
         _cancellationToken.ThrowIfCancellationRequested();
         _mutated[index] = true;
-        var result = await _domain.MutateAsync(_call.ProjectPath, item).ConfigureAwait(false);
+        var result = await _domain.MutateAsync(item).ConfigureAwait(false);
         return _domain.Project(item, result);
     }
 
@@ -413,7 +413,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private async Task<WriteToolError?> ReplanAsync(int index)
     {
         var item = Items[index];
-        var replan = await _domain.ReplanAsync(_call.ProjectPath, item).ConfigureAwait(false);
+        var replan = await _domain.ReplanAsync(item).ConfigureAwait(false);
         if (!replan.Success)
         {
             return replan.Error ?? new WriteToolError(
@@ -541,7 +541,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             _domain.ContractVersion,
             WriteAuditRecord.ModeName(_gate.AccessMode),
             _auditConfirmation,
-            _call.ProjectPath,
+            _binding.ProjectPath,
             WriteAuditBinding.From(_binding),
             CanonicalJson.ToElement(Items),
             report.Phase,

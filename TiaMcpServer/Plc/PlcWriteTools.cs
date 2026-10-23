@@ -15,11 +15,10 @@ public class PlcWriteTools
     public static Task<CallToolResult> PlcWrite(
         OpennessWorkerClient workerClient,
         WriteExecution execution,
-        [Description("Ordered PLC write operations, all constrained to the same project.")] PlcOperationRequest[] operations,
+        [Description("Ordered PLC write operations.")] PlcOperationRequest[] operations,
         [Description("True previews effects and guards without mutation; omitted or false executes.")] bool dryRun = false,
         CancellationToken cancellationToken = default)
         => execution.RunAsync(new PlcWriteDomain(workerClient),
             new WriteCall<PlcOperationRequest>(
-                operations?.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item?.ProjectPath))?.ProjectPath,
                 operations ?? [], dryRun), cancellationToken: cancellationToken);
 }

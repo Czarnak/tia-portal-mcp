@@ -266,34 +266,18 @@ public sealed class BindOpenProjectIntegrationTests
         using var f = Two(); Failure(await f.Client.BindOpenProjectAsync(path, false), WorkerFailureCategories.ValidationError, ProjectBindingSnapshot.UnboundState, true);
         Assert.Empty(f.Log.Methods());
     }
-    private static NetworkOperationRequest[] AddDevice(string path) => new[]
+    private static NetworkOperationRequest[] AddDevice() => new[]
     {
-        new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device", ProjectPath = path,
+        new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device",
             TypeIdentifier = "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0", DeviceName = "PLC_1" }
     };
-    [Fact]
-    public async Task NetworkWrite_ExplicitOldProjectConstraint_RejectedAfterSwitch()
-    {
-        const string source = "C:/Projects/network-roundtrip.ap21";
-        using var f = new Fixture(initial: source, mode: McpAccessMode.ReadWrite,
-            entries: new[] { new FakeWorkerPortals.Entry(42, source), new FakeWorkerPortals.Entry(43, B) });
-        using var audit = new TempAuditDirectory(); var safety = NetworkGuardedWriteFixture.CreateRunner(f.Client, audit.Path);
-        Success(await f.Client.BindOpenProjectAsync(source, false), ProjectBindingTransitions.Bound);
-        var operations = AddDevice(source); var preview = await NetworkWriteTools.NetworkWrite(f.Client, safety, operations, dryRun: true);
-        var root = Assert.IsType<JsonElement>(preview.StructuredContent); Assert.True(root.GetProperty("success").GetBoolean());
-        Success(await f.Client.BindOpenProjectAsync(B, true), ProjectBindingTransitions.Switched);
-        var count = f.Methods().Length; var applied = await NetworkWriteTools.NetworkWrite(f.Client, safety, operations);
-        var rejection = Assert.IsType<JsonElement>(applied.StructuredContent);
-        Assert.Equal(WorkerFailureCategories.BindingConflict, rejection.GetProperty("error").GetProperty("category").GetString());
-        Assert.Equal(count, f.Methods().Length);
-    }
     [Fact]
     public async Task ReadWriteNoProject_BindThenNetworkWritePreview_PassesBindingGate()
     {
         const string source = "C:/Projects/network-roundtrip.ap21";
         using var f = new Fixture(initial: source, mode: McpAccessMode.ReadWrite, entries: new[] { new FakeWorkerPortals.Entry(42, source) });
         using var audit = new TempAuditDirectory(); var safety = NetworkGuardedWriteFixture.CreateRunner(f.Client, audit.Path);
-        var operations = AddDevice(source); var blocked = await NetworkWriteTools.NetworkWrite(f.Client, safety, operations, dryRun: true);
+        var operations = AddDevice(); var blocked = await NetworkWriteTools.NetworkWrite(f.Client, safety, operations, dryRun: true);
         var rejection = Assert.IsType<JsonElement>(blocked.StructuredContent);
         Assert.Equal(WorkerFailureCategories.BindingConflict, rejection.GetProperty("error").GetProperty("category").GetString());
         Assert.Empty(f.Log.Methods());

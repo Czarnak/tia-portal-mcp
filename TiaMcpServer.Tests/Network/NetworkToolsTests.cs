@@ -7,6 +7,7 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using System.ComponentModel;
 using System.Reflection;
@@ -78,6 +79,14 @@ public class NetworkToolsTests
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(mode));
 
+    private static async Task<OpennessWorkerClient> CreateBoundClientAsync(string projectPath)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = CreateClient(binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        return client;
+    }
+
     private static OpennessWorkerClient CreateWriteClient(
         TempAuditDirectory audit,
         out WriteExecution safety,
@@ -90,23 +99,20 @@ public class NetworkToolsTests
         return client;
     }
 
-    private static NetworkOperationRequest ReadHardware(string id, string projectPath, string? deviceName = null) => new()
+    private static NetworkOperationRequest ReadHardware(string id, string? deviceName = null) => new()
     {
         OperationId = id,
         Operation = "read_hardware_config",
-        ProjectPath = projectPath,
         DeviceName = deviceName,
     };
 
     private static NetworkOperationRequest AddDevice(
         string id,
-        string projectPath = StableScenario,
         string deviceName = "AddedPLC",
         string? deviceItemName = null) => new()
     {
         OperationId = id,
         Operation = "add_network_device",
-        ProjectPath = projectPath,
         TypeIdentifier = "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0",
         DeviceName = deviceName,
         DeviceItemName = deviceItemName,
@@ -114,12 +120,10 @@ public class NetworkToolsTests
 
     private static NetworkOperationRequest ConfigureDevice(
         string id,
-        string projectPath = StableScenario,
         string deviceName = "PLC_1") => new()
     {
         OperationId = id,
         Operation = "configure_network_device",
-        ProjectPath = projectPath,
         Target = new NetworkObjectTarget { DeviceName = deviceName, NodeId = "node-1" },
         Changes = new NetworkDeviceChanges { IpAddress = "192.168.0.10" },
     };
@@ -196,7 +200,7 @@ public class NetworkToolsTests
     {
         var operationId = new string('x', ExpectedMaxOperationIdLength + 1);
 
-        var result = await NetworkRead(null, new[] { ReadHardware(operationId, "unused") });
+        var result = await NetworkRead(null, new[] { ReadHardware(operationId) });
 
         Assert.True(result.IsError);
         var text = ReadText(result);
@@ -216,10 +220,9 @@ public class NetworkToolsTests
     [Fact]
     public async Task NetworkRead_ReturnsDeclaredJsonResultAndCopiesWarnings()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-read-warnings");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("network-read-warnings");
 
-        var result = await NetworkRead(client, new[] { ReadHardware("r1", "network-read-warnings") });
+        var result = await NetworkRead(client, new[] { ReadHardware("r1") });
 
         var root = ReadStructured(result);
         Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
@@ -235,16 +238,15 @@ public class NetworkToolsTests
     [Fact]
     public async Task NetworkRead_ContinuesAfterWorkerFailureAndAfterPayloadContractFailure()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-mixed-results");
-        using var client = CreateClient();
+        using var client = await CreateBoundClientAsync("network-mixed-results");
         var operations = new[]
         {
-            ReadHardware("worker-failure", "network-mixed-results", "worker-failure"),
+            ReadHardware("worker-failure", "worker-failure"),
 
             // The worker reports success, but its payload is not a HardwareConfigInfo: a
             // contract violation must fail the item instead of publishing unusable data.
-            ReadHardware("contract-failure", "network-mixed-results", "contract-failure"),
-            ReadHardware("good", "network-mixed-results", "good"),
+            ReadHardware("contract-failure", "contract-failure"),
+            ReadHardware("good", "good"),
         };
 
         var result = await NetworkRead(client, operations);
@@ -286,8 +288,8 @@ public class NetworkToolsTests
         var before = requests.Methods().Length;
         var operations = new[]
         {
-            AddDevice("first", "network-roundtrip", "AddedPLC"),
-            ConfigureDevice("second", "network-roundtrip", "PLC_1"),
+            AddDevice("first", "AddedPLC"),
+            ConfigureDevice("second", "PLC_1"),
         };
 
         var preview = await NetworkWrite(client, safety, operations);
@@ -328,7 +330,7 @@ public class NetworkToolsTests
         var result = await NetworkWrite(
             client,
             safety,
-            new[] { ConfigureDevice("configure", "network-unresolvable-target") });
+            new[] { ConfigureDevice("configure") });
 
         var root = ReadStructured(result);
         Assert.True(result.IsError);
@@ -340,25 +342,6 @@ public class NetworkToolsTests
     }
 
 
-
-    [Fact]
-    public async Task NetworkWrite_RejectsMixedProjectPathsBeforeWorkerStartup()
-    {
-        using var audit = new TempAuditDirectory();
-        var operations = new[]
-        {
-            AddDevice("first", @"C:\a.ap21"),
-            ConfigureDevice("second", @"C:\b.ap21"),
-        };
-
-        using var client = CreateClient();
-        using var requests = new FakeWorkerRequestLog(audit.Path);
-        var result = await NetworkWrite(client, NetworkGuardedWriteFixture.CreateRunner(client, audit.Path), operations);
-        Assert.Empty(requests.Methods());
-
-        Assert.True(result.IsError);
-        Assert.Contains("same project path", ReadText(result));
-    }
 
     [Fact]
     public async Task NetworkWrite_ReadOnlyDefenseRejectsBeforeSnapshot()
@@ -385,7 +368,7 @@ public class NetworkToolsTests
         var result = await NetworkWrite(
             client,
             safety,
-            new[] { AddDevice("w1", "worker-error") });
+            new[] { AddDevice("w1") });
 
         var root = ReadStructured(result);
         Assert.True(result.IsError);
@@ -402,7 +385,7 @@ public class NetworkToolsTests
 
         // Scenario "ok" answers read_hardware_config with {"seq":N}, which is not a
         // HardwareConfigInfo: nothing may be planned against a state that failed its contract.
-        var result = await NetworkWrite(client, safety, new[] { AddDevice("w1", "ok") });
+        var result = await NetworkWrite(client, safety, new[] { AddDevice("w1") });
 
         var root = ReadStructured(result);
         Assert.True(result.IsError);
@@ -442,8 +425,8 @@ public class NetworkToolsTests
         using var client = CreateWriteClient(audit, out var safety, "network-write-item-failure");
         var operations = new[]
         {
-            AddDevice("first", "network-write-item-failure"),
-            ConfigureDevice("second", "network-write-item-failure"),
+            AddDevice("first"),
+            ConfigureDevice("second"),
         };
 
         var result = await NetworkWrite(client, safety, operations, dryRun: false);

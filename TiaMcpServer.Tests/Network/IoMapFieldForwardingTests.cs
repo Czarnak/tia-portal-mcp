@@ -3,6 +3,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -22,8 +23,13 @@ public class IoMapFieldForwardingTests : IDisposable
 
     public void Dispose() => _uiOpen.Dispose();
 
-    private static OpennessWorkerClient CreateClient()
-        => new(new ProjectSessionBinding(null), logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+    private static async Task<OpennessWorkerClient> CreateClientAsync()
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
+        return client;
+    }
 
     [Fact]
     public async Task ReadHardwareConfig_ForwardsEveryIoMapFieldExactlyOnce()
@@ -32,14 +38,13 @@ public class IoMapFieldForwardingTests : IDisposable
         {
             OperationId = "read-io-map",
             Operation = "read_hardware_config",
-            ProjectPath = "echo",
             DeviceName = "ET 200SP station_1",
             PlcName = "PLC_1",
             IncludeIoDetails = true,
             IncludeTagMatches = true,
         };
 
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
         var result = await NetworkWorkerInvoker.InvokeReadAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -64,10 +69,9 @@ public class IoMapFieldForwardingTests : IDisposable
         {
             OperationId = "read-plain",
             Operation = "read_hardware_config",
-            ProjectPath = "echo",
         };
 
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
         var result = await NetworkWorkerInvoker.InvokeReadAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -80,7 +84,7 @@ public class IoMapFieldForwardingTests : IDisposable
 
     /// <summary>
     /// The internal network-write planner (NetworkWritePlanner.ReadCurrentStateAsync) calls
-    /// <c>ReadHardwareConfigAsync(projectPath)</c> with the defaults. That call must forward the
+    /// <c>ReadHardwareConfigAsync()</c> with the defaults. That call must forward the
     /// I/O-map fields at their DEFAULT values (no narrowing, no details), so planning reads stay
     /// lightweight and cover the whole project. The
     /// flat WorkerRequest always serializes every field, so the guarantee is "defaults", not
@@ -89,8 +93,8 @@ public class IoMapFieldForwardingTests : IDisposable
     [Fact]
     public async Task SnapshotDefaultRead_ForwardsOnlyDefaultNarrowingAndIoMapFields()
     {
-        using var client = CreateClient();
-        var result = await client.ReadHardwareConfigAsync("echo");
+        using var client = await CreateClientAsync();
+        var result = await client.ReadHardwareConfigAsync();
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);

@@ -5,6 +5,7 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Plc;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -15,19 +16,23 @@ public class PlcReadToolsTests
 {
     private const string Scenario = "plc-read-roundtrip";
 
-    private static OpennessWorkerClient CreateClient(McpAccessMode mode = McpAccessMode.ReadOnly)
-        => new(
-            new ProjectSessionBinding(null),
+    private static async Task<OpennessWorkerClient> CreateClientAsync(McpAccessMode mode = McpAccessMode.ReadOnly)
+    {
+        var binding = new ProjectSessionBinding(null);
+        var client = new OpennessWorkerClient(
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate(),
             accessPolicy: new OperationAccessPolicy(mode));
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
+        return client;
+    }
 
-    private static PlcOperationRequest Block(string id, string path = "PLC_1/Main", string? projectPath = Scenario) => new()
+    private static PlcOperationRequest Block(string id, string path = "PLC_1/Main") => new()
     {
         OperationId = id,
         Operation = "get_block_content",
         BlockPath = path,
-        ProjectPath = projectPath,
     };
 
     private static JsonElement Structured(CallToolResult result) => Assert.IsType<JsonElement>(result.StructuredContent);
@@ -35,14 +40,13 @@ public class PlcReadToolsTests
     [Fact]
     public async Task FailedItemDoesNotStopLaterItems()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await PlcReadTools.PlcRead(client, new[]
         {
             Block("missing", "PLC_1/Missing"),
             Block("ok"),
-            new PlcOperationRequest { OperationId = "tags", Operation = "list_tag_tables", ProjectPath = Scenario },
+            new PlcOperationRequest { OperationId = "tags", Operation = "list_tag_tables" },
         });
 
         Assert.False(result.IsError);
@@ -60,14 +64,13 @@ public class PlcReadToolsTests
     [Fact]
     public async Task ListTagTablesForwardsTableNameAndFolderPath()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await PlcReadTools.PlcRead(client, new[]
         {
             new PlcOperationRequest
             {
-                OperationId = "tags", Operation = "list_tag_tables", ProjectPath = Scenario,
+                OperationId = "tags", Operation = "list_tag_tables",
                 TableName = "Motors", FolderPath = "/Line",
             },
         });
@@ -79,30 +82,9 @@ public class PlcReadToolsTests
     }
 
     [Fact]
-    public async Task MismatchedProjectPathFailsOnlyThatItem()
-    {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
-
-        var result = await PlcReadTools.PlcRead(client, new[]
-        {
-            Block("first"),
-            Block("other", projectPath: @"C:\Somewhere\Else\Other.ap21"),
-            Block("last"),
-        });
-
-        Assert.False(result.IsError);
-        var items = Structured(result).GetProperty("batch").GetProperty("operations");
-        Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
-        Assert.Equal("failed", items[1].GetProperty("status").GetString());
-        Assert.Equal("binding_conflict", items[1].GetProperty("failure").GetProperty("category").GetString());
-        Assert.Equal("succeeded", items[2].GetProperty("status").GetString());
-    }
-
-    [Fact]
     public async Task ValidationFailureIsErrorEnvelope()
     {
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await PlcReadTools.PlcRead(client, new[] { Block("a"), Block("a") });
 
@@ -116,8 +98,7 @@ public class PlcReadToolsTests
     [Fact]
     public async Task TextEqualsStructuredContent()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(Scenario);
-        using var client = CreateClient();
+        using var client = await CreateClientAsync();
 
         var result = await PlcReadTools.PlcRead(client, new[] { Block("ok") });
 

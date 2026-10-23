@@ -37,9 +37,9 @@ public sealed class HmiWriteDomain(OpennessWorkerClient client)
         return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
     }
 
-    public async Task<WritePlan<HmiWriteEffect>> PlanAsync(string? projectPath, IReadOnlyList<HmiWriteOperationRequest> items)
+    public async Task<WritePlan<HmiWriteEffect>> PlanAsync(IReadOnlyList<HmiWriteOperationRequest> items)
     {
-        var result = await _planner.PlanAsync(projectPath, items).ConfigureAwait(false);
+        var result = await _planner.PlanAsync(items).ConfigureAwait(false);
         if (!result.Plan.Success) return result.Plan;
         _items = items.ToArray();
         for (var i = 0; i < items.Count; i++)
@@ -54,9 +54,9 @@ public sealed class HmiWriteDomain(OpennessWorkerClient client)
     public IReadOnlyList<FiredGuard> EvaluateGuards(IReadOnlyList<HmiWriteOperationRequest> items, IReadOnlyList<ItemPlan<HmiWriteEffect>> plans)
         => items.SelectMany(item => _guards.GetValueOrDefault(item.OperationId) ?? Array.Empty<FiredGuard>()).ToArray();
 
-    public async Task<ItemReplan<HmiWriteEffect>> ReplanAsync(string? projectPath, HmiWriteOperationRequest item)
+    public async Task<ItemReplan<HmiWriteEffect>> ReplanAsync(HmiWriteOperationRequest item)
     {
-        var result = await _planner.ReplanAsync(projectPath, item).ConfigureAwait(false);
+        var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
         if (!result.Replan.Success) return result.Replan;
         _guards[item.OperationId] = result.Guards;
         // The re-plan reads real state, so it knows no dependency; the presented effect keeps the planned one.
@@ -66,17 +66,17 @@ public sealed class HmiWriteDomain(OpennessWorkerClient client)
         return ItemReplan<HmiWriteEffect>.Ok(plan with { Effect = effect });
     }
 
-    public Task<WorkerCallResult> MutateAsync(string? projectPath, HmiWriteOperationRequest item)
+    public Task<WorkerCallResult> MutateAsync(HmiWriteOperationRequest item)
     {
         _attempted.Add(item.OperationId);
-        return client.WriteHmiAsync(HmiOperationCatalog.WorkerMethod(item.Operation), HmiWriteCatalog.ToWorkerRequest(item, _planner.ResolvedHmiName(item.OperationId)), projectPath);
+        return client.WriteHmiAsync(HmiOperationCatalog.WorkerMethod(item.Operation), HmiWriteCatalog.ToWorkerRequest(item, _planner.ResolvedHmiName(item.OperationId)));
     }
 
     public StructuredOperationItem Project(HmiWriteOperationRequest item, WorkerCallResult result)
         => HmiWritePayloadContract.Project(item, result);
 
-    public async Task<HmiWriteVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
-        => await new HmiWriteVerifier(client, _items, _effects).VerifyAsync(projectPath,
+    public async Task<HmiWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
+        => await new HmiWriteVerifier(client, _items, _effects).VerifyAsync(
             StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
 
     public bool VerificationSucceeded(HmiWriteVerification? verification) => verification?.Success == true;

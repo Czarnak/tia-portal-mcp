@@ -119,35 +119,6 @@ public class HmiWriteCatalogTests
     }
 
     [Theory]
-    [InlineData(null, null)]
-    [InlineData(null, "fixtures/Project.ap21")]
-    [InlineData("fixtures/Project.ap21", null)]
-    [InlineData("  ", "fixtures/Project.ap21")]
-    [InlineData("fixtures/Project.ap21", "fixtures/project.ap21")]
-    [InlineData("fixtures/Project.ap21", " fixtures/../fixtures/Project.ap21 ")]
-    public void BatchPaths_AcceptActiveDefaultsAndEquivalentExplicitPaths(string? firstPath, string? secondPath)
-    {
-        var result = HmiWriteCatalog.ValidateWrite([
-            new() { OperationId = "first", Operation = "create_tag_table", TableName = "First", ProjectPath = firstPath },
-            new() { OperationId = "second", Operation = "create_tag_table", TableName = "Second", ProjectPath = secondPath },
-        ]);
-
-        Assert.True(result.IsValid, result.Error);
-    }
-
-    [Fact]
-    public void BatchPaths_RejectDifferentExplicitProjects()
-    {
-        var result = HmiWriteCatalog.ValidateWrite([
-            new() { OperationId = "first", Operation = "create_tag_table", TableName = "First", ProjectPath = "fixtures/A/Project.ap21" },
-            new() { OperationId = "second", Operation = "create_tag_table", TableName = "Second", ProjectPath = "fixtures/B/Project.ap21" },
-        ]);
-
-        Assert.False(result.IsValid);
-        Assert.Contains("same project path", result.Error);
-    }
-
-    [Theory]
     [InlineData("create_tag_table", "TableName", "GroupPath")]
     [InlineData("update_tag_table", "TableName NewName", "")]
     [InlineData("delete_tag_table", "TableName", "")]
@@ -161,7 +132,7 @@ public class HmiWriteCatalogTests
     {
         var allowed = (required + " " + optional).Split(' ');
         foreach (var property in typeof(HmiWriteOperationRequest).GetProperties()
-            .Where(p => p.Name is not ("Operation" or "OperationId" or "HmiName" or "ProjectPath")))
+            .Where(p => p.Name is not ("Operation" or "OperationId" or "HmiName")))
         {
             if (allowed.Contains(property.Name)) continue;
             var op = new HmiWriteOperationRequest

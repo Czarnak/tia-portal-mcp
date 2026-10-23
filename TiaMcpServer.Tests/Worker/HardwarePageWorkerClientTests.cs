@@ -18,7 +18,7 @@ public sealed class HardwarePageWorkerClientTests
     {
         var binding = new ProjectSessionBinding(null);
         using var client = CreateFakeWorkerClient(binding);
-        var bootstrap = await FirstPageAsync(client, "hardware-pagination");
+        var bootstrap = await BoundFirstPageAsync(client, binding, "hardware-pagination");
         var identity = AssertCompleteIdentity(bootstrap.WorkerResult);
         var before = binding.CaptureSnapshot();
         var enteredLease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -34,7 +34,6 @@ public sealed class HardwarePageWorkerClientTests
         await enteredLease.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var firstPage = client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -44,6 +43,8 @@ public sealed class HardwarePageWorkerClientTests
             requiredHostBinding: null,
             expectedSessionIdentity: null);
 
+        // A fresh binding (new id/revision) on the same worker identity while the lease is held.
+        Assert.True(binding.Clear(null, out var clearError), clearError);
         Assert.True(binding.BindVerified(identity, forceRebind: false, out var bindError), bindError);
         var rebound = binding.CaptureSnapshot();
         releaseLease.TrySetResult(true);
@@ -58,75 +59,84 @@ public sealed class HardwarePageWorkerClientTests
     }
 
     [Fact]
-    public async Task UnboundContinuation_UsesCursorPathAndIdentityWithoutCreatingAHostBinding()
+    public async Task UnboundFirstPage_FailsClosed()
     {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
         var binding = new ProjectSessionBinding(null);
         using var client = CreateFakeWorkerClient(binding);
-        var first = await FirstPageAsync(client, ProjectPath);
+
+        var call = await FirstPageAsync(client, ProjectPath);
+
+        Assert.False(call.WorkerResult.Success);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, call.WorkerResult.FailureCategory);
+        Assert.Equal(ProjectSessionBinding.BindFirstMessage, call.WorkerResult.Error);
+        Assert.Empty(requests.Methods());
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, binding.CaptureSnapshot().State);
+    }
+
+    [Fact]
+    public async Task ContinuationAfterUnbind_FailsCursorBindingMismatch()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
+        var binding = new ProjectSessionBinding(null);
+        using var client = CreateFakeWorkerClient(binding);
+        var first = await BoundFirstPageAsync(client, binding, ProjectPath);
         var expectedIdentity = AssertCompleteIdentity(first.WorkerResult);
+        Assert.True(binding.Clear(null, out var clearError), clearError);
+        var sentBefore = requests.Methods().Length;
 
         var continuation = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
-            deviceName: "PLC_1",
-            plcName: "CPU_1",
-            includeIoDetails: true,
-            includeTagMatches: true,
+            deviceName: null,
+            plcName: null,
+            includeIoDetails: false,
+            includeTagMatches: false,
             pageSize: 23,
             continuation: Continuation(),
             requiredHostBinding: first.HostBinding,
             expectedSessionIdentity: expectedIdentity);
 
-        Assert.True(continuation.WorkerResult.Success, continuation.WorkerResult.Error);
-        Assert.Equal(ProjectBindingSnapshot.UnboundState, continuation.HostBinding.State);
+        Assert.False(continuation.WorkerResult.Success);
+        Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, continuation.WorkerResult.FailureCategory);
+        Assert.Equal(ProjectSessionBinding.BindFirstMessage, continuation.WorkerResult.Error);
+        Assert.Equal(sentBefore, requests.Methods().Length);
         Assert.Equal(ProjectBindingSnapshot.UnboundState, binding.CaptureSnapshot().State);
-        using var request = JsonDocument.Parse(continuation.WorkerResult.Payload);
-        Assert.Equal(ProjectPath, request.RootElement.GetProperty("projectPath").GetString());
-        Assert.Equal(23, request.RootElement.GetProperty("hardwarePageSize").GetInt32());
-        Assert.Equal(7, request.RootElement
-            .GetProperty("hardwarePageContinuation")
-            .GetProperty("offset")
-            .GetInt32());
-        AssertIdentity(expectedIdentity, request.RootElement.GetProperty("expectedSessionIdentity"));
     }
 
     [Fact]
-    public async Task Continuation_AcceptsEquivalentExplicitPathAndRejectsDifferentPathWithoutSending()
+    public async Task Continuation_SendsTheBoundPathAndCursorIdentity()
     {
         var binding = new ProjectSessionBinding(null);
         using var client = CreateFakeWorkerClient(binding);
-        var first = await FirstPageAsync(client, ProjectPath);
+        var first = await BoundFirstPageAsync(client, binding, ProjectPath);
         var expectedIdentity = AssertCompleteIdentity(first.WorkerResult);
 
         var equivalent = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: "c:/FIXTURES/echo",
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
             includeTagMatches: false,
-            pageSize: 50,
+            pageSize: 23,
             continuation: Continuation(),
             requiredHostBinding: first.HostBinding,
             expectedSessionIdentity: expectedIdentity);
         Assert.True(equivalent.WorkerResult.Success, equivalent.WorkerResult.Error);
-
-        var different = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: @"C:\different\echo",
-            deviceName: null,
-            plcName: null,
-            includeIoDetails: false,
-            includeTagMatches: false,
-            pageSize: 50,
-            continuation: Continuation(),
-            requiredHostBinding: first.HostBinding,
-            expectedSessionIdentity: expectedIdentity);
-
-        Assert.False(different.WorkerResult.Success);
-        Assert.Equal(
-            WorkerFailureCategories.CursorBindingMismatch,
-            different.WorkerResult.FailureCategory);
+        // The echo scenario returns the continuation request the worker received.
+        using (var request = JsonDocument.Parse(equivalent.WorkerResult.Payload))
+        {
+            Assert.Equal(ProjectPath, request.RootElement.GetProperty("projectPath").GetString());
+            Assert.Equal(23, request.RootElement.GetProperty("hardwarePageSize").GetInt32());
+            Assert.Equal(7, request.RootElement
+                .GetProperty("hardwarePageContinuation")
+                .GetProperty("offset")
+                .GetInt32());
+            AssertIdentity(expectedIdentity, request.RootElement.GetProperty("expectedSessionIdentity"));
+        }
 
         var nextRequest = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: ProjectPath,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -164,7 +174,6 @@ public sealed class HardwarePageWorkerClientTests
             requestTimeout: TimeSpan.FromSeconds(1));
 
         var call = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -201,7 +210,6 @@ public sealed class HardwarePageWorkerClientTests
         await enteredLease.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var continuation = client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -233,11 +241,10 @@ public sealed class HardwarePageWorkerClientTests
     {
         var binding = new ProjectSessionBinding(null);
         using var client = CreateFakeWorkerClient(binding);
-        var first = await FirstPageAsync(client, scenario);
+        var first = await BoundFirstPageAsync(client, binding, scenario);
         var identity = AssertCompleteIdentity(first.WorkerResult);
 
         var call = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -257,7 +264,7 @@ public sealed class HardwarePageWorkerClientTests
         var binding = new ProjectSessionBinding(null);
         using var client = CreateFakeWorkerClient(binding);
 
-        var call = await FirstPageAsync(client, "hardware-pagination-payload-only-identity");
+        var call = await BoundFirstPageAsync(client, binding, "hardware-pagination-payload-only-identity");
 
         Assert.False(call.WorkerResult.Success);
         Assert.Equal(WorkerFailureCategories.ProtocolError, call.WorkerResult.FailureCategory);
@@ -269,7 +276,7 @@ public sealed class HardwarePageWorkerClientTests
         var binding = new ProjectSessionBinding(null);
         using var client = CreateFakeWorkerClient(binding);
 
-        var call = await FirstPageAsync(client, "worker-error-with-category");
+        var call = await BoundFirstPageAsync(client, binding, "worker-error-with-category");
 
         Assert.False(call.WorkerResult.Success);
         Assert.Equal(WorkerFailureCategories.ValidationError, call.WorkerResult.FailureCategory);
@@ -282,13 +289,21 @@ public sealed class HardwarePageWorkerClientTests
             workerExecutablePath: FakeWorkerLocator.Locate(),
             requestTimeout: TimeSpan.FromSeconds(5));
 
+    private static async Task<HardwarePageWorkerCallResult> BoundFirstPageAsync(
+        OpennessWorkerClient client,
+        ProjectSessionBinding binding,
+        string projectPath)
+    {
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
+        return await FirstPageAsync(client, projectPath);
+    }
+
     private static async Task<HardwarePageWorkerCallResult> FirstPageAsync(
         OpennessWorkerClient client,
         string projectPath)
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(projectPath);
         return await client.ReadHardwarePageCandidatesAsync(
-            projectPath,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,

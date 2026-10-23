@@ -122,8 +122,8 @@ is already open in the attached TIA Portal instance.
 The read-only surface contains eight tools: seven observations and `bind_project` for explicit
 session selection. Binding can switch the selected Portal/project without project mutation.
 
-A supplied `projectPath` on ordinary observation/read tools in read-only mode is an assertion.
-It must identify the currently open project; those tools never use it to open or switch projects.
+Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
+Only `bind_project` and `open_project` accept a public `projectPath`; ordinary observation/read tools reject it as an unknown member and never use a path to open or switch projects.
 
 ## 3. Explicit MCP tool registration
 
@@ -161,8 +161,8 @@ preview-only live V21 evidence are recorded in the
 | Tool | Purpose |
 |---|---|
 | `bind_project` | Adopt or switch to an already-open project without opening, creating, saving or closing. |
-| `get_project_status` | Return status and metadata for the project already open in TIA Portal. |
-| `browse_project_tree` | Return a canonical, paged v3 point-in-time snapshot using optional `projectPath`, typed `startSelector`, `depth`, and `pageSize`, or continue it with `cursor`. |
+| `get_project_status` | Get status and metadata for the bound project, or for the sole open project when none is bound. Never establishes a new binding. |
+| `browse_project_tree` | Return a canonical, paged v3 point-in-time snapshot on the bound project using typed `startSelector`, `depth`, and `pageSize`, or continue it with `cursor`. |
 | `plc_read` | Execute up to 50 validated PLC read operations (`get_block_content`, `get_type_content`, `list_tag_tables`) on the structured contract. |
 | `read_cross_references` | Read the cross-references of one project-tree target (leaf object, member, or container sweep) on the structured contract. |
 | `network_read` | Execute up to 50 validated network observation operations. |
@@ -282,7 +282,8 @@ only to that complete worker identity, never to caller input alone.
 - open, create, and rebinding save-as bind to worker-reported ground truth;
 - close clears the binding;
 - explicit `bind_project` adopts an already-open project's verified identity in every mode;
-- ordinary reads and writes do not implicitly bind an unbound session;
+- ordinary reads and writes do not implicitly bind an unbound session; content tools act on the
+  bound project only and fail closed with `binding_conflict` when unbound (bind first);
 - a configured path is promoted only after a matching status response;
 - timeout, crash, worker restart, PID/path/generation drift, or a missing
   identity invalidates the binding and fails closed.
@@ -758,8 +759,9 @@ Worker-session identity has one authority: the `WorkerResponse.SessionIdentity` 
 `WorkerCallResult`/`HardwarePageWorkerCallResult` envelope. Candidate payloads do not duplicate
 it. The serialized client call returns that envelope identity together with the bound or unbound
 host snapshot captured under the same lease; continuations pin the worker call through the
-existing `ExpectedSessionIdentity` field. Explicit-project pagination is therefore valid while
-the host remains unbound and does not create or rotate a binding merely to read pages.
+existing `ExpectedSessionIdentity` field. A continuation after the binding is cleared fails with
+`cursor_binding_mismatch`; it never falls back to the Portal's open project and never creates or
+rotates a binding merely to read pages.
 
 The host signs opaque cursors with a random process-lifetime HMAC-SHA256 key. Cursor state binds
 the normalized `deviceName`, exact `plcName`, detail flags, resolved project path, host binding

@@ -157,11 +157,10 @@ public sealed class LifecycleIdentityContinuityTests
                     author: null,
                     comment: null),
                 "save-as" => await client.SaveProjectAsAsync(
-                    projectPath: ProjectA,
                     targetDirectory: "C:\\Projects",
                     targetName: "B",
                     rebind: true),
-                "close" => await client.CloseProjectAsync(ProjectA, saveBeforeClose: false),
+                "close" => await client.CloseProjectAsync(saveBeforeClose: false),
                 _ => throw new InvalidOperationException($"Unknown lifecycle operation '{operation}'.")
             };
 

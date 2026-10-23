@@ -26,7 +26,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         public readonly HashSet<string> Observed = new(Names);
     }
 
-    public async Task<HmiWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
+    public async Task<HmiWriteVerification> VerifyAsync(StructuredOperationBatch batch)
     {
         var results = new List<HmiOperationVerification>();
         var outcomes = batch.Operations.ToDictionary(o => o.OperationId, StringComparer.Ordinal);
@@ -48,7 +48,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
                 results.Add(new(item.OperationId, true, "superseded", null, null, $"Final state is verified by operation '{later}'."));
         foreach (var expected in expectations)
         {
-            try { await VerifyOne(projectPath, expected, results).ConfigureAwait(false); }
+            try { await VerifyOne(expected, results).ConfigureAwait(false); }
             catch (ReadFailure ex) { results.Add(new(expected.Owner, false, "postcondition_failed", null, null, ex.Message)); }
         }
         return new(results.All(r => r.Success), results, null);
@@ -144,12 +144,12 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         return fields;
     }
 
-    private async Task VerifyOne(string? path, Expectation expected, List<HmiOperationVerification> checks)
+    private async Task VerifyOne(Expectation expected, List<HmiOperationVerification> checks)
     {
         var target = expected.Target;
-        var actual = await Observe(path, target).ConfigureAwait(false);
+        var actual = await Observe(target).ConfigureAwait(false);
         if (actual is null && expected.AlternateName is { } alternate)
-            actual = await Observe(path, target with { Name = alternate }).ConfigureAwait(false);
+            actual = await Observe(target with { Name = alternate }).ConfigureAwait(false);
         void Check(string field, string? wanted, string? found, bool observe = false, string? message = null)
             => checks.Add(new(expected.Owner, observe || wanted == found, field, wanted, found, message ?? (wanted == found || observe ? expected.Message : "postcondition_failed: observed value differs from the final expectation.")));
         if (expected.Absent)
@@ -176,7 +176,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         var offset = 0; string? snapshot = null; int? total = null;
         do
         {
-            var validation = await Read<HmiValidationInfo>(path, "validate", query).ConfigureAwait(false) ?? throw new ReadFailure("Validation returned no result.");
+            var validation = await Read<HmiValidationInfo>("validate", query).ConfigureAwait(false) ?? throw new ReadFailure("Validation returned no result.");
             if (!validation.IsComplete || validation.Findings is null || validation.NotValidatable is null || validation.Page is not { } page
                 || page.Offset != offset || page.Limit != 2000 || page.Total <= 0 || validation.Scanned <= 0
                 || page.Total < offset + validation.Scanned || total is not null && total != page.Total)
@@ -202,7 +202,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         } while (true);
     }
 
-    private async Task<Dictionary<string, string?>?> Observe(string? path, HmiTargetIdentity target)
+    private async Task<Dictionary<string, string?>?> Observe(HmiTargetIdentity target)
     {
         var values = new Dictionary<string, string?>(Names);
         void Add(string field, object? value) => values[field] = Scalar(value);
@@ -217,7 +217,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         var query = new HmiQueryInfo { HmiName = target.HmiName };
         if (target.Kind == "TagTable")
         {
-            var tree = await Read<HmiTagTableTreeInfo>(path, "list_tag_tables", query).ConfigureAwait(false) ?? throw new ReadFailure("Missing table inventory.");
+            var tree = await Read<HmiTagTableTreeInfo>("list_tag_tables", query).ConfigureAwait(false) ?? throw new ReadFailure("Missing table inventory.");
             if (!tree.IsComplete || tree.Tables is null || tree.Groups is null) throw new ReadFailure("Incomplete table inventory.");
             var tables = new List<(HmiTagTableInfo Table, string? Group)>();
             void Walk(List<HmiTagTableInfo> rows, List<HmiTagTableGroupInfo> groups, string? group)
@@ -236,7 +236,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         else if (target.Kind == "Tag")
         {
             query.TagName = target.Name;
-            var detail = await Read<HmiTagDetailInfo>(path, "get_tag", query, true).ConfigureAwait(false);
+            var detail = await Read<HmiTagDetailInfo>("get_tag", query, true).ConfigureAwait(false);
             if (detail is null) return null;
             if (!detail.IsComplete || detail.Tag is not { } tag || string.IsNullOrEmpty(tag.Name)) throw new ReadFailure("Incomplete tag read-back.");
             Add("name", tag.Name); Add("table", tag.Table); Add("connection", tag.Connection); Add("plcTag", tag.PlcTag); Add("plcName", tag.PlcName);
@@ -245,7 +245,7 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         else
         {
             query.AlarmName = target.Name; query.AlarmKind = target.AlarmKind;
-            var detail = await Read<HmiAlarmDetailInfo>(path, "get_alarm", query, true).ConfigureAwait(false);
+            var detail = await Read<HmiAlarmDetailInfo>("get_alarm", query, true).ConfigureAwait(false);
             if (detail is null) return null;
             if (!detail.IsComplete || detail.Alarm is not { } alarm || string.IsNullOrEmpty(alarm.Name) || alarm.Kind != target.AlarmKind) throw new ReadFailure("Incomplete or wrong-kind alarm read-back.");
             Add("name", alarm.Name); Add("triggerTag", alarm.TriggerTag); Add("bitNumber", alarm.TriggerBit); Add("triggerMode", alarm.TriggerMode);
@@ -263,9 +263,9 @@ public sealed class HmiWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         return values;
     }
 
-    private async Task<T?> Read<T>(string? path, string operation, HmiQueryInfo query, bool optional = false) where T : class
+    private async Task<T?> Read<T>(string operation, HmiQueryInfo query, bool optional = false) where T : class
     {
-        var result = await client.ReadHmiAsync(HmiOperationCatalog.WorkerMethod(operation), query, path).ConfigureAwait(false);
+        var result = await client.ReadHmiAsync(HmiOperationCatalog.WorkerMethod(operation), query).ConfigureAwait(false);
         if (!result.Success)
         {
             if (optional && result.FailureCategory == WorkerFailureCategories.TargetNotFound) return null;

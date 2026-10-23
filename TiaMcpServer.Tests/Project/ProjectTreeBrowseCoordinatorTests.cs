@@ -7,6 +7,7 @@ using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -16,6 +17,9 @@ namespace TiaMcpServer.Tests.Project;
 public sealed class ProjectTreeBrowseCoordinatorTests
 {
     private static readonly DateTimeOffset Instant = new(2026, 9, 8, 8, 0, 0, TimeSpan.Zero);
+    private static IReadOnlyList<ProjectTreeSelectorSegment> Named(string name)
+        => Selector((ProjectTreeNodeTypes.Device, name));
+
     private static readonly string ProjectPath = ProjectPathNormalization.Canonicalize(@"C:\Projects\Tree.ap21")!;
     private static readonly ProjectBindingSnapshot DefaultUnbound = new ProjectSessionBinding(null).CaptureSnapshot();
 
@@ -29,10 +33,10 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var binding = Bound();
         var clock = new ManualTimeProvider(Instant);
         var calls = 0;
-        using var fixture = Fixture((path, selector, depth) =>
+        using var fixture = Fixture((selector, depth) =>
         {
             calls++;
-            return Task.FromResult(Success(path, selector, depth, 3));
+            return Task.FromResult(Success(selector, depth, 3));
         }, clock, captureBinding: () => binding);
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
         var cursor = NextCursor(first);
@@ -73,10 +77,10 @@ public sealed class ProjectTreeBrowseCoordinatorTests
                 Reason = "hidden"
             }
         };
-        using var plain = Fixture((path, selector, depth) =>
-            Task.FromResult(Success(path, selector, depth, 3)));
-        using var withSkipped = Fixture((path, selector, depth) =>
-            Task.FromResult(Success(path, selector, depth, 3, skipped: skipped)));
+        using var plain = Fixture((selector, depth) =>
+            Task.FromResult(Success(selector, depth, 3)));
+        using var withSkipped = Fixture((selector, depth) =>
+            Task.FromResult(Success(selector, depth, 3, skipped: skipped)));
 
         var expected = await plain.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 5));
         var actual = await withSkipped.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 5));
@@ -92,8 +96,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task Cursor_SameBinding_Continues()
     {
         var binding = Bound();
-        using var fixture = Fixture((path, selector, depth) =>
-            Task.FromResult(Success(path, selector, depth, 3)), captureBinding: () => binding);
+        using var fixture = Fixture((selector, depth) =>
+            Task.FromResult(Success(selector, depth, 3)), captureBinding: () => binding);
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
         binding = Bound(path: ProjectPath.ToLowerInvariant());
 
@@ -105,19 +109,27 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     }
 
     [Fact]
-    public async Task Cursor_Unbound_Continues()
+    public async Task Cursor_AfterUnbind_IsRejected()
     {
         var binding = new ProjectSessionBinding(null);
-        using var fixture = Fixture((path, selector, depth) =>
-            Task.FromResult(Success(path, selector, depth, 3)), captureBinding: binding.CaptureSnapshot);
+        Assert.True(binding.BindVerified(new WorkerSessionIdentity
+        {
+            WorkerSessionId = "worker-a", PortalProcessId = 42, SessionGeneration = 1, ProjectPath = ProjectPath
+        }, false, out var error), error);
+        var calls = 0;
+        using var fixture = Fixture((selector, depth) =>
+        {
+            calls++;
+            return Task.FromResult(Success(selector, depth, 3));
+        }, captureBinding: binding.CaptureSnapshot);
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
+        Assert.True(first.IsSuccess, first.CanonicalText);
+        Assert.True(binding.Clear(null, out error), error);
 
         var next = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
 
-        Assert.True(next.IsSuccess, next.CanonicalText);
-        Assert.Equal(new[] { 1, 2 }, Sequences(next));
-        Assert.Equal(new ProjectBindingCursorState(false, binding.CaptureSnapshot().BindingId, binding.CaptureSnapshot().Revision, null),
-            fixture.Codec.Decode(NextCursor(first)).HostBinding);
+        AssertFailure(next, WorkerFailureCategories.CursorBindingMismatch);
+        Assert.Equal(1, calls);
     }
 
     [Fact]
@@ -127,10 +139,10 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         var before = binding.CaptureSnapshot();
         var clock = new ManualTimeProvider(Instant);
         var calls = 0;
-        using var fixture = Fixture((path, selector, depth) =>
+        using var fixture = Fixture((selector, depth) =>
         {
             calls++;
-            return Task.FromResult(Success(path, selector, depth, 3));
+            return Task.FromResult(Success(selector, depth, 3));
         }, clock, captureBinding: binding.CaptureSnapshot);
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
         var cursor = NextCursor(first);
@@ -192,11 +204,11 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task InitialRequestObservesOnceAndAllContinuationPagesUseTheCachedSnapshot()
     {
         var calls = 0;
-        using var fixture = Fixture(async (projectPath, startSelector, depth) =>
+        using var fixture = Fixture(async (startSelector, depth) =>
         {
             calls++;
             await Task.Yield();
-            return Success(projectPath, startSelector, depth, 5);
+            return Success(startSelector, depth, 5);
         });
 
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 2));
@@ -221,11 +233,11 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task IdenticalConcurrentCursorFreeRequestsAlwaysObserveAfresh()
     {
         var calls = 0;
-        using var fixture = Fixture(async (projectPath, startSelector, depth) =>
+        using var fixture = Fixture(async (startSelector, depth) =>
         {
             Interlocked.Increment(ref calls);
             await Task.Yield();
-            return Success(projectPath, startSelector, depth, 2);
+            return Success(startSelector, depth, 2);
         });
 
         await Task.WhenAll(
@@ -238,8 +250,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task DefaultPageSizeAppliesIndependentlyToInitialAndContinuationRequests()
     {
-        using var fixture = Fixture((projectPath, startSelector, depth) =>
-            Task.FromResult(Success(projectPath, startSelector, depth, 250)));
+        using var fixture = Fixture((startSelector, depth) =>
+            Task.FromResult(Success(startSelector, depth, 250)));
 
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest());
         var second = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(first)));
@@ -255,16 +267,14 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task ContinuationAllowsChangedPageSizeAndEquivalentRepeatedQuery()
     {
         var selector = Selector((ProjectTreeNodeTypes.Device, "PLC_1"));
-        using var fixture = Fixture((projectPath, startSelector, depth) =>
-            Task.FromResult(Success(projectPath, startSelector, depth, 6)));
+        using var fixture = Fixture((startSelector, depth) =>
+            Task.FromResult(Success(startSelector, depth, 6)));
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
-            ProjectPath,
             selector,
             Depth: 2,
             PageSize: 2));
 
         var second = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
-            ProjectPath.ToLowerInvariant(),
             Selector((ProjectTreeNodeTypes.Device, "plc_1")),
             Depth: 2,
             PageSize: 3,
@@ -278,8 +288,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task RepeatedQueryMismatchIsRejectedBeforeRangeProjection()
     {
-        using var fixture = Fixture((projectPath, startSelector, depth) =>
-            Task.FromResult(Success(projectPath, startSelector, depth, 4)));
+        using var fixture = Fixture((startSelector, depth) =>
+            Task.FromResult(Success(startSelector, depth, 4)));
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Depth: 2, PageSize: 1));
         var result = first.Response.Result!;
         var outOfRange = fixture.Codec.Encode(new ProjectTreeCursorState(
@@ -297,9 +307,9 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task OnePageResultIsNotRetainedButFinalMultiPageResultRemainsReplayable()
     {
-        using var fixture = Fixture((projectPath, startSelector, depth) => Task.FromResult(
-            Success(projectPath, startSelector, depth, projectPath == "one" ? 1 : 3)));
-        var one = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("one", PageSize: 2));
+        using var fixture = Fixture((startSelector, depth) => Task.FromResult(
+            Success(startSelector, depth, startSelector?[0].Name == "one" ? 1 : 3)));
+        var one = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("one"), PageSize: 2));
         var oneResult = one.Response.Result!;
         var syntheticOneCursor = fixture.Codec.Encode(new ProjectTreeCursorState(
             oneResult.Snapshot.SnapshotId,
@@ -309,7 +319,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: syntheticOneCursor)),
             WorkerFailureCategories.SnapshotUnavailable);
 
-        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("many", PageSize: 2));
+        var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("many"), PageSize: 2));
         var finalCursor = NextCursor(first);
         var final = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: finalCursor));
         var replay = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: finalCursor));
@@ -321,8 +331,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task MalformedForeignMismatchedAndOutOfRangeCursorsMapToClosedFailures()
     {
-        using var fixture = Fixture((projectPath, startSelector, depth) =>
-            Task.FromResult(Success(projectPath, startSelector, depth, 3)));
+        using var fixture = Fixture((startSelector, depth) =>
+            Task.FromResult(Success(startSelector, depth, 3)));
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(PageSize: 1));
         var result = first.Response.Result!;
 
@@ -365,17 +375,17 @@ public sealed class ProjectTreeBrowseCoordinatorTests
             maxSnapshotChars: 4_000_000,
             maxAggregateChars: 4_000_000,
             slidingTtl: TimeSpan.FromMinutes(10));
-        using var fixture = Fixture((projectPath, startSelector, depth) =>
-            Task.FromResult(Success(projectPath, startSelector, depth, 2)), clock, store);
+        using var fixture = Fixture((startSelector, depth) =>
+            Task.FromResult(Success(startSelector, depth, 2)), clock, store);
 
-        var expiring = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("expires", PageSize: 1));
+        var expiring = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("expires"), PageSize: 1));
         clock.Advance(TimeSpan.FromMinutes(11));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(expiring))),
             WorkerFailureCategories.SnapshotUnavailable);
 
-        var evicted = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("evicted", PageSize: 1));
-        await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("replacement", PageSize: 1));
+        var evicted = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("evicted"), PageSize: 1));
+        await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("replacement"), PageSize: 1));
         AssertFailure(
             await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Cursor: NextCursor(evicted))),
             WorkerFailureCategories.SnapshotUnavailable);
@@ -385,10 +395,10 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task SelectionWorkerAndProtocolFailuresAreMappedWithoutCallingOrEchoingUnsafeData()
     {
         var calls = 0;
-        using var fixture = Fixture((projectPath, startSelector, depth) =>
+        using var fixture = Fixture((startSelector, depth) =>
         {
             calls++;
-            return Task.FromResult(projectPath switch
+            return Task.FromResult(startSelector?[0].Name switch
             {
                 "worker" => WorkerCallResult.Fail(
                     WorkerFailureCategories.TargetNotFound,
@@ -398,7 +408,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
                 {
                     ResolvedProjectPath = ProjectPath,
                 },
-                _ => Success(projectPath, startSelector, depth, 1),
+                _ => Success(startSelector, depth, 1),
             });
         });
 
@@ -407,11 +417,11 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         AssertFailure(invalidSelector, WorkerFailureCategories.InvalidSelector);
         Assert.Equal(0, calls);
 
-        var worker = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("worker"));
+        var worker = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("worker")));
         AssertFailure(worker, WorkerFailureCategories.TargetNotFound);
         Assert.Equal(new[] { "worker warning" }, worker.Response.Warnings);
 
-        var protocol = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest("protocol"));
+        var protocol = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(StartSelector: Named("protocol")));
         AssertFailure(protocol, WorkerFailureCategories.ProtocolError);
         Assert.DoesNotContain("PROJECT_TREE_SECRET_MARKER", protocol.CanonicalText, StringComparison.Ordinal);
     }
@@ -422,10 +432,10 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task InvalidDepthIsRejectedBeforeWorkerObservation(int depth)
     {
         var calls = 0;
-        using var fixture = Fixture((projectPath, startSelector, requestedDepth) =>
+        using var fixture = Fixture((startSelector, requestedDepth) =>
         {
             calls++;
-            return Task.FromResult(Success(projectPath, startSelector, requestedDepth, 1));
+            return Task.FromResult(Success(startSelector, requestedDepth, 1));
         });
 
         var response = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(Depth: depth));
@@ -437,8 +447,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task OversizedSnapshotAndPageBudgetsMapToClosedFailures()
     {
-        using var snapshotFixture = Fixture((projectPath, startSelector, depth) => Task.FromResult(Success(
-            projectPath,
+        using var snapshotFixture = Fixture((startSelector, depth) => Task.FromResult(Success(
             startSelector,
             depth,
             1,
@@ -448,8 +457,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
             WorkerFailureCategories.SnapshotTooLarge);
 
         using var itemFixture = Fixture(
-            (projectPath, startSelector, depth) => Task.FromResult(Success(
-                projectPath,
+            (startSelector, depth) => Task.FromResult(Success(
                 startSelector,
                 depth,
                 1,
@@ -460,8 +468,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
             WorkerFailureCategories.ResultItemTooLarge);
 
         using var metadataFixture = Fixture(
-            (projectPath, startSelector, depth) => Task.FromResult(
-                Success(projectPath, startSelector, depth, 1)),
+            (startSelector, depth) => Task.FromResult(
+                Success(startSelector, depth, 1)),
             projectorMaxResponseChars: 100);
         AssertFailure(
             await metadataFixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest()),
@@ -471,15 +479,15 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     [Fact]
     public async Task ContinuationUsesCachedSnapshotAfterPersistentWorkerIsDisposed()
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("project-tree-v3-one-shot");
+        var binding = new ProjectSessionBinding(null);
         using var worker = new OpennessWorkerClient(
-            new ProjectSessionBinding(null),
+            binding,
             logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+        await FakeWorkerBinding.BindVerifiedAsync(worker, binding, "project-tree-v3-one-shot");
         using var fixture = Fixture(worker, scenario: "project-tree-v3-one-shot");
 
         var first = await fixture.Coordinator.BrowseAsync(new ProjectTreeBrowseRequest(
-            "project-tree-v3-one-shot",
             PageSize: 2));
         Assert.True(first.IsSuccess, first.CanonicalText);
         worker.Dispose();
@@ -505,7 +513,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     public async Task OversizedWorkerDiagnosticsReturnBoundedNonEchoingCanonicalFailure(char character, int count, bool warning)
     {
         var diagnostic = "DIAGNOSTIC_MARKER" + new string(character, count);
-        using var fixture = Fixture((_, _, _) => Task.FromResult(WorkerCallResult.Fail(
+        using var fixture = Fixture((_, _) => Task.FromResult(WorkerCallResult.Fail(
             WorkerFailureCategories.TargetNotFound,
             warning ? "Missing target." : diagnostic,
             warning ? new[] { diagnostic } : Array.Empty<string>())));
@@ -520,7 +528,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     }
 
     private static CoordinatorFixture Fixture(
-        Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<WorkerCallResult>> read,
+        Func<IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<WorkerCallResult>> read,
         ManualTimeProvider? clock = null,
         ProjectTreeSnapshotStore? store = null,
         int projectorMaxResponseChars = ProjectTreeContract.MaximumResponseChars,
@@ -533,8 +541,8 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         captureBinding ??= Unbound;
         return new CoordinatorFixture(
             new ProjectTreeBrowseCoordinator(codec, store, projector, clock,
-                async (path, selector, depth) => new ProjectTreeSnapshotCallResult(
-                    await read(path, selector, depth), captureBinding()), captureBinding),
+                async (selector, depth) => new ProjectTreeSnapshotCallResult(
+                    await read(selector, depth), captureBinding()), captureBinding),
             codec,
             store,
             ownsStore: true);
@@ -553,14 +561,12 @@ public sealed class ProjectTreeBrowseCoordinatorTests
     }
 
     private static WorkerCallResult Success(
-        string? requestedProjectPath,
         IReadOnlyList<ProjectTreeSelectorSegment>? requestedSelector,
         int? requestedDepth,
         int nodeCount,
         IReadOnlyDictionary<string, string>? details = null,
         IReadOnlyList<ProjectTreeSkippedNodeInfo>? skipped = null)
     {
-        var path = ProjectPathNormalization.Canonicalize(requestedProjectPath) ?? ProjectPath;
         var payload = new ProjectTreeBrowseResultInfo
         {
             StartSelector = requestedSelector?.Select(segment => new ProjectTreeSelectorSegment
@@ -578,7 +584,7 @@ public sealed class ProjectTreeBrowseCoordinatorTests
             }).ToList(),
             Skipped = skipped?.ToList() ?? new List<ProjectTreeSkippedNodeInfo>(),
         };
-        return WorkerCallResult.Ok(CanonicalJson.Serialize(payload)) with { ResolvedProjectPath = path };
+        return WorkerCallResult.Ok(CanonicalJson.Serialize(payload)) with { ResolvedProjectPath = ProjectPath };
     }
 
     private static IReadOnlyList<ProjectTreeSelectorSegment> Selector(

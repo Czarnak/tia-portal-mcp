@@ -30,7 +30,6 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkSubnetLifecycleFakeWorkerTests
 {
     private const string Scenario = "network-subnet-lifecycle";
-    private const string AltPathScenario = "network-subnet-lifecycle-alt-path";
     private const string MalformedSuccessScenario = "network-subnet-lifecycle-malformed-success";
     private const string PostconditionFailedScenario = "network-subnet-lifecycle-postcondition-failed";
     private const string SecondItemFailureScenario = "network-subnet-lifecycle-second-item-failure";
@@ -58,12 +57,10 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         string name,
         string networkType,
         int? highestAddress = null,
-        string? transmissionSpeed = null,
-        string projectPath = Scenario) => new()
+        string? transmissionSpeed = null) => new()
     {
         OperationId = operationId,
         Operation = "create_subnet",
-        ProjectPath = projectPath,
         Subnet = new NetworkSubnetDefinition
         {
             Name = name,
@@ -76,32 +73,27 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     private static NetworkOperationRequest UpdateSubnetOp(
         string operationId,
         string subnetId,
-        NetworkSubnetChanges changes,
-        string projectPath = Scenario) => new()
+        NetworkSubnetChanges changes) => new()
     {
         OperationId = operationId,
         Operation = "update_subnet",
-        ProjectPath = projectPath,
         Target = new NetworkObjectTarget { Kind = NetworkObjectKinds.Subnet, SubnetId = subnetId },
         SubnetChanges = changes,
     };
 
     private static NetworkOperationRequest DeleteSubnetOp(
         string operationId,
-        string subnetId,
-        string projectPath = Scenario) => new()
+        string subnetId) => new()
     {
         OperationId = operationId,
         Operation = "delete_subnet",
-        ProjectPath = projectPath,
         Target = new NetworkObjectTarget { Kind = NetworkObjectKinds.Subnet, SubnetId = subnetId },
     };
 
-    private static NetworkOperationRequest ReadHardware(string operationId, string projectPath = Scenario) => new()
+    private static NetworkOperationRequest ReadHardware(string operationId) => new()
     {
         OperationId = operationId,
         Operation = "read_hardware_config",
-        ProjectPath = projectPath,
     };
 
     private static async Task<CallToolResult> NetworkWrite(
@@ -411,25 +403,6 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         Assert.Equal(CanonicalJson.Serialize(root), record.RootElement.GetProperty("responseText").GetString());
     }
 
-    // --- Explicit project binding --------------------------------------------------------------
-    [Fact]
-    public async Task NetworkWrite_SubnetLifecycleApply_DifferentProjectPathIsRejectedAsBindingConflict()
-    {
-        using var audit = new TempAuditDirectory();
-        using var client = CreateWriteClient(audit, out var safety);
-        // The explicit project constraint differs from the already verified binding.
-        var operations = new[] { DeleteSubnetOp("delete", "subnet-eth-1", AltPathScenario) };
-        var result = await NetworkWrite(client, safety, operations, dryRun: false);
-
-        Assert.True(result.IsError);
-        Assert.Equal(
-            WorkerFailureCategories.BindingConflict,
-            Structured(result).GetProperty("error").GetProperty("category").GetString());
-        Assert.Contains("already bound", Text(result));
-        Assert.Contains(AltPathScenario, Text(result));
-    }
-
-
     // --- Failure propagation ---------------------------------------------------------------------
 
     [Fact]
@@ -439,7 +412,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         using var client = CreateWriteClient(audit, out var safety, PostconditionFailedScenario);
         var operations = new[]
         {
-            CreateSubnetOp("create", "WillFailVerification", SubnetLifecycleContract.Ethernet, projectPath: PostconditionFailedScenario),
+            CreateSubnetOp("create", "WillFailVerification", SubnetLifecycleContract.Ethernet),
         };
 
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
@@ -463,7 +436,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         using var client = CreateWriteClient(audit, out var safety, MalformedSuccessScenario);
         var operations = new[]
         {
-            CreateSubnetOp("create", "WillBeMalformed", SubnetLifecycleContract.Ethernet, projectPath: MalformedSuccessScenario),
+            CreateSubnetOp("create", "WillBeMalformed", SubnetLifecycleContract.Ethernet),
         };
 
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
@@ -492,8 +465,8 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         using var client = CreateWriteClient(audit, out var safety, SecondItemFailureScenario);
         var operations = new[]
         {
-            CreateSubnetOp("first", "SurvivesTheFailure", SubnetLifecycleContract.Ethernet, projectPath: SecondItemFailureScenario),
-            CreateSubnetOp("second", "NeverCreated", SubnetLifecycleContract.Ethernet, projectPath: SecondItemFailureScenario),
+            CreateSubnetOp("first", "SurvivesTheFailure", SubnetLifecycleContract.Ethernet),
+            CreateSubnetOp("second", "NeverCreated", SubnetLifecycleContract.Ethernet),
         };
 
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
@@ -519,7 +492,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
 
         // Proves the earlier success was NOT rolled back: a fresh read against the same scenario
         // (same process, shared mutable state) still reports the created subnet.
-        var read = await NetworkRead(client, new[] { ReadHardware("post-read", SecondItemFailureScenario) });
+        var read = await NetworkRead(client, new[] { ReadHardware("post-read") });
         var hardware = Structured(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         Assert.Contains(
             hardware.GetProperty("subnets").EnumerateArray(),

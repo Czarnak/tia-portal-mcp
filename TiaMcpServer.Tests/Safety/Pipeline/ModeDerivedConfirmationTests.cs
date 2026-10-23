@@ -23,8 +23,7 @@ public sealed class ModeDerivedConfirmationTests
         }, TimeSpan.FromSeconds(1));
         var execution = new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System);
         var result = await execution.RunAsync(domain,
-            new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath,
-                [new("a", Guards: [FakeWriteDomain.AcknowledgeGuard])], false),
+            new WriteCall<FakeWriteItem>([new("a", Guards: [FakeWriteDomain.AcknowledgeGuard])], false),
             new WriteConfirmationContext(confirmation));
 
         Assert.Equal(0, prompts);
@@ -59,7 +58,7 @@ public sealed class ModeDerivedConfirmationTests
             return ValueTask.FromResult(Confirmed());
         }, TimeSpan.FromSeconds(1));
         var result = await new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System)
-            .RunAsync(domain, new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, [new("a")], false), new(confirmation));
+            .RunAsync(domain, new WriteCall<FakeWriteItem>([new("a")], false), new(confirmation));
         Assert.False(result.IsError == true);
         Assert.Equal(expectedPrompts, prompts);
         Assert.Equal(1, domain.MutationCount);
@@ -83,7 +82,7 @@ public sealed class ModeDerivedConfirmationTests
             return new ElicitResult { Action = outcome == UserConfirmationOutcomes.Declined ? "decline" : "cancel" };
         }, TimeSpan.FromMilliseconds(10));
         var result = await new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System)
-            .RunAsync(domain, new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, [new("a")], false), new(confirmation));
+            .RunAsync(domain, new WriteCall<FakeWriteItem>([new("a")], false), new(confirmation));
         Assert.True(result.IsError);
         Assert.Equal(0, domain.MutationCount);
         var record = Assert.Single(audit.Records);
@@ -111,7 +110,7 @@ public sealed class ModeDerivedConfirmationTests
             return ValueTask.FromResult(declined ? new ElicitResult { Action = "decline" } : Confirmed());
         }, TimeSpan.FromSeconds(1));
         await new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System)
-            .RunAsync(domain, new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, [new("a", Guards: [FakeWriteDomain.AcknowledgeGuard])], dryRun), new(confirmation));
+            .RunAsync(domain, new WriteCall<FakeWriteItem>([new("a", Guards: [FakeWriteDomain.AcknowledgeGuard])], dryRun), new(confirmation));
         var record = Assert.Single(audit.Records);
         Assert.Equal(2, record.RecordVersion);
         Assert.Equal(new WriteAuditConfirmation(by, outcome), record.Confirmation);
@@ -131,7 +130,7 @@ public sealed class ModeDerivedConfirmationTests
             return ValueTask.FromResult(Confirmed());
         }, TimeSpan.FromSeconds(1));
         var result = await new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System)
-            .RunAsync(domain, new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, [new("a")], false), new(confirmation));
+            .RunAsync(domain, new WriteCall<FakeWriteItem>([new("a")], false), new(confirmation));
         Assert.True(result.IsError);
         Assert.Equal(0, domain.MutationCount);
         using var doc = JsonDocument.Parse(Assert.Single(audit.Records).ResponseText);

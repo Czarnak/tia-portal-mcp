@@ -38,21 +38,20 @@ public sealed class LifecycleBindingStrategy(OpennessWorkerClient workerClient) 
                 if (!empty.Success) return Reject(empty);
                 return WriteBindingPreparation.Prepared(binding);
             }
-            return await PrepareVerifiedSourceAsync(binding, binding.ProjectPath, cancellationToken).ConfigureAwait(false);
+            return await PrepareVerifiedSourceAsync(binding, cancellationToken).ConfigureAwait(false);
         }
 
         var before = workerClient.BindingSnapshot;
         if (item.Operation == "create_project" && before.State == ProjectBindingSnapshot.UnboundState)
             return WriteBindingPreparation.Prepared(before);
 
-        return await PrepareVerifiedSourceAsync(before,
-            item.Operation == "create_project" ? before.ProjectPath : item.ProjectPath, cancellationToken).ConfigureAwait(false);
+        return await PrepareVerifiedSourceAsync(before, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<WriteBindingPreparation> PrepareVerifiedSourceAsync(
-        ProjectBindingSnapshot before, string? projectPath, CancellationToken cancellationToken)
+        ProjectBindingSnapshot before, CancellationToken cancellationToken)
     {
-        var result = await workerClient.RequireVerifiedWriteBindingAsync(projectPath).ConfigureAwait(false);
+        var result = await workerClient.RequireVerifiedBindingAsync().ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         if (!result.Success) return Reject(result);
         var prepared = workerClient.BindingSnapshot;

@@ -37,9 +37,9 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
         return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
     }
 
-    public async Task<WritePlan<PlcWriteEffect>> PlanAsync(string? projectPath, IReadOnlyList<PlcOperationRequest> items)
+    public async Task<WritePlan<PlcWriteEffect>> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
-        var result = await _planner.PlanAsync(projectPath, items).ConfigureAwait(false);
+        var result = await _planner.PlanAsync(items).ConfigureAwait(false);
         if (!result.Plan.Success) return result.Plan;
         _items = items.ToArray();
         for (var i = 0; i < items.Count; i++)
@@ -54,9 +54,9 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     public IReadOnlyList<FiredGuard> EvaluateGuards(IReadOnlyList<PlcOperationRequest> items, IReadOnlyList<ItemPlan<PlcWriteEffect>> plans)
         => items.SelectMany(item => _guards.GetValueOrDefault(item.OperationId) ?? Array.Empty<FiredGuard>()).ToArray();
 
-    public async Task<ItemReplan<PlcWriteEffect>> ReplanAsync(string? projectPath, PlcOperationRequest item)
+    public async Task<ItemReplan<PlcWriteEffect>> ReplanAsync(PlcOperationRequest item)
     {
-        var result = await _planner.ReplanAsync(projectPath, item).ConfigureAwait(false);
+        var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
         if (!result.Replan.Success) return result.Replan;
         _guards[item.OperationId] = result.Guards;
         // The re-plan reads real state, so it knows no dependency; the presented effect keeps the planned one.
@@ -66,17 +66,17 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
         return ItemReplan<PlcWriteEffect>.Ok(plan with { Effect = effect });
     }
 
-    public Task<WorkerCallResult> MutateAsync(string? projectPath, PlcOperationRequest item)
+    public Task<WorkerCallResult> MutateAsync(PlcOperationRequest item)
     {
         _attempted.Add(item.OperationId);
-        return PlcWorkerInvoker.InvokeWriteAsync(client, item, projectPath);
+        return PlcWorkerInvoker.InvokeWriteAsync(client, item);
     }
 
     public StructuredOperationItem Project(PlcOperationRequest item, WorkerCallResult result)
         => PlcPayloadContract.ProjectWrite(item, result);
 
-    public async Task<PlcWriteVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
-        => await new PlcWriteVerifier(client, _items, _effects).VerifyAsync(projectPath,
+    public async Task<PlcWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
+        => await new PlcWriteVerifier(client, _items, _effects).VerifyAsync(
             StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
 
     public bool VerificationSucceeded(PlcWriteVerification? verification) => verification?.Success == true;

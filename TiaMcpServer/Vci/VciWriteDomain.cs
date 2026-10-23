@@ -30,10 +30,10 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
         return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
     }
 
-    public async Task<WritePlan<VciWriteEffect>> PlanAsync(string? projectPath, IReadOnlyList<VciOperationRequest> items)
+    public async Task<WritePlan<VciWriteEffect>> PlanAsync(IReadOnlyList<VciOperationRequest> items)
     {
         _items = items.ToArray();
-        var result = await _planner.PlanAsync(projectPath, items).ConfigureAwait(false);
+        var result = await _planner.PlanAsync(items).ConfigureAwait(false);
         foreach (var pair in result.Guards) _guards[pair.Key] = pair.Value;
         if (result.Plan.Success)
             for (var i = 0; i < items.Count; i++)
@@ -44,15 +44,15 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
     public IReadOnlyList<FiredGuard> EvaluateGuards(IReadOnlyList<VciOperationRequest> items, IReadOnlyList<ItemPlan<VciWriteEffect>> plans)
         => items.SelectMany(i => _guards.GetValueOrDefault(i.OperationId) ?? []).ToArray();
 
-    public async Task<ItemReplan<VciWriteEffect>> ReplanAsync(string? projectPath, VciOperationRequest item)
+    public async Task<ItemReplan<VciWriteEffect>> ReplanAsync(VciOperationRequest item)
     {
-        var result = await _planner.ReplanAsync(projectPath, item).ConfigureAwait(false);
+        var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
         _guards[item.OperationId] = result.Guards;
         if (result.Replan.Success) _deferred.Remove(item.OperationId);
         return result.Replan;
     }
 
-    public async Task<WorkerCallResult> MutateAsync(string? projectPath, VciOperationRequest item)
+    public async Task<WorkerCallResult> MutateAsync(VciOperationRequest item)
     {
         var requestId = Guid.NewGuid().ToString("N");
         WorkerCallResult result;
@@ -60,7 +60,7 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
         try
         {
             result = await client.WriteVciAsync(VciMethods.ForOperation(item.Operation),
-                VciWriteCatalog.ToWorkerRequest(item, requestId, breadcrumb.Path), projectPath).ConfigureAwait(false);
+                VciWriteCatalog.ToWorkerRequest(item, requestId, breadcrumb.Path)).ConfigureAwait(false);
         }
         finally { last = VciBreadcrumbFile.Take(breadcrumb.Path, requestId); }
         if (result.FailureCategory is WorkerFailureCategories.WorkerTimeout or WorkerFailureCategories.WorkerCrashed)
@@ -70,8 +70,8 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
     }
 
     public StructuredOperationItem Project(VciOperationRequest item, WorkerCallResult result) => VciWritePayloadContract.Project(item, result);
-    public async Task<VciWriteVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
-        => await new VciWriteVerifier(client, _items).VerifyAsync(projectPath, batch).ConfigureAwait(false);
+    public async Task<VciWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
+        => await new VciWriteVerifier(client, _items).VerifyAsync(batch).ConfigureAwait(false);
     public bool VerificationSucceeded(VciWriteVerification? verification) => verification?.Success == true;
 
     public VciGuardedWriteResponse Compose(WriteReport<VciWriteEffect, VciWriteVerification> report)

@@ -545,6 +545,34 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
+    public async Task AuditProjectPath_IsPinnedBindingPath()
+    {
+        var result = await _execution.RunAsync(
+            _domain, Call(new[] { Item("a") }));
+
+        Assert.False(result.IsError);
+        var record = Assert.Single(_audit.Records);
+        Assert.Equal(FakeWriteBindingGate.ProjectPath, record.Binding!.ProjectPath);
+        Assert.Equal(record.Binding.ProjectPath, record.ProjectPath);
+    }
+
+    [Fact]
+    public async Task AuditProjectPath_OnGateRejection_IsPreGateSnapshotPath()
+    {
+        _gate.CurrentBinding = FakeWriteBindingGate.Snapshot(ProjectBindingSnapshot.UnboundState, "binding-0", 0, null);
+        _gate.GateResult = new WorkerCallResult(
+            false, string.Empty, "No verified binding.", WorkerFailureCategories.BindingConflict, []);
+
+        var result = await _execution.RunAsync(
+            _domain, Call(new[] { Item("a") }));
+
+        Assert.True(result.IsError);
+        var record = Assert.Single(_audit.Records);
+        Assert.Null(record.ProjectPath);
+        Assert.Equal(ProjectBindingSnapshot.UnboundState, record.Binding!.State);
+    }
+
+    [Fact]
     public async Task PreGateRejection_IsAuditedWithEveryItemSkipped()
     {
         var (result, doc) = await RunAsync(new[] { Item("a"), Item("a") });
@@ -568,7 +596,7 @@ public sealed class WriteExecutionTests
 
     private static WriteCall<FakeWriteItem> Call(
         IReadOnlyList<FakeWriteItem> items, bool dryRun = false)
-        => new(FakeWriteBindingGate.ProjectPath, items, dryRun);
+        => new(items, dryRun);
 
     private async Task<(CallToolResult Result, JsonElement Document)> RunAsync(
         IReadOnlyList<FakeWriteItem> items,

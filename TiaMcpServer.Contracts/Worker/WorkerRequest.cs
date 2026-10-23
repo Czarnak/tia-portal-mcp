@@ -41,8 +41,9 @@ public class WorkerRequest
     /// <summary>
     /// Exact worker/Portal/project identity the host has verified for this session. The worker
     /// validates it before a bound operation, so a restarted worker or changed project fails
-    /// before any Siemens mutation. Null is allowed only for unbound reads and the explicit
-    /// open/create operations that establish a new binding.
+    /// before any Siemens mutation. Null is allowed only for status, Portal selection, Multiuser
+    /// inventory and the explicit open/create operations that establish a new binding; never for
+    /// a content read.
     /// </summary>
     public WorkerSessionIdentity? ExpectedSessionIdentity { get; set; }
 
