@@ -171,7 +171,7 @@ public class HardwarePaginationCoordinatorTests
                 totalDevices: names.Length,
                 returnedDevices: Math.Min(call.PageSize, names.Length - (call.Continuation?.Offset ?? 0)))));
         var counts = new List<int>();
-        var returnedNames = new List<string>();
+        var returnedNames = new List<string?>();
         string? cursor = null;
 
         foreach (var pageSize in new int?[] { 50, null, 50, null, null })
