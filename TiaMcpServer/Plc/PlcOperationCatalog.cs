@@ -1,8 +1,10 @@
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 
@@ -12,9 +14,6 @@ namespace TiaMcpServer.Plc;
 /// </summary>
 public static class PlcOperationCatalog
 {
-    public const int MaxBatchSize = 50;
-    public const int MaxOperationIdLength = 256;
-
     private sealed record Spec(IReadOnlyList<string> Required, IReadOnlyList<string> Optional, bool IsWrite);
 
     private static readonly IReadOnlyList<string> None = Array.Empty<string>();
@@ -112,10 +111,10 @@ public static class PlcOperationCatalog
         return false;
     }
 
-    public static (bool IsValid, string Error) ValidateRead(IReadOnlyList<PlcOperationRequest>? operations)
+    public static OperationValidation ValidateRead(IReadOnlyList<PlcOperationRequest>? operations)
         => Validate(operations, write: false);
 
-    public static (bool IsValid, string Error) ValidateWrite(IReadOnlyList<PlcOperationRequest>? operations)
+    public static OperationValidation ValidateWrite(IReadOnlyList<PlcOperationRequest>? operations)
         => Validate(operations, write: true);
 
     public static IReadOnlyList<string> ValidateAccessMode(
@@ -140,59 +139,40 @@ public static class PlcOperationCatalog
         return errors;
     }
 
-    private static (bool IsValid, string Error) Validate(IReadOnlyList<PlcOperationRequest>? operations, bool write)
+    private static OperationValidation Validate(IReadOnlyList<PlcOperationRequest>? operations, bool write)
     {
-        if (operations is null || operations.Count == 0)
+        if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
         {
-            return (false, "Batch must contain at least one operation.");
-        }
-
-        if (operations.Count > MaxBatchSize)
-        {
-            return (false, $"Batch exceeds the maximum of {MaxBatchSize} operations (received {operations.Count}).");
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         }
 
         var errors = new List<string>();
         var seenIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var operation in operations)
+        var envelopeValid = new List<PlcOperationRequest>();
+        foreach (var operation in operations!)
         {
-            ValidateItem(operation, seenIds, errors, write);
+            if (OperationBatchRules.CheckItem(operation, seenIds) is { } itemError)
+            {
+                errors.Add(itemError);
+                continue;
+            }
+
+            envelopeValid.Add(operation);
+            ValidateItem(operation, errors, write);
         }
 
         if (write)
         {
-            ValidateWriteCall(operations, errors);
+            ValidateWriteCall(envelopeValid, errors);
         }
 
-        return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
+        return errors.Count == 0
+            ? OperationValidation.Valid
+            : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
-    private static void ValidateItem(PlcOperationRequest? operation, HashSet<string> seenIds, List<string> errors, bool write)
+    private static void ValidateItem(PlcOperationRequest operation, List<string> errors, bool write)
     {
-        if (operation is null)
-        {
-            errors.Add("Batch contains a null operation.");
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(operation.OperationId))
-        {
-            errors.Add("Each operation requires a unique operationId.");
-            return;
-        }
-
-        if (operation.OperationId.Length > MaxOperationIdLength)
-        {
-            errors.Add($"Each operationId must be at most {MaxOperationIdLength} characters.");
-            return;
-        }
-
-        if (!seenIds.Add(operation.OperationId))
-        {
-            errors.Add($"Duplicate operationId '{operation.OperationId}'.");
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(operation.Operation))
         {
             errors.Add($"Operation name is required for operationId '{operation.OperationId}'.");

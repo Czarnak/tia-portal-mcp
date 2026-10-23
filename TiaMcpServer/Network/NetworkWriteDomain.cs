@@ -26,7 +26,7 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
     public WriteValidation Validate(IReadOnlyList<NetworkOperationRequest> items, McpAccessMode accessMode)
     {
         var validation = NetworkOperationCatalog.ValidateWrite(items);
-        if (!validation.IsValid) return WriteValidation.Invalid(WorkerFailureCategories.ValidationError, validation.Error);
+        if (!validation.IsValid) return WriteValidation.Invalid(validation.Category, validation.Error);
         if (NetworkWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
             return WriteValidation.Invalid(WorkerFailureCategories.ValidationError,
                 "The encoded operation identities leave insufficient room for the required response summaries. Use smaller network_write calls.");

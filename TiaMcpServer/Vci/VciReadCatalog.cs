@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Vci;
 
@@ -14,18 +15,16 @@ public static class VciReadCatalog
         ["supported_formats"] = ["workspaceName", "scope"],
     };
 
-    public static (bool IsValid, string Error, string Category) ValidateRead(IReadOnlyList<VciOperationRequest>? operations)
+    public static OperationValidation ValidateRead(IReadOnlyList<VciOperationRequest>? operations)
     {
-        if (operations is null || operations.Count is < 1 or > 50)
-            return (false, "Batch must contain 1 to 50 operations.", WorkerFailureCategories.ValidationError);
+        if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var errors = new List<string>();
         string? scopeCategory = null;
-        foreach (var item in operations)
+        foreach (var item in operations!)
         {
-            if (item is null) { errors.Add("Batch contains a null operation."); continue; }
-            if (string.IsNullOrWhiteSpace(item.OperationId) || item.OperationId.Length > 256 || !ids.Add(item.OperationId))
-                errors.Add("Each operationId must be unique, nonblank and at most 256 characters.");
+            if (OperationBatchRules.CheckItem(item, ids) is { } itemError) { errors.Add(itemError); continue; }
             if (string.IsNullOrWhiteSpace(item.Operation)) { errors.Add("Operation name is required."); continue; }
             if (!Fields.TryGetValue(item.Operation, out var allowed))
             {
@@ -56,8 +55,8 @@ public static class VciReadCatalog
             if (item.Operation == "supported_formats" && (item.Scope is not { Count: > 0 } || item.Scope[^1] is null || !VciScope.IsLeaf(item.Scope[^1].NodeType)))
                 errors.Add("supported_formats requires scope naming one terminal leaf.");
         }
-        return errors.Count == 0 ? (true, string.Empty, string.Empty)
-            : (false, string.Join("\n", errors), scopeCategory ?? WorkerFailureCategories.ValidationError);
+        return errors.Count == 0 ? OperationValidation.Valid
+            : OperationValidation.Invalid(scopeCategory ?? WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
     public static IReadOnlyList<string> ValidateAccessMode(IReadOnlyList<VciOperationRequest> operations, McpAccessMode mode)

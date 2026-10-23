@@ -29,7 +29,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     public WriteValidation Validate(IReadOnlyList<PlcOperationRequest> items, McpAccessMode accessMode)
     {
         var validation = PlcOperationCatalog.ValidateWrite(items);
-        if (!validation.IsValid) return WriteValidation.Invalid(WorkerFailureCategories.ValidationError, validation.Error);
+        if (!validation.IsValid) return WriteValidation.Invalid(validation.Category, validation.Error);
         if (PlcWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
             return WriteValidation.Invalid(WorkerFailureCategories.ValidationError,
                 "The encoded operation identities leave insufficient room for the required response summaries. Use smaller plc_write calls.");

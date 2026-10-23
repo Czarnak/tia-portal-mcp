@@ -3,6 +3,8 @@ using System.Numerics;
 using System.Text.Json;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Hmi;
@@ -54,18 +56,16 @@ public static class HmiWriteCatalog
 
     public static IReadOnlyList<string> OperationNames { get; } = Specs.Keys.ToArray();
 
-    public static (bool IsValid, string Error) ValidateWrite(IReadOnlyList<HmiWriteOperationRequest>? operations)
+    public static OperationValidation ValidateWrite(IReadOnlyList<HmiWriteOperationRequest>? operations)
     {
-        if (operations is null || operations.Count == 0 || operations.Count > 50)
-            return (false, "Batch must contain 1 to 50 operations.");
+        if (OperationBatchRules.CheckCount(operations?.Count ?? 0) is { } countError)
+            return OperationValidation.Invalid(WorkerFailureCategories.ValidationError, countError);
         var errors = new List<string>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var r in operations)
+        foreach (var r in operations!)
         {
-            if (r is null) { errors.Add("Batch contains a null operation."); continue; }
+            if (OperationBatchRules.CheckItem(r, ids) is { } itemError) { errors.Add(itemError); continue; }
             void Error(string message) => errors.Add($"Operation '{r.Operation}' (operationId '{r.OperationId}'): {message}");
-            if (string.IsNullOrWhiteSpace(r.OperationId) || r.OperationId.Length > 256 || !ids.Add(r.OperationId))
-                Error("operationId must be unique, nonblank and at most 256 characters.");
             if (r.Operation is null || !Specs.TryGetValue(r.Operation, out var spec))
             { Error("Unknown operation."); continue; }
             foreach (var (name, get) in Fields)
@@ -126,7 +126,9 @@ public static class HmiWriteCatalog
                 }
             }
         }
-        return errors.Count == 0 ? (true, string.Empty) : (false, string.Join("\n", errors));
+        return errors.Count == 0
+            ? OperationValidation.Valid
+            : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
     }
 
     private static bool ValidName(string name) =>

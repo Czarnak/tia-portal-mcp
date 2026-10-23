@@ -31,7 +31,7 @@ public class HmiReadTools
         var validation = HmiOperationCatalog.ValidateRead(operations);
         if (!validation.IsValid)
         {
-            return Error(WorkerFailureCategories.ValidationError, validation.Error);
+            return Error(validation.Category, validation.Error);
         }
 
         var mode = workerClient.AccessPolicy.Mode;

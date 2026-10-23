@@ -166,25 +166,18 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
 
     private WriteToolError? ValidateInput()
     {
-        if (Items.Count == 0)
+        if (OperationBatchRules.CheckCount(Items.Count) is { } countError)
         {
-            return Validation("The call must contain at least one operation.");
+            return Validation(countError);
         }
 
-        for (var index = 0; index < Items.Count; index++)
+        var seenIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in Items)
         {
-            if (Items[index] is null || string.IsNullOrWhiteSpace(Items[index].OperationId))
+            if (OperationBatchRules.CheckItem(item, seenIds) is { } itemError)
             {
-                return Validation($"The operation at index {index} needs a non-blank operationId.");
+                return Validation(itemError);
             }
-        }
-
-        var duplicate = Items
-            .GroupBy(item => item.OperationId, StringComparer.Ordinal)
-            .FirstOrDefault(group => group.Count() > 1);
-        if (duplicate is not null)
-        {
-            return Validation($"operationId '{duplicate.Key}' appears more than once in the call.");
         }
 
         var validation = _domain.Validate(Items, _gate.AccessMode);

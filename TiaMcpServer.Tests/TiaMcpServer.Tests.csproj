@@ -154,6 +154,8 @@
       Link="Host\ProjectWriteTools.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\IOperationBatchItem.cs"
       Link="Host\OperationBatches\IOperationBatchItem.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchRules.cs"
+      Link="Host\OperationBatches\OperationBatchRules.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchStatus.cs"
       Link="Host\OperationBatches\OperationBatchStatus.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs"

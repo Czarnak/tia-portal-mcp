@@ -29,7 +29,7 @@ public sealed class HmiWriteDomain(OpennessWorkerClient client)
     public WriteValidation Validate(IReadOnlyList<HmiWriteOperationRequest> items, McpAccessMode accessMode)
     {
         var validation = HmiWriteCatalog.ValidateWrite(items);
-        if (!validation.IsValid) return WriteValidation.Invalid(WorkerFailureCategories.ValidationError, validation.Error);
+        if (!validation.IsValid) return WriteValidation.Invalid(validation.Category, validation.Error);
         if (HmiWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
             return WriteValidation.Invalid(WorkerFailureCategories.ValidationError,
                 "The encoded operation identities leave insufficient room for the required response summaries. Use smaller hmi_write calls.");

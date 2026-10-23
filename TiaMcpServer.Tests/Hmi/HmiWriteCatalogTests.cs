@@ -118,6 +118,47 @@ public class HmiWriteCatalogTests
         Assert.Throws<JsonException>(() => Read("\"operation\":\"delete_tag\",\"mystery\":1"));
     }
 
+    private static HmiWriteOperationRequest DeleteTag(string id) =>
+        new() { OperationId = id, Operation = "delete_tag", TagName = "T" };
+
+    [Theory]
+    [InlineData("null batch", "Batch must contain at least one operation.")]
+    [InlineData("empty batch", "Batch must contain at least one operation.")]
+    [InlineData("51 items", "Batch exceeds the maximum of 50 operations (received 51).")]
+    [InlineData("null item", "Batch contains a null operation.")]
+    [InlineData("blank id", "Each operation requires a unique operationId.")]
+    [InlineData("257-character id", "Each operationId must be at most 256 characters.")]
+    [InlineData("duplicate id", "Duplicate operationId 'x'.")]
+    public void EnvelopeMessages_UseSharedWording(string batchCase, string expected)
+    {
+        HmiWriteOperationRequest[]? batch = batchCase switch
+        {
+            "null batch" => null,
+            "empty batch" => [],
+            "51 items" => Enumerable.Range(0, 51).Select(i => DeleteTag($"id{i}")).ToArray(),
+            "null item" => [null!],
+            "blank id" => [DeleteTag(" ")],
+            "257-character id" => [DeleteTag(new string('i', 257))],
+            "duplicate id" => [DeleteTag("x"), DeleteTag("x")],
+            _ => throw new ArgumentOutOfRangeException(nameof(batchCase)),
+        };
+
+        Assert.Equal(expected, HmiWriteCatalog.ValidateWrite(batch).Error);
+    }
+
+    [Fact]
+    public void OversizedOperationId_IsNeverEchoed()
+    {
+        var id = new string('o', 300);
+        var item = DeleteTag(id);
+        item.TableName = "NotValidForDeleteTag";
+
+        var error = HmiWriteCatalog.ValidateWrite([item]).Error;
+
+        Assert.DoesNotContain(id, error);
+        Assert.Equal("Each operationId must be at most 256 characters.", error);
+    }
+
     [Theory]
     [InlineData("create_tag_table", "TableName", "GroupPath")]
     [InlineData("update_tag_table", "TableName NewName", "")]
