@@ -56,15 +56,38 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
+    public async Task DuplicateOversizedOperationId_IsRejectedWithoutEcho()
+    {
+        var id = new string('o', 300);
+
+        var (result, doc) = await RunAsync(new[] { Item(id), Item(id) });
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
+        Assert.Equal("Each operationId must be at most 256 characters.", ErrorMessage(doc));
+        Assert.DoesNotContain(id, doc.GetRawText());
+    }
+
+    [Fact]
+    public async Task MoreThanFiftyItems_IsRejectedAtEntry()
+    {
+        var (result, doc) = await RunAsync(Enumerable.Range(0, 51).Select(i => Item($"id{i}")).ToArray());
+
+        AssertOutcome(result, doc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
+        Assert.Equal("Batch exceeds the maximum of 50 operations (received 51).", ErrorMessage(doc));
+        Assert.Equal(new[] { "compose" }, _domain.Calls);
+    }
+
+    [Fact]
     public async Task NullItemOrBlankOperationId_IsRejectedBeforeTheGate()
     {
         var (nullResult, nullDoc) = await RunAsync(new[] { Item("a"), null! });
         AssertOutcome(nullResult, nullDoc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
-        Assert.Contains("index 1", ErrorMessage(nullDoc));
+        Assert.Equal("Batch contains a null operation.", ErrorMessage(nullDoc));
 
         var blank = new WriteExecutionTests();
         var (blankResult, blankDoc) = await blank.RunAsync(new[] { Item(" ") });
         AssertOutcome(blankResult, blankDoc, WritePhases.Error, isError: true, WorkerFailureCategories.ValidationError);
+        Assert.Equal("Each operation requires a unique operationId.", ErrorMessage(blankDoc));
 
         Assert.Equal(0, _gate.GateCalls + blank._gate.GateCalls);
         Assert.Equal(new[] { "compose" }, _domain.Calls);
