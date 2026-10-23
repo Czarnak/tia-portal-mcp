@@ -43,7 +43,6 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
     private static NetworkOperationRequest ReadHardware(
         string id,
-        string scenario,
         bool? includeIoDetails = null,
         bool? includeTagMatches = null,
         string? deviceName = null,
@@ -64,7 +63,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("complete", ProjectCompletenessScenario) });
+            new[] { ReadHardware("complete") });
 
         Assert.False(result.IsError);
         var operation = AssertOneCanonicalDocument(result)
@@ -89,7 +88,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
             client,
             new[]
             {
-                ReadHardware("io-map", Scenario, includeIoDetails: true, includeTagMatches: true),
+                ReadHardware("io-map", includeIoDetails: true, includeTagMatches: true),
             });
 
         Assert.False(result.IsError);
@@ -158,7 +157,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("no-tag-matches", Scenario, includeIoDetails: true, includeTagMatches: false) });
+            new[] { ReadHardware("no-tag-matches", includeIoDetails: true, includeTagMatches: false) });
 
         Assert.False(result.IsError);
         var channels = AssertOneCanonicalDocument(result)
@@ -182,7 +181,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("other-device", Scenario, deviceName: "OTHER_PLC") });
+            new[] { ReadHardware("other-device", deviceName: "OTHER_PLC") });
 
         Assert.False(result.IsError);
         var operation = AssertOneCanonicalDocument(result)
@@ -202,7 +201,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
             client,
             new[]
             {
-                ReadHardware("plc-name-mismatch", Scenario, includeIoDetails: true, includeTagMatches: true, plcName: "plc_1"),
+                ReadHardware("plc-name-mismatch", includeIoDetails: true, includeTagMatches: true, plcName: "plc_1"),
             });
 
         Assert.False(result.IsError);
@@ -231,7 +230,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("plain", Scenario) });
+            new[] { ReadHardware("plain") });
 
         Assert.False(result.IsError);
         var canonicalText = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
@@ -253,7 +252,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
             client,
             new[]
             {
-                ReadHardware("filtered", Scenario, includeIoDetails: true, deviceName: "PLC_1", plcName: "PLC_1"),
+                ReadHardware("filtered", includeIoDetails: true, deviceName: "PLC_1", plcName: "PLC_1"),
             });
 
         Assert.False(result.IsError);
@@ -273,7 +272,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
             client,
             new[]
             {
-                ReadHardware("mixed-case-device", Scenario, deviceName: "plc_1"),
+                ReadHardware("mixed-case-device", deviceName: "plc_1"),
             });
 
         Assert.False(result.IsError);
@@ -293,7 +292,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
 
         var result = await NetworkReadTools.NetworkRead(
             client,
-            new[] { ReadHardware("malformed", "network-io-map-malformed", includeIoDetails: true) });
+            new[] { ReadHardware("malformed", includeIoDetails: true) });
 
         // The batch ran (tool call is not an error), but the item failed the declared contract.
         Assert.False(result.IsError);
@@ -314,7 +313,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
             client,
             new[]
             {
-                ReadHardware("readonly", Scenario, includeIoDetails: true, includeTagMatches: true),
+                ReadHardware("readonly", includeIoDetails: true, includeTagMatches: true),
             });
 
         Assert.False(result.IsError);

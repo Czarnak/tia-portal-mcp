@@ -266,7 +266,7 @@ public sealed class BindOpenProjectIntegrationTests
         using var f = Two(); Failure(await f.Client.BindOpenProjectAsync(path, false), WorkerFailureCategories.ValidationError, ProjectBindingSnapshot.UnboundState, true);
         Assert.Empty(f.Log.Methods());
     }
-    private static NetworkOperationRequest[] AddDevice(string path) => new[]
+    private static NetworkOperationRequest[] AddDevice() => new[]
     {
         new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device",
             TypeIdentifier = "OrderNumber:6ES7 510-1DJ01-0AB0/V2.0", DeviceName = "PLC_1" }
@@ -277,7 +277,7 @@ public sealed class BindOpenProjectIntegrationTests
         const string source = "C:/Projects/network-roundtrip.ap21";
         using var f = new Fixture(initial: source, mode: McpAccessMode.ReadWrite, entries: new[] { new FakeWorkerPortals.Entry(42, source) });
         using var audit = new TempAuditDirectory(); var safety = NetworkGuardedWriteFixture.CreateRunner(f.Client, audit.Path);
-        var operations = AddDevice(source); var blocked = await NetworkWriteTools.NetworkWrite(f.Client, safety, operations, dryRun: true);
+        var operations = AddDevice(); var blocked = await NetworkWriteTools.NetworkWrite(f.Client, safety, operations, dryRun: true);
         var rejection = Assert.IsType<JsonElement>(blocked.StructuredContent);
         Assert.Equal(WorkerFailureCategories.BindingConflict, rejection.GetProperty("error").GetProperty("category").GetString());
         Assert.Empty(f.Log.Methods());
