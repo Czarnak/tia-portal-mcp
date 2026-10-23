@@ -18,7 +18,7 @@ public class ProjectReadTools
 {
     [McpServerTool(Name = "get_project_status", ReadOnly = true, Destructive = false, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(GetProjectStatusResponse))]
-    [Description("Get status and metadata for the bound project, or for the sole open project when none is bound. Never binds.")]
+    [Description("Get status and metadata for the bound project, or for the sole open project when none is bound. Never establishes a new binding.")]
     public static async Task<CallToolResult> GetProjectStatus(
         OpennessWorkerClient workerClient)
     {
