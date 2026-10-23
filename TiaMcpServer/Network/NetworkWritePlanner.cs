@@ -11,14 +11,14 @@ namespace TiaMcpServer.Network;
 /// <summary>Plans ordinary-read evidence; the shared runner owns sequencing and all mutation.</summary>
 public sealed class NetworkWritePlanner(OpennessWorkerClient client)
 {
-    public async Task<WritePlan<NetworkWriteEffect>> PlanAsync(string? projectPath, IReadOnlyList<NetworkOperationRequest> items)
+    public async Task<WritePlan<NetworkWriteEffect>> PlanAsync(IReadOnlyList<NetworkOperationRequest> items)
     {
-        var snapshot = await ReadCurrentStateAsync(client, projectPath).ConfigureAwait(false);
+        var snapshot = await ReadCurrentStateAsync(client).ConfigureAwait(false);
         if (!snapshot.Success) return WritePlan<NetworkWriteEffect>.Fail(snapshot.FailureCategory!, snapshot.Error!);
         var plans = new List<ItemPlan<NetworkWriteEffect>>();
         foreach (var item in items)
         {
-            var resolved = await ResolveAsync(projectPath, item, snapshot.State!).ConfigureAwait(false);
+            var resolved = await ResolveAsync(item, snapshot.State!).ConfigureAwait(false);
             if (!resolved.Success) return WritePlan<NetworkWriteEffect>.Fail(resolved.Error!.Category, resolved.Error.Message);
             // Every preceding write can affect uniqueness, root counts or relationships. Preserve
             // initial effects, but refresh before each later dispatch (one extra ordinary read).
@@ -27,14 +27,14 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
         return WritePlan<NetworkWriteEffect>.Ok(plans);
     }
 
-    public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(string? projectPath, NetworkOperationRequest item)
+    public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(NetworkOperationRequest item)
     {
-        var snapshot = await ReadCurrentStateAsync(client, projectPath).ConfigureAwait(false);
-        return snapshot.Success ? await ResolveAsync(projectPath, item, snapshot.State!).ConfigureAwait(false)
+        var snapshot = await ReadCurrentStateAsync(client).ConfigureAwait(false);
+        return snapshot.Success ? await ResolveAsync(item, snapshot.State!).ConfigureAwait(false)
             : ItemReplan<NetworkWriteEffect>.Fail(snapshot.FailureCategory!, snapshot.Error!);
     }
 
-    private async Task<ItemReplan<NetworkWriteEffect>> ResolveAsync(string? projectPath, NetworkOperationRequest item, HardwareConfigInfo state)
+    private async Task<ItemReplan<NetworkWriteEffect>> ResolveAsync(NetworkOperationRequest item, HardwareConfigInfo state)
     {
         // Only authoritative ordinary project traversal can establish a complete inventory.
         // Optional metadata diagnostics do not describe omitted candidates.
@@ -55,7 +55,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
             var inspectNames = requested.Keys.Where(key => !IsConnectionKey(key)).ToList();
             if (requested.ContainsKey("PnDeviceName") && !requested.ContainsKey("PnDeviceNameAutoGeneration")) inspectNames.Add("PnDeviceNameAutoGeneration");
             var inspected = inspectNames.Count == 0 ? new()
-                : await ReadAttributesAsync(client, projectPath, NodeTarget(target.DeviceName!, target.NodeId!, target.InterfacePath!), inspectNames).ConfigureAwait(false);
+                : await ReadAttributesAsync(client, NodeTarget(target.DeviceName!, target.NodeId!, target.InterfacePath!), inspectNames).ConfigureAwait(false);
             foreach (var key in requested.Keys) current[key] = inspected.GetValueOrDefault(key) ?? Attribute(key, NodeValue(node, key),
                 IsConnectionKey(key) ? node.ConnectionEvidence?.Complete == true : NodeValue(node, key) is not null);
             if (PnDeviceNameNotSettable(requested, inspected))
@@ -82,7 +82,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
                 complete &= affected.Distinct(NetworkNodeIdentityComparer.Instance).Count() == affected.Count;
             }
             var attributes = requested.Count == 0 ? new()
-                : await ReadAttributesAsync(client, projectPath, new() { Kind = NetworkObjectKinds.Subnet, SubnetId = target.SubnetId }, requested.Keys.ToArray()).ConfigureAwait(false);
+                : await ReadAttributesAsync(client, new() { Kind = NetworkObjectKinds.Subnet, SubnetId = target.SubnetId }, requested.Keys.ToArray()).ConfigureAwait(false);
             foreach (var key in requested.Keys)
                 current[key] = attributes.GetValueOrDefault(key) ?? Attribute(key, key == "Name" ? subnet.Name : null, key == "Name");
         }
@@ -181,7 +181,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
 
     /// <summary>Inspects one exact node or subnet. Returns only uniquely named, available attributes;
     /// a diagnostic about another attribute no longer discards the readable ones.</summary>
-    internal static async Task<Dictionary<string, NetworkAttributeInfo>> ReadAttributesAsync(OpennessWorkerClient client, string? projectPath, NetworkObjectTarget target, IReadOnlyList<string> names)
+    internal static async Task<Dictionary<string, NetworkAttributeInfo>> ReadAttributesAsync(OpennessWorkerClient client, NetworkObjectTarget target, IReadOnlyList<string> names)
     {
         var request = new NetworkOperationRequest { OperationId = "verify", Operation = "inspect_network_object",
             Target = target, AttributeNames = names };
@@ -194,9 +194,9 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
             .ToDictionary(g => g.Key, g => g.Single(), StringComparer.Ordinal);
     }
 
-    public static async Task<NetworkStateSnapshot> ReadCurrentStateAsync(OpennessWorkerClient client, string? projectPath)
+    public static async Task<NetworkStateSnapshot> ReadCurrentStateAsync(OpennessWorkerClient client)
     {
-        var result = await client.ReadHardwareConfigAsync(projectPath).ConfigureAwait(false);
+        var result = await client.ReadHardwareConfigAsync().ConfigureAwait(false);
         if (!result.Success) return NetworkStateSnapshot.Fail(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
             result.Error ?? "The hardware configuration could not be read.");
         try { return NetworkStateSnapshot.Ok(NetworkPayloadContract.DecodeHardwareConfig(result.Payload)); }

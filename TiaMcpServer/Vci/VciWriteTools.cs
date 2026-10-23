@@ -17,6 +17,5 @@ public class VciWriteTools
         [Description("True previews without mutation; omitted or false executes.")] bool dryRun = false,
         CancellationToken cancellationToken = default)
         => execution.RunAsync(new VciWriteDomain(workerClient, breadcrumbLocation), new WriteCall<VciOperationRequest>(
-            ProjectPath: null,
             operations ?? [], dryRun), cancellationToken: cancellationToken);
 }

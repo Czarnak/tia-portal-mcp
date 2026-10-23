@@ -27,7 +27,7 @@ public sealed class NetworkVerifiedWriteFixtureTests
             ProjectPathNormalization.Canonicalize("network-roundtrip"),
             snapshot.ProjectPath);
 
-        var followUp = await client.ReadHardwareConfigAsync("network-roundtrip");
+        var followUp = await client.ReadHardwareConfigAsync();
         Assert.True(followUp.Success, followUp.Error);
         Assert.NotNull(followUp.SessionIdentity);
         Assert.Equal(snapshot.WorkerSessionId, followUp.SessionIdentity!.WorkerSessionId);

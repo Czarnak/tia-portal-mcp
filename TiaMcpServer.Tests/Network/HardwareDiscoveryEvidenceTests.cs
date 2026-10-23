@@ -149,7 +149,7 @@ public sealed class HardwareDiscoveryEvidenceTests
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("configure", "10.0.0.1"));
         Assert.True(response.Success);
         Assert.True(response.Verification!.Success);
-        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-guarded-optional-metadata");
+        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.NotEmpty(read.State!.Messages);
         Assert.NotEmpty(read.State.Devices[0].Items[0].SelectorDiagnostics);
     }
@@ -160,7 +160,7 @@ public sealed class HardwareDiscoveryEvidenceTests
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-missing-discovery");
-        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-guarded-missing-discovery");
+        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.True(read.Success);
         Assert.Null(read.State!.DiscoveryEvidence);
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("configure", "10.0.0.1"));

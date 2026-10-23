@@ -43,7 +43,7 @@ public class OpennessWorkerClientIntegrationTests
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
         var selector = new NetworkObjectSelectorInfo { Kind = "node", DeviceName = "Station", NodeId = "E1", InterfaceName = "X1", NodeIndex = 0,
             InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768, TypeIdentifier = "type" } } };
-        var pending = client.ConfigureNetworkDeviceAsync(selector, "10.0.0.1", null, null, null, null, null, null, "echo");
+        var pending = client.ConfigureNetworkDeviceAsync(selector, "10.0.0.1", null, null, null, null, null, null);
         selector.InterfacePath[0].PositionNumber = 33024; selector.NodeId = "Changed";
         var result = await pending;
         Assert.True(result.Success, result.Error);
@@ -135,7 +135,6 @@ public class OpennessWorkerClientIntegrationTests
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var call = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: "echo",
             deviceName: "PLC_1",
             plcName: "CPU_1",
             includeIoDetails: true,
@@ -275,7 +274,7 @@ public class OpennessWorkerClientIntegrationTests
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
         using var client = CreateClient(binding: binding, accessPolicy: policy);
 
-        var call = await client.BrowseProjectTreeV3SnapshotAsync(projectPath: null);
+        var call = await client.BrowseProjectTreeV3SnapshotAsync();
         var result = call.WorkerResult;
 
         Assert.True(result.Success, result.Error);
@@ -616,7 +615,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.Equal(1, log.Methods().Count(value => value == method));
 
         var requests = log.Methods();
-        var refused = await client.ListTagTablesAsync(null, null);
+        var refused = await client.ListTagTablesAsync(plcName: null);
         Assert.False(refused.Success);
         Assert.Equal(WorkerDispatchState.NotSent, refused.DispatchState);
         Assert.Equal(requests, log.Methods());
@@ -766,8 +765,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var result = await client.UpdateBlockLogicAsync(
             blockPath: "PLC/Blocks/Main",
-            yamlContent: "<Main />",
-            projectPath: projectPath);
+            yamlContent: "<Main />");
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
@@ -796,8 +794,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.UpdateBlockLogicAsync(
             "PLC/Blocks/Main",
             "submitted private content",
-            scenario,
-            SourceFormatNames.Source);
+            format: SourceFormatNames.Source);
 
         Assert.Equal(expectedSuccess, result.Success);
         Assert.Equal(expectedCategory, result.FailureCategory);
@@ -830,7 +827,7 @@ public class OpennessWorkerClientIntegrationTests
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
 
         var result = await client.UpdateBlockLogicAsync(
-            "PLC/Blocks/Main", "submitted private content", scenario, SourceFormatNames.Source);
+            "PLC/Blocks/Main", "submitted private content", format: SourceFormatNames.Source);
 
         Assert.False(result.Success);
         Assert.Equal(expectedCategory, result.FailureCategory);
@@ -855,8 +852,7 @@ public class OpennessWorkerClientIntegrationTests
         var result = await client.UpdateBlockLogicAsync(
             "PLC/Blocks/SecretTarget",
             "submitted private content",
-            scenario,
-            SourceFormatNames.Source);
+            format: SourceFormatNames.Source);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
@@ -883,8 +879,7 @@ public class OpennessWorkerClientIntegrationTests
             blockPath: "PLC/Blocks/Created",
             blockType: "FC",
             language: "SCL",
-            obEventClass: null,
-            projectPath: projectPath);
+            obEventClass: null);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, result.FailureCategory);
@@ -958,7 +953,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task UnboundSession_ContentRead_FailsClosedWithoutWorkerRequest()
     {
         await AssertUnboundContentCallFailsClosedAsync(
-            client => client.ListTagTablesAsync(plcName: null, projectPath: "ok"),
+            client => client.ListTagTablesAsync(plcName: null),
             "list_tag_tables");
     }
 
@@ -966,7 +961,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task UnboundSession_EquipmentSearch_FailsClosed()
     {
         await AssertUnboundContentCallFailsClosedAsync(
-            client => client.SearchEquipmentCatalogAsync("CPU", projectPath: "ok"),
+            client => client.SearchEquipmentCatalogAsync("CPU"),
             "search_equipment_catalog");
     }
 
@@ -1006,7 +1001,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var execution = await client.ExecuteWithPinnedBindingAsync(
             binding.CaptureSnapshot(),
-            () => client.ListTagTablesAsync(plcName: null, projectPath: null));
+            () => client.ListTagTablesAsync(plcName: null));
 
         Assert.True(execution.Success);
         var result = execution.Value!;
@@ -1026,7 +1021,7 @@ public class OpennessWorkerClientIntegrationTests
         var binding = new ProjectSessionBinding("ok");
         using var client = CreateClient(binding: binding);
 
-        var result = await client.ListTagTablesAsync(plcName: null, projectPath: null);
+        var result = await client.ListTagTablesAsync(plcName: null);
 
         Assert.True(result.Success, result.Error);
         Assert.Equal(new[] { "get_project_status", "list_tag_tables" }, requests.Methods().Where(method => method != "hello"));
@@ -1043,7 +1038,7 @@ public class OpennessWorkerClientIntegrationTests
         var binding = new ProjectSessionBinding("worker-error");
         using var client = CreateClient(binding: binding);
 
-        var result = await client.ListTagTablesAsync(plcName: null, projectPath: null);
+        var result = await client.ListTagTablesAsync(plcName: null);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
@@ -1246,7 +1241,6 @@ public class OpennessWorkerClientIntegrationTests
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "lifecycle-probe-only");
 
         var result = await client.SaveProjectAsAsync(
-            projectPath: null,
             targetDirectory: "C:\\Target",
             targetName: "Copy",
             rebind: true);
@@ -1423,7 +1417,6 @@ public class OpennessWorkerClientIntegrationTests
             workerExecutablePath: unlaunchableWorker);
 
         var result = await client.SaveProjectAsAsync(
-            projectPath: null,
             targetDirectory: "C:\\Target",
             targetName: "Copy",
             rebind: false);
@@ -1452,7 +1445,6 @@ public class OpennessWorkerClientIntegrationTests
         // neither the caller's targetDirectory nor targetName. rebind=true must bind the session to
         // the worker's reported copied path, never to caller input.
         var result = await client.SaveProjectAsAsync(
-            projectPath: "ok-with-resolved-path",
             targetDirectory: "C:\\Target",
             targetName: "Copy",
             rebind: true);
@@ -1481,7 +1473,6 @@ public class OpennessWorkerClientIntegrationTests
         // The bound path's FakeWorker scenario fails the save_project_as call. A failed rebinding
         // save-as must leave the pre-existing binding exactly as it was - no partial rebind.
         var result = await client.SaveProjectAsAsync(
-            projectPath: null,
             targetDirectory: "C:\\Target",
             targetName: "Copy",
             rebind: true);
@@ -1508,7 +1499,6 @@ public class OpennessWorkerClientIntegrationTests
         // failure carrying the uncertain-state warning. The client must surface it unchanged and
         // retain the verified source binding rather than adopting an unconfirmed copied path.
         var result = await client.SaveProjectAsAsync(
-            projectPath: "save-as-uncertain-state",
             targetDirectory: "C:\\Target",
             targetName: "Copy",
             rebind: true);
@@ -1705,7 +1695,7 @@ public class OpennessWorkerClientIntegrationTests
         Assert.True(observed.Success, observed.Error);
         Assert.True(binding.BindVerified(observed.SessionIdentity, forceRebind: false, out _));
 
-        var result = await client.CloseProjectAsync(projectPath: null, saveBeforeClose: false);
+        var result = await client.CloseProjectAsync(saveBeforeClose: false);
 
         Assert.True(result.Success, result.Error);
         Assert.Null(binding.CaptureSnapshot().ProjectPath);

@@ -109,7 +109,7 @@ public sealed class LifecycleResponseBudgetTests
             var execution = new WriteExecution(new OpennessWriteBindingGate(client), audit,
                 LifecycleWriteDomain.Catalog, TimeProvider.System);
             var result = await ProjectWriteTools.ExecuteAsync(client, execution,
-                new("save_project") { ProjectPath = path }, new(null));
+                new("save_project"), new(null));
             var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
             using var document = JsonDocument.Parse(text);
             var root = document.RootElement;

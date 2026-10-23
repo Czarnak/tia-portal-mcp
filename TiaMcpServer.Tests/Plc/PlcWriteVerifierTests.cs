@@ -21,14 +21,14 @@ public sealed class PlcWriteVerifierTests
     /// <summary>Plans the items first (the effects carry the resolved PLC), then optionally mutates them.</summary>
     private static async Task<PlcWriteVerification> VerifyAsync(PlcGuardedWriteFixture fixture, bool mutate, params PlcOperationRequest[] items)
     {
-        var plan = await new PlcWritePlanner(fixture.Client).PlanAsync(Scenario, items);
+        var plan = await new PlcWritePlanner(fixture.Client).PlanAsync(items);
         Assert.True(plan.Plan.Success, plan.Plan.Error?.Message);
         if (mutate)
             foreach (var item in items)
-                Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, item, Scenario)).Success);
+                Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, item)).Success);
         var effects = items.Select((item, i) => (item.OperationId, Effect: plan.Plan.Items[i].Effect!))
             .ToDictionary(p => p.OperationId, p => p.Effect);
-        return await new PlcWriteVerifier(fixture.Client, items, effects).VerifyAsync(Scenario, Succeeded(items));
+        return await new PlcWriteVerifier(fixture.Client, items, effects).VerifyAsync(Succeeded(items));
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public sealed class PlcWriteVerifierTests
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Scenario);
         var create = Tag("create", "create_tag", "Temp");
         var update = Tag("update", "update_tag", "Temp", i => i.DataType = "Int");
-        var plan = await new PlcWritePlanner(fixture.Client).PlanAsync(Scenario, new[] { create, update });
-        Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, create, Scenario)).Success);
+        var plan = await new PlcWritePlanner(fixture.Client).PlanAsync(new[] { create, update });
+        Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, create)).Success);
         var batch = StructuredOperationBatch.FromItems(new[]
         {
             new StructuredOperationItem("create", "create_tag", OperationBatchStatus.Succeeded, null, null, null, null, Array.Empty<string>()),
@@ -120,7 +120,7 @@ public sealed class PlcWriteVerifierTests
         var verification = await new PlcWriteVerifier(fixture.Client, new[] { create, update }, new Dictionary<string, PlcWriteEffect>
         {
             ["create"] = plan.Plan.Items[0].Effect!, ["update"] = plan.Plan.Items[1].Effect!,
-        }).VerifyAsync(Scenario, batch);
+        }).VerifyAsync(batch);
 
         Assert.True(verification.Success, string.Join("; ", verification.Operations.Select(o => o.Message)));
         Assert.Equal(new[] { "values", "observed" }, verification.Operations.Select(o => o.Check));

@@ -16,7 +16,6 @@ namespace TiaMcpServer.Tests.Safety.Pipeline;
 public sealed record FakeWriteItem(
     string OperationId,
     string Operation = "fake_write",
-    string? ProjectPath = null,
     string? DependsOn = null,
     IReadOnlyList<string>? Guards = null,
     IReadOnlyList<string>? LateGuards = null,
@@ -115,7 +114,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         return Validation;
     }
 
-    public Task<WritePlan<FakeEffect>> PlanAsync(string? projectPath, IReadOnlyList<FakeWriteItem> items)
+    public Task<WritePlan<FakeEffect>> PlanAsync(IReadOnlyList<FakeWriteItem> items)
     {
         RecordCall("plan");
         if (PlanFailure is not null)
@@ -159,7 +158,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
         return fired;
     }
 
-    public Task<ItemReplan<FakeEffect>> ReplanAsync(string? projectPath, FakeWriteItem item)
+    public Task<ItemReplan<FakeEffect>> ReplanAsync(FakeWriteItem item)
     {
         RecordCall($"replan:{item.OperationId}");
         _replanned.Add(item.OperationId);
@@ -168,7 +167,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
             : ItemReplan<FakeEffect>.Fail(ReplanFailure.Category, ReplanFailure.Message));
     }
 
-    public Task<WorkerCallResult> MutateAsync(string? projectPath, FakeWriteItem item)
+    public Task<WorkerCallResult> MutateAsync(FakeWriteItem item)
     {
         RecordCall($"mutate:{item.OperationId}");
         if (!_gate.LeaseActive)
@@ -200,7 +199,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
                 new StructuredOperationFailure(result.FailureCategory!, result.Error!), null, null, Array.Empty<string>());
     }
 
-    public Task<FakeVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
+    public Task<FakeVerification?> VerifyAsync(StructuredOperationBatch batch)
     {
         RecordCall("verify");
         return Task.FromResult<FakeVerification?>(new FakeVerification(MutationCount));
@@ -261,7 +260,7 @@ public sealed class FakeWriteBindingGate : IWriteBindingGate
     public static ProjectBindingSnapshot Snapshot(string state, string bindingId, long revision, string? path)
         => new(state, bindingId, revision, path, "session-1", 1, 4242, null);
 
-    public Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
+    public Task<WorkerCallResult> RequireVerifiedWriteBindingAsync()
     {
         GateCalls++;
         OnGate?.Invoke(this);

@@ -44,7 +44,7 @@ public sealed class PlcGuardedWriteDomainTests
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
-        var identity = (await fixture.Client.ListTagTablesAsync(null, Roundtrip)).SessionIdentity!;
+        var identity = (await fixture.Client.ListTagTablesAsync(plcName: null)).SessionIdentity!;
         fixture.AfterGate = () => Assert.True(fixture.Binding.BindVerified(new WorkerSessionIdentity
         {
             WorkerSessionId = identity.WorkerSessionId, SessionGeneration = identity.SessionGeneration + 1,
@@ -64,7 +64,7 @@ public sealed class PlcGuardedWriteDomainTests
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
-        var identity = (await fixture.Client.ListTagTablesAsync(null, Roundtrip)).SessionIdentity!;
+        var identity = (await fixture.Client.ListTagTablesAsync(plcName: null)).SessionIdentity!;
         fixture.AfterGate = () =>
         {
             fixture.Binding.Invalidate("test revision change");

@@ -149,7 +149,6 @@ public class HardwarePaginationCoordinatorTests
         Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
         Assert.NotNull(observed);
         Assert.Equal(50, observed!.PageSize);
-        Assert.Equal(ResolvedPath(), observed.ProjectPath);
         Assert.Equal("worker-session", observed.ExpectedSessionIdentity!.WorkerSessionId);
         Assert.True(binding.SameBinding(observed.RequiredHostBinding!));
         Assert.Equal(0, observed.Continuation!.Offset);

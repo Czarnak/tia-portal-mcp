@@ -36,8 +36,7 @@ public static class HmiWorkerInvoker
 
         return client.ReadHmiAsync(
             HmiOperationCatalog.WorkerMethod(operation.Operation),
-            query,
-            projectPath: null);
+            query);
     }
 
     private static WorkerCallResult? ResolveCursor(

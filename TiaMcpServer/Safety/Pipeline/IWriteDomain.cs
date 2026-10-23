@@ -24,21 +24,21 @@ public interface IWriteDomain<TItem, TEffect, TVerification, TResponse>
     WriteValidation Validate(IReadOnlyList<TItem> items, McpAccessMode accessMode);
 
     /// <summary>Resolves every item against fresh state; one plan per item, in order.</summary>
-    Task<WritePlan<TEffect>> PlanAsync(string? projectPath, IReadOnlyList<TItem> items);
+    Task<WritePlan<TEffect>> PlanAsync(IReadOnlyList<TItem> items);
 
     /// <summary>Pure: the guards the planned items fire. Plans align with items by index.</summary>
     IReadOnlyList<FiredGuard> EvaluateGuards(IReadOnlyList<TItem> items, IReadOnlyList<ItemPlan<TEffect>> plans);
 
     /// <summary>Re-resolves one dependent item just before its own mutation.</summary>
-    Task<ItemReplan<TEffect>> ReplanAsync(string? projectPath, TItem item);
+    Task<ItemReplan<TEffect>> ReplanAsync(TItem item);
 
-    Task<WorkerCallResult> MutateAsync(string? projectPath, TItem item);
+    Task<WorkerCallResult> MutateAsync(TItem item);
 
     /// <summary>Projects one item's worker result into its typed per-item result.</summary>
     StructuredOperationItem Project(TItem item, WorkerCallResult result);
 
     /// <summary>The post-write read, or null when the domain performs none.</summary>
-    Task<TVerification?> VerifyAsync(string? projectPath, StructuredOperationBatch batch);
+    Task<TVerification?> VerifyAsync(StructuredOperationBatch batch);
 
     /// <summary>Whether the typed verification establishes the domain's required postcondition.</summary>
     bool VerificationSucceeded(TVerification? verification) => true;

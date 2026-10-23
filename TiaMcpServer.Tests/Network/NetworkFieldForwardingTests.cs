@@ -83,7 +83,7 @@ public class NetworkFieldForwardingTests
         using var client = await CreateClientAsync();
         var result = spec.Category == NetworkOperationCategory.Read
             ? await NetworkWorkerInvoker.InvokeReadAsync(client, operation)
-            : await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+            : await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -108,7 +108,7 @@ public class NetworkFieldForwardingTests
                 InterfaceName = owner, InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "PLC_DP", PositionNumber = 1 },
                     new NetworkInterfacePathSegment { Name = owner, PositionNumber = position, TypeIdentifier = "optional-type" } } },
             Changes = new() { IpAddress = "192.168.12.99" } };
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
         Assert.True(result.Success, result.Error);
         var request = JsonSerializer.Deserialize<WorkerRequest>(result.Payload, WorkerJson.Envelope)!;
         Assert.NotNull(request.NetworkObjectTarget);
@@ -132,7 +132,7 @@ public class NetworkFieldForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -152,7 +152,7 @@ public class NetworkFieldForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -179,7 +179,7 @@ public class NetworkFieldForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: "echo");
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);

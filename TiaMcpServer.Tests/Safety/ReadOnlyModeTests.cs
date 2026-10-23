@@ -382,7 +382,7 @@ public class ReadOnlyModeTests
             workerExecutablePath: "/nonexistent/path",
             accessPolicy: policy);
 
-        var result = await client.UpdateBlockLogicAsync("Main", "yaml", null);
+        var result = await client.UpdateBlockLogicAsync("Main", "yaml");
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
@@ -437,7 +437,7 @@ public class ReadOnlyModeTests
             workerExecutablePath: "/nonexistent/path",
             accessPolicy: policy);
 
-        var result = await client.CompileCheckAsync(null, null, null);
+        var result = await client.CompileCheckAsync(blockPath: null, plcName: null);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
@@ -874,7 +874,7 @@ public class ReadOnlyModeTests
             workerExecutablePath: "/nonexistent/path");
 
         // This will fail with a transport error (worker not found), not access_denied
-        var result = await client.UpdateBlockLogicAsync("Main", "yaml", null);
+        var result = await client.UpdateBlockLogicAsync("Main", "yaml");
 
         Assert.False(result.Success);
         Assert.NotEqual(WorkerFailureCategories.AccessDenied, result.FailureCategory);

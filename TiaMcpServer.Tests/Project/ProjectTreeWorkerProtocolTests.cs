@@ -24,7 +24,6 @@ public sealed class ProjectTreeWorkerProtocolTests
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "project-tree-v3-snapshot");
 
         var call = await client.BrowseProjectTreeV3SnapshotAsync(
-            projectPath: "project-tree-v3-snapshot",
             startSelector: new[]
             {
                 new ProjectTreeSelectorSegment { NodeType = "Device", Name = "PLC_1" }

@@ -144,7 +144,7 @@ public sealed class WriteExecutionFailureAuditTests
     private async Task<WriteAuditRecord> RunThrowsAsync(IReadOnlyList<FakeWriteItem> items, bool dryRun = false)
     {
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => _execution.RunAsync(
-            _domain, new WriteCall<FakeWriteItem>(FakeWriteBindingGate.ProjectPath, items, dryRun)));
+            _domain, new WriteCall<FakeWriteItem>(items, dryRun)));
 
         Assert.Same(_domain.ScriptedException, thrown);
         var record = Assert.Single(_audit.Records);

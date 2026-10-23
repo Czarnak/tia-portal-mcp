@@ -199,7 +199,7 @@ public class OpennessWorkerClient : IDisposable
             // Session selection is binding-neutral until strict payload/identity validation and CAS.
             var result = await InvokeWorkerAsync(request).ConfigureAwait(false);
             return result.Success
-                ? ApplyBindingTransition(BindingTransition.BindingNeutral, result, request.ProjectPath, before, false)
+                ? ApplyBindingTransition(BindingTransition.BindingNeutral, result, before, false)
                 : result;
         }
         async Task<WorkerCallResult?> List()
@@ -372,9 +372,9 @@ public class OpennessWorkerClient : IDisposable
     /// first grounded by one read-only status request; an ordinary unbound session is never
     /// adopted implicitly and must use bind_project, or open_project in read-write/full mode.
     /// </summary>
-    public async Task<WorkerCallResult> RequireVerifiedBindingAsync(string? projectPath = null)
+    public async Task<WorkerCallResult> RequireVerifiedBindingAsync()
     {
-        if (_projectSessionBinding.TryGetVerified(projectPath, out _, out _))
+        if (_projectSessionBinding.TryGetVerified(null, out _, out _))
         {
             return WorkerCallResult.Ok("{}");
         }
@@ -393,7 +393,7 @@ public class OpennessWorkerClient : IDisposable
             }
         }
 
-        return _projectSessionBinding.TryGetVerified(projectPath, out _, out var error)
+        return _projectSessionBinding.TryGetVerified(null, out _, out var error)
             ? WorkerCallResult.Ok("{}")
             : WorkerCallResult.Fail(WorkerFailureCategories.BindingConflict, error!);
     }
@@ -585,7 +585,6 @@ public class OpennessWorkerClient : IDisposable
     }
 
     public Task<ProjectTreeSnapshotCallResult> BrowseProjectTreeV3SnapshotAsync(
-        string? projectPath = null,
         IReadOnlyList<ProjectTreeSelectorSegment>? startSelector = null,
         int? depth = null)
     {
@@ -594,7 +593,7 @@ public class OpennessWorkerClient : IDisposable
         {
             var result = await SendBoundProjectRequestCoreAsync(
                 "browse_project_tree_v3_snapshot",
-                projectPath,
+                null,
                 request =>
                 {
                     request.StartSelector = startSelector?.ToList();
@@ -614,7 +613,6 @@ public class OpennessWorkerClient : IDisposable
     /// callers (notably <c>NetworkWritePlanner.ReadCurrentStateAsync</c>) stay lightweight.
     /// </summary>
     public Task<WorkerCallResult> ReadHardwareConfigAsync(
-        string? projectPath,
         string? deviceName = null,
         string? plcName = null,
         bool includeIoDetails = false,
@@ -622,7 +620,7 @@ public class OpennessWorkerClient : IDisposable
     {
         return SendBoundProjectRequestAsync(
             "read_hardware_config",
-            projectPath,
+            null,
             request =>
             {
                 request.DeviceName = deviceName;
@@ -639,7 +637,6 @@ public class OpennessWorkerClient : IDisposable
     /// exact worker identity observed on the preceding response.
     /// </summary>
     public Task<HardwarePageWorkerCallResult> ReadHardwarePageCandidatesAsync(
-        string? projectPath,
         string? deviceName,
         string? plcName,
         bool includeIoDetails,
@@ -650,7 +647,6 @@ public class OpennessWorkerClient : IDisposable
         WorkerSessionIdentity? expectedSessionIdentity)
         => ExecuteSerializedBindingOperationAsync(
             () => ReadHardwarePageCandidatesCoreAsync(
-                projectPath,
                 deviceName,
                 plcName,
                 includeIoDetails,
@@ -661,7 +657,6 @@ public class OpennessWorkerClient : IDisposable
                 expectedSessionIdentity));
 
     private async Task<HardwarePageWorkerCallResult> ReadHardwarePageCandidatesCoreAsync(
-        string? projectPath,
         string? deviceName,
         string? plcName,
         bool includeIoDetails,
@@ -672,35 +667,17 @@ public class OpennessWorkerClient : IDisposable
         WorkerSessionIdentity? expectedSessionIdentity)
     {
         var isContinuation = continuation is not null;
-        var routingProjectPath = projectPath;
         if (isContinuation)
         {
             if (!TryValidateCompleteSessionIdentity(
                     expectedSessionIdentity,
-                    out var cursorProjectPath))
+                    out _))
             {
                 return HardwarePageFailure(
                     _projectSessionBinding.CaptureSnapshot(),
                     WorkerFailureCategories.CursorBindingMismatch,
                     "The hardware-page continuation does not retain a complete worker session identity.");
             }
-
-            var repeatedProjectPath = ProjectPathNormalization.Canonicalize(projectPath);
-            if (repeatedProjectPath is not null &&
-                !string.Equals(
-                    repeatedProjectPath,
-                    cursorProjectPath,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return HardwarePageFailure(
-                    _projectSessionBinding.CaptureSnapshot(),
-                    WorkerFailureCategories.CursorBindingMismatch,
-                    "The requested project path does not match the hardware-page continuation.");
-            }
-
-            // The cursor identity is authoritative for continuation routing; the host binding must
-            // still be verified (checked after resolve).
-            routingProjectPath = cursorProjectPath;
         }
         else
         {
@@ -725,7 +702,7 @@ public class OpennessWorkerClient : IDisposable
         }
 
         if (!_projectSessionBinding.TryResolveWithSnapshot(
-                routingProjectPath,
+                null,
                 out var hostBinding,
                 out var effectiveProjectPath,
                 out var bindingError))
@@ -876,11 +853,11 @@ public class OpennessWorkerClient : IDisposable
                ProjectPathNormalization.Canonicalize(actual.ProjectPath),
                StringComparison.OrdinalIgnoreCase);
 
-    public Task<WorkerCallResult> SearchEquipmentCatalogAsync(string query, string? projectPath, int? maxResults = null)
+    public Task<WorkerCallResult> SearchEquipmentCatalogAsync(string query, int? maxResults = null)
     {
         return SendBoundProjectRequestAsync(
             "search_equipment_catalog",
-            projectPath,
+            null,
             request =>
             {
                 request.Query = query;
@@ -898,12 +875,11 @@ public class OpennessWorkerClient : IDisposable
         IReadOnlyList<string> objectKinds,
         string? deviceName,
         int? pageSize,
-        string? cursor,
-        string? projectPath)
+        string? cursor)
     {
         return SendBoundProjectRequestAsync(
             "list_network_objects",
-            projectPath,
+            null,
             request =>
             {
                 request.NetworkObjectKinds = new List<string>(objectKinds);
@@ -921,12 +897,11 @@ public class OpennessWorkerClient : IDisposable
     /// </summary>
     public Task<WorkerCallResult> InspectNetworkObjectAsync(
         NetworkObjectSelectorInfo target,
-        IReadOnlyList<string>? attributeNames,
-        string? projectPath)
+        IReadOnlyList<string>? attributeNames)
     {
         return SendBoundProjectRequestAsync(
             "inspect_network_object",
-            projectPath,
+            null,
             request =>
             {
                 request.NetworkObjectTarget = target;
@@ -938,12 +913,11 @@ public class OpennessWorkerClient : IDisposable
     public Task<WorkerCallResult> AddNetworkDeviceAsync(
         string typeIdentifier,
         string deviceName,
-        string deviceItemName,
-        string? projectPath)
+        string deviceItemName)
     {
         return SendBoundProjectRequestAsync(
             "add_network_device",
-            projectPath,
+            null,
             request =>
             {
                 request.TypeIdentifier = typeIdentifier;
@@ -956,13 +930,13 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> ConfigureNetworkDeviceAsync(NetworkObjectSelectorInfo target,
         string? ipAddress, string? subnetMask, string? pnDeviceName, bool? pnDeviceNameAutoGeneration, string? subnetId,
-        string? ioSystemSubnetId, int? ioSystemNumber, string? projectPath)
+        string? ioSystemSubnetId, int? ioSystemNumber)
     {
         // Freeze before asynchronous binding/IPC work can yield to the caller.
         var prepared = JsonSerializer.Deserialize<NetworkObjectSelectorInfo>(JsonSerializer.Serialize(target, WorkerJson.Envelope), WorkerJson.Envelope)!;
         return SendBoundProjectRequestAsync(
             "configure_network_device",
-            projectPath,
+            null,
             request =>
             {
                 request.NetworkObjectTarget = prepared;
@@ -988,12 +962,11 @@ public class OpennessWorkerClient : IDisposable
         string name,
         string networkType,
         int? highestAddress,
-        string? transmissionSpeed,
-        string? projectPath)
+        string? transmissionSpeed)
     {
         return SendBoundProjectRequestAsync(
             "create_subnet",
-            projectPath,
+            null,
             request =>
             {
                 request.SubnetName = name;
@@ -1015,12 +988,11 @@ public class OpennessWorkerClient : IDisposable
         string subnetId,
         string? name,
         int? highestAddress,
-        string? transmissionSpeed,
-        string? projectPath)
+        string? transmissionSpeed)
     {
         return SendBoundProjectRequestAsync(
             "update_subnet",
-            projectPath,
+            null,
             request =>
             {
                 request.SubnetId = subnetId;
@@ -1036,11 +1008,11 @@ public class OpennessWorkerClient : IDisposable
     /// Sends a <c>delete_subnet</c> request. Forwards only the target identity via the existing
     /// <see cref="WorkerRequest.SubnetId"/> field.
     /// </summary>
-    public Task<WorkerCallResult> DeleteSubnetAsync(string subnetId, string? projectPath)
+    public Task<WorkerCallResult> DeleteSubnetAsync(string subnetId)
     {
         return SendBoundProjectRequestAsync(
             "delete_subnet",
-            projectPath,
+            null,
             request =>
             {
                 request.SubnetId = subnetId;
@@ -1050,7 +1022,6 @@ public class OpennessWorkerClient : IDisposable
     }
 
     public Task<WorkerCallResult> ReadCrossReferencesAsync(
-        string? projectPath,
         CrossReferenceSelectorInfo selector,
         string? filter,
         int? maxResults)
@@ -1063,7 +1034,7 @@ public class OpennessWorkerClient : IDisposable
 
         return SendBoundProjectRequestAsync(
             "read_cross_references",
-            projectPath,
+            null,
             request =>
             {
                 request.CrossReferenceSelector = selector;
@@ -1075,13 +1046,12 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> GetBlockContentAsync(
         string blockPath,
-        string? projectPath,
         string? format = null,
         bool? withDependencies = null)
     {
         return SendBoundProjectRequestAsync(
             "get_block_content",
-            projectPath,
+            null,
             request =>
             {
                 request.BlockPath = blockPath;
@@ -1094,7 +1064,6 @@ public class OpennessWorkerClient : IDisposable
     public async Task<WorkerCallResult> UpdateBlockLogicAsync(
         string blockPath,
         string yamlContent,
-        string? projectPath,
         string? format = null,
         string? expectedContentHash = null)
     {
@@ -1108,7 +1077,7 @@ public class OpennessWorkerClient : IDisposable
 
         var result = await SendBoundProjectRequestAsync(
             "update_block_logic",
-            projectPath,
+            null,
             request =>
             {
                 request.BlockPath = blockPath;
@@ -1154,12 +1123,11 @@ public class OpennessWorkerClient : IDisposable
     public Task<WorkerCallResult> GetTypeContentAsync(
         string typePath,
         string? format,
-        string? projectPath,
         bool? withDependencies = null)
     {
         return SendBoundProjectRequestAsync(
             "get_type_content",
-            projectPath,
+            null,
             request =>
             {
                 request.TypePath = typePath;
@@ -1178,12 +1146,11 @@ public class OpennessWorkerClient : IDisposable
         string typePath,
         string sourceContent,
         string? format,
-        string? projectPath,
         string? expectedContentHash = null)
     {
         return SendBoundProjectRequestAsync(
             "update_type_content",
-            projectPath,
+            null,
             request =>
             {
                 request.TypePath = typePath;
@@ -1196,13 +1163,12 @@ public class OpennessWorkerClient : IDisposable
 
     public Task<WorkerCallResult> ListTagTablesAsync(
         string? plcName,
-        string? projectPath,
         string? tableName = null,
         string? folderPath = null)
     {
         return SendBoundProjectRequestAsync(
             "list_tag_tables",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1213,30 +1179,30 @@ public class OpennessWorkerClient : IDisposable
     }
 
     /// <summary>Runs one standalone VCI read through the verified binding and capability gates.</summary>
-    public Task<WorkerCallResult> ReadVciAsync(string method, TiaMcpServer.Contracts.Vci.VciQueryInfo query, string? projectPath)
-        => SendBoundProjectRequestAsync(method, projectPath, request => request.VciQuery = query, "{}");
+    public Task<WorkerCallResult> ReadVciAsync(string method, TiaMcpServer.Contracts.Vci.VciQueryInfo query)
+        => SendBoundProjectRequestAsync(method, null, request => request.VciQuery = query, "{}");
 
-    public Task<WorkerCallResult> WriteVciAsync(string method, TiaMcpServer.Contracts.Vci.VciWriteRequestInfo write, string? projectPath)
-        => SendBoundProjectRequestAsync(method, projectPath, request => request.VciWrite = write, "{}");
+    public Task<WorkerCallResult> WriteVciAsync(string method, TiaMcpServer.Contracts.Vci.VciWriteRequestInfo write)
+        => SendBoundProjectRequestAsync(method, null, request => request.VciWrite = write, "{}");
 
     /// <summary>Runs one hmi_read operation; <paramref name="method"/> is the hmi_-prefixed worker method.</summary>
-    public Task<WorkerCallResult> ReadHmiAsync(string method, HmiQueryInfo query, string? projectPath)
+    public Task<WorkerCallResult> ReadHmiAsync(string method, HmiQueryInfo query)
     {
         return SendBoundProjectRequestAsync(
             method,
-            projectPath,
+            null,
             request => request.HmiQuery = query,
             "{}");
     }
 
-    public Task<WorkerCallResult> WriteHmiAsync(string method, HmiWriteRequestInfo write, string? projectPath)
-        => SendBoundProjectRequestAsync(method, projectPath, request => request.HmiWrite = write, "{}");
+    public Task<WorkerCallResult> WriteHmiAsync(string method, HmiWriteRequestInfo write)
+        => SendBoundProjectRequestAsync(method, null, request => request.HmiWrite = write, "{}");
 
-    public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName, string? projectPath)
+    public Task<WorkerCallResult> CompileCheckAsync(string? blockPath, string? plcName)
     {
         return SendBoundProjectRequestAsync(
             "compile_check",
-            projectPath,
+            null,
             request =>
             {
                 request.BlockPath = blockPath;
@@ -1248,12 +1214,11 @@ public class OpennessWorkerClient : IDisposable
     public Task<WorkerCallResult> CreateTagTableAsync(
         string? plcName,
         string tableName,
-        string? folderPath,
-        string? projectPath)
+        string? folderPath)
     {
         return SendBoundProjectRequestAsync(
             "create_tag_table",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1267,12 +1232,11 @@ public class OpennessWorkerClient : IDisposable
     public Task<WorkerCallResult> DeleteTagTableAsync(
         string? plcName,
         string tableName,
-        string? folderPath,
-        string? projectPath)
+        string? folderPath)
     {
         return SendBoundProjectRequestAsync(
             "delete_tag_table",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1289,12 +1253,11 @@ public class OpennessWorkerClient : IDisposable
         string? folderPath,
         string name,
         string dataType,
-        string? logicalAddress,
-        string? projectPath)
+        string? logicalAddress)
     {
         return SendBoundProjectRequestAsync(
             "create_tag",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1318,12 +1281,11 @@ public class OpennessWorkerClient : IDisposable
         string? logicalAddress,
         bool? externalAccessible,
         bool? externalVisible,
-        bool? externalWritable,
-        string? projectPath)
+        bool? externalWritable)
     {
         return SendBoundProjectRequestAsync(
             "update_tag",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1345,12 +1307,11 @@ public class OpennessWorkerClient : IDisposable
         string? plcName,
         string tableName,
         string? folderPath,
-        string name,
-        string? projectPath)
+        string name)
     {
         return SendBoundProjectRequestAsync(
             "delete_tag",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1368,12 +1329,11 @@ public class OpennessWorkerClient : IDisposable
         string? folderPath,
         string name,
         string dataType,
-        string value,
-        string? projectPath)
+        string value)
     {
         return SendBoundProjectRequestAsync(
             "create_user_constant",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1393,12 +1353,11 @@ public class OpennessWorkerClient : IDisposable
         string? folderPath,
         string name,
         string? dataType,
-        string? value,
-        string? projectPath)
+        string? value)
     {
         return SendBoundProjectRequestAsync(
             "update_user_constant",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1416,12 +1375,11 @@ public class OpennessWorkerClient : IDisposable
         string? plcName,
         string tableName,
         string? folderPath,
-        string name,
-        string? projectPath)
+        string name)
     {
         return SendBoundProjectRequestAsync(
             "delete_user_constant",
-            projectPath,
+            null,
             request =>
             {
                 request.PlcName = plcName;
@@ -1437,12 +1395,11 @@ public class OpennessWorkerClient : IDisposable
         string blockPath,
         string blockType,
         string? language,
-        string? obEventClass,
-        string? projectPath)
+        string? obEventClass)
     {
         return SendBoundProjectRequestAsync(
             "create_block",
-            projectPath,
+            null,
             request =>
             {
                 request.BlockPath = blockPath;
@@ -1454,11 +1411,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> DeleteBlockAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> DeleteBlockAsync(string blockPath)
     {
         return SendBoundProjectRequestAsync(
             "delete_block",
-            projectPath,
+            null,
             request =>
             {
                 request.BlockPath = blockPath;
@@ -1467,11 +1424,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> CreateBlockGroupAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> CreateBlockGroupAsync(string blockPath)
     {
         return SendBoundProjectRequestAsync(
             "create_block_group",
-            projectPath,
+            null,
             request =>
             {
                 request.BlockPath = blockPath;
@@ -1480,11 +1437,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> DeleteBlockGroupAsync(string blockPath, string? projectPath)
+    public Task<WorkerCallResult> DeleteBlockGroupAsync(string blockPath)
     {
         return SendBoundProjectRequestAsync(
             "delete_block_group",
-            projectPath,
+            null,
             request =>
             {
                 request.BlockPath = blockPath;
@@ -1692,7 +1649,6 @@ public class OpennessWorkerClient : IDisposable
         result = ApplyBindingTransition(
             BindingTransition.BindResolvedPath,
             result,
-            requestedProjectPath: projectPath,
             bindingBeforeCall,
             bindForceRebind: forceRebind);
 
@@ -1750,7 +1706,6 @@ public class OpennessWorkerClient : IDisposable
         result = ApplyBindingTransition(
             BindingTransition.BindResolvedPath,
             result,
-            requestedProjectPath: null,
             bindingBeforeCall,
             bindForceRebind: true);
 
@@ -1762,11 +1717,11 @@ public class OpennessWorkerClient : IDisposable
         return string.IsNullOrEmpty(result.Payload) ? result with { Payload = "{}" } : result;
     }
 
-    public Task<WorkerCallResult> SaveProjectAsync(string? projectPath)
+    public Task<WorkerCallResult> SaveProjectAsync()
     {
         return SendBoundProjectRequestAsync(
             "save_project",
-            projectPath,
+            null,
             request =>
             {
                 request.Confirm = true;
@@ -1785,7 +1740,6 @@ public class OpennessWorkerClient : IDisposable
         + "TIA Openness worker and this MCP session bound to different projects.";
 
     public Task<WorkerCallResult> SaveProjectAsAsync(
-        string? projectPath,
         string targetDirectory,
         string targetName,
         bool rebind)
@@ -1804,7 +1758,7 @@ public class OpennessWorkerClient : IDisposable
         // that ResolvedProjectPath.
         return SendBoundProjectRequestAsync(
             "save_project_as",
-            projectPath,
+            null,
             request =>
             {
                 request.TargetDirectory = targetDirectory;
@@ -1817,7 +1771,6 @@ public class OpennessWorkerClient : IDisposable
     }
 
     public Task<WorkerCallResult> ArchiveProjectAsync(
-        string? projectPath,
         string archiveDirectory,
         string archiveName,
         string? mode,
@@ -1830,7 +1783,7 @@ public class OpennessWorkerClient : IDisposable
 
         return SendBoundProjectRequestAsync(
             "archive_project",
-            projectPath,
+            null,
             request =>
             {
                 request.ArchiveDirectory = archiveDirectory;
@@ -1842,11 +1795,11 @@ public class OpennessWorkerClient : IDisposable
             "{}");
     }
 
-    public Task<WorkerCallResult> CloseProjectAsync(string? projectPath, bool saveBeforeClose)
+    public Task<WorkerCallResult> CloseProjectAsync(bool saveBeforeClose)
     {
         return SendBoundProjectRequestAsync(
             "close_project",
-            projectPath,
+            null,
             request =>
             {
                 request.SaveBeforeClose = saveBeforeClose;
@@ -1951,7 +1904,6 @@ public class OpennessWorkerClient : IDisposable
             result = ApplyBindingTransition(
                 transition,
                 result,
-                requestedProjectPath: projectPath,
                 bindingBeforeCall,
                 bindForceRebind: true);
         }
@@ -1999,7 +1951,6 @@ public class OpennessWorkerClient : IDisposable
     private WorkerCallResult ApplyBindingTransition(
         BindingTransition transition,
         WorkerCallResult result,
-        string? requestedProjectPath,
         ProjectBindingSnapshot bindingBeforeCall,
         bool bindForceRebind)
     {
@@ -2022,13 +1973,8 @@ public class OpennessWorkerClient : IDisposable
                     return result;
                 }
 
-                // Close leaves the session with nothing bound. Clear(requestedProjectPath) is the
-                // guarded path; if it refuses (a different project was actually open) fall back to
-                // the unconditional Clear(null) so no stale binding can survive a close.
-                if (!_projectSessionBinding.Clear(requestedProjectPath, out _))
-                {
-                    _projectSessionBinding.Clear(null, out _);
-                }
+                // Close acts only on the bound project and leaves the session with nothing bound.
+                _projectSessionBinding.Clear(null, out _);
 
                 RefreshAmbientPinnedBinding();
                 return result;

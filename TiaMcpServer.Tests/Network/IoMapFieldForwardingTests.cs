@@ -84,7 +84,7 @@ public class IoMapFieldForwardingTests : IDisposable
 
     /// <summary>
     /// The internal network-write planner (NetworkWritePlanner.ReadCurrentStateAsync) calls
-    /// <c>ReadHardwareConfigAsync(projectPath)</c> with the defaults. That call must forward the
+    /// <c>ReadHardwareConfigAsync()</c> with the defaults. That call must forward the
     /// I/O-map fields at their DEFAULT values (no narrowing, no details), so planning reads stay
     /// lightweight and cover the whole project. The
     /// flat WorkerRequest always serializes every field, so the guarantee is "defaults", not
@@ -94,7 +94,7 @@ public class IoMapFieldForwardingTests : IDisposable
     public async Task SnapshotDefaultRead_ForwardsOnlyDefaultNarrowingAndIoMapFields()
     {
         using var client = await CreateClientAsync();
-        var result = await client.ReadHardwareConfigAsync("echo");
+        var result = await client.ReadHardwareConfigAsync();
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);

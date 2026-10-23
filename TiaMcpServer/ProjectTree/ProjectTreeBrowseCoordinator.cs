@@ -17,7 +17,7 @@ public sealed class ProjectTreeBrowseCoordinator
     private readonly ProjectTreeSnapshotStore _store;
     private readonly ProjectTreePageProjector _projector;
     private readonly TimeProvider _timeProvider;
-    private readonly Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<ProjectTreeSnapshotCallResult>> _browseSnapshot;
+    private readonly Func<IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<ProjectTreeSnapshotCallResult>> _browseSnapshot;
     private readonly Func<ProjectBindingSnapshot> _captureBinding;
 
     internal ProjectTreeBrowseCoordinator(
@@ -31,10 +31,9 @@ public sealed class ProjectTreeBrowseCoordinator
             store,
             projector,
             timeProvider,
-            (projectPath, startSelector, depth) => workerClient.BrowseProjectTreeV3SnapshotAsync(
-                projectPath,
-                startSelector,
-                depth),
+            (startSelector, depth) => workerClient.BrowseProjectTreeV3SnapshotAsync(
+                startSelector: startSelector,
+                depth: depth),
             () => workerClient.BindingSnapshot)
     {
         ArgumentNullException.ThrowIfNull(workerClient);
@@ -45,7 +44,7 @@ public sealed class ProjectTreeBrowseCoordinator
         ProjectTreeSnapshotStore store,
         ProjectTreePageProjector projector,
         TimeProvider timeProvider,
-        Func<string?, IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<ProjectTreeSnapshotCallResult>> browseSnapshot,
+        Func<IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<ProjectTreeSnapshotCallResult>> browseSnapshot,
         Func<ProjectBindingSnapshot> captureBinding)
     {
         _cursorCodec = cursorCodec ?? throw new ArgumentNullException(nameof(cursorCodec));
@@ -99,7 +98,6 @@ public sealed class ProjectTreeBrowseCoordinator
     {
         ProjectTreeNodeTypes.Validate(request.StartSelector);
         var call = await _browseSnapshot(
-            null,
             request.StartSelector,
             request.Depth).ConfigureAwait(false);
         var worker = call.WorkerResult;

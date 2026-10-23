@@ -45,7 +45,7 @@ public class PlcWritePlannerTests
 
     private static async Task<string> HashOf(OpennessWorkerClient client, string blockPath)
     {
-        var read = await client.GetBlockContentAsync(blockPath, Scenario, "xml");
+        var read = await client.GetBlockContentAsync(blockPath, format: "xml");
         Assert.True(read.Success, read.Error);
         return ContentHashes.Compute("xml", read.Payload);
     }
@@ -57,7 +57,7 @@ public class PlcWritePlannerTests
     {
         using var client = await CreateClientAsync(Scenario);
 
-        var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[] { CreateTag("a", "PLC_2"), CreateTag("b", plcName) });
+        var result = await new PlcWritePlanner(client).PlanAsync(new[] { CreateTag("a", "PLC_2"), CreateTag("b", plcName) });
 
         Assert.False(result.Plan.Success);
         Assert.Equal(WorkerFailureCategories.TargetAmbiguous, result.Plan.Error!.Category);
@@ -70,7 +70,7 @@ public class PlcWritePlannerTests
         using var client = await CreateClientAsync(Scenario);
         var stale = ContentHashes.Compute("xml", "<Block edited-elsewhere=\"true\"/>");
 
-        var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[]
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
         {
             CreateTag("first", "PLC_2"),
             UpdateBlock("content", "Station_1/Main", stale),
@@ -79,7 +79,7 @@ public class PlcWritePlannerTests
         Assert.False(result.Plan.Success);
         Assert.Equal(WorkerFailureCategories.StateChanged, result.Plan.Error!.Category);
         Assert.Contains("content", result.Plan.Error.Message);
-        var inventory = await client.ListTagTablesAsync("PLC_2", Scenario);
+        var inventory = await client.ListTagTablesAsync(plcName: "PLC_2");
         Assert.DoesNotContain("Fresh", inventory.Payload);
     }
 
@@ -89,7 +89,7 @@ public class PlcWritePlannerTests
         using var client = await CreateClientAsync(Scenario);
         var anyHash = ContentHashes.Compute("xml", "anything");
 
-        var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[]
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
         {
             UpdateBlock("empty", "Station_1/Blocks/Empty_DB", anyHash),
             UpdateBlock("locked", "Station_1/Blocks/Locked", anyHash),
@@ -112,7 +112,7 @@ public class PlcWritePlannerTests
         using var client = await CreateClientAsync(incomplete);
         var items = new[] { CreateTag("hidden", "PLC_9"), CreateTag("known", "PLC_2") };
 
-        var result = await new PlcWritePlanner(client).PlanAsync(incomplete, items);
+        var result = await new PlcWritePlanner(client).PlanAsync(items);
 
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
         Assert.Contains(result.Guards["hidden"], guard => guard.Id == PlcGuardDefinitions.StateUnverifiable);
@@ -126,11 +126,11 @@ public class PlcWritePlannerTests
         using var client = await CreateClientAsync(Scenario);
         var planner = new PlcWritePlanner(client);
 
-        var tag = await planner.PlanAsync(Scenario, new[]
+        var tag = await planner.PlanAsync(new[]
         {
             new PlcOperationRequest { OperationId = "d", Operation = "delete_tag", PlcName = "PLC_2", TableName = "Default tag table", Name = "Nope" },
         });
-        var block = await planner.PlanAsync(Scenario, new[] { UpdateBlock("u", "Station_1/Blocks/Nope", ContentHashes.Compute("xml", "x")) });
+        var block = await planner.PlanAsync(new[] { UpdateBlock("u", "Station_1/Blocks/Nope", ContentHashes.Compute("xml", "x")) });
 
         Assert.Equal(WorkerFailureCategories.TargetNotFound, tag.Plan.Error?.Category);
         Assert.Equal(WorkerFailureCategories.TargetNotFound, block.Plan.Error?.Category);
@@ -142,7 +142,7 @@ public class PlcWritePlannerTests
         using var client = await CreateClientAsync(Scenario);
         var hash = await HashOf(client, "Station_1/Main");
 
-        var result = await new PlcWritePlanner(client).PlanAsync(Scenario, new[]
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
         {
             UpdateBlock("content", "Station_1/Main", hash),
             new PlcOperationRequest { OperationId = "create", Operation = "create_block", BlockPath = "Station_1/NewFC", BlockType = "FC" },
@@ -165,7 +165,7 @@ public class PlcWritePlannerTests
         var table = new PlcOperationRequest { OperationId = "t1", Operation = "create_tag_table", PlcName = "PLC_2", TableName = "New" };
         var tag = CreateTag("t2", "PLC_2", "New");
 
-        var result = await planner.PlanAsync(Scenario, new[] { table, tag });
+        var result = await planner.PlanAsync(new[] { table, tag });
 
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
         Assert.Null(result.Plan.Items[0].DependsOn);
@@ -176,7 +176,7 @@ public class PlcWritePlannerTests
         Assert.Equal("PLC_1", dependent.Effect.Target.DeviceName);
 
         // The late re-plan reads real state, where the table was never created.
-        var replan = await planner.ReplanAsync(Scenario, tag);
+        var replan = await planner.ReplanAsync(tag);
         Assert.False(replan.Replan.Success);
         Assert.Equal(WorkerFailureCategories.TargetNotFound, replan.Replan.Error!.Category);
     }

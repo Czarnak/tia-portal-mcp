@@ -21,8 +21,8 @@ public interface IWriteBindingGate
 
     ProjectBindingSnapshot CurrentBinding { get; }
 
-    /// <summary>Fails closed unless the session holds a verified binding for <paramref name="projectPath"/>.</summary>
-    Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath);
+    /// <summary>Fails closed unless the session holds a verified binding.</summary>
+    Task<WorkerCallResult> RequireVerifiedWriteBindingAsync();
 
     /// <summary>
     /// Runs <paramref name="operation"/> while holding the lease on <paramref name="binding"/>; a
@@ -51,8 +51,8 @@ public sealed class OpennessWriteBindingGate : IWriteBindingGate
 
     public ProjectBindingSnapshot CurrentBinding => _workerClient.BindingSnapshot;
 
-    public Task<WorkerCallResult> RequireVerifiedWriteBindingAsync(string? projectPath)
-        => _workerClient.RequireVerifiedBindingAsync(projectPath);
+    public Task<WorkerCallResult> RequireVerifiedWriteBindingAsync()
+        => _workerClient.RequireVerifiedBindingAsync();
 
     public async Task<WriteLeaseResult<T>> RunUnderLeaseAsync<T>(
         ProjectBindingSnapshot binding,

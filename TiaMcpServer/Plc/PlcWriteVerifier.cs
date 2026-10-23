@@ -29,7 +29,7 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
 {
     private readonly PlcWritePlanner _reader = new(client);
 
-    public async Task<PlcWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
+    public async Task<PlcWriteVerification> VerifyAsync(StructuredOperationBatch batch)
     {
         var outcomes = batch.Operations.Where(o => o.Status is OperationBatchStatus.Succeeded or OperationBatchStatus.Failed)
             .ToDictionary(o => o.OperationId, StringComparer.Ordinal);
@@ -51,15 +51,15 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             if (item.Operation is "update_block_logic" or "update_type_content")
             {
                 // A failed import may still have committed: its observed hash is reported either way.
-                results.Add(await VerifyContentAsync(projectPath, item, failure).ConfigureAwait(false));
+                results.Add(await VerifyContentAsync(item, failure).ConfigureAwait(false));
                 continue;
             }
 
-            inventory ??= await _reader.ReadInventoryAsync(projectPath).ConfigureAwait(false);
+            inventory ??= await _reader.ReadInventoryAsync().ConfigureAwait(false);
             var target = effects[item.OperationId].Target;
             var key = $"{target.DeviceName}\n{target.PlcName}";
             if (!states.TryGetValue(key, out var entry))
-                states[key] = entry = await ReadStateAsync(projectPath, inventory, target).ConfigureAwait(false);
+                states[key] = entry = await ReadStateAsync(inventory, target).ConfigureAwait(false);
             results.Add(entry.State is null ? Fail(item, failure is null ? Expectation(item) : "observed", entry.Error!)
                 : failure is null ? VerifyStructural(item, target, entry.State) : Observe(item, target, failure, entry.State));
         }
@@ -94,14 +94,14 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
         return keys.Select(k => k.ToUpperInvariant()).Distinct().ToArray();
     }
 
-    private async Task<(PlcWorkingState? State, string? Error)> ReadStateAsync(string? projectPath,
+    private async Task<(PlcWorkingState? State, string? Error)> ReadStateAsync(
         PlcWritePlanner.Evidence inventory, PlcTargetIdentity target)
     {
         if (inventory.Error is { } error) return (null, error.Message);
         var plc = inventory.Inventory!.Plcs.FirstOrDefault(p => PlcNameRules.Comparer.Equals(p.PlcName, target.PlcName)
             && PlcNameRules.Comparer.Equals(p.DeviceName, target.DeviceName));
         if (plc is null) return (null, $"PLC '{target.PlcName}' is missing from the post-write tag inventory.");
-        var (tree, treeError) = await _reader.ReadTreeAsync(projectPath, plc).ConfigureAwait(false);
+        var (tree, treeError) = await _reader.ReadTreeAsync(plc).ConfigureAwait(false);
         return tree is null ? (null, treeError!.Message) : (PlcWorkingState.Create(plc, inventory.Inventory.IsComplete, tree), null);
     }
 
@@ -142,13 +142,13 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             $"Operation '{item.OperationId}' failed with {failure.Category}; {ran}. The observed state is reported.");
     }
 
-    private async Task<PlcOperationVerification> VerifyContentAsync(string? projectPath, PlcOperationRequest item, StructuredOperationFailure? failure)
+    private async Task<PlcOperationVerification> VerifyContentAsync(PlcOperationRequest item, StructuredOperationFailure? failure)
     {
         // The caller's own path: the canonical path can be ambiguous across PLCs.
         var format = PlcFormatNames.Normalize(item.Operation, item.Format);
         var export = item.Operation == "update_block_logic"
-            ? await client.GetBlockContentAsync(item.BlockPath!, projectPath, format).ConfigureAwait(false)
-            : await client.GetTypeContentAsync(item.TypePath!, format, projectPath).ConfigureAwait(false);
+            ? await client.GetBlockContentAsync(item.BlockPath!, format: format).ConfigureAwait(false)
+            : await client.GetTypeContentAsync(item.TypePath!, format: format).ConfigureAwait(false);
         if (!export.Success || string.IsNullOrEmpty(export.Payload))
             return Fail(item, "contentHash", $"Operation '{item.OperationId}': the written content could not be re-exported ({(export.Success ? "the export was empty" : export.Error)}).");
         var hash = ContentHashes.Compute(format, export.Payload);

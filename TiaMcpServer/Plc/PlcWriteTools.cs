@@ -20,6 +20,5 @@ public class PlcWriteTools
         CancellationToken cancellationToken = default)
         => execution.RunAsync(new PlcWriteDomain(workerClient),
             new WriteCall<PlcOperationRequest>(
-                ProjectPath: null,
                 operations ?? [], dryRun), cancellationToken: cancellationToken);
 }

@@ -12,23 +12,20 @@ public static class NetworkWorkerInvoker
         NetworkOperationRequest operation)         => operation.Operation switch
         {
             "read_hardware_config" => client.ReadHardwareConfigAsync(
-                projectPath: null,
-                operation.DeviceName,
-                operation.PlcName,
-                operation.IncludeIoDetails ?? false,
-                operation.IncludeTagMatches ?? false),
+                deviceName: operation.DeviceName,
+                plcName: operation.PlcName,
+                includeIoDetails: operation.IncludeIoDetails ?? false,
+                includeTagMatches: operation.IncludeTagMatches ?? false),
             "search_equipment_catalog" => client.SearchEquipmentCatalogAsync(
-                operation.Query!, projectPath: null, operation.MaxResults),
+                operation.Query!, maxResults: operation.MaxResults),
             "list_network_objects" => client.ListNetworkObjectsAsync(
                 operation.ObjectKinds!,
                 operation.DeviceName,
                 operation.PageSize,
-                operation.Cursor,
-                projectPath: null),
+                operation.Cursor),
             "inspect_network_object" => client.InspectNetworkObjectAsync(
                 MapSelector(operation.Target!),
-                operation.AttributeNames,
-                projectPath: null),
+                operation.AttributeNames),
             _ => Task.FromResult(WorkerCallResult.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"Unsupported network read operation '{operation.Operation}'.")),
@@ -83,17 +80,14 @@ public static class NetworkWorkerInvoker
 
     public static Task<WorkerCallResult> InvokeWriteAsync(
         OpennessWorkerClient client,
-        NetworkOperationRequest operation,
-        string? commonProjectPath)
+        NetworkOperationRequest operation)
     {
-        var projectPath = commonProjectPath;
         return operation.Operation switch
         {
             "add_network_device" => client.AddNetworkDeviceAsync(
                 operation.TypeIdentifier!,
                 operation.DeviceName!,
-                operation.DeviceItemName ?? operation.DeviceName!,
-                projectPath),
+                operation.DeviceItemName ?? operation.DeviceName!),
             "configure_network_device" => client.ConfigureNetworkDeviceAsync(
                 MapSelector(operation.Target!),
                 operation.Changes!.IpAddress,
@@ -102,23 +96,19 @@ public static class NetworkWorkerInvoker
                 operation.Changes!.PnDeviceNameAutoGeneration,
                 operation.Changes!.Subnet?.SubnetId,
                 operation.Changes!.IoSystem?.SubnetId,
-                operation.Changes!.IoSystem?.Number,
-                projectPath),
+                operation.Changes!.IoSystem?.Number),
             "create_subnet" => client.CreateSubnetAsync(
                 operation.Subnet!.Name!,
                 operation.Subnet!.NetworkType!,
                 operation.Subnet!.HighestAddress,
-                operation.Subnet!.TransmissionSpeed,
-                projectPath),
+                operation.Subnet!.TransmissionSpeed),
             "update_subnet" => client.UpdateSubnetAsync(
                 operation.Target!.SubnetId!,
                 operation.SubnetChanges?.Name,
                 operation.SubnetChanges?.HighestAddress,
-                operation.SubnetChanges?.TransmissionSpeed,
-                projectPath),
+                operation.SubnetChanges?.TransmissionSpeed),
             "delete_subnet" => client.DeleteSubnetAsync(
-                operation.Target!.SubnetId!,
-                projectPath),
+                operation.Target!.SubnetId!),
             _ => Task.FromResult(WorkerCallResult.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"Unsupported network write operation '{operation.Operation}'.")),

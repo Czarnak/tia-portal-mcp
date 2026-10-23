@@ -331,7 +331,7 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
         // against the io-map scenario, ordinary planning reads must omit optional ioDetails.
         using var client = await CreateClientAsync();
 
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(client, Scenario);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(client);
 
         Assert.True(snapshot.Success, snapshot.Error);
         var canonical = CanonicalJson.Serialize(snapshot.State!);

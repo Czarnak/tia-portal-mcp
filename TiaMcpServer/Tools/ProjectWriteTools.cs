@@ -97,7 +97,7 @@ public class ProjectWriteTools
         WriteConfirmationContext confirmation, bool dryRun = false,
         CancellationToken cancellationToken = default)
         => execution.RunAsync(new LifecycleWriteDomain(workerClient, item),
-            new WriteCall<LifecycleWriteItem>(null,
+            new WriteCall<LifecycleWriteItem>(
                 new[] { item }, dryRun), confirmation, new LifecycleBindingStrategy(workerClient), cancellationToken);
 
     private static WriteConfirmationContext Confirmation(McpServer? server)

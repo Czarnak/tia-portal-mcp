@@ -11,7 +11,7 @@ public sealed class VciWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
 {
     // Whole-batch verification: skipped items still need a per-item notVerified, the worker can refuse after
     // dispatch with state_changed/target_not_found, and the inferred attempted list drives superseded.
-    public async Task<VciWriteVerification> VerifyAsync(string? projectPath, StructuredOperationBatch batch)
+    public async Task<VciWriteVerification> VerifyAsync(StructuredOperationBatch batch)
     {
         var results = new List<VciOperationVerification>();
         var fatal = batch.Operations.Any(o => o.Failure?.Category is WorkerFailureCategories.PortalLost or WorkerFailureCategories.WorkerTimeout or WorkerFailureCategories.WorkerCrashed);
@@ -34,7 +34,7 @@ public sealed class VciWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             {
                 if (item.Operation is "create_workspace" or "delete_workspace")
                 {
-                    var read = await client.ReadVciAsync(VciMethods.ForOperation("list_workspaces"), new(), projectPath).ConfigureAwait(false);
+                    var read = await client.ReadVciAsync(VciMethods.ForOperation("list_workspaces"), new()).ConfigureAwait(false);
                     if (!read.Success) { Check(false, "notVerified", message: read.Error); continue; }
                     var list = CanonicalJson.DeserializeWorkerPayload<VciWorkspaceListInfo>(read.Payload);
                     if (list.Workspaces is null || list.Workspaces.Any(w => w is null || string.IsNullOrWhiteSpace(w.Name))) throw new JsonException();
@@ -45,7 +45,7 @@ public sealed class VciWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
                 }
                 else
                 {
-                    var plan = await new VciWritePlanner(client).ReplanAsync(projectPath, item).ConfigureAwait(false);
+                    var plan = await new VciWritePlanner(client).ReplanAsync(item).ConfigureAwait(false);
                     if (!plan.Replan.Success) { Check(false, "notVerified", message: plan.Replan.Error!.Message); continue; }
                     if (plan.Guards.FirstOrDefault(g => g.Id == VciGuardDefinitions.StateUnverifiable) is { } unverifiable)
                     { Check(false, "notVerified", message: unverifiable.Message); continue; }

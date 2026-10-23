@@ -111,7 +111,7 @@ public sealed class PlcWriteInvokerTests
 
     [Theory]
     [MemberData(nameof(AllWriteOperations))]
-    public async Task WriteUsesPinnedProjectPath(string operation)
+    public async Task WriteSendsTheBoundPath(string operation)
     {
         var (request, _) = Build(operation);
         var binding = new ProjectSessionBinding(null);
@@ -120,7 +120,7 @@ public sealed class PlcWriteInvokerTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
-        var result = await new PlcWriteDomain(client).MutateAsync("echo", request);
+        var result = await new PlcWriteDomain(client).MutateAsync(request);
 
         Assert.True(result.Success, result.Error);
         using var echoed = JsonDocument.Parse(result.Payload);
@@ -138,10 +138,10 @@ public sealed class PlcWriteInvokerTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
-        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request, null);
+        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request);
         Assert.True(result.Success, result.Error);
         var baseline = await PlcWorkerInvoker.InvokeWriteAsync(
-            client, new PlcOperationRequest { OperationId = "baseline", Operation = operation }, null);
+            client, new PlcOperationRequest { OperationId = "baseline", Operation = operation });
         Assert.True(baseline.Success, baseline.Error);
 
         foreach (var group in expected.Select(Render).GroupBy(v => v, StringComparer.Ordinal))
@@ -166,7 +166,7 @@ public sealed class PlcWriteInvokerTests
             accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
-        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request, null);
+        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, request);
 
         Assert.True(result.Success, result.Error);
         using var echoed = JsonDocument.Parse(result.Payload);
@@ -187,7 +187,7 @@ public sealed class PlcWriteInvokerTests
             Content = "secret submitted content",
             ExpectedContentHash = Hash,
             Format = "not-a-format",
-        }, null);
+        });
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -212,7 +212,7 @@ public sealed class PlcWriteInvokerTests
             Content = "x",
             ExpectedContentHash = Hash,
             Format = "nope",
-        }, null);
+        });
 
         Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
         Assert.Null(result.BlockImportOutcome);
@@ -224,7 +224,7 @@ public sealed class PlcWriteInvokerTests
         using var client = CreateClient(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".exe"));
 
         var result = await PlcWorkerInvoker.InvokeWriteAsync(
-            client, new PlcOperationRequest { OperationId = "x", Operation = "get_block_content", BlockPath = "a/b" }, null);
+            client, new PlcOperationRequest { OperationId = "x", Operation = "get_block_content", BlockPath = "a/b" });
 
         Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
     }

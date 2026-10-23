@@ -181,7 +181,7 @@ public sealed class LifecycleGuardedBehaviorTests
 
         public LifecycleWriteItem Item(string operation) => new(operation)
         {
-            ProjectPath = operation == "open_project" ? _destination : operation == "create_project" ? null : _source,
+            ProjectPath = operation == "open_project" ? _destination : null,
             ForceRebind = true, ProjectDirectory = _root, ProjectName = "Created",
             TargetDirectory = _root, TargetName = "Copy", ArchiveDirectory = Path.Combine(_root, "Archives"), ArchiveName = "Archive"
         };

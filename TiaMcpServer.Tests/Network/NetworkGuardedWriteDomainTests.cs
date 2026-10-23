@@ -21,7 +21,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.True(response.Success);
         Assert.Contains(response.Guards, g => g.Id == "network_state_unverifiable" && g.Severity == "block");
         Assert.Null(response.Batch);
-        var state = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, "network-guarded-incomplete");
+        var state = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.Single(state.State!.Subnets);
         Assert.DoesNotContain("delete_subnet", requests.Methods());
     }
@@ -85,7 +85,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.Equal("none", record.RootElement.GetProperty("confirmation").GetProperty("by").GetString());
         Assert.All(record.RootElement.GetProperty("guards").EnumerateArray(), guard =>
             Assert.Equal(System.Text.Json.JsonValueKind.Null, guard.GetProperty("satisfiedBy").ValueKind));
-        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
+        var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.NotEmpty(read.State!.Subnets[0].ConnectionEvidence!.Messages);
         Assert.Equal(kind == "root", read.State.Messages.Count != 0);
     }

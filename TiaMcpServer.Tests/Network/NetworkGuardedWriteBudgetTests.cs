@@ -98,7 +98,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
             var before = CanonicalJson.Serialize(binding.CaptureSnapshot());
             reply = await NetworkGuardedWriteFixture.CreateRunner(client, audit.Path).RunAsync(new NetworkWriteDomain(client),
-                new WriteCall<NetworkOperationRequest>(null, operations, false));
+                new WriteCall<NetworkOperationRequest>(operations, false));
             Assert.Equal(before, CanonicalJson.Serialize(binding.CaptureSnapshot()));
         }
         Assert.Empty(requests.Methods());
@@ -162,8 +162,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.Equal("failed", projected.Status);
         Assert.Null(projected.Result);
         Assert.Equal(kind == "invalid_payload" ? "protocol_error" : "worker_crashed", projected.Failure!.Category);
-        var verification = await new NetworkWriteVerifier(fixture.Client).VerifyAsync("network-guarded",
-            StructuredOperationBatch.FromItems(new[] { projected }), new Dictionary<string, NetworkMutationVerificationInfo>());
+        var verification = await new NetworkWriteVerifier(fixture.Client).VerifyAsync(StructuredOperationBatch.FromItems(new[] { projected }), new Dictionary<string, NetworkMutationVerificationInfo>());
         Assert.False(verification.Success);
         Assert.Equal("unverified", Assert.Single(verification.Operations).Status);
         Assert.Contains(verification.FinalChecks, c => c.Status == "unverified");
@@ -334,7 +333,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         {
             using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
             reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
-                new WriteCall<NetworkOperationRequest>("network-guarded", new[] { operation }, false));
+                new WriteCall<NetworkOperationRequest>(new[] { operation }, false));
         }
         var root = NetworkGuardedWriteMcpTests.Document(reply);
         var canonical = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
@@ -368,7 +367,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.All(operations, item => Assert.Equal(256, item.OperationId.Length));
         Assert.True(new NetworkWriteDomain(fixture.Client).Validate(operations, McpAccessMode.ReadWrite).IsValid);
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
-            new WriteCall<NetworkOperationRequest>(scenario, operations, false));
+            new WriteCall<NetworkOperationRequest>(operations, false));
         Assert.DoesNotContain("configure_network_device", requests.Methods());
         var document = NetworkGuardedWriteMcpTests.Document(reply);
         Assert.True(reply.IsError);
@@ -425,7 +424,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var operation = await QualifiedConfigure(fixture, scenario, "one");
         operation.Target!.InterfaceName = "PROFINET interface_1";
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
-            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
+            new WriteCall<NetworkOperationRequest>(new[] { operation }, false));
         var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
         Assert.True(response.Success);
         var path = response.Effects[0].Effect!.Target.InterfacePath!;
@@ -445,7 +444,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
         var operation = await QualifiedConfigure(fixture, scenario, "first");
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
-            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation, NetworkGuardedWriteFixture.Delete("second"), new NetworkOperationRequest { OperationId = "third", Operation = operation.Operation, Target = operation.Target, Changes = operation.Changes } }, false));
+            new WriteCall<NetworkOperationRequest>(new[] { operation, NetworkGuardedWriteFixture.Delete("second"), new NetworkOperationRequest { OperationId = "third", Operation = operation.Operation, Target = operation.Target, Changes = operation.Changes } }, false));
         var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
         Assert.Equal(1, requests.Methods().Count(m => m == "configure_network_device"));
         Assert.DoesNotContain("delete_subnet", requests.Methods());
@@ -468,7 +467,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var operation = await QualifiedConfigure(fixture, scenario, "partial");
         operation.Changes = new() { IpAddress = "192.168.12.7", SubnetMask = "255.255.255.0" };
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
-            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
+            new WriteCall<NetworkOperationRequest>(new[] { operation }, false));
         var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
         Assert.False(response.Success);
         Assert.Equal("failed", response.Batch!.Operations[0].Status);
@@ -559,7 +558,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var operation = await QualifiedConfigure(fixture, scenario, "known");
         operation.Changes = new() { IpAddress = new string('b', 333),
             SubnetMask = new string('n', 333), PnDeviceName = new string('q', 334) };
-        var plan = await new NetworkWritePlanner(fixture.Client).PlanAsync(scenario, new[] { operation });
+        var plan = await new NetworkWritePlanner(fixture.Client).PlanAsync(new[] { operation });
         Assert.True(plan.Success);
         var effect = plan.Items[0].Effect!;
         var encodedOwner = NetworkInterfacePathEncoding.Encode(effect.Target.InterfacePath!);
@@ -578,8 +577,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             requireVerification: true);
         Assert.Equal("failed", projected.Status);
         var observations = new Dictionary<string, NetworkWriteEffect> { [operation.OperationId] = effect };
-        var verification = await new NetworkWriteVerifier(fixture.Client, observations, observations).VerifyAsync(scenario,
-            StructuredOperationBatch.FromItems(new[] { projected }),
+        var verification = await new NetworkWriteVerifier(fixture.Client, observations, observations).VerifyAsync(StructuredOperationBatch.FromItems(new[] { projected }),
             new Dictionary<string, NetworkMutationVerificationInfo> { [operation.OperationId] = immediate });
         var effectChars = CanonicalJson.Serialize(effect).Length;
         var evidenceChars = CanonicalJson.Serialize(immediate).Length;
@@ -594,7 +592,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.All(verification.FinalChecks.Where(c => c.Field is "Address" or "SubnetMask" or "PnDeviceName"),
             c => Assert.Equal(7000, c.Observed!.Length));
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
-            new WriteCall<NetworkOperationRequest>(scenario, new[] { operation }, false));
+            new WriteCall<NetworkOperationRequest>(new[] { operation }, false));
         var deliveredDocument = NetworkGuardedWriteMcpTests.Document(reply);
         output.WriteLine($"Delivered phase={deliveredDocument.GetProperty("phase").GetString()}; writes={requests.Methods().Count(m => m == "configure_network_device")}.");
         if (deliveredDocument.GetProperty("phase").GetString() == "applied")
@@ -605,7 +603,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             Assert.All(delivered.Verification!.Operations[0].Evidence!.Checks, c => Assert.Equal(7000, c.Observed!.Length));
             Assert.NotNull(delivered.Verification.Omission);
             Assert.Empty(delivered.Verification.FinalChecks);
-            var after = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
+            var after = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
             var oldNode = after.State!.Devices[0].Items[0].Items[0].NetworkInterfaces[0].Nodes[0];
             Assert.Equal(7000, oldNode.IpAddress!.Length);
             Assert.Equal(7000, oldNode.SubnetMask!.Length);
@@ -620,7 +618,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
     }
     private static async Task<NetworkOperationRequest> QualifiedConfigure(NetworkGuardedWriteFixture fixture, string scenario, string id)
     {
-        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client, scenario);
+        var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         var device = snapshot.State!.Devices[0];
         var owner = device.Items[0].Items[0];
         return new() { OperationId = id, Operation = "configure_network_device", Changes = new() { IpAddress = "192.168.12.7" },

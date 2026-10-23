@@ -41,7 +41,7 @@ public sealed class LocalSessionCapabilityTests
             workerExecutablePath: Path.Combine(missingWorkerDirectory.Path, "missing-worker.exe"),
             accessPolicy: new OperationAccessPolicy(accessMode));
 
-        var result = await client.CloseProjectAsync(Amc, false);
+        var result = await client.CloseProjectAsync(saveBeforeClose: false);
 
         Assert.False(result.Success);
         Assert.Equal(expectedCategory, result.FailureCategory);

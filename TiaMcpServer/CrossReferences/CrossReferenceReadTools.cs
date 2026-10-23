@@ -34,7 +34,7 @@ public class CrossReferenceReadTools
         if (invalid is not null)
             return StructuredStandaloneResult.Create<CrossReferenceReport>(ToolName, null, Array.Empty<string>(), invalid);
 
-        var result = await workerClient.ReadCrossReferencesAsync(projectPath: null, target.ToInfo(), filter, maxResults)
+        var result = await workerClient.ReadCrossReferencesAsync(selector: target.ToInfo(), filter: filter, maxResults: maxResults)
             .ConfigureAwait(false);
         var rejection = StandalonePayloadContract.Rejection(result);
         var outcome = rejection is null ? CrossReferencePayloadContract.Project(result) : null;

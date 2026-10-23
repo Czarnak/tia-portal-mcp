@@ -34,7 +34,6 @@ public sealed class HardwarePageWorkerClientTests
         await enteredLease.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var firstPage = client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -91,7 +90,6 @@ public sealed class HardwarePageWorkerClientTests
         var sentBefore = requests.Methods().Length;
 
         var continuation = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -109,7 +107,7 @@ public sealed class HardwarePageWorkerClientTests
     }
 
     [Fact]
-    public async Task Continuation_AcceptsEquivalentExplicitPathAndRejectsDifferentPathWithoutSending()
+    public async Task Continuation_SendsTheBoundPathAndCursorIdentity()
     {
         var binding = new ProjectSessionBinding(null);
         using var client = CreateFakeWorkerClient(binding);
@@ -117,7 +115,6 @@ public sealed class HardwarePageWorkerClientTests
         var expectedIdentity = AssertCompleteIdentity(first.WorkerResult);
 
         var equivalent = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: "c:/FIXTURES/echo",
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -139,24 +136,7 @@ public sealed class HardwarePageWorkerClientTests
             AssertIdentity(expectedIdentity, request.RootElement.GetProperty("expectedSessionIdentity"));
         }
 
-        var different = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: @"C:\different\echo",
-            deviceName: null,
-            plcName: null,
-            includeIoDetails: false,
-            includeTagMatches: false,
-            pageSize: 50,
-            continuation: Continuation(),
-            requiredHostBinding: first.HostBinding,
-            expectedSessionIdentity: expectedIdentity);
-
-        Assert.False(different.WorkerResult.Success);
-        Assert.Equal(
-            WorkerFailureCategories.CursorBindingMismatch,
-            different.WorkerResult.FailureCategory);
-
         var nextRequest = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: ProjectPath,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -194,7 +174,6 @@ public sealed class HardwarePageWorkerClientTests
             requestTimeout: TimeSpan.FromSeconds(1));
 
         var call = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -231,7 +210,6 @@ public sealed class HardwarePageWorkerClientTests
         await enteredLease.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var continuation = client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -267,7 +245,6 @@ public sealed class HardwarePageWorkerClientTests
         var identity = AssertCompleteIdentity(first.WorkerResult);
 
         var call = await client.ReadHardwarePageCandidatesAsync(
-            projectPath: null,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,
@@ -327,7 +304,6 @@ public sealed class HardwarePageWorkerClientTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath(projectPath);
         return await client.ReadHardwarePageCandidatesAsync(
-            projectPath,
             deviceName: null,
             plcName: null,
             includeIoDetails: false,

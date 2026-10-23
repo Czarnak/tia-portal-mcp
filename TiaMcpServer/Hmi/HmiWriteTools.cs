@@ -17,6 +17,5 @@ public class HmiWriteTools
         [Description("True previews without mutation; omitted or false executes.")] bool dryRun = false,
         CancellationToken cancellationToken = default)
         => execution.RunAsync(new HmiWriteDomain(workerClient), new WriteCall<HmiWriteOperationRequest>(
-            ProjectPath: null,
             operations ?? [], dryRun), cancellationToken: cancellationToken);
 }

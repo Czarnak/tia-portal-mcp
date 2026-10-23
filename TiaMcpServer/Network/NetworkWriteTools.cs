@@ -20,7 +20,6 @@ public class NetworkWriteTools
         CancellationToken cancellationToken = default)
         => execution.RunAsync(new NetworkWriteDomain(workerClient),
             new WriteCall<NetworkOperationRequest>(
-                ProjectPath: null,
                 operations ?? [], dryRun), cancellationToken: cancellationToken);
 
 }

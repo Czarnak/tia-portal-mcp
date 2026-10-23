@@ -29,8 +29,7 @@ public class HmiWriteVerifierTests
         => new(r.OperationId, r.Operation, failure is null ? "succeeded" : "failed", result is null ? null : JsonDocument.Parse(WorkerJson.SerializePayload(result)).RootElement.Clone(),
             failure is null ? null : new(failure, "setter rejected"), null, null, []);
     private static Task<HmiWriteVerification> Verify(Fixture f, HmiWriteOperationRequest[] items, params StructuredOperationItem[] outcomes)
-        => new HmiWriteVerifier(f.Client, items, items.ToDictionary(i => i.OperationId, Effect)).VerifyAsync(null,
-            StructuredOperationBatch.FromItems(outcomes.Length == 0 ? items.Select(i => Outcome(i)).ToArray() : outcomes));
+        => new HmiWriteVerifier(f.Client, items, items.ToDictionary(i => i.OperationId, Effect)).VerifyAsync(StructuredOperationBatch.FromItems(outcomes.Length == 0 ? items.Select(i => Outcome(i)).ToArray() : outcomes));
 
     [Fact]
     public async Task TablesUseOnlyListReadAndCheckExactNameGroupAndCount()
@@ -330,7 +329,7 @@ public class HmiWriteVerifierTests
         using var f = await Fixture.Create(); var r = Alarm(kind: "analog"); r.ConditionValue = JsonSerializer.SerializeToElement(50); r.Priority = 7;
         f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "analog", ConditionValue = new(type, JsonSerializer.SerializeToElement(actual)) } });
         var batch = StructuredOperationBatch.FromItems([Outcome(r, "worker_operation_failed", new() { ObjectName = "A", AppliedProperties = ["ConditionValue"], FailedProperty = "Priority" })]);
-        var v = await new HmiWriteVerifier(f.Client, [r], new Dictionary<string, HmiWriteEffect> { [r.OperationId] = Effect(r) }).VerifyAsync(null, batch);
+        var v = await new HmiWriteVerifier(f.Client, [r], new Dictionary<string, HmiWriteEffect> { [r.OperationId] = Effect(r) }).VerifyAsync(batch);
         Assert.Equal(success, v.Success);
         Assert.Contains(v.Operations, o => o.Check == "conditionValue.type" && o.Expected == "System.Int32" && o.Actual == type && o.Success == success);
         Assert.Contains(v.Operations, o => o.Check == "observed.priority");

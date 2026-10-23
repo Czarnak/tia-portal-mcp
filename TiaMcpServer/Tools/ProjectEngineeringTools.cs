@@ -23,7 +23,7 @@ public class ProjectEngineeringTools
             return StructuredStandaloneResult.Create<CompileCheckReport>("compile_check", null,
                 accessDenial.Warnings, StandalonePayloadContract.Failure(accessDenial));
 
-        var bindingGate = await workerClient.RequireVerifiedBindingAsync(projectPath: null).ConfigureAwait(false);
+        var bindingGate = await workerClient.RequireVerifiedBindingAsync().ConfigureAwait(false);
         if (!bindingGate.Success)
         {
             return StructuredStandaloneResult.Create<CompileCheckReport>("compile_check", null,
@@ -32,7 +32,7 @@ public class ProjectEngineeringTools
 
         var execution = await workerClient.ExecuteWithPinnedBindingAsync(
             workerClient.BindingSnapshot,
-            () => workerClient.CompileCheckAsync(blockPath: blockPath, plcName: plcName, projectPath: null)).ConfigureAwait(false);
+            () => workerClient.CompileCheckAsync(blockPath: blockPath, plcName: plcName)).ConfigureAwait(false);
         var result = execution.Success ? execution.Value! : execution.Failure!;
         var rejection = StandalonePayloadContract.Rejection(result);
         return StructuredStandaloneResult.Create("compile_check",

@@ -87,7 +87,7 @@ public class NetworkSubnetLifecycleForwardingTests
             accessPolicy: policy);
 
         var result = await client.CreateSubnetAsync(
-            "Subnet_1", SubnetLifecycleContract.Ethernet, highestAddress: null, transmissionSpeed: null, projectPath: null);
+            "Subnet_1", SubnetLifecycleContract.Ethernet, highestAddress: null, transmissionSpeed: null);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
@@ -106,7 +106,7 @@ public class NetworkSubnetLifecycleForwardingTests
             accessPolicy: policy);
 
         var result = await client.UpdateSubnetAsync(
-            "subnet-1", name: "Renamed", highestAddress: null, transmissionSpeed: null, projectPath: null);
+            "subnet-1", name: "Renamed", highestAddress: null, transmissionSpeed: null);
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
@@ -124,7 +124,7 @@ public class NetworkSubnetLifecycleForwardingTests
             workerExecutablePath: "/nonexistent/path",
             accessPolicy: policy);
 
-        var result = await client.DeleteSubnetAsync("subnet-1", projectPath: null);
+        var result = await client.DeleteSubnetAsync("subnet-1");
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
@@ -151,7 +151,7 @@ public class NetworkSubnetLifecycleForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         Assert.NotEqual(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -169,7 +169,7 @@ public class NetworkSubnetLifecycleForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         Assert.NotEqual(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -186,7 +186,7 @@ public class NetworkSubnetLifecycleForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         Assert.NotEqual(WorkerFailureCategories.ValidationError, result.FailureCategory);
@@ -213,7 +213,7 @@ public class NetworkSubnetLifecycleForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -245,7 +245,7 @@ public class NetworkSubnetLifecycleForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -283,7 +283,7 @@ public class NetworkSubnetLifecycleForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);
@@ -309,7 +309,7 @@ public class NetworkSubnetLifecycleForwardingTests
         };
 
         using var client = await CreateClientAsync();
-        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation, commonProjectPath: EchoProjectPath);
+        var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
         using var document = JsonDocument.Parse(result.Payload);

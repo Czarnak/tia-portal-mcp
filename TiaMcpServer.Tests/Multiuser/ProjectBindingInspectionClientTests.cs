@@ -225,7 +225,7 @@ public sealed class ProjectBindingInspectionClientTests
         Assert.True(first.IsSuccess, first.CanonicalText);
         var cursor = first.Response.Result!.Pagination.NextCursor;
         Assert.NotNull(cursor);
-        var result = disposed ? await client.ListTagTablesAsync(null, null)
+        var result = disposed ? await client.ListTagTablesAsync(plcName: null)
             : (await client.InspectPortalAsync(discovery ? new WorkerRequest { Method = "list_tia_portal_processes" }
                 : Request(portalLost ? "portal-lost" : loss ? "target_not_found" : "expect-bound", foreignPid ? 43 : 42))).Result;
         Assert.Equal(!foreignPid && !loss, result.Success);
