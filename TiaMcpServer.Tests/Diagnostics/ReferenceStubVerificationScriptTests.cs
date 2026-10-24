@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
 
+[Trait("Category", "Packaging")]
 public class ReferenceStubVerificationScriptTests
 {
     [Fact]

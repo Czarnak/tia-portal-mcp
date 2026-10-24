@@ -77,8 +77,14 @@ The host (`TiaMcpServer`, net10.0) and the worker (`TiaMcpServer.OpennessWorker`
 ```powershell
 dotnet restore TiaMcpServer.slnx
 dotnet build TiaMcpServer.slnx -m:1          # -m:1 serializes builds — required to avoid parallel worker build conflicts
-dotnet test TiaMcpServer.Tests
+dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"
 ```
+
+Packaging tests (`Category=Packaging`) are excluded from the default run and run in their own CI
+workflow only when packaging files change. When you touch a product `.csproj`,
+`Directory.Build.props`, `global.json`, `scripts/verify-doctor-package.ps1`,
+`scripts/verify-reference-stubs.ps1` or `reference-stubs/`, also run
+`dotnet test TiaMcpServer.Tests --filter "Category=Packaging"`.
 
 CI/stub build (no TIA Portal needed):
 
