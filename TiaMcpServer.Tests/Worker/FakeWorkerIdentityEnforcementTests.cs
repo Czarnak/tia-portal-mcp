@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
@@ -102,6 +103,80 @@ public sealed class FakeWorkerIdentityEnforcementTests
         Assert.Equal(JsonValueKind.Null, state.GetProperty("sourceIsModified").ValueKind);
         Assert.False(state.GetProperty("sourceOpenedByWorker").GetBoolean());
         Assert.False(state.GetProperty("willCloseSource").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ContentReadsWithoutExpectedIdentityFailBeforeScenarioDispatch()
+    {
+        using var transport = CreateTransport();
+        var observed = await PrimeAsync(transport);
+        var reads = OperationPolicyCatalog.AllOperationNames.Where(operation =>
+            OperationPolicyCatalog.GetCapability(operation) is
+                OperationCapability.Observe or OperationCapability.TemporaryExport)
+            .Except(new[]
+            {
+                "get_project_status", "list_tia_portal_processes", "list_server_connections",
+                "list_server_groups", "list_server_projects", "list_local_sessions", "get_lock_state"
+            });
+
+        foreach (var method in reads)
+        {
+            var rejected = await transport.SendAsync(new WorkerRequest
+            {
+                Method = method, ProjectPath = "network-roundtrip"
+            });
+            Assert.False(rejected.Success, method);
+            Assert.Equal(WorkerFailureCategories.BindingConflict, rejected.FailureCategory);
+            Assert.Contains("requires expected worker/Portal/project session identity", rejected.Error);
+            Assert.Null(rejected.SessionIdentity);
+        }
+
+        foreach (var method in new[] { "read_hardware_config", "search_equipment_catalog" })
+        {
+            var accepted = await transport.SendAsync(new WorkerRequest
+            {
+                Method = method, ProjectPath = "network-roundtrip", ExpectedSessionIdentity = observed
+            });
+            Assert.True(accepted.Success, accepted.Error);
+            Assert.Equal(observed.WorkerSessionId, accepted.SessionIdentity!.WorkerSessionId);
+            Assert.Equal(observed.SessionGeneration, accepted.SessionIdentity.SessionGeneration);
+            Assert.Equal(observed.PortalProcessId, accepted.SessionIdentity.PortalProcessId);
+            Assert.Equal(observed.ProjectPath, accepted.SessionIdentity.ProjectPath);
+        }
+    }
+
+    [Theory]
+    [InlineData("read_hardware_config")]
+    [InlineData("get_block_content")]
+    [InlineData("search_equipment_catalog")]
+    [InlineData("hmi_list_tags")]
+    [InlineData("vci_list_workspaces")]
+    [InlineData("read_hardware_page_candidates")]
+    [InlineData("get_project_status")]
+    [InlineData("get_basic_project_status")]
+    [InlineData("list_tia_portal_processes")]
+    [InlineData("list_server_connections")]
+    [InlineData("list_server_groups")]
+    [InlineData("list_server_projects")]
+    [InlineData("list_local_sessions")]
+    [InlineData("get_lock_state")]
+    [InlineData("select_portal_project")]
+    [InlineData("open_project")]
+    [InlineData("create_project")]
+    public async Task SuppliedIdentityIsValidatedBeforeDispatchEvenForOptionalMethods(string method)
+    {
+        using var transport = CreateTransport();
+        var observed = await PrimeAsync(transport);
+        foreach (var field in new[] { "workerSessionId", "sessionGeneration", "portalProcessId", "projectPath" })
+        {
+            var response = await transport.SendAsync(new WorkerRequest
+            {
+                Method = method, ProjectPath = "network-roundtrip", ExpectedSessionIdentity = Change(observed, field)
+            });
+            Assert.False(response.Success);
+            Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+            Assert.Null(response.SessionIdentity);
+        }
     }
 
     [Fact]
@@ -234,10 +309,12 @@ public sealed class FakeWorkerIdentityEnforcementTests
     private static async Task<WorkerSessionIdentity> PrimeAsync(
         PersistentWorkerTransport transport)
     {
-        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("network-roundtrip");
+        using var uiOpen = new FakeWorkerUiOpenProject(
+            Path.Combine(Path.GetDirectoryName(FakeWorkerLocator.Locate())!, "network-roundtrip"),
+            groundsStatus: true);
         var response = await transport.SendAsync(new WorkerRequest
         {
-            Method = "read_hardware_config",
+            Method = "get_project_status",
             ProjectPath = "network-roundtrip"
         });
 

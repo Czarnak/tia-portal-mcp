@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.Contracts.Safety;
@@ -59,6 +60,11 @@ public static class OperationPolicyCatalog
     public static bool RequiresExpectedSessionIdentity(string operation)
     {
         if (string.IsNullOrWhiteSpace(operation))
+        {
+            return true;
+        }
+
+        if (ProjectCapabilityCatalog.RequiresBoundProject(operation))
         {
             return true;
         }

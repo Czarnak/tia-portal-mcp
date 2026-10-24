@@ -182,12 +182,36 @@ public class ReadOnlyModeTests
         }
     }
 
+    public static IEnumerable<object[]> IdentityOptionalOperations => new[]
+    {
+        "get_project_status", "get_basic_project_status", "list_tia_portal_processes",
+        "list_server_connections", "list_server_groups", "list_server_projects",
+        "list_local_sessions", "get_lock_state", "select_portal_project",
+        "open_project", "create_project"
+    }.Select(operation => new object[] { operation });
+
     [Theory]
-    [InlineData("read_hardware_config", false)]
+    [MemberData(nameof(IdentityOptionalOperations))]
+    public void ExpectedSessionIdentityPolicy_PreservesNeutralAndLifecycleEntryPoints(string operation)
+    {
+        Assert.False(OperationPolicyCatalog.RequiresExpectedSessionIdentity(operation));
+    }
+
+    [Fact]
+    public void ExpectedSessionIdentityPolicy_RequiresEveryRegisteredContentMethod()
+    {
+        var optional = IdentityOptionalOperations.Select(row => (string)row[0])
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var operation in OperationPolicyCatalog.AllOperationNames.Where(op => !optional.Contains(op)))
+            Assert.True(OperationPolicyCatalog.RequiresExpectedSessionIdentity(operation), operation);
+    }
+
+    [Theory]
+    [InlineData("read_hardware_config", true)]
     [InlineData("list_tia_portal_processes", false)]
     [InlineData("select_portal_project", false)]
-    [InlineData("get_block_content", false)]
-    [InlineData("get_type_content", false)]
+    [InlineData("get_block_content", true)]
+    [InlineData("get_type_content", true)]
     [InlineData("open_project", false)]
     [InlineData("create_project", false)]
     [InlineData("compile_check", true)]
