@@ -360,6 +360,28 @@ Unresolved notes retained from the July reviews after removing their completed p
   `FileSystemService`, `ProcessEnumerationService`, `RegistryService` and `WindowsIdentityService`
   as future coverage targets. Re-measure before carrying forward the old zero-coverage claim.
 
+## Open: test-suite runtime, possible improvements (2026-10-25)
+
+Ideas left over from the [test-suite runtime design](superpowers/specs/2026-10-24-test-suite-runtime-design.md).
+None is planned; each is a candidate to weigh against its cost and risk if the serial part of
+the suite becomes a problem again.
+
+- **Per-worker FakeWorker environment.** Most of the serial tail ("Real worker process" and
+  "Mcp protocol serial") is serial only because FakeWorker reads its scenario from process-wide
+  environment variables, which `FakeWorkerBinding` and the other helpers set. Passing those
+  settings to each launched worker instead (for example an opt-in extra-environment parameter on
+  `PersistentWorkerTransport`/`OpennessWorkerClient`) could let most of those classes run in
+  parallel. It would touch about 50 test classes and the transport, so the gain needs to justify
+  the change.
+- **Guard blind spot.** `ProcessEnvironmentIsolationTests` recognizes `McpProtocolTestHarness`
+  binding a startup project only from the named `startupProjectPath:` argument. No test passes it
+  positionally today.
+- **PowerShell scripted workers.** `NetworkObjectPaginationCoordinatorTests`,
+  `LifecycleIdentityContinuityTests` and `WriteSafetyLeaseConcurrencyTests` stay serial for
+  PowerShell start-up contention; replaying their scripts through FakeWorker could remove that reason.
+- **Concurrent full suites.** One run peaks at about 1.4 GB, which limits running several full
+  suites at once (for example in parallel worktrees).
+
 ## Open: native qualification and deferred scope
 
 - **External attributes on `create_tag`.** Only `update_tag` accepts `externalAccessible`,
