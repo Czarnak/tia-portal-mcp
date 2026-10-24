@@ -129,13 +129,18 @@ public sealed class LifecycleMcpProtocolTests
     [InlineData("read-only")]
     [InlineData("read-write")]
     [InlineData("full")]
-    public async Task ReadWithUnopenedNormalPath_DeniedWithoutOpeningOrChangingState(string mode)
+    public async Task ReadWithoutIdentity_DeniedBeforeProjectResolution_WithoutOpeningOrChangingState(string mode)
     {
         using var fixture = new LifecycleProtocolFixture();
         using var requests = new FakeWorkerRequestLog(fixture.Root);
         using var uiOpen = new FakeWorkerUiOpenProject(null);
         using var transport = new PersistentWorkerTransport(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5),
             workerArgs: "--access-mode " + mode);
+
+        var before = await transport.SendAsync(new WorkerRequest { Method = "get_basic_project_status" });
+        Assert.True(before.Success, before.Error);
+        var beforeIdentity = Assert.IsType<WorkerSessionIdentity>(before.SessionIdentity);
+        Assert.Null(beforeIdentity.ProjectPath);
 
         var response = await transport.SendAsync(new WorkerRequest
         {
@@ -144,11 +149,16 @@ public sealed class LifecycleMcpProtocolTests
         });
 
         Assert.False(response.Success);
-        Assert.Equal(WorkerFailureCategories.AccessDenied, response.FailureCategory);
-        Assert.Null(response.SessionIdentity?.ProjectPath);
+        Assert.Equal(WorkerFailureCategories.BindingConflict, response.FailureCategory);
+        Assert.Equal("This operation requires expected worker/Portal/project session identity.", response.Error);
+        Assert.Null(response.SessionIdentity);
         var after = await transport.SendAsync(new WorkerRequest { Method = "get_basic_project_status" });
         Assert.True(after.Success, after.Error);
-        Assert.Null(after.SessionIdentity?.ProjectPath);
+        var afterIdentity = Assert.IsType<WorkerSessionIdentity>(after.SessionIdentity);
+        Assert.Equal(beforeIdentity.WorkerSessionId, afterIdentity.WorkerSessionId);
+        Assert.Equal(beforeIdentity.SessionGeneration, afterIdentity.SessionGeneration);
+        Assert.Equal(beforeIdentity.PortalProcessId, afterIdentity.PortalProcessId);
+        Assert.Equal(beforeIdentity.ProjectPath, afterIdentity.ProjectPath);
         var methods = requests.Methods();
         Assert.Contains("hello", methods);
         Assert.Contains("read_hardware_config", methods);

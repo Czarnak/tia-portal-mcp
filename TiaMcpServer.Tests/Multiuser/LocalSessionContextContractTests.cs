@@ -475,8 +475,7 @@ public sealed class LocalSessionContextContractTests
         // WithSession passes these unmapped method names to this production decision.
         Assert.Equal(supported, ProjectCapabilityCatalog.Supports(containerKind, method));
         Assert.DoesNotContain(ProjectCapabilityCatalog.Describe(containerKind), item => item.Operation == method);
-        Assert.Equal(method != "probe_network_object_attributes",
-            OperationPolicyCatalog.RequiresExpectedSessionIdentity(method));
+        Assert.True(OperationPolicyCatalog.RequiresExpectedSessionIdentity(method));
         Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.Full, method));
         Assert.Equal(method == "probe_network_object_attributes",
             OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, method));
