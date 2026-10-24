@@ -13,6 +13,10 @@ public class AuthenticatedCursorProtectorTests
     private const string Purpose = "project-tree";
     private static readonly byte[] TestKey = Enumerable.Range(0, 32).Select(value => (byte)value).ToArray();
     private static readonly byte[] OtherKey = Enumerable.Range(1, 32).Select(value => (byte)value).ToArray();
+    private static readonly CursorKind TestKind = new(
+        Purpose,
+        "The supplied test cursor is invalid.",
+        WorkerFailureCategories.SnapshotUnavailable);
 
     [Fact]
     public void ProtectUnprotect_WithInjectedKeyAndProcessId_IsDeterministicAndRoundTrips()
@@ -168,6 +172,7 @@ public class AuthenticatedCursorProtectorTests
         var callerKey = (byte[])TestKey.Clone();
         var protector = new AuthenticatedCursorProtector(callerKey, ProcessInstanceId);
         var cursor = protector.Protect(Purpose, new TestState("value"));
+        var sealedCursor = protector.Seal(TestKind, new TestState("value"), IsValidTestState);
         var ownedKey = Assert.IsType<byte[]>(typeof(AuthenticatedCursorProtector)
             .GetField("_key", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(protector));
@@ -178,14 +183,11 @@ public class AuthenticatedCursorProtectorTests
         Assert.Equal(TestKey, callerKey);
         Assert.Throws<ObjectDisposedException>(() => protector.Protect(Purpose, new TestState("value")));
         Assert.Throws<ObjectDisposedException>(() => protector.Unprotect<TestState>(Purpose, cursor));
+        Assert.Throws<ObjectDisposedException>(() =>
+            protector.Seal(TestKind, new TestState("value"), IsValidTestState));
+        Assert.Throws<ObjectDisposedException>(() =>
+            protector.Open<TestState>(TestKind, sealedCursor, IsValidTestState));
     }
-
-    private static readonly CursorKind TestKind = new(
-        Purpose,
-        "The supplied test cursor is invalid.",
-        WorkerFailureCategories.SnapshotUnavailable);
-
-    private static bool IsValidTestState(TestState state) => state.Value != "invalid";
 
     [Fact]
     public void SealOpen_RoundTripsAValidState()
@@ -274,6 +276,8 @@ public class AuthenticatedCursorProtectorTests
         yield return new object[] { canonical.Replace("\"processInstanceId\":\"process-a\"", "\"processInstanceId\":\"\"", StringComparison.Ordinal) };
         yield return new object[] { canonical + "{}" };
     }
+
+    private static bool IsValidTestState(TestState state) => state.Value != "invalid";
 
     private static (TestState State, string Cursor) BoundaryCursor(int cursorChars)
     {

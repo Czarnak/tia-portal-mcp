@@ -3,7 +3,6 @@ using System.Text;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
-using TiaMcpServer.Network;
 using TiaMcpServer.ProjectTree;
 using Xunit;
 
