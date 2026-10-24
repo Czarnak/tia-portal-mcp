@@ -235,5 +235,14 @@ repeated for documentation-only edits.
 
 No separate C-9 live TIA run was performed or required by the approved plan. C-5's installed
 `pageSize:1` smoke is separate evidence and does not qualify all paging combinations or native
-performance. No C-9 installation or remote write was performed. Remaining work is publication/integration
-of C-9, subject to authorization at execution time; the C-5-first merge order has been preserved.
+performance. No C-9 installation or remote write was performed during that qualification phase.
+
+## Integration completion (2026-10-24 reconciliation)
+
+C-9 merged through [PR #173](https://github.com/Czarnak/tia-portal-mcp/pull/173) at
+`0bd41d4f612e2dd397f34f34d4378abca2a81182`, after C-5's merge. GitHub metadata was read back
+during PR7 on 2026-10-24. This supersedes the earlier integration-pending status. Qualified source
+remains `ce2c50b`; PR head `38f183b73490ef54553c00291dd4390e340bc701` adds documentation only,
+so no unchanged suite was rerun. The merge establishes integration without a separate package
+publication/release claim or new live TIA evidence. The [follow-up completion ledger](2026-10-24-workstream-c-followups-orchestration.md#completion-ledger)
+records the later Workstream C fixes.
