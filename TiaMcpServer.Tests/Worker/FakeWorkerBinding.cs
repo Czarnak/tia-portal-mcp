@@ -26,7 +26,7 @@ internal static class FakeWorkerBinding
         // child worker launches; a status request must not create open state on its own. Status
         // grounding lets every scenario answer that request without consuming scripted state.
         using var uiOpen = new FakeWorkerUiOpenProject(canonicalProjectPath, groundsStatus: true);
-        var observed = await identityOptionalRead(canonicalProjectPath);
+        var observed = await identityOptionalRead(null);
         if (!observed.Success || observed.SessionIdentity is null)
         {
             throw new InvalidOperationException(observed.Error);

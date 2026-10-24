@@ -47,7 +47,7 @@ public sealed class BindOpenProjectIntegrationTests
         public OpennessWorkerClient Client { get; }
         public async Task Verify()
         {
-            var status = await Client.GetProjectStatusAsync(A);
+            var status = await Client.GetProjectStatusAsync(null);
             Assert.True(status.Success, status.Error);
             Assert.True(Binding.BindVerified(status.SessionIdentity, false, out var error), error);
         }

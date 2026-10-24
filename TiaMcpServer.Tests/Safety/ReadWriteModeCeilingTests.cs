@@ -117,7 +117,7 @@ public class ReadWriteModeCeilingTests
         var openPath = ProjectPathNormalization.Canonicalize(project)!;
         var binding = new ProjectSessionBinding(startupPath ? project : null);
         using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
-        var observed = await client.GetProjectStatusAsync(openPath);
+        var observed = await client.GetProjectStatusAsync(null);
         Assert.True(observed.Success, observed.Error);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, project);
         Assert.True(binding.IsVerified);

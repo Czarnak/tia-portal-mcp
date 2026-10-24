@@ -155,14 +155,18 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
-    public void FirstExplicitProjectPathResolvesWithoutBindingTheSession()
+    public void FirstExplicitProjectPathIsRejectedWithoutChangingTheSession()
     {
         var binding = new ProjectSessionBinding(null);
 
-        Assert.True(binding.TryResolveWithSnapshot("C:\\Projects\\Line.ap21", out _, out var effectivePath, out var error));
+        var before = binding.CaptureSnapshot();
 
-        Assert.Equal("C:\\Projects\\Line.ap21", effectivePath);
-        Assert.Null(error);
+        Assert.False(binding.TryResolveWithSnapshot("C:\\Projects\\Line.ap21", out var snapshot, out var effectivePath, out var error));
+
+        Assert.Null(effectivePath);
+        Assert.Equal(ProjectSessionBinding.BindFirstMessage, error);
+        Assert.True(before.SameBinding(snapshot));
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
         Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
@@ -406,27 +410,36 @@ public class ProjectSessionBindingTests
     }
 
     [Fact]
-    public void TryResolve_DoesNotAdoptTheRequestedPath()
+    public void TryResolve_UnboundNullPathRemainsNeutral()
     {
         var binding = new ProjectSessionBinding(null);
+        var before = binding.CaptureSnapshot();
 
-        Assert.True(binding.TryResolveWithSnapshot("C:\\a.ap21", out _, out var effective, out var error));
+        Assert.True(binding.TryResolveWithSnapshot(null, out var snapshot, out var effective, out var error));
 
-        Assert.Equal("C:\\a.ap21", effective);
+        Assert.Null(effective);
         Assert.Null(error);
+        Assert.True(before.SameBinding(snapshot));
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
         Assert.Null(binding.CaptureSnapshot().ProjectPath);
     }
 
     [Fact]
-    public void TryResolve_LeavesSessionUnboundSoASecondDifferentPathIsStillAccepted()
+    public void TryResolve_RejectsRepeatedExplicitPathsWithoutBinding()
     {
         var binding = new ProjectSessionBinding(null);
+        var before = binding.CaptureSnapshot();
 
-        Assert.True(binding.TryResolveWithSnapshot("C:\\a.ap21", out _, out _, out _));
-        Assert.True(binding.TryResolveWithSnapshot("C:\\b.ap21", out _, out var effective, out var error));
+        Assert.False(binding.TryResolveWithSnapshot("C:\\a.ap21", out var first, out var firstEffective, out var firstError));
+        Assert.False(binding.TryResolveWithSnapshot("C:\\b.ap21", out var second, out var effective, out var error));
 
-        Assert.Equal("C:\\b.ap21", effective);
-        Assert.Null(error);
+        Assert.Null(firstEffective);
+        Assert.Null(effective);
+        Assert.Equal(ProjectSessionBinding.BindFirstMessage, firstError);
+        Assert.Equal(ProjectSessionBinding.BindFirstMessage, error);
+        Assert.True(before.SameBinding(first));
+        Assert.True(before.SameBinding(second));
+        Assert.True(before.SameBinding(binding.CaptureSnapshot()));
     }
 
     [Fact]
