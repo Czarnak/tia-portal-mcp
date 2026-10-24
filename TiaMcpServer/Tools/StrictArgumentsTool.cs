@@ -76,6 +76,7 @@ internal static class ClosedToolRegistration
 internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
 {
     private const int MaxPathLength = 256;
+    private const int MaxArgumentNameLength = 256;
     private static readonly IReadOnlyDictionary<string, string> NoRetiredMembers = new Dictionary<string, string>();
 
     private readonly Func<string, CallToolResult> _reject;
@@ -133,6 +134,11 @@ internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
             ? properties.EnumerateObject().Select(property => property.Name).ToHashSet(StringComparer.Ordinal)
             : new HashSet<string>(StringComparer.Ordinal);
 
+    internal static string UnknownArgument(string name)
+        => name.Length <= MaxArgumentNameLength
+            ? $"unknown argument '{name}'"
+            : $"unknown argument (name exceeds {MaxArgumentNameLength} characters)";
+
     internal static string Message(string toolName, string detail, IReadOnlySet<string> acceptedKeys)
     {
         var accepted = acceptedKeys.Count == 0 ? "none" : string.Join(", ", acceptedKeys.Order(StringComparer.Ordinal));
@@ -151,7 +157,7 @@ internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
     private string? Check(IDictionary<string, JsonElement> arguments)
     {
         var unknown = arguments.Keys.FirstOrDefault(key => !_rootKeys.Contains(key));
-        if (unknown is not null) return $"unknown argument '{unknown}'";
+        if (unknown is not null) return UnknownArgument(unknown);
 
         var retired = arguments.Values.Where(value => value.ValueKind == JsonValueKind.Array)
             .SelectMany(value => value.EnumerateArray())

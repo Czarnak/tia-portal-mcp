@@ -113,7 +113,7 @@ internal sealed class ProjectTreeArgumentValidatingTool(McpServerTool innerTool)
         var unknown = arguments.Keys.FirstOrDefault(key => !_rootKeys.Contains(key));
         if (unknown is not null)
         {
-            return Invalid($"unknown argument '{unknown}'");
+            return Invalid(StrictArgumentsTool.UnknownArgument(unknown));
         }
 
         foreach (var (name, isValid) in new (string, bool)[]

@@ -32,6 +32,41 @@ public sealed class StrictArgumentsToolTests
         Assert.Contains("Accepted arguments: count, flag, items, name, title, values.", text);
     }
 
+    [Theory]
+    [InlineData("plc_write", 256)]
+    [InlineData("plc_write", 257)]
+    [InlineData("plc_write", 1_000_000)]
+    [InlineData("browse_project_tree", 256)]
+    [InlineData("browse_project_tree", 257)]
+    [InlineData("browse_project_tree", 1_000_000)]
+    public async Task ProductionUnknownRootName_IsBoundedCanonicalAndUnaudited(string tool, int nameLength)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var name = new string('n', nameLength);
+        var before = requests.Methods();
+
+        var reply = await harness.Client.CallToolAsync(tool, new Dictionary<string, object?> { [name] = true });
+
+        var text = Text(reply);
+        Assert.True(text.Length < 2_048, $"Rejection exceeded its fixed diagnostic bound: {text.Length} characters.");
+        ArgumentRejectionAssert.IsCanonicalValidationError(reply, tool);
+        var failure = reply.StructuredContent!.Value.GetProperty(tool == "browse_project_tree" ? "failure" : "error");
+        var message = failure.GetProperty("message").GetString()!;
+        Assert.Contains("unknown argument", message);
+        Assert.Contains(tool == "browse_project_tree"
+            ? "Accepted arguments: cursor, depth, pageSize, startSelector."
+            : "Accepted arguments: dryRun, operations.", message);
+        if (nameLength <= 256)
+            Assert.Contains($"unknown argument '{name}'", message);
+        else
+            Assert.DoesNotContain(new string('n', 32), text);
+        Assert.Equal(before, requests.Methods());
+        Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
     [Fact]
     public async Task MissingRequiredArgument_IsRejected()
         => Assert.Contains("missing required argument 'values'", await RejectedAsync("{}"));
