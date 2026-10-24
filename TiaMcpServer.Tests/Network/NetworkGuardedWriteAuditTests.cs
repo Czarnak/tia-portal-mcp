@@ -23,7 +23,7 @@ public sealed class NetworkGuardedWriteAuditTests
     [InlineData(McpAccessMode.Full, false, "network-guarded-incomplete", "blocked", "none")]
     [InlineData(McpAccessMode.ReadWrite, false, "network-guarded-lost-node", "applied", "none")]
     [InlineData(McpAccessMode.ReadWrite, false, "network-guarded-unknown-result", "applied", "none")]
-    public async Task WriteEntry_ProducesExactlyOneAudit(McpAccessMode mode, bool dryRun, string scenario, string phase, string by)
+    public async Task WriteEntry_ProducesExpectedAudit(McpAccessMode mode, bool dryRun, string scenario, string phase, string by)
     {
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
@@ -52,7 +52,14 @@ public sealed class NetworkGuardedWriteAuditTests
             Assert.Equal(scenario == "binding" ? "binding_conflict" : "validation_error",
                 root.GetProperty("error").GetProperty("category").GetString());
         }
-        using var record = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        var auditLines = NetworkGuardedWriteMcpTests.AuditLines(audit.Path);
+        if (scenario == "null-items")
+        {
+            ArgumentRejectionAssert.IsCanonicalValidationError(reply, "network_write");
+            Assert.Empty(auditLines);
+            return;
+        }
+        using var record = JsonDocument.Parse(Assert.Single(auditLines));
         Assert.Equal(2, record.RootElement.GetProperty("recordVersion").GetInt32());
         Assert.Equal(by, record.RootElement.GetProperty("confirmation").GetProperty("by").GetString());
         Assert.All(record.RootElement.GetProperty("guards").EnumerateArray(), g => Assert.Equal(JsonValueKind.Null, g.GetProperty("satisfiedBy").ValueKind));
