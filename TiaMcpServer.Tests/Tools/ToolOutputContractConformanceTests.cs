@@ -538,6 +538,49 @@ public sealed class ToolOutputContractConformanceTests
         Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
 
+    [Theory]
+    [InlineData("plc_read", "operations")]
+    [InlineData("plc_write", "operations")]
+    [InlineData("network_read", "operations")]
+    [InlineData("network_write", "operations")]
+    [InlineData("hmi_read", "operations")]
+    [InlineData("hmi_write", "operations")]
+    [InlineData("vci_read", "operations")]
+    [InlineData("vci_write", "operations")]
+    [InlineData("open_project", "projectPath")]
+    [InlineData("create_project", "projectDirectory")]
+    [InlineData("create_project", "projectName")]
+    [InlineData("save_project_as", "targetDirectory")]
+    [InlineData("save_project_as", "targetName")]
+    [InlineData("archive_project", "archiveDirectory")]
+    [InlineData("archive_project", "archiveName")]
+    public async Task NonNullableRootNull_IsCanonicalAndUnaudited(string tool, string parameter)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
+        var before = requests.Methods();
+        var arguments = tool switch
+        {
+            "open_project" => new Dictionary<string, object?> { ["projectPath"] = Path.Combine(audit.Path, "Project.ap21") },
+            "create_project" => new Dictionary<string, object?> { ["projectDirectory"] = audit.Path, ["projectName"] = "Project" },
+            "save_project_as" => new Dictionary<string, object?> { ["targetDirectory"] = audit.Path, ["targetName"] = "Copy" },
+            "archive_project" => new Dictionary<string, object?> { ["archiveDirectory"] = audit.Path, ["archiveName"] = "Archive" },
+            _ => new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() },
+        };
+        arguments[parameter] = null;
+
+        var result = await harness.Client.CallToolAsync(tool, arguments);
+
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, tool);
+        var message = result.StructuredContent!.Value.GetProperty("error").GetProperty("message").GetString()!;
+        Assert.Contains(parameter, message);
+        Assert.Contains("null", message);
+        Assert.Equal(before, requests.Methods());
+        Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
     [Fact]
     public async Task UnboundContentReadsFailClosedCanonically()
     {

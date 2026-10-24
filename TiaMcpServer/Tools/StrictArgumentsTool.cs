@@ -70,8 +70,8 @@ internal static class ClosedToolRegistration
 
 /// <summary>
 /// Rejects argument-shape errors before SDK binding, so the call never enters the tool: unknown root keys (derived
-/// from the input schema), retired item members, missing required keys, and arguments that do not deserialize into
-/// their bound parameter type with the SDK's own serializer options. Rejections never echo argument values.
+/// from the input schema), retired item members, missing required keys, forbidden nulls, and arguments that do not
+/// deserialize into their bound parameter type with the SDK's own serializer options. Rejections never echo values.
 /// </summary>
 internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
 {
@@ -82,6 +82,7 @@ internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
     private readonly IReadOnlyDictionary<string, string> _retiredItemMembers;
     private readonly IReadOnlySet<string> _rootKeys;
     private readonly IReadOnlyList<string> _required;
+    private readonly IReadOnlySet<string> _nonNullableParameters;
     private readonly IReadOnlyDictionary<string, JsonTypeInfo> _parameterTypes;
     private readonly Tool _protocolTool;
 
@@ -99,6 +100,12 @@ internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
             .Where(parameter => parameter.Name is not null && _rootKeys.Contains(parameter.Name))
             .ToDictionary(parameter => parameter.Name!,
                 parameter => McpJsonUtilities.DefaultOptions.GetTypeInfo(parameter.ParameterType), StringComparer.Ordinal);
+        var nullability = new NullabilityInfoContext();
+        _nonNullableParameters = method.GetParameters()
+            .Where(parameter => parameter.Name is not null && _rootKeys.Contains(parameter.Name)
+                && nullability.Create(parameter).WriteState == NullabilityState.NotNull)
+            .Select(parameter => parameter.Name!)
+            .ToHashSet(StringComparer.Ordinal);
         var tool = JsonSerializer.SerializeToNode(inner.ProtocolTool, McpJsonUtilities.DefaultOptions)!;
         tool["inputSchema"]!["additionalProperties"] = false;
         _protocolTool = tool.Deserialize<Tool>(McpJsonUtilities.DefaultOptions)!;
@@ -160,6 +167,8 @@ internal sealed class StrictArgumentsTool : DelegatingMcpServerTool
         foreach (var (name, value) in arguments)
         {
             if (!_parameterTypes.TryGetValue(name, out var type)) continue;
+            if (value.ValueKind == JsonValueKind.Null && _nonNullableParameters.Contains(name))
+                return $"argument '{name}' must not be null";
             try
             {
                 JsonSerializer.Deserialize(value, type);
