@@ -159,10 +159,13 @@ public sealed class LifecycleMcpProtocolTests
     [InlineData("save_project", "confirm")]
     [InlineData("close_project", "saveBeforeClose")]
     [InlineData("open_project", "forceRebind")]
+    [InlineData("open_project", "projectPath")]
     [InlineData("archive_project", "dryRun")]
     public async Task LifecycleArgumentShapeErrors_AreCanonicalAndUnaudited(string tool, string key)
     {
         using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
         var prompts = 0;
         var options = ClientOptions((_, _) =>
         {
@@ -175,10 +178,12 @@ public sealed class LifecycleMcpProtocolTests
         });
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.ReadWrite, audit.Path, clientOptions: options);
+        var before = requests.Methods();
         var arguments = tool switch
         {
             "save_project" => new Dictionary<string, object?> { ["confirm"] = true },
             "close_project" => new Dictionary<string, object?> { ["saveBeforeClose"] = null },
+            "open_project" when key == "projectPath" => new Dictionary<string, object?> { ["projectPath"] = null },
             "open_project" => new Dictionary<string, object?> { ["projectPath"] = "C:\\Fixture\\Project.ap21", ["forceRebind"] = null },
             _ => new Dictionary<string, object?> { ["archiveDirectory"] = "C:\\Archive", ["archiveName"] = "a", ["dryRun"] = "true" },
         };
@@ -190,6 +195,7 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal("error", result.StructuredContent!.Value.GetProperty("phase").GetString());
         Assert.Equal(tool, result.StructuredContent.Value.GetProperty("tool").GetString());
         Assert.Empty(Network.NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+        Assert.Equal(before, requests.Methods());
         Assert.Equal(0, prompts);
     }
 

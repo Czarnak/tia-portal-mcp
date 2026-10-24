@@ -20,7 +20,8 @@ public sealed class StrictArgumentsToolTests
     public static class Fixture
     {
         [McpServerTool(Name = "echo"), Description("Strict argument fixture.")]
-        public static string Echo(int[] values, bool flag = false, string? name = null, Item[]? items = null) => "entered";
+        public static string Echo(int[] values, bool flag = false, string? name = null, Item[]? items = null,
+            string title = "default", int? count = null) => "entered";
     }
 
     [Fact]
@@ -28,7 +29,7 @@ public sealed class StrictArgumentsToolTests
     {
         var text = await RejectedAsync("""{"values":[1],"extra":true}""");
         Assert.Contains("unknown argument 'extra'", text);
-        Assert.Contains("Accepted arguments: flag, items, name, values.", text);
+        Assert.Contains("Accepted arguments: count, flag, items, name, title, values.", text);
     }
 
     [Fact]
@@ -42,7 +43,20 @@ public sealed class StrictArgumentsToolTests
     public async Task NullForNonNullableBoolean_IsRejected() => await RejectedAsync("""{"values":[1],"flag":null}""");
 
     [Fact]
+    public async Task NullForNonNullableArray_IsRejected() => await RejectedAsync("""{"values":null}""");
+
+    [Fact]
+    public async Task NullForOptionalNonNullableString_IsRejected()
+        => await RejectedAsync("""{"values":[1],"title":null}""");
+
+    [Fact]
     public async Task NullForNullableString_Enters() => await EntersAsync("""{"values":[1],"name":null}""");
+
+    [Fact]
+    public async Task NullForNullableArray_Enters() => await EntersAsync("""{"values":[1],"items":null}""");
+
+    [Fact]
+    public async Task NullForNullableValueType_Enters() => await EntersAsync("""{"values":[1],"count":null}""");
 
     [Fact]
     public async Task NumberFromString_EntersLikeTheSdk() => await EntersAsync("""{"values":["1"]}""");
