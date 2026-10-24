@@ -118,11 +118,13 @@ public class ProjectTreeSnapshotStoreTests
     {
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
+        using var inserted = new ManualResetEventSlim();
         using var store = new ProjectTreeSnapshotStore(
             new ManualTimeProvider(Instant), 1, 100, 100, TimeSpan.FromMinutes(10));
         store.ProjectInitial(Candidate("a", 100), _ => new Projection(true, true), result => result.HasNextPage);
 
-        var access = Task.Run(() => store.Access("a", _ =>
+        // Dedicated threads: a busy thread pool in a parallel run must not delay either side.
+        var access = OnOwnThread(() => store.Access("a", _ =>
         {
             entered.Set();
             release.Wait(TimeSpan.FromSeconds(5));
@@ -132,10 +134,15 @@ public class ProjectTreeSnapshotStoreTests
         try
         {
             Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
-            insertion = Task.Run(() => store.ProjectInitial(
-                Candidate("b", 100), _ => new Projection(true, true), result => result.HasNextPage));
+            insertion = OnOwnThread(() =>
+            {
+                var projection = store.ProjectInitial(
+                    Candidate("b", 100), _ => new Projection(true, true), result => result.HasNextPage);
+                inserted.Set();
+                return projection;
+            });
 
-            Assert.NotSame(insertion, await Task.WhenAny(insertion, Task.Delay(TimeSpan.FromMilliseconds(100))));
+            Assert.False(inserted.Wait(TimeSpan.FromMilliseconds(100)));
         }
         finally
         {
@@ -147,6 +154,9 @@ public class ProjectTreeSnapshotStoreTests
             }
         }
     }
+
+    private static Task<T> OnOwnThread<T>(Func<T> work)
+        => Task.Factory.StartNew(work, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
     [Fact]
     public void Dispose_ClearsAndRejectsAllLaterOperations()
