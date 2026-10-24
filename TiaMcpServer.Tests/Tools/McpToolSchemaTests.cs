@@ -36,7 +36,6 @@ namespace TiaMcpServer.Tests.Tools;
 /// This is why it has to inspect McpServerTool.Create(...).ProtocolTool.InputSchema - the actual
 /// generated JSON schema - rather than attributes.
 /// </summary>
-[Collection("Mcp protocol serial")]
 public class McpToolSchemaTests
 {
     private static readonly IServiceProvider Services = BuildServices();

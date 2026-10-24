@@ -4,7 +4,6 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Tools;
 
-[Collection("Mcp protocol serial")]
 public class WriteToolMcpAnnotationProtocolTests
 {
     private static readonly string[] ReadOnlyToolNames =

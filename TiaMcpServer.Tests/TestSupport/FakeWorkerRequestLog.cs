@@ -1,8 +1,10 @@
 namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
-/// Records only child-worker method names. Use only in RealWorkerProcessCollection or
-/// Mcp protocol serial, with the consumer's worker access mode stated explicitly.
+/// Records only child-worker method names. The environment variable is process-wide, so use only
+/// in a serial collection such as RealWorkerProcessCollection or Mcp protocol serial
+/// (ProcessEnvironmentIsolationTests enforces this), with the consumer's worker access mode stated
+/// explicitly.
 /// </summary>
 internal sealed class FakeWorkerRequestLog : IDisposable
 {

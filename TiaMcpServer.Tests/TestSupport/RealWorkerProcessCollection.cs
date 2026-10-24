@@ -3,15 +3,17 @@ using Xunit;
 namespace TiaMcpServer.Tests.TestSupport;
 
 /// <summary>
-/// Groups the test classes that spawn a real OS process (powershell.exe, scripted to speak the
-/// worker IPC protocol) behind a fixed request timeout (1-5s). xUnit runs test collections in
-/// parallel by default; on a CI runner with few cores, several of these classes launching
-/// PowerShell concurrently can starve each other long enough to blow through their timeout and
-/// fail with a transport-level error (WorkerTimeout/WorkerCrashed), even though nothing in the
-/// production code or the scripted worker is wrong. Tagging every such class with
-/// <c>[Collection(Name)]</c> makes xUnit run them sequentially relative to each other while still
-/// running the rest of the (fast, in-process) suite in parallel, removing the contention without
-/// serializing the whole test run.
+/// Runs its classes one at a time, after the parallel part of the suite. Two kinds of class
+/// belong here:
+/// <list type="bullet">
+/// <item>Classes that change the process environment, directly or through a helper such as
+/// <see cref="FakeWorkerUiOpenProject"/>. FakeWorker reads its scenario from environment
+/// variables, and every worker started meanwhile inherits them, so two such classes running at
+/// once would leak settings into each other's workers. <see cref="ProcessEnvironmentIsolationTests"/>
+/// fails when one of them is not in a serial collection.</item>
+/// <item>Classes that spawn a scripted powershell.exe worker behind a fixed 1-5 s request timeout,
+/// which can time out when several start at once on a runner with few cores.</item>
+/// </list>
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class RealWorkerProcessCollection
