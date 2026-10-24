@@ -174,8 +174,9 @@ public class CiWorkflowTests
         var coverageCommand = Assert.Single(ReadRunCommandBlocks(ciWorkflowPath), command =>
             command.Contains("dotnet test", StringComparison.Ordinal) &&
             command.Contains("--collect:\"XPlat Code Coverage\"", StringComparison.Ordinal));
-        Assert.Contains("-- xUnit.ParallelizeTestCollections=false xUnit.ParallelizeAssembly=false xUnit.MaxParallelThreads=1 RunConfiguration.MaxCpuCount=1",
-            coverageCommand, StringComparison.Ordinal);
+        // The coverage run uses xUnit's default parallelism; no serializing runsettings overrides.
+        Assert.DoesNotContain("xUnit.", coverageCommand, StringComparison.Ordinal);
+        Assert.DoesNotContain("RunConfiguration.", coverageCommand, StringComparison.Ordinal);
         Assert.Contains("--filter \"Category!=Packaging\"", coverageCommand, StringComparison.Ordinal);
 
         var runsettingsIndex = workflowText.IndexOf(
