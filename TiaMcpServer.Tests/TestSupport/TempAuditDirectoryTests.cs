@@ -27,17 +27,18 @@ public sealed class TempAuditDirectoryTests
     }
 
     [Fact]
-    public async Task Dispose_RetriesUntilTransientFileLockIsReleased()
+    public void Dispose_RetriesUntilTransientFileLockIsReleased()
     {
-        using var directory = new TempAuditDirectory();
-        Directory.CreateDirectory(directory.Path);
-        using var locked = new FileStream(Path.Combine(directory.Path, "requests.log"),
-            FileMode.Create, FileAccess.Write, FileShare.None);
-        var release = Task.Run(async () =>
+        FileStream? locked = null;
+        var retries = 0;
+        using var directory = new TempAuditDirectory(waitBeforeRetry: () =>
         {
-            await Task.Delay(200);
-            locked.Dispose();
+            retries++;
+            locked!.Dispose();
         });
+        Directory.CreateDirectory(directory.Path);
+        locked = new FileStream(Path.Combine(directory.Path, "requests.log"),
+            FileMode.Create, FileAccess.Write, FileShare.None);
 
         try
         {
@@ -45,9 +46,10 @@ public sealed class TempAuditDirectoryTests
         }
         finally
         {
-            await release;
+            locked.Dispose();
         }
 
+        Assert.Equal(1, retries);
         Assert.False(Directory.Exists(directory.Path));
     }
 

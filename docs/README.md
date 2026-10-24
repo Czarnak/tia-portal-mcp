@@ -52,6 +52,7 @@ For the project overview, tool list, and quick start, see the [README](../README
 | --- | --- |
 | [Contributing](../CONTRIBUTING.md) | Contribution workflow, branch focus, commit message format, pull requests |
 | [Building from source](development/building.md) | Restore, build, test with coverage, and run the server locally |
+| [Test suite runtime design](superpowers/specs/2026-10-24-test-suite-runtime-design.md) | Measured run times and coverage, parallel CI command, conditional packaging step, serial-collection trim and its guard, deferred per-worker FakeWorker environment |
 | [Local MCP sandbox testing](development/local-mcp-testing.md) | MCP Inspector, actual-by-default Network inputs, frozen Network fixtures/restoration boundaries, and lifecycle gates |
 | [Packaging](development/packaging.md) | Build the NuGet package and install a local branch build as the `tia-mcp` global tool |
 | [Codebase review runbook](development/codebase-review.md) | How to review the whole repository across several runs: written design rules as tests, domain reviews end to end, rule sweeps, reviews of changes since the baseline, findings ledger, verification order and rotation |
