@@ -9,6 +9,13 @@ namespace TiaMcpServer.Tests.TestSupport;
 /// </summary>
 public sealed class TempAuditDirectory : IDisposable
 {
+    private readonly Action _waitBeforeRetry;
+
+    /// <param name="waitBeforeRetry">Runs between delete attempts after a sharing violation;
+    /// defaults to a 100 ms sleep. Tests of the retry itself pass a step that releases the lock.</param>
+    public TempAuditDirectory(Action? waitBeforeRetry = null)
+        => _waitBeforeRetry = waitBeforeRetry ?? (() => Thread.Sleep(100));
+
     public string Path { get; } = System.IO.Path.Combine(
         System.IO.Path.GetTempPath(),
         "tia-test-audit-" + Guid.NewGuid().ToString("N"));
@@ -25,7 +32,7 @@ public sealed class TempAuditDirectory : IDisposable
             catch (IOException ex) when (attempt < 20 && (ex.HResult & 0xFFFF) is 32 or 33)
             {
                 // Windows sharing/lock violations can briefly outlive FakeWorker disposal.
-                Thread.Sleep(100);
+                _waitBeforeRetry();
             }
         }
     }
