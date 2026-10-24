@@ -10,12 +10,13 @@ public sealed record OperationValidation(bool IsValid, string Category, string E
 
 /// <summary>
 /// The count and per-item envelope rules shared by every batch catalog and the write entry guard,
-/// with one wording. Domain rules (operation names, fields, access mode) stay in each catalog.
+/// with one wording. Domain rules (supported names, fields, access mode) stay in each catalog.
 /// </summary>
 internal static class OperationBatchRules
 {
     public const int MaxItems = 50;
     public const int MaxOperationIdChars = 256;
+    public const int MaxOperationNameChars = 256;
 
     /// <summary>Returns the count error, or null for 1 to <see cref="MaxItems"/> items.</summary>
     public static string? CheckCount(int count) => count switch
@@ -26,8 +27,8 @@ internal static class OperationBatchRules
     };
 
     /// <summary>
-    /// Returns the first failing envelope message in the order null, blank, length, duplicate, or
-    /// null. The ID is added to <paramref name="seenIds"/> only after the length check passes.
+    /// Returns the first failing envelope message in the order null, blank ID, ID/name length, duplicate, or
+    /// null. The ID is added to <paramref name="seenIds"/> only after both length checks pass.
     /// </summary>
     public static string? CheckItem(IOperationBatchItem? item, ISet<string> seenIds)
     {
@@ -47,6 +48,11 @@ internal static class OperationBatchRules
         if (item.OperationId.Length > MaxOperationIdChars)
         {
             return $"Each operationId must be at most {MaxOperationIdChars} characters.";
+        }
+
+        if (item.Operation?.Length > MaxOperationNameChars)
+        {
+            return $"Each operation name must be at most {MaxOperationNameChars} characters.";
         }
 
         return seenIds.Add(item.OperationId) ? null : $"Duplicate operationId '{item.OperationId}'.";

@@ -21,6 +21,37 @@ namespace TiaMcpServer.Tests.Network;
 [Collection(RealWorkerProcessCollection.Name)]
 public class NetworkToolsTests
 {
+    [Theory]
+    [InlineData(256)]
+    [InlineData(257)]
+    [InlineData(200000)]
+    public async Task NetworkRead_OperationNameDiagnosticLimitRejectsBeforeWorkerDispatch(int length)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var client = CreateClient();
+        var name = new string('n', length);
+        var operation = new NetworkOperationRequest { OperationId = "id", Operation = name };
+
+        var result = await NetworkRead(client, [operation]);
+
+        Assert.True(result.IsError);
+        var text = ReadText(result);
+        var root = ReadStructured(result);
+        Assert.Equal(CanonicalJson.Serialize(root), text);
+        Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
+        Assert.True(text.Length < 6000);
+        if (length <= 256) Assert.Contains(name, text);
+        else
+        {
+            Assert.Contains("Each operation name must be at most 256 characters.", text);
+            Assert.DoesNotContain(name, text);
+        }
+        Assert.Empty(requests.Methods());
+        Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
     private const int ExpectedMaxOperationIdLength = 256;
 
     /// <summary>A FakeWorker scenario whose hardware read AND write payloads both satisfy their

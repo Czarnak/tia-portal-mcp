@@ -12,6 +12,40 @@ namespace TiaMcpServer.Tests.Network;
 [Collection("Mcp protocol serial")]
 public sealed class NetworkGuardedWriteMcpTests
 {
+    [Theory]
+    [InlineData(256)]
+    [InlineData(257)]
+    [InlineData(200000)]
+    public async Task OperationNameDiagnosticLimit_DeniesBeforeWorkerAndRetainsCatalogAudit(int length)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite,
+            audit.Path, "network-guarded");
+        var before = requests.Methods();
+        var name = new string('n', length);
+
+        var reply = await harness.Client.CallToolAsync("network_write", new Dictionary<string, object?>
+        {
+            ["operations"] = new[] { new { operationId = "id", operation = name } }
+        });
+
+        Assert.True(reply.IsError);
+        var root = Document(reply);
+        var text = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
+        Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
+        Assert.True(text.Length < 6000);
+        if (length <= 256) Assert.Contains(name, text);
+        else
+        {
+            Assert.Contains("Each operation name must be at most 256 characters.", text);
+            Assert.DoesNotContain(name, text);
+        }
+        Assert.Equal(before, requests.Methods());
+        Assert.Single(AuditLines(audit.Path));
+    }
+
     [Fact]
     public async Task QualifiedSelector_RoundTripsRegisteredSchema()
     {
