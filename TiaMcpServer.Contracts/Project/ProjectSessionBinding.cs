@@ -119,10 +119,8 @@ public sealed class ProjectSessionBinding
 
             if (current is null)
             {
-                // A request path alone is not a binding. Only a configured startup path or a
-                // successful explicit lifecycle transition can establish one.
-                effectiveProjectPath = requested;
-                return true;
+                error = BindFirstMessage;
+                return false;
             }
 
             if (IsSameProject(current, requested))

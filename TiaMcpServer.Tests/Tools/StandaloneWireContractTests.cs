@@ -17,7 +17,7 @@ public sealed class StandaloneWireContractTests
     {
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
             workerExecutablePath: FakeWorkerLocator.Locate());
-        var result = await client.GetProjectStatusAsync("status-no-project");
+        var result = await client.GetProjectStatusAsync(null);
         Assert.True(result.Success, result.Error);
         using var direct = JsonDocument.Parse(result.Payload);
         var root = direct.RootElement;
