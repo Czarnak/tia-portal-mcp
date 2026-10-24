@@ -49,6 +49,31 @@ public sealed class PersistentWorkerTransportLifetimeTests
     }
 
     [Fact]
+    public async Task RequestLogHeldByReader_WorkerWaitsInsteadOfCrashing()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var requests = new FakeWorkerRequestLog(directory.Path);
+        using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
+        using var transport = new PersistentWorkerTransport(
+            FakeWorkerLocator.Locate(),
+            requestTimeout: TimeSpan.FromSeconds(30));
+        File.WriteAllText(requests.Path, "");
+
+        Task<WorkerResponse> send;
+        // Opened the way File.ReadAllLines opens it, as a polling test does mid-request.
+        using (new FileStream(requests.Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            send = transport.SendAsync(new WorkerRequest { Method = "get_project_status", ProjectPath = "ok" });
+            await Task.WhenAny(send, Task.Delay(TimeSpan.FromSeconds(1)));
+        }
+
+        var response = await send;
+        Assert.True(response.Success, response.Error);
+        Assert.Contains("get_project_status", requests.Methods());
+    }
+
+    [Fact]
     public async Task HangingRequest_TimesOutKillsWorkerAndNextRequestStartsFresh()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
