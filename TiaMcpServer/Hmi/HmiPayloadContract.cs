@@ -86,6 +86,20 @@ public static class HmiPayloadContract
                 SkipReason: null,
                 warnings);
         }
+        catch (CursorException exception) when (exception.InnerException is AuthenticatedCursorSizeException size)
+        {
+            return new StructuredOperationItem(
+                operation.OperationId,
+                operation.Operation,
+                OperationBatchStatus.Omitted,
+                Result: null,
+                Failure: null,
+                new StructuredOperationOmission(
+                    "hmiPageCursorExceededCharLimit", size.LimitChars, size.CursorChars, "hmi_read",
+                    "Shorten the project path and start a new sequence, or narrow the request until it fits one terminal page."),
+                SkipReason: null,
+                warnings);
+        }
         catch (Exception exception) when (exception is CursorException or JsonException)
         {
             // An unsealable worker snapshot id is a worker contract violation like any undecodable payload.

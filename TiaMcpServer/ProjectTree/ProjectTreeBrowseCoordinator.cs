@@ -83,6 +83,13 @@ public sealed class ProjectTreeBrowseCoordinator
         {
             return Failure(exception.Category, exception.Message);
         }
+        catch (CursorException exception) when (exception.InnerException is AuthenticatedCursorSizeException size)
+        {
+            return Failure(
+                WorkerFailureCategories.ResultMetadataTooLarge,
+                $"The project-tree continuation cursor requires {size.CursorChars} characters and exceeds the {size.LimitChars}-character limit. "
+                    + "Shorten the project path and start a new sequence, or narrow the request until it fits one terminal page.");
+        }
         catch (CursorException exception)
         {
             return Failure(exception.Category, exception.Message);
