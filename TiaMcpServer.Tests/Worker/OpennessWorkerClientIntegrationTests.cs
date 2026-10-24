@@ -636,7 +636,7 @@ public class OpennessWorkerClientIntegrationTests
 
         var result = await InvokeRawAsync(
             client,
-            new WorkerRequest { Method = "browse_project_tree_v3_snapshot", ProjectDirectory = "hang" });
+            new WorkerRequest { Method = "browse_project_tree_v3_snapshot", ProjectDirectory = "hang", ExpectedSessionIdentity = binding.CaptureSnapshot().ToWorkerIdentity() });
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.WorkerTimeout, result.FailureCategory);
@@ -658,7 +658,8 @@ public class OpennessWorkerClientIntegrationTests
             new WorkerRequest
             {
                 Method = "browse_project_tree_v3_snapshot",
-                ProjectDirectory = "crash"
+                ProjectDirectory = "crash",
+                ExpectedSessionIdentity = binding.CaptureSnapshot().ToWorkerIdentity()
             });
 
         Assert.False(result.Success);
@@ -725,7 +726,8 @@ public class OpennessWorkerClientIntegrationTests
         var request = new WorkerRequest
         {
             Method = "browse_project_tree_v3_snapshot",
-            ProjectDirectory = "hang"
+            ProjectDirectory = "hang",
+            ExpectedSessionIdentity = binding.CaptureSnapshot().ToWorkerIdentity()
         };
         var pendingResult = InvokeRawAsync(
             client,

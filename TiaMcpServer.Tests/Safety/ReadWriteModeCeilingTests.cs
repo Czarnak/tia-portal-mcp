@@ -180,5 +180,5 @@ public class ReadWriteModeCeilingTests
     private static Task<WorkerCallResult> InvokeRawCrash(OpennessWorkerClient client)
         => (Task<WorkerCallResult>)typeof(OpennessWorkerClient)
             .GetMethod("InvokeWorkerAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(client, new object[] { new WorkerRequest { Method = "browse_project_tree_v3_snapshot", ProjectDirectory = "crash" } })!;
+            .Invoke(client, new object[] { new WorkerRequest { Method = "browse_project_tree_v3_snapshot", ProjectDirectory = "crash", ExpectedSessionIdentity = client.BindingSnapshot.ToWorkerIdentity() } })!;
 }
