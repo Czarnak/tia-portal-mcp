@@ -176,6 +176,7 @@ public class CiWorkflowTests
             command.Contains("--collect:\"XPlat Code Coverage\"", StringComparison.Ordinal));
         Assert.Contains("-- xUnit.ParallelizeTestCollections=false xUnit.ParallelizeAssembly=false xUnit.MaxParallelThreads=1 RunConfiguration.MaxCpuCount=1",
             coverageCommand, StringComparison.Ordinal);
+        Assert.Contains("--filter \"Category!=Packaging\"", coverageCommand, StringComparison.Ordinal);
 
         var runsettingsIndex = workflowText.IndexOf(
             "--settings TiaMcpServer.Tests/coverage.runsettings",
@@ -204,6 +205,26 @@ public class CiWorkflowTests
         Assert.True(
             minimumLineRateIndex < codecovIndex,
             "Expected the threshold enforcement to precede the Codecov upload.");
+    }
+
+    /// <summary>
+    /// Packaging tests add no coverage and are slow, so they leave the coverage run and run in
+    /// their own workflow, only when a pull request or push touches packaging files.
+    /// </summary>
+    [Fact]
+    public void PackagingTests_RunOnlyInPathFilteredWorkflowWithoutCoverage()
+    {
+        var packagingWorkflowPath = Path.Combine(GetRepositoryRoot(), ".github", "workflows", "packaging.yml");
+        Assert.True(File.Exists(packagingWorkflowPath), $"Expected packaging workflow to exist at {packagingWorkflowPath}");
+
+        var testCommand = Assert.Single(ReadRunCommandBlocks(packagingWorkflowPath), command =>
+            command.Contains("dotnet test", StringComparison.Ordinal));
+        Assert.Contains("--filter \"Category=Packaging\"", testCommand, StringComparison.Ordinal);
+        Assert.DoesNotContain("--collect", testCommand, StringComparison.Ordinal);
+
+        var triggers = File.ReadAllText(packagingWorkflowPath).Split("\njobs:")[0];
+        Assert.Matches(@"push:\s+branches:\s*\[""main""\]\s+paths:", triggers);
+        Assert.Matches(@"pull_request:\s+branches:\s*\[""main""\]\s+paths:", triggers);
     }
 
     /// <summary>

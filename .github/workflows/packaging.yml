@@ -1,0 +1,50 @@
+name: Packaging tests
+
+permissions:
+  contents: read
+
+# Packaging tests run MSBuild and the verification scripts in child processes and add no
+# coverage, so CI's coverage run excludes them. They run here only when packaging files change.
+on:
+    push:
+        branches: ["main"]
+        paths: &packaging-paths
+            - "TiaMcpServer/TiaMcpServer.csproj"
+            - "TiaMcpServer.OpennessWorker/*.csproj"
+            - "TiaMcpServer.FakeWorker/*.csproj"
+            - "Directory.Build.props"
+            - "global.json"
+            - "scripts/verify-doctor-package.ps1"
+            - "scripts/verify-reference-stubs.ps1"
+            - "reference-stubs/**"
+            - "TiaMcpServer.Tests/Diagnostics/DoctorPackageVerificationScriptTests.cs"
+            - "TiaMcpServer.Tests/Diagnostics/ReferenceStubVerificationScriptTests.cs"
+            - ".github/workflows/packaging.yml"
+    pull_request:
+        branches: ["main"]
+        paths: *packaging-paths
+
+jobs:
+
+    packaging-tests:
+        runs-on: windows-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Setup .NET 10.0
+              uses: actions/setup-dotnet@v6
+              with:
+                  dotnet-version: "10.0.x"
+
+            - name: Restore
+              run: dotnet restore TiaMcpServer.slnx -m:1
+
+            - name: Restore reference stubs
+              run: dotnet restore reference-stubs/TiaMcpServer.ReferenceStubs.sln -m:1
+
+            - name: Build
+              run: dotnet build TiaMcpServer.slnx -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
+
+            - name: Run packaging tests
+              run: dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --configuration Release --filter "Category=Packaging"

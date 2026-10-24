@@ -122,9 +122,15 @@ CI collects coverage, then enforces an 80% scoped line-coverage threshold locall
 
 ```powershell
 $results = Join-Path 'TestResults' ('local-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory $results
+dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory $results --filter "Category!=Packaging"
 $report = Get-ChildItem -LiteralPath $results -Recurse -Filter coverage.cobertura.xml | Select-Object -First 1
 ./scripts/verify-coverage-threshold.ps1 -CoveragePath $report.FullName -MinimumLineRate 0.80
+```
+
+The packaging tests (`DoctorPackageVerificationScriptTests` and `ReferenceStubVerificationScriptTests`, tagged `Category=Packaging`) are excluded from this run: they exercise MSBuild targets and the verification scripts in child processes and add no coverage. CI runs them in the separate `packaging.yml` workflow, only when a pull request or push to `main` changes a product `.csproj`, `Directory.Build.props`, `global.json`, `scripts/verify-doctor-package.ps1`, `scripts/verify-reference-stubs.ps1`, `reference-stubs/`, or the two test files. When you change those files, run them locally after the solution build:
+
+```powershell
+dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --filter "Category=Packaging"
 ```
 
 `coverage.runsettings` scopes the Cobertura report to `TiaMcpServer` and `TiaMcpServer.Contracts`; test assemblies, `TiaMcpServer.FakeWorker`, and `TiaMcpServer.OpennessWorker` are excluded. `verify-coverage-threshold.ps1` exits non-zero below the threshold.
