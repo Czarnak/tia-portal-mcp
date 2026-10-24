@@ -13,8 +13,8 @@
 ## Status and authorization
 
 - Planning baseline: clean `main` at `0bd41d4`, the merge of C9 through GitHub PR #173. Revalidate repository state before execution.
-- Current work is limited to the local PR2 branch, this plan, its documentation-index entry and a plan-only commit. No implementation, publishing, merging, installation or TIA execution is started by writing the plan.
-- Wait for the maintainer's instruction to start implementation. Preserve any execution/remote-write authorization subsequently given; do not repeatedly ask for the same authority.
+- The initial plan-only restriction is superseded by subsequent maintainer authorization. PR1–PR6 are implemented and merged; their exact qualification and merge identities are in the completion ledger below.
+- On 2026-10-24 the maintainer authorized PR7 implementation, removal of every already-resolved improvement-log entry, pushing and opening a PR. PR7 starts from clean `main` at `1d148e7cb8259f3350122a3d82464e734b39526a` on `chore/c-followups-pr7-cleanup-records`. Merging PR7 is not part of that authorization.
 - Any installed-candidate or live TIA activity needs separate, exact-scope authorization. Offline verification never counts as native acceptance.
 
 ## Sequence and branch ownership
@@ -62,10 +62,10 @@ PR2 and PR3 share `StrictArgumentsTool.cs` and its tests; PR2-first removes that
 
 **Boundary:** cache the non-nullable root parameter information at tool construction; reject explicit null before SDK invocation. Keep nullable parameters and existing nested-member handling unchanged. This is not a general serializer migration.
 
-- [ ] Add regression cases for non-nullable string and operation-array nulls, including `open_project.projectPath` and a write tool's `operations`. Supply all other required arguments so a missing argument cannot mask the null check.
-- [ ] Assert canonical rejection, zero worker activity and zero audit records. Preserve nullable controls, `BindProject_NullForceRebind_UsesDefaultFalseThroughSdk`, and rejection of `dryRun:null`.
-- [ ] Observe the relevant failures before the fix; implement the smallest shared rejection, run the focused tests and commit.
-- [ ] Complete independent review and the common final gate, then merge before creating the parallel branches.
+- [x] Add regression cases for non-nullable string and operation-array nulls, including `open_project.projectPath` and a write tool's `operations`. Supply all other required arguments so a missing argument cannot mask the null check.
+- [x] Assert canonical rejection, zero worker activity and zero audit records. Preserve nullable controls, `BindProject_NullForceRebind_UsesDefaultFalseThroughSdk`, and rejection of `dryRun:null`.
+- [x] Observe the relevant failures before the fix; implement the smallest shared rejection, run the focused tests and commit.
+- [x] Complete independent review and the common final gate, then merge before creating the parallel branches.
 
 ## PR1: operation-name diagnostic limit
 
@@ -73,17 +73,17 @@ PR2 and PR3 share `StrictArgumentsTool.cs` and its tests; PR2-first removes that
 
 **Tests:** `TiaMcpServer.Tests/OperationBatches/OperationBatchRulesTests.cs`; catalog tests `Network/NetworkOperationCatalogTests.cs`, `Plc/PlcOperationCatalogTests.cs`, `Hmi/HmiOperationCatalogTests.cs`, `Hmi/HmiWriteCatalogTests.cs`, `Vci/VciReadCatalogTests.cs` and `Vci/VciWriteCatalogTests.cs`, all under `TiaMcpServer.Tests/`. PR1 also owns the public rejection cases in `TiaMcpServer.Tests/Network/NetworkToolsTests.cs` and `NetworkGuardedWriteMcpTests.cs`.
 
-- [ ] Reject an operation name above 256 characters before interpolation, with a fixed validation message that contains none of that name. Preserve blank-name, ID, duplicate, short unknown-name and wrong-category behavior unless the new limit applies.
-- [ ] Pin 256/257 and a 200,000-character name across all six catalogs. Add public read/write rejections asserting a bounded canonical document, no full-name echo and no worker dispatch. Preserve the existing write audit for an entered catalog denial.
-- [ ] Observe the failures, implement, run the focused tests and commit. Qualify/review against current `main` before merge.
+- [x] Reject an operation name above 256 characters before interpolation, with a fixed validation message that contains none of that name. Preserve blank-name, ID, duplicate, short unknown-name and wrong-category behavior unless the new limit applies.
+- [x] Pin 256/257 and a 200,000-character name across all six catalogs. Add public read/write rejections asserting a bounded canonical document, no full-name echo and no worker dispatch. Preserve the existing write audit for an entered catalog denial.
+- [x] Observe the failures, implement, run the focused tests and commit. Qualification/review is recorded at the exact source/base in the completion ledger; later integration is not another full-suite claim.
 
 ## PR3: root argument-name diagnostic limit
 
 **Owns:** `TiaMcpServer/Tools/StrictArgumentsTool.cs`, `TiaMcpServer/Tools/ProjectReadTools.cs`; tests in `TiaMcpServer.Tests/Tools/StrictArgumentsToolTests.cs`, `ToolOutputContractConformanceTests.cs` and `TiaMcpServer.Tests/Project/ProjectTreeStructuredProtocolTests.cs`.
 
-- [ ] Use the same bounded unknown-argument formatting in the strict wrapper and the outer tree wrapper. Keep names of at most 256 characters; omit longer names completely while retaining accepted-key guidance.
-- [ ] Cover 256/257 and a very large key through an ordinary production tool and `browse_project_tree`. Assert bounded canonical rejection, no audit/worker activity and preservation of PR2's null checks.
-- [ ] Observe the failures, implement, run focused tests and commit. Do not reopen PR2's metadata design merely to format errors.
+- [x] Use the same bounded unknown-argument formatting in the strict wrapper and the outer tree wrapper. Keep names of at most 256 characters; omit longer names completely while retaining accepted-key guidance.
+- [x] Cover 256/257 and a very large key through an ordinary production tool and `browse_project_tree`. Assert bounded canonical rejection, no audit/worker activity and preservation of PR2's null checks.
+- [x] Observe the failures, implement, run focused tests and commit. Do not reopen PR2's metadata design merely to format errors.
 
 ## PR4: oversized tree/HMI cursor issuance
 
@@ -91,40 +91,40 @@ PR2 and PR3 share `StrictArgumentsTool.cs` and its tests; PR2-first removes that
 
 **Boundary:** keep shared `AuthenticatedCursorProtector.Seal`/`Open` and the wire envelopes unchanged. Recognize `CursorException.InnerException is AuthenticatedCursorSizeException` at issuance, following `HardwarePageProjector` and `NetworkObjectPaginationCoordinator`.
 
-- [ ] Reproduce overflow from a valid long binding path on an initial request that supplied no cursor.
-- [ ] Return a typed HMI cursor-limit omission carrying actual/limit sizes and retry guidance. Return tree's existing failure shape with `result_metadata_too_large` and explicit size guidance; do not add an omission envelope to tree responses.
-- [ ] Pin canonical text/structured equality, retained HMI warnings and later items, and terminal-page success without a cursor. Preserve invalid/tampered/stale input-cursor behavior and binding state.
-- [ ] Observe the failures, implement, run focused tests and commit. Leave stale-import cleanup to PR7.
+- [x] Reproduce overflow from a valid long binding path on an initial request that supplied no cursor.
+- [x] Return a typed HMI cursor-limit omission carrying actual/limit sizes and retry guidance. Return tree's existing failure shape with `result_metadata_too_large` and explicit size guidance; do not add an omission envelope to tree responses.
+- [x] Pin canonical text/structured equality, retained HMI warnings and later items, and terminal-page success without a cursor. Preserve invalid/tampered/stale input-cursor behavior and binding state.
+- [x] Observe the failures, implement, run focused tests and commit. Leave stale-import cleanup to PR7.
 
 ## PR5: worker content-read identity backstop
 
 **Owns:** `TiaMcpServer.Contracts/Safety/OperationPolicyCatalog.cs`; `TiaMcpServer.Tests/Safety/ReadOnlyModeTests.cs` and `TiaMcpServer.Tests/Worker/FakeWorkerIdentityEnforcementTests.cs`. The existing worker and FakeWorker consume this shared policy; avoid duplicating a method-name list in either dispatcher.
 
-- [ ] Make `RequiresExpectedSessionIdentity(string operation)` require identity for `ProjectCapabilityCatalog.RequiresBoundProject(operation)`, before the Observe/TemporaryExport exemptions.
-- [ ] Pin every registered content method, including catalog search, HMI, VCI and hardware continuations. Add direct-worker missing-identity denials before scenario dispatch, valid-identity controls and retained mismatch behavior.
-- [ ] Preserve identity-optional status/basic status, inventories, selection and open/create; supplied identities still validate. Keep lifecycle/rebind probes protected, including `LifecycleGuardedContractTests.NoProjectVerification_RequiresWritableMode_WithoutRequiringAProjectIdentity`.
-- [ ] Observe failures in the new policy/rejection cases, implement, run focused tests and commit. No native dispatcher body or identity-comparison refactor is included.
+- [x] Make `RequiresExpectedSessionIdentity(string operation)` require identity for `ProjectCapabilityCatalog.RequiresBoundProject(operation)`, before the Observe/TemporaryExport exemptions.
+- [x] Pin every registered content method, including catalog search, HMI, VCI and hardware continuations. Add direct-worker missing-identity denials before scenario dispatch, valid-identity controls and retained mismatch behavior.
+- [x] Preserve identity-optional status/basic status, inventories, selection and open/create; supplied identities still validate. Keep lifecycle/rebind probes protected, including `LifecycleGuardedContractTests.NoProjectVerification_RequiresWritableMode_WithoutRequiringAProjectIdentity`.
+- [x] Observe failures in the new policy/rejection cases, implement, run focused tests and commit. No native dispatcher body or identity-comparison refactor is included.
 
 ## PR6: narrow unbound explicit-path resolution
 
 **Owns:** `TiaMcpServer.Contracts/Project/ProjectSessionBinding.cs`; `TiaMcpServer.Tests/Project/ProjectSessionBindingTests.cs` and `TiaMcpServer.Tests/Worker/OpennessWorkerClientIntegrationTests.cs`.
 
-- [ ] Change only the unbound-with-no-configured-path plus explicit-request-path branch in `TryResolveWithSnapshot` to reject with bind-first guidance, null effective path and unchanged snapshot. Replace tests that pin the obsolete acceptance behavior; preserve their other assertions.
-- [ ] Keep unbound-plus-null status neutral. Pin configured grounding success/failure, equivalent/different bound paths, invalidated binding, open/create resolved identities and post-close/basic verification.
-- [ ] Update FakeWorker scenario helpers within the owned `OpennessWorkerClientIntegrationTests.cs` file that used an explicit path as test selection; do not delete neutral-status coverage to make the suite pass. Changes to `TiaMcpServer.FakeWorker/Program.cs` are not preassigned to this lane and need controller coordination if proved necessary.
-- [ ] Observe the failing rejection test, implement, run focused tests and commit. Do not remove status/lifecycle path APIs, introduce a new binding API or perform D-6's worker-client split.
+- [x] Change only the unbound-with-no-configured-path plus explicit-request-path branch in `TryResolveWithSnapshot` to reject with bind-first guidance, null effective path and unchanged snapshot. Replace tests that pin the obsolete acceptance behavior; preserve their other assertions.
+- [x] Keep unbound-plus-null status neutral. Pin configured grounding success/failure, equivalent/different bound paths, invalidated binding, open/create resolved identities and post-close/basic verification.
+- [x] Update FakeWorker scenario helpers that used an explicit path as test selection; preserve neutral-status coverage. Controller-approved fixture adjustments also reached `FakeWorkerBinding.cs`, `StandaloneWireContractTests.cs`, `ReadWriteModeCeilingTests.cs` and `BindOpenProjectIntegrationTests.cs`; no FakeWorker dispatcher change was needed.
+- [x] Observe the failing rejection test, implement, run focused tests and commit. Do not remove status/lifecycle path APIs, introduce a new binding API or perform D-6's worker-client split.
 
 ## Shared qualification and integration
 
-- [ ] For each behavioral PR, run its focused RED/GREEN cycle, then review the complete diff for scope, correct linked-source test wiring and all five Review Focus rows that apply. Use an independent reviewer; fix findings in separate validated commits.
-- [ ] Before each merge, rebase onto current `main`, inspect the resulting diff and run the final gate on that exact candidate. Record the commit, base, commands, test counts, warnings and coverage. Earlier runs on another base are evidence, not the final gate.
-- [ ] Hold one controller-managed build/test slot. In a fresh worktree, restore first: `dotnet restore TiaMcpServer.slnx /p:UseTiaPortalReferenceStubs=true`.
-- [ ] Build serially: `dotnet build TiaMcpServer.slnx -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true`.
-- [ ] Use a fresh ignored `TestResults/c-followups-prN-<candidate-sha>/` directory, with process-local `TEMP` and `TMP` pointing to its `temp/` subdirectory. Restore the previous environment values afterward, including on failure.
-- [ ] Run the full serialized suite from those Release binaries: `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --no-restore --configuration Release --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory <unique-results-directory> -- xUnit.ParallelizeTestCollections=false xUnit.ParallelizeAssembly=false xUnit.MaxParallelThreads=1 RunConfiguration.MaxCpuCount=1`.
-- [ ] Require zero failed/skipped tests and a nonempty Cobertura report. Run `./scripts/verify-coverage-threshold.ps1 -CoveragePath <that-report> -MinimumLineRate 0.80`; inspect coverage of materially changed logic. Pass `git diff --check` as well.
-- [ ] Publish each ready branch as its own PR when execution/remote-write authorization permits. Read back the actual PR URL, state and head SHA; attach it to the task. Merge sequentially after the gate and review. Do not treat a draft/submission request as an existing PR.
-- [ ] Do not rerun a build, full suite or packaging merely because a later commit changes only evidence/docs. Retain valid source evidence and rerun the checks affected by any source change, rebase, failure or unresolved concern.
+- [x] For each behavioral PR, run its focused RED/GREEN cycle, then review the complete diff for scope, correct linked-source test wiring and all five Review Focus rows that apply. Use an independent reviewer; fix findings in separate validated commits.
+- [ ] Original per-merge requirement: rebase onto current `main`, inspect the resulting diff and run the final gate on that exact candidate. The completed merges are recorded below, but the available lane evidence does not establish this for every later integration candidate. Retain this evidence limitation rather than retrospectively marking it passed.
+- [x] Hold one controller-managed build/test slot. In a fresh worktree, restore first: `dotnet restore TiaMcpServer.slnx /p:UseTiaPortalReferenceStubs=true`.
+- [x] Build serially: `dotnet build TiaMcpServer.slnx -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true`.
+- [x] Use fresh ignored lane-specific results directories, with process-local `TEMP` and `TMP` pointing to their `temp/` subdirectories; restore previous environment values afterward. PR7 uses `TestResults/c-followups-pr7/`.
+- [x] Run each behavioral lane's full serialized suite from those Release binaries: `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --no-restore --configuration Release --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory <unique-results-directory> -- xUnit.ParallelizeTestCollections=false xUnit.ParallelizeAssembly=false xUnit.MaxParallelThreads=1 RunConfiguration.MaxCpuCount=1`.
+- [x] Require zero failed/skipped tests and a nonempty Cobertura report. Run `./scripts/verify-coverage-threshold.ps1 -CoveragePath <that-report> -MinimumLineRate 0.80`; inspect coverage of materially changed logic. Pass `git diff --check` as well.
+- [x] PR1–PR6 were published, read back and attached by the controller, then merged sequentially. PR7 publication follows its own checklist below; its merge remains outside the current authorization.
+- [x] Do not rerun a build, full suite or packaging merely because a later commit changes only evidence/docs. Retain valid source evidence and rerun the checks affected by any source change, rebase, failure or unresolved concern.
 
 ## Live TIA boundary
 
@@ -142,24 +142,30 @@ Start only after all PR1–PR6 merges. This PR includes the former PR8 scope.
 
 **Documentation ownership:** `docs/IMPROVEMENT_LOG.md`, the original simplification review, `2026-10-21-workstream-c-plan.md`, this plan's ledger, the docs index and any affected current operation reference.
 
-- [ ] Verify which cleanup lines remain after the preceding fixes; remove only stale imports and move only the identified test members.
-- [ ] Add the disposal assertions, run the cursor tests, compile affected projects and independently review the complete cleanup diff. If a characterization fails, investigate it as a newly discovered behavior issue rather than broadening cleanup silently.
-- [ ] Close all six logged follow-ups with exact merged PR/commit and verification references. Record the C6 cleanup/test resolution. The previously missing RED evidence is already present in the original review record; do not invent or rerun historical RED tests.
-- [ ] Record C9's actual merge through PR #173 at `0bd41d4` and supersede its stale integration-pending text with a dated completion note. Preserve historical qualification and live-evidence limits; merging does not establish a separate publication/release event.
-- [ ] Reconcile operation references/index links and record whether the optional PR5/6 smoke was performed or skipped. Do not upgrade offline/FakeWorker evidence into native acceptance.
-- [ ] Check Markdown links, whitespace, changed-file scope and `git diff --check`; commit cleanup and documentation in separate logical commits within this one PR. No full suite/package rerun is needed for the final documentation-only commit.
-- [ ] Review and merge PR7 through the same authorized PR workflow. Archive managed worktrees only when no longer needed, preserving their recoverable state.
+- [x] Verify which cleanup lines remain after the preceding fixes; remove only stale imports and move only the identified test members.
+- [x] Add the disposal assertions, run the cursor tests, compile affected projects and independently review the complete cleanup diff. All 318 focused tests passed; independent complete-diff review found no actionable findings. No characterization failed or production behavior changed.
+- [x] Close all six logged follow-ups with exact merged PR/commit and verification references. Record the C6 cleanup/test resolution. The previously missing RED evidence is already present in the original review record; do not invent or rerun historical RED tests.
+- [x] Record C9's actual merge through PR #173 at `0bd41d4` and supersede its stale integration-pending text with a dated completion note. Preserve historical qualification and live-evidence limits; merging does not establish a separate publication/release event.
+- [x] Reconcile operation references/index links and record whether the optional PR5/6 smoke was performed or skipped. Do not upgrade offline/FakeWorker evidence into native acceptance.
+- [x] Maintainer extension: remove every already-resolved improvement-log entry, including completed history outside Workstream C; retain partial/unresolved follow-ups and the HMI reference anchor. The log is reduced from 1,443 to 381 lines across 16 open sections.
+- [x] Check Markdown links, whitespace, changed-file scope and `git diff --check`: 219 local links/anchors passed, including the HMI backlink. Cleanup is committed separately at `7abe50b`; documentation is the final logical commit in this PR. No full suite/package rerun is needed for that documentation-only commit.
+- [x] Independent complete-diff review found no actionable findings.
+- [x] Pushed PR7 and opened [#180](https://github.com/Czarnak/tia-portal-mcp/pull/180) through GitHub MCP, then read back its open/non-draft state, expected head/base and exact body and attached it to this chat. Merging is not authorized by this implementation/push/open request. Keep its managed worktree attached for follow-up.
 
 ## Completion ledger
 
-Fill this once during PR7 from the controller's per-lane records; parallel workers do not edit this table.
+Reconciled on 2026-10-24 from the controller's per-lane records and GitHub MCP read-back of merged PRs. The table reports the actual qualified source and base; it does not claim that every later merge candidate or the combined PR5/PR6 source received another full suite. All recorded full suites had zero failures/skips, a nonempty coverage report and a passing 80% gate. Each Release stub solution build reported seven existing warnings and zero errors. Independent lane and cross-lane reviews found no actionable findings.
 
 | PR | Merge identity | Qualification and review | Native evidence |
 | --- | --- | --- | --- |
-| PR2 | Pending implementation | Plan-only commit initially; no fix evidence yet | No live gate |
-| PR1 | Pending PR2 merge | Pending | No live gate |
-| PR3 | Pending PR2 merge | Pending | No live gate |
-| PR4 | Pending PR2 merge | Pending | No live gate |
-| PR5 | Pending PR2 merge | Pending | Optional combined smoke not authorized/performed |
-| PR6 | Pending PR2 merge | Pending | Optional combined smoke not authorized/performed |
-| PR7 | Pending all preceding merges | Cleanup tests/compile/review and document checks pending | No live gate |
+| PR2 | [#174](https://github.com/Czarnak/tia-portal-mcp/pull/174), `c375f79f97319ac4b262edf7ac27fee356972c01` | Head `ed9c3efb766de3a5de5d04243ee0900e3b8e1e51`, base `0bd41d4`; RED 18, focused GREEN 247; full 7,561; coverage 94.99%; all eight added production lines covered | Not performed; no live gate |
+| PR1 | [#175](https://github.com/Czarnak/tia-portal-mcp/pull/175), `22878be3f0bafee5e3fdca2bee170bac10f182f9` | Head `34bbaa7aa2eedeeb83dbdee32acf2df60b0ffa3c`, base `c375f79`; RED 22, focused GREEN 407; full 7,594; coverage 95.05%; shared rule 16/16 lines covered | Not performed; no live gate |
+| PR3 | [#176](https://github.com/Czarnak/tia-portal-mcp/pull/176), `018ff6f627b4b5b158a3525a49c74c73784fdd58` | Head `fcb717e63c5a87e581c281c49810633ad22f6d04`, base `c375f79`; RED 4, focused GREEN 39; full 7,567; coverage 94.99%; changed production lines covered | Not performed; no live gate |
+| PR4 | [#177](https://github.com/Czarnak/tia-portal-mcp/pull/177), `ffe3214f7fedf3e4b438b0cf67067270a805bbb6` | Head `26403a06e89268bc02c5a5965f02c52e4e47765b`, base `c375f79`; RED 3 with two terminal controls passing, focused GREEN 108; full 7,567; coverage 94.99%; added production lines covered | Not performed; no live gate |
+| PR5 | [#178](https://github.com/Czarnak/tia-portal-mcp/pull/178), `61b5a75bc00c87296e0b5f03532d985964dc488d` | Head `534e85b6a20b243163b42d7a084c3f478f82444b`, base `ffe3214`; RED 5, expanded focused GREEN 435; full 7,636; coverage 95.05%; added policy lines covered. Initial full-run fixture failures were corrected in a separate test commit and requalified | Optional combined smoke skipped; not authorized/performed |
+| PR6 | [#179](https://github.com/Czarnak/tia-portal-mcp/pull/179), `1d148e7cb8259f3350122a3d82464e734b39526a` | Head `cfe37ad428f2ca6b5a193195c3afa787e6d2a766`, base `ffe3214`; RED 5, focused GREEN 211; full 7,609; coverage 95.06%; both changed resolver lines covered | Optional combined smoke skipped; not authorized/performed |
+| PR7 | [#180](https://github.com/Czarnak/tia-portal-mcp/pull/180) open; cleanup `7abe50b` and completion docs `5a5f34c`, based on all six merges at `1d148e7`; merge pending | Six stale imports removed; test members regrouped; valid `Seal`/`Open` disposal assertions added. Release stub restore/build passed (seven existing warnings, zero errors); 318 focused cursor/projection tests passed, zero failures/skips; 219 local links/anchors and whitespace passed. Independent complete-diff review found no actionable findings | Not performed; no live gate |
+
+The six follow-ups are resolved by the merged PRs above; resolved improvement-log entries are removed rather than retained as a second completion history. Original runtime RED evidence remains in the review record. C6 cleanup and its additional disposal characterization are completed in PR7. C9 merged through [#173](https://github.com/Czarnak/tia-portal-mcp/pull/173) at `0bd41d4f612e2dd397f34f34d4378abca2a81182`; its earlier 7,541-test/94.98% qualification and separate C5 live-evidence limits remain in the linked historical records. This merge establishes integration, with no claim of a separate release event.
+
+Private command/log/TRX/coverage records remain under ignored `TestResults/c-followups-pr2*/` and `TestResults/c-followups-controller/` in the controller checkout. Per-lane artifacts were preserved under `TestResults/worktree-cleanup-20261024/` with a SHA-256 manifest before the earlier worktrees were archived; PR7's logs and TRX are under its own `TestResults/c-followups-pr7/`. PR descriptions above retain the qualified heads, commands/results and review summaries without private fixture data. No historical RED tests were rerun for PR7, and no optional PR5/PR6 smoke, installation or native acceptance was performed.

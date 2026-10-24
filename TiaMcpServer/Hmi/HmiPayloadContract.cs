@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
-using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Hmi;

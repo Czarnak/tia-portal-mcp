@@ -8,7 +8,6 @@ using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Hmi;
 using TiaMcpServer.Json;
-using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Safety;

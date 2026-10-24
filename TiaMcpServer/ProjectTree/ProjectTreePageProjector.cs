@@ -1,6 +1,5 @@
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
-using TiaMcpServer.Network;
 using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.ProjectTree;

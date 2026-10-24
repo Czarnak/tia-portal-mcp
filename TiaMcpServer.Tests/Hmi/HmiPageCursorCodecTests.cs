@@ -2,7 +2,6 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Hmi;
-using TiaMcpServer.Network;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Hmi;
