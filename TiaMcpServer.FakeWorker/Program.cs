@@ -21,7 +21,7 @@ using TiaMcpServer.OpennessWorker.Worker;
 // fixtures declare source state independently, so ordinary reads cannot select or open a project.
 var launchLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_LAUNCH_LOG");
 if (!string.IsNullOrWhiteSpace(launchLog))
-    File.AppendAllText(launchLog, JsonSerializer.Serialize(new { processId = Environment.ProcessId, args }) + Environment.NewLine);
+    AppendLogLine(launchLog, JsonSerializer.Serialize(new { processId = Environment.ProcessId, args }));
 
 var seq = 0;
 var requestLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG");
@@ -138,7 +138,7 @@ string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {
     if (!string.IsNullOrWhiteSpace(requestLog))
-        File.AppendAllText(requestLog, (ReadMethod(line) ?? "unknown") + Environment.NewLine);
+        AppendLogLine(requestLog, ReadMethod(line) ?? "unknown");
     currentRequestLine = line;
     seq++;
     string? scenario = null;
@@ -2384,6 +2384,24 @@ string SuccessWithResolvedPath(string payload, string resolvedProjectPath)
 string HardwareConfigPayload() => ToCamelCaseJson(RoundTripHardwareConfig());
 
 string? ReadMethod(string requestLine) => ReadField(requestLine, "method");
+
+// Tests read these logs while the worker runs. A reader holding the file makes Windows refuse the
+// append (sharing or lock violation), so wait briefly instead of crashing the worker.
+static void AppendLogLine(string path, string text)
+{
+    for (var attempt = 0; ; attempt++)
+    {
+        try
+        {
+            File.AppendAllText(path, text + Environment.NewLine);
+            return;
+        }
+        catch (IOException ex) when (attempt < 100 && (ex.HResult & 0xFFFF) is 32 or 33)
+        {
+            Thread.Sleep(50);
+        }
+    }
+}
 
 string? ReadHmiQueryField(string requestLine, string name)
 {
