@@ -7,6 +7,32 @@ namespace TiaMcpServer.Tests.OperationBatches;
 /// <summary>The shared count and per-item envelope rules every batch catalog and the write entry guard use.</summary>
 public class OperationBatchRulesTests
 {
+    [Theory]
+    [InlineData(256)]
+    [InlineData(257)]
+    [InlineData(200000)]
+    public void CheckItem_BoundsOperationNameWithoutEcho(int length)
+    {
+        var name = new string('n', length);
+        var item = Item("id");
+        item.Operation = name;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        var error = OperationBatchRules.CheckItem(item, seen);
+
+        if (length <= 256)
+        {
+            Assert.Null(error);
+            Assert.Contains("id", seen);
+        }
+        else
+        {
+            Assert.Equal("Each operation name must be at most 256 characters.", error);
+            Assert.DoesNotContain(name, error);
+            Assert.Empty(seen);
+        }
+    }
+
     private const string LengthMessage = "Each operationId must be at most 256 characters.";
 
     private static PlcOperationRequest Item(string id) => new() { OperationId = id, Operation = "list_tag_tables" };

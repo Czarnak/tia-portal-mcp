@@ -7,6 +7,28 @@ namespace TiaMcpServer.Tests.Hmi;
 
 public class HmiWriteCatalogTests
 {
+    [Theory]
+    [InlineData(256)]
+    [InlineData(257)]
+    [InlineData(200000)]
+    public void OperationNameDiagnosticLimit_PreservesBoundaryAndBoundsUnknownNames(int length)
+    {
+        var name = new string('n', length);
+        var item = new HmiWriteOperationRequest { OperationId = "id", Operation = name };
+
+        var validation = HmiWriteCatalog.ValidateWrite([item]);
+
+        Assert.False(validation.IsValid);
+        Assert.Equal("validation_error", validation.Category);
+        if (length <= 256)
+            Assert.Contains(name, validation.Error);
+        else
+        {
+            Assert.Equal("Each operation name must be at most 256 characters.", validation.Error);
+            Assert.DoesNotContain(name, validation.Error);
+        }
+    }
+
     [Fact]
     public void WorkerMethods_EqualSharedWriteList()
     {

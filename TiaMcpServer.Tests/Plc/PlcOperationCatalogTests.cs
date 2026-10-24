@@ -9,6 +9,31 @@ namespace TiaMcpServer.Tests.Plc;
 
 public class PlcOperationCatalogTests
 {
+    [Theory]
+    [InlineData(256, false)]
+    [InlineData(257, false)]
+    [InlineData(200000, false)]
+    [InlineData(256, true)]
+    [InlineData(257, true)]
+    [InlineData(200000, true)]
+    public void OperationNameDiagnosticLimit_PreservesBoundaryAndBoundsUnknownNames(int length, bool write)
+    {
+        var name = new string('n', length);
+        var item = new PlcOperationRequest { OperationId = "id", Operation = name };
+
+        var validation = write ? PlcOperationCatalog.ValidateWrite([item]) : PlcOperationCatalog.ValidateRead([item]);
+
+        Assert.False(validation.IsValid);
+        Assert.Equal("validation_error", validation.Category);
+        if (length <= 256)
+            Assert.Contains(name, validation.Error);
+        else
+        {
+            Assert.Equal("Each operation name must be at most 256 characters.", validation.Error);
+            Assert.DoesNotContain(name, validation.Error);
+        }
+    }
+
     private static PlcOperationRequest Block(string id = "a") => new()
     {
         OperationId = id,
