@@ -527,6 +527,43 @@ public sealed class ProjectTreeBrowseCoordinatorTests
         Assert.DoesNotContain("DIAGNOSTIC_MARKER", response.CanonicalText);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InitialRequest_LongBindingPath_ReportsCursorSizeOrReturnsTerminalPage(bool terminal)
+    {
+        var path = @"C:\Projects\" + string.Join("\\", Enumerable.Repeat(new string('p', 180), 25)) + @"\Tree.ap21";
+        var binding = Bound(path: path);
+        var before = binding;
+        var calls = 0;
+        using var fixture = Fixture((selector, depth) =>
+        {
+            calls++;
+            return Task.FromResult(Success(selector, depth, 2) with { ResolvedProjectPath = path });
+        }, captureBinding: () => binding);
+        var request = new ProjectTreeBrowseRequest(PageSize: terminal ? 2 : 1);
+        Assert.Null(request.Cursor);
+
+        var page = await fixture.Coordinator.BrowseAsync(request);
+
+        Assert.Equal(before, binding);
+        Assert.Equal(1, calls);
+        Assert.Equal(CanonicalJson.Serialize(page.Response), page.CanonicalText);
+        Assert.InRange(page.CanonicalText.Length, 1, ProjectTreeContract.MaximumResponseChars);
+        if (terminal)
+        {
+            Assert.True(page.IsSuccess, page.CanonicalText);
+            Assert.Null(page.Response.Result!.Pagination.NextCursor);
+        }
+        else
+        {
+            AssertFailure(page, WorkerFailureCategories.ResultMetadataTooLarge);
+            Assert.Contains("4096", page.Response.Failure!.Message);
+            Assert.Contains("Shorten the project path", page.Response.Failure.Message);
+            Assert.DoesNotContain(path, page.CanonicalText);
+        }
+    }
+
     private static CoordinatorFixture Fixture(
         Func<IReadOnlyList<ProjectTreeSelectorSegment>?, int?, Task<WorkerCallResult>> read,
         ManualTimeProvider? clock = null,

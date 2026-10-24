@@ -1,11 +1,16 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
+using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Hmi;
+using TiaMcpServer.Json;
 using TiaMcpServer.Network;
+using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Tools;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -101,16 +106,23 @@ public class HmiReadToolsTests
         Assert.Equal(WorkerFailureCategories.CursorBindingMismatch, item.GetProperty("failure").GetProperty("category").GetString());
     }
 
-    [Fact]
-    public async Task Cursor_Garbage_IsInvalidCursor_NoWorkerCall()
+    [Theory]
+    [InlineData("garbage")]
+    [InlineData("tampered")]
+    public async Task Cursor_InvalidInput_IsInvalidCursor_PreservesBindingWithoutWorkerCall(string kind)
     {
         using var client = NeverStartedClient();
+        var before = client.BindingSnapshot;
+        var valid = CursorFor(new HmiOperationRequest { Operation = "list_tags" },
+            ProjectBindingCursorState.FromSnapshot(before));
+        var cursor = kind == "garbage" ? "not-a-cursor" : (valid[0] == 'A' ? "B" : "A") + valid[1..];
 
         var root = await RunAsync(client,
-            new HmiOperationRequest { OperationId = "a", Operation = "list_tags", Cursor = "not-a-cursor" });
+            new HmiOperationRequest { OperationId = "a", Operation = "list_tags", Cursor = cursor });
 
         var item = root.GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal(WorkerFailureCategories.InvalidCursor, item.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(CanonicalJson.Serialize(before), CanonicalJson.Serialize(client.BindingSnapshot));
     }
 
     [Fact]
@@ -191,6 +203,55 @@ public class HmiReadToolsTests
         Assert.Equal(3, paged.Limit);
         Assert.Null(unpaged.Offset);
         Assert.Null(unpaged.Limit);
+    }
+
+    [Fact]
+    public async Task IssuedCursorOverflow_PreservesWarningsLaterItemsCanonicalDocumentAndBinding()
+    {
+        var binding = new ProjectSessionBinding(null);
+        Assert.True(binding.BindVerified(new WorkerSessionIdentity
+        {
+            WorkerSessionId = "worker-hmi", SessionGeneration = 1, PortalProcessId = 4242,
+            ProjectPath = @"C:\Projects\" + string.Join("\\", Enumerable.Repeat(new string('p', 180), 25)) + @"\Hmi.ap21",
+        }, false, out var error), error);
+        var before = binding.CaptureSnapshot();
+        var operations = new[]
+        {
+            new HmiOperationRequest { OperationId = "paged", Operation = "list_tags", Limit = 1 },
+            new HmiOperationRequest { OperationId = "later", Operation = "list_project_languages" },
+        };
+        Assert.Null(operations[0].Cursor);
+        var calls = new List<string>();
+        var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
+            operations,
+            operation =>
+            {
+                calls.Add(operation.OperationId);
+                object payload = operation.Operation == "list_tags"
+                    ? new HmiTagListInfo { Page = new HmiPage(0, 1, 2, 1) { SnapshotId = "s1" } }
+                    : new HmiProjectLanguagesInfo { Languages = { "en-US" } };
+                return Task.FromResult(WorkerCallResult.Ok(WorkerJson.SerializePayload(payload)) with
+                {
+                    Warnings = new[] { operation.OperationId + " warning" },
+                });
+            },
+            (operation, worker) => HmiPayloadContract.Project(operation, worker, Codec, binding.CaptureSnapshot()));
+        batch = HmiReadTools.ApplyBudget(batch);
+        var result = StructuredToolResult.Create(new HmiReadResponse(
+            "hmi_read", HmiContractVersion.Current, batch.IsFullySuccessful,
+            Error: null, Warnings: Array.Empty<string>(), Batch: batch), isError: false);
+
+        Assert.Equal(CanonicalJson.Serialize(before), CanonicalJson.Serialize(binding.CaptureSnapshot()));
+        Assert.Equal(new[] { "paged", "later" }, calls);
+        Assert.Equal(OperationBatchStatus.Omitted, batch.Operations[0].Status);
+        Assert.Equal(new[] { "paged warning" }, batch.Operations[0].Warnings);
+        Assert.Equal(OperationBatchStatus.Succeeded, batch.Operations[1].Status);
+        Assert.Equal(new[] { "later warning" }, batch.Operations[1].Warnings);
+        Assert.Equal(1, batch.Counts.Omitted);
+        Assert.Equal(1, batch.Counts.Succeeded);
+        Assert.False(result.IsError);
+        Assert.Equal(Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text,
+            Assert.IsType<JsonElement>(result.StructuredContent).GetRawText());
     }
 
     [Fact]

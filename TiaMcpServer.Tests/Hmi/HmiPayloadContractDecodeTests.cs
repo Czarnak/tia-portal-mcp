@@ -244,6 +244,54 @@ public class HmiPayloadContractDecodeTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Project_LongBindingPath_ReportsCursorLimitOrReturnsTerminalPage(bool terminal)
+    {
+        var binding = new ProjectBindingSnapshot(
+            ProjectBindingSnapshot.VerifiedState, "binding-a", 3,
+            @"C:\Projects\" + string.Join("\\", Enumerable.Repeat(new string('p', 180), 25)) + @"\Hmi.ap21",
+            "worker-a", 1, 123, null);
+        var request = Op("list_tags");
+        Assert.Null(request.Cursor);
+        var json = WorkerJson.SerializePayload(new HmiTagListInfo
+        {
+            Page = new HmiPage(0, 1, terminal ? 1 : 2, terminal ? null : 1) { SnapshotId = "s1" },
+        });
+        var diagnostics = new List<string>();
+        var worker = WorkerCallResult.Ok(json) with { Warnings = new[] { "Read warning." } };
+
+        var item = HmiPayloadContract.Project(request, worker, diagnostics.Add, (Codec, binding));
+
+        Assert.Equal(new[] { "Read warning." }, item.Warnings);
+        Assert.Empty(diagnostics);
+        Assert.Null(item.Failure);
+        if (terminal)
+        {
+            Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+            Assert.Null(item.Omission);
+            Assert.False(item.Result!.Value.GetProperty("page").TryGetProperty("nextCursor", out _));
+            Assert.False(item.Result.Value.GetProperty("page").TryGetProperty("snapshotId", out _));
+        }
+        else
+        {
+            var exception = Assert.Throws<CursorException>(() => Codec.Encode(new HmiPageCursorState(
+                "s1", request.Operation, HmiPageCursorCodec.QueryHash(request), 1,
+                ProjectBindingCursorState.FromSnapshot(binding))));
+            var size = Assert.IsType<AuthenticatedCursorSizeException>(exception.InnerException);
+            Assert.Equal(OperationBatchStatus.Omitted, item.Status);
+            Assert.Null(item.Result);
+            var omission = Assert.IsType<StructuredOperationOmission>(item.Omission);
+            Assert.Equal("hmiPageCursorExceededCharLimit", omission.Reason);
+            Assert.Equal(size.CursorChars, omission.OriginalChars);
+            Assert.Equal(size.LimitChars, omission.LimitChars);
+            Assert.Equal("hmi_read", omission.RetryTool);
+            Assert.Contains("Shorten the project path", omission.Guidance);
+            Assert.Contains("terminal page", omission.Guidance);
+        }
+    }
+
+    [Theory]
     [InlineData("list_hmi_devices", """{"devices":[]}""")]
     [InlineData("get_runtime_settings", """{"isComplete":true,"messages":[]}""")]
     [InlineData("list_script_modules", """{"isComplete":true,"messages":[],"modules":"nope"}""")]
