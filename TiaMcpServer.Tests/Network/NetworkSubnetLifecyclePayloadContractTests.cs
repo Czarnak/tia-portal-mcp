@@ -1,4 +1,6 @@
 using System.Text.Json;
+using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
@@ -20,6 +22,40 @@ public class NetworkSubnetLifecyclePayloadContractTests
         => NetworkPayloadContract.Project(
             new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
             WorkerCallResult.Ok(payload));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Unsupported")]
+    public void Project_RejectsNullTypeEvidence_WhenRequestedNetworkTypeIsMissingOrUnsupported(string? networkType)
+    {
+        var operation = new NetworkOperationRequest
+        {
+            OperationId = "create", Operation = "create_subnet",
+            Subnet = new() { Name = "LAN", NetworkType = networkType },
+        };
+        var payload = WorkerJson.SerializePayload(new SubnetLifecycleResultInfo
+        {
+            SubnetId = "subnet-1", Name = "LAN", NetworkDeviceCount = 0, NetworkDeviceCountUnchanged = true,
+            Verification = new()
+            {
+                Identity = new() { SubnetId = "subnet-1" }, Status = "passed",
+                Checks = new()
+                {
+                    new() { Name = "subnetIdentity", Expected = "subnet-1", Observed = "subnet-1", Status = "passed" },
+                    new() { Name = "Name", Expected = "LAN", Observed = "LAN", Status = "passed" },
+                    new() { Name = "TypeIdentifier", Expected = null, Observed = null, Status = "passed" },
+                    new() { Name = "networkDeviceCountUnchanged", Expected = "0", Observed = "0", Status = "passed" },
+                },
+            },
+        });
+
+        var item = NetworkPayloadContract.Project(operation, WorkerCallResult.Ok(payload), requireVerification: true);
+
+        Assert.Equal("failed", item.Status);
+        Assert.Null(item.Result);
+        Assert.Equal("protocol_error", item.Failure!.Category);
+        Assert.Equal("The worker payload for 'create_subnet' did not match its declared result contract and was rejected.", item.Failure.Message);
+    }
 
     /// <summary>
     /// Valid minimal payload for subnet lifecycle operations should decode into a succeeded item.

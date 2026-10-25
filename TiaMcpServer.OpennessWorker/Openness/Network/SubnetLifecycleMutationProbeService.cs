@@ -13,9 +13,6 @@ using Project = Siemens.Engineering.Project;
 /// </summary>
 internal static class SubnetLifecycleMutationProbeService
 {
-    private const string EthernetTypeIdentifier = "System:Subnet.Ethernet";
-    private const string ProfibusTypeIdentifier = "System:Subnet.Profibus";
-
     public static SubnetLifecycleMutationProbeResult Run(
         TiaPortal tiaPortal,
         Project project,
@@ -40,8 +37,8 @@ internal static class SubnetLifecycleMutationProbeService
         var prefix = "P4_" + runId;
         var ethernetBefore = FindSubnetInfo(result.Before, connectedEthernetSubnetId);
         var profibusBefore = FindSubnetInfo(result.Before, connectedProfibusSubnetId);
-        ValidateConnectedSubnet(result.PreflightErrors, ethernetBefore, connectedEthernetSubnetId, "Ethernet");
-        ValidateConnectedSubnet(result.PreflightErrors, profibusBefore, connectedProfibusSubnetId, "Profibus");
+        ValidateConnectedSubnet(result.PreflightErrors, ethernetBefore, connectedEthernetSubnetId, SubnetLifecycleContract.Ethernet);
+        ValidateConnectedSubnet(result.PreflightErrors, profibusBefore, connectedProfibusSubnetId, SubnetLifecycleContract.Profibus);
         if (string.Equals(connectedEthernetSubnetId, connectedProfibusSubnetId, StringComparison.Ordinal))
         {
             result.PreflightErrors.Add("The Ethernet and PROFIBUS connected-subnet IDs must differ.");
@@ -83,14 +80,14 @@ internal static class SubnetLifecycleMutationProbeService
             project,
             "transaction_rollback_create_ethernet",
             "transaction",
-            "Ethernet",
+            SubnetLifecycleContract.Ethernet,
             commit: false,
-            action: () => project.Subnets.Create(EthernetTypeIdentifier, rollbackName),
+            action: () => project.Subnets.Create(SubnetLifecycleContract.EthernetTypeIdentifier, rollbackName),
             persisted: () => FindByName(project, rollbackName) is not null,
             expectedPersisted: false,
             new Dictionary<string, string>
             {
-                ["typeIdentifier"] = EthernetTypeIdentifier,
+                ["typeIdentifier"] = SubnetLifecycleContract.EthernetTypeIdentifier,
                 ["name"] = rollbackName,
             }));
 
@@ -117,11 +114,11 @@ internal static class SubnetLifecycleMutationProbeService
             project,
             "validation_empty_name",
             "validation",
-            "Ethernet",
+            SubnetLifecycleContract.Ethernet,
             commit: false,
             action: () =>
             {
-                var subnet = project.Subnets.Create(EthernetTypeIdentifier, string.Empty);
+                var subnet = project.Subnets.Create(SubnetLifecycleContract.EthernetTypeIdentifier, string.Empty);
                 invalidEmptyNameSubnetId = ReadSubnetId(subnet);
             },
             persisted: () => string.IsNullOrWhiteSpace(invalidEmptyNameSubnetId)
@@ -130,7 +127,7 @@ internal static class SubnetLifecycleMutationProbeService
             expectedPersisted: false,
             new Dictionary<string, string>
             {
-                ["typeIdentifier"] = EthernetTypeIdentifier,
+                ["typeIdentifier"] = SubnetLifecycleContract.EthernetTypeIdentifier,
                 ["name"] = string.Empty,
             }));
 
@@ -140,11 +137,11 @@ internal static class SubnetLifecycleMutationProbeService
             project,
             "validation_profibus_highest_address_minus_one",
             "validation",
-            "Profibus",
+            SubnetLifecycleContract.Profibus,
             commit: false,
             action: () =>
             {
-                var subnet = project.Subnets.Create(ProfibusTypeIdentifier, invalidProfibusName);
+                var subnet = project.Subnets.Create(SubnetLifecycleContract.ProfibusTypeIdentifier, invalidProfibusName);
                 ((IEngineeringObject)subnet).SetAttribute("HighestAddress", -1);
             },
             persisted: () => FindByName(project, invalidProfibusName) is not null,
@@ -163,18 +160,18 @@ internal static class SubnetLifecycleMutationProbeService
             project,
             "create_isolated_ethernet",
             "create",
-            "Ethernet",
+            SubnetLifecycleContract.Ethernet,
             commit: true,
             action: () =>
             {
-                var subnet = project.Subnets.Create(EthernetTypeIdentifier, ethernetCreatedName);
+                var subnet = project.Subnets.Create(SubnetLifecycleContract.EthernetTypeIdentifier, ethernetCreatedName);
                 ethernetCreatedId = ReadSubnetId(subnet);
             },
             persisted: () => FindByName(project, ethernetCreatedName) is not null,
             expectedPersisted: true,
             new Dictionary<string, string>
             {
-                ["typeIdentifier"] = EthernetTypeIdentifier,
+                ["typeIdentifier"] = SubnetLifecycleContract.EthernetTypeIdentifier,
                 ["name"] = ethernetCreatedName,
             });
         createEthernet.TargetSubnetId = ethernetCreatedId;
@@ -182,7 +179,7 @@ internal static class SubnetLifecycleMutationProbeService
 
         if (string.IsNullOrWhiteSpace(ethernetCreatedId))
         {
-            result.Steps.Add(Skipped("edit_isolated_ethernet", "edit", "Ethernet", "The create step did not return a subnet ID."));
+            result.Steps.Add(Skipped("edit_isolated_ethernet", "edit", SubnetLifecycleContract.Ethernet, "The create step did not return a subnet ID."));
         }
         else
         {
@@ -191,7 +188,7 @@ internal static class SubnetLifecycleMutationProbeService
                 project,
                 "edit_isolated_ethernet",
                 "edit",
-                "Ethernet",
+                SubnetLifecycleContract.Ethernet,
                 commit: true,
                 action: () => FindRequiredById(project, ethernetCreatedId!).Name = ethernetEditedName,
                 persisted: () => FindByName(project, ethernetEditedName) is not null,
@@ -211,18 +208,18 @@ internal static class SubnetLifecycleMutationProbeService
             project,
             "create_isolated_profibus",
             "create",
-            "Profibus",
+            SubnetLifecycleContract.Profibus,
             commit: true,
             action: () =>
             {
-                var subnet = project.Subnets.Create(ProfibusTypeIdentifier, profibusCreatedName);
+                var subnet = project.Subnets.Create(SubnetLifecycleContract.ProfibusTypeIdentifier, profibusCreatedName);
                 profibusCreatedId = ReadSubnetId(subnet);
             },
             persisted: () => FindByName(project, profibusCreatedName) is not null,
             expectedPersisted: true,
             new Dictionary<string, string>
             {
-                ["typeIdentifier"] = ProfibusTypeIdentifier,
+                ["typeIdentifier"] = SubnetLifecycleContract.ProfibusTypeIdentifier,
                 ["name"] = profibusCreatedName,
             });
         createProfibus.TargetSubnetId = profibusCreatedId;
@@ -230,7 +227,7 @@ internal static class SubnetLifecycleMutationProbeService
 
         if (string.IsNullOrWhiteSpace(profibusCreatedId))
         {
-            result.Steps.Add(Skipped("edit_isolated_profibus", "edit", "Profibus", "The create step did not return a subnet ID."));
+            result.Steps.Add(Skipped("edit_isolated_profibus", "edit", SubnetLifecycleContract.Profibus, "The create step did not return a subnet ID."));
         }
         else
         {
@@ -239,7 +236,7 @@ internal static class SubnetLifecycleMutationProbeService
                 project,
                 "edit_isolated_profibus",
                 "edit",
-                "Profibus",
+                SubnetLifecycleContract.Profibus,
                 commit: true,
                 action: () =>
                 {
@@ -271,22 +268,22 @@ internal static class SubnetLifecycleMutationProbeService
                 }));
         }
 
-        DeleteCreatedEmptySubnet(result, tiaPortal, project, ethernetCreatedId, "Ethernet");
-        DeleteCreatedEmptySubnet(result, tiaPortal, project, profibusCreatedId, "Profibus");
+        DeleteCreatedEmptySubnet(result, tiaPortal, project, ethernetCreatedId, SubnetLifecycleContract.Ethernet);
+        DeleteCreatedEmptySubnet(result, tiaPortal, project, profibusCreatedId, SubnetLifecycleContract.Profibus);
         DeleteConnectedSubnet(
             result,
             tiaPortal,
             project,
             connectedEthernetSubnetId,
             ethernetBefore!,
-            "Ethernet");
+            SubnetLifecycleContract.Ethernet);
         DeleteConnectedSubnet(
             result,
             tiaPortal,
             project,
             connectedProfibusSubnetId,
             profibusBefore!,
-            "Profibus");
+            SubnetLifecycleContract.Profibus);
 
         CleanupProbeSubnets(result, tiaPortal, project, prefix);
         SaveProject(result, project);

@@ -124,7 +124,7 @@ public static class NetworkWritePayloadBudget
                 core.Error, core.Warnings, core.Guards,
                 items.Select(i => new NetworkWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(), core.Batch,
                 new(false, items.Select(i => new NetworkOperationVerification(i.OperationId, i.Operation,
-                    "not_required", null, core.Omission)).ToArray(), [], core.Omission), core.Omission));
+                    NetworkVerificationStatuses.NotRequired, null, core.Omission)).ToArray(), [], core.Omission), core.Omission));
 
     /// <summary>
     /// Reserves known prepared recovery values, including owner paths in immediate identities
@@ -137,7 +137,7 @@ public static class NetworkWritePayloadBudget
         long chars = MeasureProtectedCore(items);
         var finalChecks = new List<NetworkFinalCheck>();
         NetworkVerificationCheckInfo Check(string name, string? value) => new()
-        { Name = name, Expected = value, Observed = value, Status = "unverified", Message = DiagnosticSummary };
+        { Name = name, Expected = value, Observed = value, Status = NetworkVerificationStatuses.Unverified, Message = DiagnosticSummary };
         NetworkFinalCheck Observed(NetworkFinalCheck check, string? value, string? observed)
             => check with { Expected = value, Observed = observed, Message = DiagnosticSummary };
         NetworkFinalCheck Final(NetworkFinalCheck check, string? value) => Observed(check, value, value);
@@ -230,7 +230,7 @@ public static class NetworkWritePayloadBudget
             // Unknown outcomes also retain their operation identity in an immediateEvidence check.
             finalChecks.Add(Final(NetworkFinalCheck.Operation(item.OperationId, "immediateEvidence"), "available"));
             var evidence = new NetworkMutationVerificationInfo
-            { Status = "unverified", Identity = identity, Checks = checks, Message = DiagnosticSummary };
+            { Status = NetworkVerificationStatuses.Unverified, Identity = identity, Checks = checks, Message = DiagnosticSummary };
             var skipped = effect.RequestedSettings.ToDictionary(p => p.Key, _ => DiagnosticSummary);
             object result = item.Operation switch
             {

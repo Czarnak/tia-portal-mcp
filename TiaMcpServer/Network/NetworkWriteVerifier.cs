@@ -59,14 +59,14 @@ public sealed class NetworkWriteVerifier
             if (!immediate.TryGetValue(item.OperationId, out var evidence))
             {
                 if (item.Operation == "add_network_device") rootUncertain = true;
-                operations.Add(new(item.OperationId, item.Operation, "unverified", null, null));
+                operations.Add(new(item.OperationId, item.Operation, NetworkVerificationStatuses.Unverified, null, null));
                 checks.Add(Evaluate(NetworkFinalCheck.Operation(item.OperationId, "immediateEvidence"), "available", null, false));
                 continue;
             }
             operations.Add(new(item.OperationId, item.Operation, evidence.Status, evidence, null));
             if (item.Operation == "add_network_device")
             {
-                if (item.Status == OperationBatchStatus.Succeeded && evidence.Status == "passed")
+                if (item.Status == OperationBatchStatus.Succeeded && evidence.Status == NetworkVerificationStatuses.Passed)
                 {
                     if (rootCount.HasValue) rootCount++;
                 }
@@ -86,7 +86,7 @@ public sealed class NetworkWriteVerifier
                 var skipped = item.Result is { ValueKind: JsonValueKind.Object } result
                     && result.TryGetProperty("skippedSettings", out var map) && map.ValueKind == JsonValueKind.Object
                     ? map.EnumerateObject().Select(p => p.Name) : Enumerable.Empty<string>();
-                foreach (var field in skipped.SelectMany(name => name == "IoSystem" ? new[] { "IoSystemSubnet", "IoSystemNumber" } : new[] { name }))
+                foreach (var field in skipped.SelectMany(name => name == NetworkSettingKeys.IoSystem ? new[] { NetworkSettingKeys.IoSystemSubnet, NetworkSettingKeys.IoSystemNumber } : new[] { name }))
                 {
                     if (expected.ContainsKey(NodeKey(identity, field))) continue;
                     var prior = initial?.CurrentSettings.GetValueOrDefault(field);
@@ -114,13 +114,13 @@ public sealed class NetworkWriteVerifier
                         {
                             ExpectNode(node, "removedSubnet", "true", subnet);
                             // Replace only expectations referring to the removed relationship.
-                            var subnetKey = NodeKey(node, "Subnet");
+                            var subnetKey = NodeKey(node, NetworkSettingKeys.Subnet);
                             if (expected.GetValueOrDefault(subnetKey) == subnet) expected.Remove(subnetKey);
-                            var ioKey = subnetKey with { Field = "IoSystemSubnet" };
+                            var ioKey = subnetKey with { Field = NetworkSettingKeys.IoSystemSubnet };
                             if (expected.GetValueOrDefault(ioKey) == subnet)
                             {
                                 expected.Remove(ioKey);
-                                expected.Remove(subnetKey with { Field = "IoSystemNumber" });
+                                expected.Remove(subnetKey with { Field = NetworkSettingKeys.IoSystemNumber });
                             }
                         }
                     }
@@ -160,7 +160,7 @@ public sealed class NetworkWriteVerifier
                 observation = (value, value is not null);
             }
             // The hardware snapshot does not carry this flag; inspect the exact final node instead.
-            if (key.Kind == "node" && key.Field == "PnDeviceNameAutoGeneration" && state is not null
+            if (key.Kind == "node" && key.Field == NetworkSettingKeys.PnDeviceNameAutoGeneration && state is not null
                 && state.Devices.All(d => !string.IsNullOrWhiteSpace(d.Name))
                 && NetworkWritePlanner.TryResolveAffected(state, key.NodeIdentity!, out var qualified, out _)
                 && constraints.GetValueOrDefault(key.NodeIdentity!)?.All(identity => NetworkWritePlanner.TryResolveAffected(state, identity, out _, out _)) != false)
@@ -172,7 +172,7 @@ public sealed class NetworkWriteVerifier
             }
             checks.Add(Evaluate(subject, entry.Value, observation.Value, observation.Readable && !unknownPrior.Contains(key)));
         }
-        return new(operations.All(o => o.Status is "passed" or "not_required") && checks.All(c => c.Status == "passed"), operations, checks, null);
+        return new(operations.All(o => o.Status is NetworkVerificationStatuses.Passed or NetworkVerificationStatuses.NotRequired) && checks.All(c => c.Status == NetworkVerificationStatuses.Passed), operations, checks, null);
     }
 
     private static (string? Value, bool Readable) Observe(HardwareConfigInfo? state, ExpectationKey key, IReadOnlyList<NetworkNodeIdentityInfo>? constraints)
@@ -219,10 +219,10 @@ public sealed class NetworkWriteVerifier
                 ? ((node.ConnectionEvidence.SubnetId != removed && node.ConnectionEvidence.IoSystemSubnetId != removed).ToString().ToLowerInvariant(), true)
                 : (null, false);
         }
-        if (key.Field == "Subnet" && node.ConnectionEvidence?.SubnetId is { } connectedSubnet
+        if (key.Field == NetworkSettingKeys.Subnet && node.ConnectionEvidence?.SubnetId is { } connectedSubnet
             && (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))
                 || state.Subnets.Count(s => s.SubnetId == connectedSubnet) != 1)) return (null, false);
-        if (key.Field is "IoSystemSubnet" or "IoSystemNumber" && node.ConnectionEvidence?.IoSystemSubnetId is { } ioSubnet)
+        if (key.Field is NetworkSettingKeys.IoSystemSubnet or NetworkSettingKeys.IoSystemNumber && node.ConnectionEvidence?.IoSystemSubnetId is { } ioSubnet)
         {
             if (state.Subnets.Any(s => string.IsNullOrWhiteSpace(s.SubnetId))) return (null, false);
             var subnets = state.Subnets.Where(s => s.SubnetId == ioSubnet).ToArray();
@@ -255,9 +255,9 @@ public sealed class NetworkWriteVerifier
     private static NetworkFinalCheck Evaluate(NetworkFinalCheck check, string? expected, string? observed, bool readable) => check with
     {
         Expected = expected, Observed = observed,
-        Status = !readable ? "unverified" : expected == observed ? "passed" : "failed",
+        Status = !readable ? NetworkVerificationStatuses.Unverified : expected == observed ? NetworkVerificationStatuses.Passed : NetworkVerificationStatuses.Failed,
         Message = !readable ? "Evidence is unavailable. Inspect current state with network_read before retrying; do not replay automatically."
-            : expected == observed ? null : check.Kind == "node" && check.Field is "IoSystemSubnet" or "IoSystemNumber"
+            : expected == observed ? null : check.Kind == "node" && check.Field is NetworkSettingKeys.IoSystemSubnet or NetworkSettingKeys.IoSystemNumber
                 ? "The explicit IO relationship differs. Inspect current state and possible side effects of later subnet changes with network_read."
                 : "The final state differs from the effective attempted changes. Inspect with network_read."
     };

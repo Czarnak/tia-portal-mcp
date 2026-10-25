@@ -790,18 +790,18 @@ while ((line = Console.In.ReadLine()) is not null)
                 {
                     DeviceName = "PLC_1",
                     AppliedSettings = scenario == "network-config-partial"
-                        ? new Dictionary<string, string> { ["Address"] = "192.168.0.10" }
+                        ? new Dictionary<string, string> { [NetworkSettingKeys.Address] = "192.168.0.10" }
                         : new Dictionary<string, string>(),
                     SkippedSettings = scenario == "network-config-partial"
-                        ? new Dictionary<string, string> { ["IoSystem"] = "No IO connector." }
+                        ? new Dictionary<string, string> { [NetworkSettingKeys.IoSystem] = "No IO connector." }
                         : new Dictionary<string, string>
                         {
-                            ["Address"] = "Read only.",
-                            ["IoSystem"] = "No IO connector.",
+                            [NetworkSettingKeys.Address] = "Read only.",
+                            [NetworkSettingKeys.IoSystem] = "No IO connector.",
                         },
                     Messages = new List<string> { $"seq:{seq}" },
                     Verification = FakeConfigurationVerification(line, "PLC_1", scenario == "network-config-partial"
-                        ? new Dictionary<string, string> { ["Address"] = "192.168.0.10" } : new()),
+                        ? new Dictionary<string, string> { [NetworkSettingKeys.Address] = "192.168.0.10" } : new()),
                 })),
                 _ => """{"success":false,"error":"unexpected sparse configuration method"}""",
             });
@@ -1339,7 +1339,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 NetworkNodeReadSelectorBuilder.Apply(qualifiedDevice, true);
                 var connected = qualifiedDevice.Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToList();
                 foreach (var n in connected) n.ConnectionEvidence = new() { Complete = true, SubnetId = "subnet-1", IoSystemSubnetId = "subnet-1", IoSystemNumber = 100 };
-                var subnet = SelectableSubnet("PN/IE", "subnet-1", "Ethernet", "System:Subnet.Ethernet", Array.Empty<IoSystemInfo>(), Array.Empty<string>());
+                var subnet = SelectableSubnet("PN/IE", "subnet-1", SubnetLifecycleContract.Ethernet, SubnetLifecycleContract.EthernetTypeIdentifier, Array.Empty<IoSystemInfo>(), Array.Empty<string>());
                 subnet.ConnectionEvidence = new() { Complete = true, Nodes = connected.Select(n => new NetworkNodeIdentityInfo {
                     DeviceName = qualifiedDevice.Name!, NodeId = n.NodeId, InterfacePath = scenario == "network-qualified-legacy" ? null : n.Selector!.InterfacePath }).ToList() };
                 qualifiedHardware.Subnets.Add(subnet);
@@ -1524,7 +1524,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
             if (scenario == "network-guarded-io-move" && guardedNetworkState.Subnets.Count == 1)
             {
-                var other = SelectableSubnet("Other", "subnet-2", "Ethernet", "System:Subnet.Ethernet", Array.Empty<IoSystemInfo>(), Array.Empty<string>());
+                var other = SelectableSubnet("Other", "subnet-2", SubnetLifecycleContract.Ethernet, SubnetLifecycleContract.EthernetTypeIdentifier, Array.Empty<IoSystemInfo>(), Array.Empty<string>());
                 other.ConnectionEvidence = new() { Complete = true };
                 guardedNetworkState.Subnets.Add(other);
             }
@@ -2959,14 +2959,14 @@ string ConfigureQualifiedFixture(string line, HardwareConfigInfo state, string s
         // Attempted assignments can leave known old values in failed postconditions.
         guardedNetworkWrites++;
         var attempted = new Dictionary<string, string>
-        { ["Address"] = request.IpAddress!, ["SubnetMask"] = request.SubnetMask!, ["PnDeviceName"] = request.PnDeviceName! };
+        { [NetworkSettingKeys.Address] = request.IpAddress!, [NetworkSettingKeys.SubnetMask] = request.SubnetMask!, [NetworkSettingKeys.PnDeviceName] = request.PnDeviceName! };
         var failedEvidence = FakeConfigurationVerification(line, request.DeviceName!, attempted);
-        failedEvidence.Status = "failed";
+        failedEvidence.Status = NetworkVerificationStatuses.Failed;
         foreach (var check in failedEvidence.Checks)
         {
-            check.Observed = check.Name switch { "Address" => node.Item!.IpAddress,
-                "SubnetMask" => node.Item!.SubnetMask, _ => node.Item!.PnDeviceName };
-            check.Status = "failed"; check.Message = "The attempted setting retained its known old value.";
+            check.Observed = check.Name switch { NetworkSettingKeys.Address => node.Item!.IpAddress,
+                NetworkSettingKeys.SubnetMask => node.Item!.SubnetMask, _ => node.Item!.PnDeviceName };
+            check.Status = NetworkVerificationStatuses.Failed; check.Message = "The attempted setting retained its known old value.";
         }
         return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
         { DeviceName = request.DeviceName!, AppliedSettings = attempted, Verification = failedEvidence }));
@@ -2974,13 +2974,13 @@ string ConfigureQualifiedFixture(string line, HardwareConfigInfo state, string s
     var applied = new Dictionary<string, string>();
     var skipped = new Dictionary<string, string>();
     guardedNetworkWrites++;
-    if (request.IpAddress is not null) { node.Item!.IpAddress = request.IpAddress; applied["Address"] = request.IpAddress; }
+    if (request.IpAddress is not null) { node.Item!.IpAddress = request.IpAddress; applied[NetworkSettingKeys.Address] = request.IpAddress; }
     if (request.SubnetMask is not null)
     {
-        if (scenario == "network-qualified-partial") skipped["SubnetMask"] = "Read only";
-        else { node.Item!.SubnetMask = request.SubnetMask; applied["SubnetMask"] = request.SubnetMask; }
+        if (scenario == "network-qualified-partial") skipped[NetworkSettingKeys.SubnetMask] = "Read only";
+        else { node.Item!.SubnetMask = request.SubnetMask; applied[NetworkSettingKeys.SubnetMask] = request.SubnetMask; }
     }
-    if (request.PnDeviceName is not null) { node.Item!.PnDeviceName = request.PnDeviceName; applied["PnDeviceName"] = request.PnDeviceName; }
+    if (request.PnDeviceName is not null) { node.Item!.PnDeviceName = request.PnDeviceName; applied[NetworkSettingKeys.PnDeviceName] = request.PnDeviceName; }
     return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo { DeviceName = request.DeviceName!, AppliedSettings = applied,
         SkippedSettings = skipped, Verification = FakeConfigurationVerification(line, request.DeviceName!, applied) }));
 }
@@ -3188,21 +3188,21 @@ string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHome
     if (ipAddress is not null)
     {
         target.IpAddress = ipAddress;
-        applied["Address"] = ipAddress;
+        applied[NetworkSettingKeys.Address] = ipAddress;
     }
 
     var subnetMask = ReadField(requestLine, "subnetMask");
     if (subnetMask is not null)
     {
         target.SubnetMask = subnetMask;
-        applied["SubnetMask"] = subnetMask;
+        applied[NetworkSettingKeys.SubnetMask] = subnetMask;
     }
 
     var pnDeviceName = ReadField(requestLine, "pnDeviceName");
     if (pnDeviceName is not null)
     {
         target.PnDeviceName = pnDeviceName;
-        applied["PnDeviceName"] = pnDeviceName;
+        applied[NetworkSettingKeys.PnDeviceName] = pnDeviceName;
     }
 
     var result = new ConfigureNetworkDeviceResultInfo
@@ -3530,7 +3530,7 @@ HardwareConfigInfo SubnetLifecycleHardwareConfig(List<SubnetLifecycleSubnetState
         Subnets = subnets.Select(subnet =>
         {
             var info = SelectableSubnet(subnet.Name, subnet.SubnetId, subnet.NetworkType,
-                "System:Subnet." + subnet.NetworkType, Array.Empty<IoSystemInfo>(), subnet.ConnectedNodeNames);
+                SubnetLifecycleContract.TypeIdentifierFor(subnet.NetworkType), Array.Empty<IoSystemInfo>(), subnet.ConnectedNodeNames);
             info.ConnectionEvidence = new()
             {
                 Complete = true,
@@ -3648,13 +3648,13 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
             return Success(ToCamelCaseJson(new NetworkObjectInspectionInfo
             {
                 Target = decoded.NetworkObjectTarget,
-                Attributes = decoded.NetworkAttributeNames!.Select(name => name == "PnDeviceNameAutoGeneration"
+                Attributes = decoded.NetworkAttributeNames!.Select(name => name == NetworkSettingKeys.PnDeviceNameAutoGeneration
                     ? new NetworkAttributeInfo { Name = name, Source = "dynamic", Access = "readWrite", SupportedTypes = new() { "System.Boolean" },
                         Availability = "available", Value = new() { Kind = "boolean", Value = guardedPnAutoGeneration.GetValueOrDefault(inspectedNode.NodeId,
                             scenario == "network-guarded-pn-autogeneration") } }
                     : new NetworkAttributeInfo { Name = name, Source = "dynamic", SupportedTypes = new() { "System.String" }, Availability = "available",
-                        Access = name == "PnDeviceName" && scenario == "network-guarded-pn-readonly" ? "readOnly" : "readWrite",
-                        Value = (name switch { "Address" => inspectedNode.IpAddress, "SubnetMask" => inspectedNode.SubnetMask, _ => inspectedNode.PnDeviceName }) is { } text
+                        Access = name == NetworkSettingKeys.PnDeviceName && scenario == "network-guarded-pn-readonly" ? "readOnly" : "readWrite",
+                        Value = (name switch { NetworkSettingKeys.Address => inspectedNode.IpAddress, NetworkSettingKeys.SubnetMask => inspectedNode.SubnetMask, _ => inspectedNode.PnDeviceName }) is { } text
                             ? new() { Kind = "string", Value = text } : new() { Kind = "null" } }).ToList()
             }));
         }
@@ -3700,7 +3700,7 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
     {
         var id = method == "create_subnet" ? "subnet-created-" + guardedNetworkWrites : ReadField(request, "subnetId")!;
         var subnet = method == "create_subnet"
-            ? SelectableSubnet(ReadField(request, "subnetName")!, id, ReadField(request, "subnetNetworkType")!, "System:Subnet." + ReadField(request, "subnetNetworkType"), Array.Empty<IoSystemInfo>(), Array.Empty<string>())
+            ? SelectableSubnet(ReadField(request, "subnetName")!, id, ReadField(request, "subnetNetworkType")!, SubnetLifecycleContract.TypeIdentifierFor(ReadField(request, "subnetNetworkType")), Array.Empty<IoSystemInfo>(), Array.Empty<string>())
             : state.Subnets.Single(s => s.SubnetId == id);
         if (method == "create_subnet")
         {
@@ -3721,15 +3721,15 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         var node = GuardedNodes(state).Single(n => n.NodeId == ReadField(request, "nodeId"));
         var applied = new Dictionary<string, string>();
         var skipped = new Dictionary<string, string>();
-        if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied["Address"] = address; }
-        if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied["SubnetMask"] = mask; }
+        if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied[NetworkSettingKeys.Address] = address; }
+        if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied[NetworkSettingKeys.SubnetMask] = mask; }
         if (ReadBoolField(request, "pnDeviceNameAutoGeneration") is { } generated)
-        { guardedPnAutoGeneration[node.NodeId] = generated; applied["PnDeviceNameAutoGeneration"] = generated ? "true" : "false"; }
-        if (ReadField(request, "pnDeviceName") is { } pn) { node.PnDeviceName = pn; applied["PnDeviceName"] = pn; }
+        { guardedPnAutoGeneration[node.NodeId] = generated; applied[NetworkSettingKeys.PnDeviceNameAutoGeneration] = generated ? "true" : "false"; }
+        if (ReadField(request, "pnDeviceName") is { } pn) { node.PnDeviceName = pn; applied[NetworkSettingKeys.PnDeviceName] = pn; }
         if (ReadField(request, "subnetId") is { } id)
         {
             node.ConnectionEvidence = new() { Complete = true, SubnetId = id };
-            applied["Subnet"] = id;
+            applied[NetworkSettingKeys.Subnet] = id;
             foreach (var previous in state.Subnets) previous.ConnectionEvidence?.Nodes.RemoveAll(n => n.DeviceName == "PLC_Grouped" && n.NodeId == node.NodeId);
             var subnet = state.Subnets.Single(s => s.SubnetId == id);
             subnet.ConnectionEvidence!.Nodes.Add(new() { DeviceName = "PLC_Grouped", NodeId = node.NodeId });
@@ -3740,9 +3740,9 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
             {
                 node.ConnectionEvidence!.IoSystemSubnetId = ReadField(request, "ioSystemSubnetId");
                 node.ConnectionEvidence.IoSystemNumber = ioNumber;
-                applied["IoSystem"] = ioNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                applied[NetworkSettingKeys.IoSystem] = ioNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
-            else skipped["IoSystem"] = "No IO connector available";
+            else skipped[NetworkSettingKeys.IoSystem] = "No IO connector available";
         }
         if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"outcome unavailable after mutation\"}";
         return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
@@ -3797,20 +3797,20 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
 NetworkMutationVerificationInfo FakePassedVerification(NetworkMutationIdentityInfo identity, Dictionary<string, string> values) => new()
 {
     Identity = identity,
-    Status = values.Count == 0 ? "not_required" : "passed",
+    Status = values.Count == 0 ? NetworkVerificationStatuses.NotRequired : NetworkVerificationStatuses.Passed,
     Checks = values.Select(pair => new NetworkVerificationCheckInfo
     {
-        Name = pair.Key, Status = "passed", Expected = pair.Value, Observed = pair.Value,
+        Name = pair.Key, Status = NetworkVerificationStatuses.Passed, Expected = pair.Value, Observed = pair.Value,
     }).ToList(),
 };
 
 NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine, string deviceName, Dictionary<string, string> applied)
 {
     var values = new Dictionary<string, string>(applied);
-    if (values.Remove("IoSystem"))
+    if (values.Remove(NetworkSettingKeys.IoSystem))
     {
-        values["IoSystemSubnet"] = ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId")!;
-        values["IoSystemNumber"] = ReadIntField(requestLine, "ioSystemNumber")!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        values[NetworkSettingKeys.IoSystemSubnet] = ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId")!;
+        values[NetworkSettingKeys.IoSystemNumber] = ReadIntField(requestLine, "ioSystemNumber")!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
     var target = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!.NetworkObjectTarget;
     var identity = new NetworkMutationIdentityInfo
@@ -3839,7 +3839,7 @@ NetworkMutationVerificationInfo FakeSubnetVerification(string requestLine, strin
     {
         values.Add("subnetIdentity", subnetId);
         if (ReadField(requestLine, "subnetName") is { } name) values.Add("Name", name);
-        if (method == "create_subnet") values.Add("TypeIdentifier", "System:Subnet." + ReadField(requestLine, "subnetNetworkType"));
+        if (method == "create_subnet") values.Add("TypeIdentifier", SubnetLifecycleContract.TypeIdentifierFor(ReadField(requestLine, "subnetNetworkType"))!);
         if (ReadIntField(requestLine, "subnetHighestAddress") is { } address) values.Add("HighestAddress", address.ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (ReadField(requestLine, "subnetTransmissionSpeed") is { } speed) values.Add("TransmissionSpeed", speed);
     }
