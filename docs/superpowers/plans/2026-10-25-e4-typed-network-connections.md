@@ -183,7 +183,7 @@ pwsh -NoProfile -File scripts/verify-coverage-threshold.ps1 -CoveragePath ($task
 Record numerator/denominator and exit status. `coverage.runsettings` excludes worker code; do not claim this rate covers the changed native helpers.
 - [x] Obtain independent review of the owned diff, especially native exception propagation, aggregate stub provenance, and partial outcomes. Fix only accepted findings, rerun affected checks, and commit each fix conventionally after its verification.
 - [x] Record `git rev-parse HEAD`, `git status --short`, `git diff --check`, actual test counts, warning/SDK provenance, and the deferred live cases. Release the global slot and report the candidate to the coordinator.
-- [ ] Coordinator integrates in default A/B/C order, with C rebasing after B and only then substituting configurator constants. Revalidate the combined candidate with the same serialized policy; rerun only checks affected by integration changes or unresolved evidence gaps. Do not push, publish, or archive the worktree without separate authorization.
+- [x] Coordinator integrates in default A/B/C order, with C rebasing after B and only then substituting configurator constants. Revalidate the combined candidate with the same serialized policy; rerun only checks affected by integration changes or unresolved evidence gaps. Do not push, publish, or archive the worktree without separate authorization.
 
 ### Task 4: Deferred native acceptance after explicit target authorization
 
