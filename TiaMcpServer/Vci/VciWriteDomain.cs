@@ -20,15 +20,11 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
     public bool ConfirmsEveryCall => false;
 
     public WriteValidation Validate(IReadOnlyList<VciOperationRequest> items, McpAccessMode accessMode)
-    {
-        var validation = VciWriteCatalog.ValidateWrite(items);
-        if (!validation.IsValid) return WriteValidation.Invalid(validation.Category, validation.Error);
-        if (VciWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
-            return WriteValidation.Invalid(WorkerFailureCategories.ValidationError,
-                "The encoded operation identities leave insufficient room for the required response summaries. Use smaller vci_write calls.");
-        var errors = VciWriteCatalog.ValidateAccessMode(items, accessMode);
-        return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
-    }
+        => WriteValidation.Compose(
+            VciWriteCatalog.ValidateWrite(items),
+            () => VciWritePayloadBudget.MeasureProtectedCore(items),
+            () => VciWriteCatalog.ValidateAccessMode(items, accessMode),
+            ToolName);
 
     public async Task<WritePlan<VciWriteEffect>> PlanAsync(IReadOnlyList<VciOperationRequest> items)
     {

@@ -40,7 +40,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
     }
     public string ResolvedHmiName(string operationId) => _resolved[operationId];
 
-    public async Task<HmiPlanResult> PlanAsync(IReadOnlyList<HmiWriteOperationRequest> items)
+    public async Task<PlanResult<HmiWriteEffect>> PlanAsync(IReadOnlyList<HmiWriteOperationRequest> items)
     {
         _resolved.Clear(); _deleteTags.Clear(); _createdDeleteTags.Clear();
         var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
@@ -132,7 +132,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         catch (ReadFailure failure) { return Failed(new(failure.Category, failure.Message)); }
     }
 
-    public async Task<HmiReplanResult> ReplanAsync(HmiWriteOperationRequest item)
+    public async Task<ReplanResult<HmiWriteEffect>> ReplanAsync(HmiWriteOperationRequest item)
     {
         try
         {
@@ -172,7 +172,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         }
     }
     private static bool Bound(string? connection) => !string.IsNullOrEmpty(connection) && !Names.Equals(connection, "<Internal tag>");
-    private static HmiPlanResult Failed(WriteToolError error) => new(WritePlan<HmiWriteEffect>.Fail(error.Category, error.Message), new Dictionary<string, IReadOnlyList<FiredGuard>>());
+    private static PlanResult<HmiWriteEffect> Failed(WriteToolError error) => new(WritePlan<HmiWriteEffect>.Fail(error.Category, error.Message), new Dictionary<string, IReadOnlyList<FiredGuard>>());
     private static string ResolveHmi(HmiDeviceListInfo devices, string? name)
     {
         var matches = devices.Devices.Where(d => name is null ? d.Kind == "unified" : Names.Equals(name, d.SoftwareName) || Names.Equals(name, d.DeviceName)).ToArray();

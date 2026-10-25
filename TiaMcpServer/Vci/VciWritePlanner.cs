@@ -10,7 +10,7 @@ namespace TiaMcpServer.Vci;
 
 public sealed class VciWritePlanner(OpennessWorkerClient client)
 {
-    public async Task<VciPlanResult> PlanAsync(IReadOnlyList<VciOperationRequest> items)
+    public async Task<PlanResult<VciWriteEffect>> PlanAsync(IReadOnlyList<VciOperationRequest> items)
     {
         var previous = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var plans = new List<ItemPlan<VciWriteEffect>>();
@@ -35,7 +35,7 @@ public sealed class VciWritePlanner(OpennessWorkerClient client)
         return new(WritePlan<VciWriteEffect>.Ok(plans), guards);
     }
 
-    public async Task<VciReplanResult> ReplanAsync(VciOperationRequest item)
+    public async Task<ReplanResult<VciWriteEffect>> ReplanAsync(VciOperationRequest item)
     {
         if (ProjectFolderError(item) is { } error)
             return new(ItemReplan<VciWriteEffect>.Fail(error.Category, error.Message), []);
@@ -84,6 +84,6 @@ public sealed class VciWritePlanner(OpennessWorkerClient client)
         return guards;
     }
 
-    private static VciPlanResult Failed(WriteToolError error)
+    private static PlanResult<VciWriteEffect> Failed(WriteToolError error)
         => new(WritePlan<VciWriteEffect>.Fail(error.Category, error.Message), new Dictionary<string, IReadOnlyList<FiredGuard>>());
 }

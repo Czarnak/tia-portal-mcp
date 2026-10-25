@@ -18,8 +18,6 @@ public sealed record HmiGuardedWriteResponse(string Tool, string ContractVersion
 public sealed record HmiOperationVerification(string OperationId, bool Success, string Check, string? Expected, string? Actual, string? Message);
 public sealed record HmiWriteVerification(bool Success, IReadOnlyList<HmiOperationVerification> Operations, StructuredOperationOmission? Omission);
 public sealed record HmiResolution(HmiWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards, WriteToolError? Error);
-public sealed record HmiPlanResult(WritePlan<HmiWriteEffect> Plan, IReadOnlyDictionary<string, IReadOnlyList<FiredGuard>> Guards);
-public sealed record HmiReplanResult(ItemReplan<HmiWriteEffect> Replan, IReadOnlyList<FiredGuard> Guards);
 public sealed record HmiTableEvidence(string Name, string? GroupPath);
 
 /// <summary>Complete, paged read evidence for one resolved HMI; member paths are full Tag.Member paths.</summary>
