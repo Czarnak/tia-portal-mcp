@@ -21,7 +21,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     private sealed record ItemOutcome(PlcWorkingState? State, PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards,
         IReadOnlyList<CheckedPrecondition> Preconditions, WriteToolError? Error);
 
-    public async Task<PlcPlanResult> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
+    public async Task<PlanResult<PlcWriteEffect>> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         if (evidence.Error is { } inventoryError) return Failed(inventoryError);
@@ -42,11 +42,11 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             guards[item.OperationId] = outcome.Guards;
         }
 
-        return new PlcPlanResult(WritePlan<PlcWriteEffect>.Ok(plans), guards);
+        return new PlanResult<PlcWriteEffect>(WritePlan<PlcWriteEffect>.Ok(plans), guards);
     }
 
     /// <summary>Re-reads real state for one dependent item just before its own mutation.</summary>
-    public async Task<PlcReplanResult> ReplanAsync(PlcOperationRequest item)
+    public async Task<ReplanResult<PlcWriteEffect>> ReplanAsync(PlcOperationRequest item)
     {
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         var outcome = evidence.Error is { } inventoryError
@@ -54,8 +54,8 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             : await ResolveAsync(item, evidence.Inventory!,
                 new Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState>(ReferenceEqualityComparer.Instance), new PlcContentDiffBudget()).ConfigureAwait(false);
         return outcome.Error is { } error
-            ? new PlcReplanResult(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>())
-            : new PlcReplanResult(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards);
+            ? new ReplanResult<PlcWriteEffect>(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>())
+            : new ReplanResult<PlcWriteEffect>(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards);
     }
 
     private async Task<ItemOutcome> ResolveAsync(PlcOperationRequest item, PlcTagInventoryInfo inventory,
@@ -178,6 +178,6 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     private static ItemOutcome Fail(WriteToolError error)
         => new(null, null, Array.Empty<FiredGuard>(), Array.Empty<CheckedPrecondition>(), error);
 
-    private static PlcPlanResult Failed(WriteToolError error)
+    private static PlanResult<PlcWriteEffect> Failed(WriteToolError error)
         => new(WritePlan<PlcWriteEffect>.Fail(error.Category, error.Message), new Dictionary<string, IReadOnlyList<FiredGuard>>());
 }

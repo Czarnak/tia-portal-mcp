@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Safety.Pipeline;
@@ -24,6 +25,20 @@ public sealed record WriteValidation(bool IsValid, WriteToolError? Error)
 
     public static WriteValidation Invalid(string category, string message)
         => new(false, new WriteToolError(category, message));
+
+    public static WriteValidation Compose(
+        OperationValidation catalogResult,
+        Func<int> measureProtectedCore,
+        Func<IReadOnlyList<string>> validateAccess,
+        string toolName)
+    {
+        if (!catalogResult.IsValid) return Invalid(catalogResult.Category, catalogResult.Error);
+        if (measureProtectedCore() > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
+            return Invalid(WorkerFailureCategories.ValidationError,
+                $"The encoded operation identities leave insufficient room for the required response summaries. Use smaller {toolName} calls.");
+        var errors = validateAccess();
+        return errors.Count == 0 ? Valid() : Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
+    }
 }
 
 /// <summary>
@@ -68,6 +83,14 @@ public sealed record ItemReplan<TEffect>(bool Success, ItemPlan<TEffect>? Plan, 
     public static ItemReplan<TEffect> Fail(string category, string message)
         => new(false, Plan: null, new WriteToolError(category, message));
 }
+
+public sealed record PlanResult<TEffect>(
+    WritePlan<TEffect> Plan,
+    IReadOnlyDictionary<string, IReadOnlyList<FiredGuard>> Guards);
+
+public sealed record ReplanResult<TEffect>(
+    ItemReplan<TEffect> Replan,
+    IReadOnlyList<FiredGuard> Guards);
 
 /// <summary>Everything the pipeline learned about one call, handed to the domain to compose its response.</summary>
 public sealed record WriteReport<TEffect, TVerification>(

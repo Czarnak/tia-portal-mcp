@@ -48,7 +48,3 @@ public sealed record PlcGuardedWriteResponse(string Tool, string ContractVersion
 
 /// <summary>One item resolved against the working state: an effect with its guards, or a call-stopping error.</summary>
 public sealed record PlcResolution(PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards, WriteToolError? Error);
-
-public sealed record PlcPlanResult(WritePlan<PlcWriteEffect> Plan, IReadOnlyDictionary<string, IReadOnlyList<FiredGuard>> Guards);
-
-public sealed record PlcReplanResult(ItemReplan<PlcWriteEffect> Replan, IReadOnlyList<FiredGuard> Guards);

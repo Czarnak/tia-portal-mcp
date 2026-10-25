@@ -27,15 +27,11 @@ public sealed class HmiWriteDomain(OpennessWorkerClient client)
     public bool ConfirmsEveryCall => false;
 
     public WriteValidation Validate(IReadOnlyList<HmiWriteOperationRequest> items, McpAccessMode accessMode)
-    {
-        var validation = HmiWriteCatalog.ValidateWrite(items);
-        if (!validation.IsValid) return WriteValidation.Invalid(validation.Category, validation.Error);
-        if (HmiWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
-            return WriteValidation.Invalid(WorkerFailureCategories.ValidationError,
-                "The encoded operation identities leave insufficient room for the required response summaries. Use smaller hmi_write calls.");
-        var errors = HmiWriteCatalog.ValidateAccessMode(items, accessMode);
-        return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
-    }
+        => WriteValidation.Compose(
+            HmiWriteCatalog.ValidateWrite(items),
+            () => HmiWritePayloadBudget.MeasureProtectedCore(items),
+            () => HmiWriteCatalog.ValidateAccessMode(items, accessMode),
+            ToolName);
 
     public async Task<WritePlan<HmiWriteEffect>> PlanAsync(IReadOnlyList<HmiWriteOperationRequest> items)
     {

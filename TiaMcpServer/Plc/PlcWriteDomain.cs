@@ -27,15 +27,11 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     public bool ConfirmsEveryCall => false;
 
     public WriteValidation Validate(IReadOnlyList<PlcOperationRequest> items, McpAccessMode accessMode)
-    {
-        var validation = PlcOperationCatalog.ValidateWrite(items);
-        if (!validation.IsValid) return WriteValidation.Invalid(validation.Category, validation.Error);
-        if (PlcWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
-            return WriteValidation.Invalid(WorkerFailureCategories.ValidationError,
-                "The encoded operation identities leave insufficient room for the required response summaries. Use smaller plc_write calls.");
-        var errors = PlcOperationCatalog.ValidateAccessMode(items, accessMode);
-        return errors.Count == 0 ? WriteValidation.Valid() : WriteValidation.Invalid(WorkerFailureCategories.AccessDenied, string.Join("\n", errors));
-    }
+        => WriteValidation.Compose(
+            PlcOperationCatalog.ValidateWrite(items),
+            () => PlcWritePayloadBudget.MeasureProtectedCore(items),
+            () => PlcOperationCatalog.ValidateAccessMode(items, accessMode),
+            ToolName);
 
     public async Task<WritePlan<PlcWriteEffect>> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
