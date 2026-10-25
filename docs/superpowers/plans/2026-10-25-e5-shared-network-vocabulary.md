@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25 after A -> B -> C local integration. The maintainer approved and committed the plans as `0f7162c`, then authorized implementation while stopping before every live TIA test. C remains local. See the [execution record](#execution-record-2026-10-25).
+**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25 after A -> B -> C integration. The maintainer subsequently authorized rebasing E-5 onto current `main`, reconciling documentation and publishing its own PR, with existing qualification reused if production source stayed unchanged. The rebase preserved the qualified source; no standalone E-5 live TIA run is required. See the [execution record](#execution-record-2026-10-25) and [delivery record](#delivery-and-remaining-limits).
 
 **Goal:** Give host, worker and valid FakeWorker generators one exact vocabulary for Network verification statuses, setting keys and approved subnet type identifiers without changing their wire contract.
 
@@ -178,11 +178,11 @@ pwsh -NoProfile -File scripts/verify-coverage-threshold.ps1 -CoveragePath ($task
 
 E-5 is ready for local integration when the shared vocabulary is used by production consumers and valid generators, exact wire/protocol regressions pass, B's typed calls survive the handoff, review findings are resolved and the coordinator's integrated offline qualification passes. No shared status algorithm or broader attribute registry is part of completion.
 
-The original draft checklist is retained above with completed offline steps marked. The execution record below describes implementation evidence and the explicit stop before all live TIA testing.
+The original draft checklist is retained above with completed offline steps marked. The execution record below describes the original offline qualification and live-testing stop; the delivery section records the later main rebase and publication authorization.
 
 ## Execution record 2026-10-25
 
-The maintainer approved the plans, committed them as `0f7162c6090799d9d12358f94089ed345f3005bb`, and authorized isolated implementation. C used branch `refactor/shared-network-vocabulary` and managed worktree `e5-shared-network-vocabulary`. Source edits ran in parallel; every restore/build/test used one coordinator-controlled slot. Main remained at the approved plan commit.
+The maintainer approved the plans, committed them as `0f7162c6090799d9d12358f94089ed345f3005bb`, and authorized isolated implementation. C used branch `refactor/shared-network-vocabulary` and managed worktree `e5-shared-network-vocabulary`. Source edits ran in parallel; every restore/build/test used one coordinator-controlled slot. During that initial implementation, main remained at the approved plan commit.
 
 ### Implementation and integration
 
@@ -214,6 +214,10 @@ Final changes after this source gate are documentation only. Source identity, li
 
 ### Delivery and remaining limits
 
-A was pushed and opened as [PR #192](https://github.com/Czarnak/tia-portal-mcp/pull/192) after offline sufficiency was independently assessed under the maintainer's conditional authorization. CI build/test and dependency-submission jobs stopped before compilation because `actions/setup-dotnet` received HTTP 409 for SDK/runtime downloads; the PR body records that infrastructure limitation. No SDK/workflow workaround or CI rerun was introduced.
+A and B subsequently merged through [PR #192](https://github.com/Czarnak/tia-portal-mcp/pull/192) and [PR #193](https://github.com/Czarnak/tia-portal-mcp/pull/193). B's separately authorized installed-candidate connection, engineering-rejection and restoration checks passed within the [E-4 native scope and limits](2026-10-25-e4-typed-network-connections.md#native-acceptance-record-2026-10-25). This is separate evidence and is not an E-5 native run.
 
-B and C remain local, with worktrees retained for review. No remote merge, deployment, installation or live TIA test occurred. E-5's exact-vocabulary refactor needs no standalone live run; it does not establish E-4 native attachment, rejection/fault or restoration acceptance. Those B cases remain pending an exact disposable target and separate authorization.
+On 2026-10-25 the maintainer authorized C's rebase, documentation reconciliation, push and own PR, explicitly allowing reuse of existing test evidence when production source remained unchanged. The four local C commits from `944bbdec58bfb45eba605a477c6ad7e8f062310e` were rebased onto current main `232fb57bcd7fc0b206c089bbdf02b9bc3b3fd2f5`. Source commits replayed cleanly. The only conflict was `docs/README.md`; resolution retained main's scoped E-4 native record and C's E-5 implementation entry. The rebased series completed at `078fd5d0d0b20c86207da279e0179ad769dd7092`, followed by documentation-only reconciliation.
+
+Direct tree comparison with the qualified candidate passed: `git diff --exit-code eb8d873fa639cdc92de9e8e348f84d5f7c92e513 HEAD -- . ':!docs/**'` produced no differences. This includes production, tests, build configuration and reference artifacts. The recorded 7,696 ordinary tests, 39 packaging tests, 95.09% scoped coverage, provenance checks and both reference builds therefore remain the applicable evidence; full suites were not rerun. Links, conflict markers, privacy, whitespace and the final PR scope receive focused checks before publication.
+
+E-5 is prepared for its own PR against `main`; the managed worktree is retained. Its exact-vocabulary refactor needs no standalone live run and does not extend B's native acceptance to other equipment, faults or modes. No deployment, installation, save/compile/download, online or PLC runtime action was performed during this rebase/publication work. Worker/FakeWorker coverage exclusions and the original native-evidence limits remain explicit.
