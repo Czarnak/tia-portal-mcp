@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Draft, uncommitted; awaiting user review. This document does not authorize implementation, remote writes, or live TIA operations. Do not commit this plan without later explicit approval.
+**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25. The maintainer approved and committed the plans as `0f7162c`, authorized implementation, and explicitly stopped before all live TIA testing. Native acceptance remains pending. This branch remains local; see the [execution record](#execution-record-2026-10-25).
 
 **Goal:** Replace speculative reflection in network attachment with the verified TIA Portal V21 typed APIs while preserving selection, partial-result, and rejection behavior.
 
@@ -19,7 +19,7 @@
 - Preserve unrelated work. No source, tests, worktrees, builds, staging, commits, or live operations are part of drafting this document.
 - Use managed worktrees at execution time after inspecting `list_artifacts` and reading `superpowers:using-git-worktrees`; the returned absolute workspace directory is authoritative for every command.
 - E-4 worktree name: `e4-typed-network-connections`; branch: `refactor/typed-network-connections`.
-- The reviewed plans may remain uncommitted and therefore absent from new worktrees. Read the coordinator-provided absolute plan paths; do not copy the dirty checkout or assume the plans are committed.
+- The reviewed plans are committed at `0f7162c` and present in the worktrees. Read the approved copy and preserve unrelated working changes; do not copy a dirty checkout.
 - The coordinator owns `docs/README.md`, the original review's status, evidence updates, integration, and any shared-file conflict resolution.
 - One coordinator-granted build/test slot covers all branches, including focused tests, restores, stub regeneration, packaging, and coverage. Do not run those operations concurrently.
 - No remote writes, live project attachment, engineering mutation, PLC download, or PLC run/stop is authorized by this plan.
@@ -85,11 +85,11 @@ Official V21 references: [connecting a node to a subnet](https://docs.tia.siemen
 
 **Interfaces:** Consumes the coordinator's approved base SHA and absolute reviewed-plan paths; produces the attached absolute B worktree directory and the exact branch above.
 
-- [ ] Confirm the user has approved implementation, the draft's file/behavior decisions, and the coordinator-recorded full base SHA.
-- [ ] Inspect `list_artifacts`, follow `superpowers:using-git-worktrees`, reuse a suitable attached B worktree or call `create_worktree` with the approved base and `e4-typed-network-connections`; complete attachment if required.
-- [ ] Use the returned absolute directory explicitly; create/switch to `refactor/typed-network-connections` without overwriting an existing branch or user changes. Check `git status --short`, `git rev-parse HEAD`, and `git branch --show-current`.
-- [ ] Read this uncommitted reviewed plan from the coordinator-provided absolute path and the two authoritative specification files. Record base SHA, branch, directory, and ownership in the coordinator's execution record.
-- [ ] Consume the coordinator's successful [shared baseline check](2026-10-25-e1-e2-worker-context-gates.md#task-0-prepare-the-shared-execution-baseline) before editing. It is shared setup, not a dependency on A's implementation; do not rerun the same checks in every identical starting tree.
+- [x] Confirm the user has approved implementation, the draft's file/behavior decisions, and the coordinator-recorded full base SHA.
+- [x] Inspect `list_artifacts`, follow `superpowers:using-git-worktrees`, reuse a suitable attached B worktree or call `create_worktree` with the approved base and `e4-typed-network-connections`; complete attachment if required.
+- [x] Use the returned absolute directory explicitly; create/switch to `refactor/typed-network-connections` without overwriting an existing branch or user changes. Check `git status --short`, `git rev-parse HEAD`, and `git branch --show-current`.
+- [x] Read this uncommitted reviewed plan from the coordinator-provided absolute path and the two authoritative specification files. Record base SHA, branch, directory, and ownership in the coordinator's execution record.
+- [x] Consume the coordinator's successful [shared baseline check](2026-10-25-e1-e2-worker-context-gates.md#task-0-prepare-the-shared-execution-baseline) before editing. It is shared setup, not a dependency on A's implementation; do not rerun the same checks in every identical starting tree.
 
 ### Task 1: Pin the typed SDK surface and refresh source-owned references
 
@@ -97,7 +97,7 @@ Official V21 references: [connecting a node to a subnet](https://docs.tia.siemen
 
 **Interfaces:** Consumes the verified SDK declarations; produces reference assemblies exposing the two exact methods with current shared provenance.
 
-- [ ] Add `BaseReferenceExposesTypedNetworkConnectionMethod(string receiver, string method, string parameter)` as a theory in `ReferenceStubArtifactTests.cs`, with these exact rows:
+- [x] Add `BaseReferenceExposesTypedNetworkConnectionMethod(string receiver, string method, string parameter)` as a theory in `ReferenceStubArtifactTests.cs`, with these exact rows:
 
 ```csharp
 [InlineData("Siemens.Engineering.HW.Node", "ConnectToSubnet", "Siemens.Engineering.HW.Subnet")]
@@ -106,7 +106,7 @@ Official V21 references: [connecting a node to a subnet](https://docs.tia.siemen
 
 Use the file's existing `PEReader`, `MetadataReader`, `FullName`, and `BlobReader` pattern. Assert exactly one named method, public visibility, nonstatic/nonvirtual attributes, an instance nongeneric method signature, parameter count `1`, return `SignatureTypeCode.Void`, one `TypeHandle` matching the row's parameter type, and no remaining signature bytes. Do not load or execute the reference DLL.
 
-- [ ] Acquire the global build/test slot. Restore if needed with `dotnet restore TiaMcpServer.slnx --disable-parallel`; run the new theory before editing stubs:
+- [x] Acquire the global build/test slot. Restore if needed with `dotnet restore TiaMcpServer.slnx --disable-parallel`; run the new theory before editing stubs:
 
 ```powershell
 dotnet test TiaMcpServer.Tests -c Release -m:1 --no-restore --filter "FullyQualifiedName~BaseReferenceExposesTypedNetworkConnectionMethod"
@@ -114,8 +114,8 @@ dotnet test TiaMcpServer.Tests -c Release -m:1 --no-restore --filter "FullyQuali
 
 Expected: both rows fail because the methods are absent. A toolchain/restore failure is not the intended red result; resolve it before proceeding.
 
-- [ ] Add `public void ConnectToSubnet(global::Siemens.Engineering.HW.Subnet subnet)` to the stub `Node` and `public void ConnectToIoSystem(global::Siemens.Engineering.HW.IoSystem ioSystem)` to stub `IoConnector`; use the surrounding `throw new global::System.NotSupportedException()` placeholder bodies.
-- [ ] Regenerate through the existing updater, then verify without `-Update`:
+- [x] Add `public void ConnectToSubnet(global::Siemens.Engineering.HW.Subnet subnet)` to the stub `Node` and `public void ConnectToIoSystem(global::Siemens.Engineering.HW.IoSystem ioSystem)` to stub `IoConnector`; use the surrounding `throw new global::System.NotSupportedException()` placeholder bodies.
+- [x] Regenerate through the existing updater, then verify without `-Update`:
 
 ```powershell
 pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Configuration Release -Update
@@ -125,7 +125,7 @@ dotnet test TiaMcpServer.Tests -c Release -m:1 --no-restore --filter "FullyQuali
 
 Expected: exit `0`, both signature rows pass, and all three provenance checks pass. The first updater invocation restores the dedicated reference-stub solution, which is not restored by the product solution; do not add `-NoRestore` to that first invocation in a fresh worktree. The aggregate source hash covers all three stub projects (`verify-reference-stubs.ps1:53-74`), so all three tracked DLLs must change. Never hand-edit hashes or copy implementation `bin` DLLs.
 
-- [ ] Review the exact Task 1 diff and run `git diff --check`; stage only its test, stub source, and three generated artifacts. Commit `test: pin typed V21 network connection references`. Release the global slot.
+- [x] Review the exact Task 1 diff and run `git diff --check`; stage only its test, stub source, and three generated artifacts. Commit `test: pin typed V21 network connection references`. Release the global slot.
 
 ### Task 2: Replace reflection while preserving network outcomes
 
@@ -133,10 +133,10 @@ Expected: exit `0`, both signature rows pass, and all three provenance checks pa
 
 **Interfaces:** Keeps both public `Configure` overloads unchanged. Change the private interfaces to `ConnectIoSystem(IoConnector ioConnector, IoSystem ioSystem, int ioSystemNumber, ConfigureNetworkDeviceResultInfo result)` and `IoSystem FindExactlyOneIoSystem(Subnet subnet, int number)`; use `IoSystem?` for both the selected local and local match.
 
-- [ ] Read the exact file and all `NetworkDeviceConfigurator`/`InvokeFirstAvailable` callers before editing. Confirm the current private helper has only the two known callers and that no test pins its source text.
-- [ ] Replace the two reflection invocations with `node.ConnectToSubnet(subnet)` and `ioConnector.ConnectToIoSystem(ioSystem)`. Apply the typed private/local changes above, delete `InvokeFirstAvailable`, its speculative comments, the two wrapped-exception catches, both obsolete direct `InvalidOperationException` catches, and unused `using System.Reflection`.
-- [ ] Review each wrapper side by side with the base: success writes the same sparse key/value; engineering failure writes the same skipped key/message; subnet failure returns `false`; prior scalar settings remain in the result; no IO attempt follows a failed requested subnet. Leave all key literals for E-5.
-- [ ] Acquire the global slot; build against refreshed stubs and run existing focused checks:
+- [x] Read the exact file and all `NetworkDeviceConfigurator`/`InvokeFirstAvailable` callers before editing. Confirm the current private helper has only the two known callers and that no test pins its source text.
+- [x] Replace the two reflection invocations with `node.ConnectToSubnet(subnet)` and `ioConnector.ConnectToIoSystem(ioSystem)`. Apply the typed private/local changes above, delete `InvokeFirstAvailable`, its speculative comments, the two wrapped-exception catches, both obsolete direct `InvalidOperationException` catches, and unused `using System.Reflection`.
+- [x] Review each wrapper side by side with the base: success writes the same sparse key/value; engineering failure writes the same skipped key/message; subnet failure returns `false`; prior scalar settings remain in the result; no IO attempt follows a failed requested subnet. Leave all key literals for E-5.
+- [x] Acquire the global slot; build against refreshed stubs and run existing focused checks:
 
 ```powershell
 dotnet build TiaMcpServer.slnx -c Release -m:1 --no-restore /p:UseTiaPortalReferenceStubs=true
@@ -145,7 +145,7 @@ dotnet test TiaMcpServer.Tests -c Release --no-build --filter "FullyQualifiedNam
 
 Expected: exit `0`; source-contract dependency-before-setter checks and `Preflight_ExistingIoSkipPrecedence` pass. These tests do not execute the changed native connection wrappers.
 
-- [ ] Compile against installed V21 references:
+- [x] Compile against installed V21 references:
 
 ```powershell
 dotnet build TiaMcpServer.slnx -c Release -m:1 --no-restore /p:UseTiaPortalReferenceStubs=false '/p:TiaPortalV21Dir=C:\Program Files\Siemens\Automation\Portal V21\PublicAPI\V21\net48'
@@ -153,7 +153,7 @@ dotnet build TiaMcpServer.slnx -c Release -m:1 --no-restore /p:UseTiaPortalRefer
 
 Expected: exit `0`; record actual warnings and assembly provenance. A missing SDK is a blocked real-reference check, not a pass. Do not launch the host or attach to TIA.
 
-- [ ] Review the final source diff, selector ordering, retained verification dispatch, and removed catch behavior; run `git diff --check`. Commit only the configurator as `refactor: use typed V21 network connection calls`. Release the global slot.
+- [x] Review the final source diff, selector ordering, retained verification dispatch, and removed catch behavior; run `git diff --check`. Commit only the configurator as `refactor: use typed V21 network connection calls`. Release the global slot.
 
 ### Task 3: Qualify the branch and hand it to integration
 
@@ -161,7 +161,7 @@ Expected: exit `0`; record actual warnings and assembly provenance. A missing SD
 
 **Interfaces:** Produces the exact tested candidate SHA, check results, known limits, and B integration handoff; C consumes the integrated B result.
 
-- [ ] Acquire the global slot; build the final candidate with stubs once, then run the ordinary suite with the existing CI coverage scope and the required packaging suite:
+- [x] Acquire the global slot; build the final candidate with stubs once, then run the ordinary suite with the existing CI coverage scope and the required packaging suite:
 
 ```powershell
 $taskE4Results = Join-Path (Get-Location).Path ('TestResults/e4/' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff'))
@@ -172,7 +172,7 @@ dotnet test TiaMcpServer.Tests -c Release --no-build --filter "Category=Packagin
 
 Require exit `0` for each command before proceeding. If Coverlet temp-file access fails, set process-local `TEMP`/`TMP` under an ignored `TestResults/e4/temp` directory, rerun only the failed collection into a fresh timestamped results directory, and restore the original process values afterward. Reject zero-hit or stale reports.
 
-- [ ] Enforce the current coverage gate:
+- [x] Enforce the current coverage gate:
 
 ```powershell
 $taskE4Reports = @(Get-ChildItem -LiteralPath $taskE4Results -Recurse -Filter coverage.cobertura.xml)
@@ -181,8 +181,8 @@ pwsh -NoProfile -File scripts/verify-coverage-threshold.ps1 -CoveragePath ($task
 ```
 
 Record numerator/denominator and exit status. `coverage.runsettings` excludes worker code; do not claim this rate covers the changed native helpers.
-- [ ] Obtain independent review of the owned diff, especially native exception propagation, aggregate stub provenance, and partial outcomes. Fix only accepted findings, rerun affected checks, and commit each fix conventionally after its verification.
-- [ ] Record `git rev-parse HEAD`, `git status --short`, `git diff --check`, actual test counts, warning/SDK provenance, and the deferred live cases. Release the global slot and report the candidate to the coordinator.
+- [x] Obtain independent review of the owned diff, especially native exception propagation, aggregate stub provenance, and partial outcomes. Fix only accepted findings, rerun affected checks, and commit each fix conventionally after its verification.
+- [x] Record `git rev-parse HEAD`, `git status --short`, `git diff --check`, actual test counts, warning/SDK provenance, and the deferred live cases. Release the global slot and report the candidate to the coordinator.
 - [ ] Coordinator integrates in default A/B/C order, with C rebasing after B and only then substituting configurator constants. Revalidate the combined candidate with the same serialized policy; rerun only checks affected by integration changes or unresolved evidence gaps. Do not push, publish, or archive the worktree without separate authorization.
 
 ### Task 4: Deferred native acceptance after explicit target authorization
@@ -204,3 +204,34 @@ Record numerator/denominator and exit status. `coverage.runsettings` excludes wo
 Offline completion requires the exact signature tests, fresh stub provenance, both reference builds, ordinary tests, required packaging tests, scoped coverage gate, reviewed diff, and clean committed implementation candidate. It does not imply native attachment or exception acceptance: the current test project does not source-link this configurator, and its selector doubles use different namespaces from the actual SDK receivers. Do not reshape that unrelated test surface just to execute these two direct calls.
 
 Native completion requires only the later authorized cases actually executed, with post-read and restoration evidence. Keep any native rejection, exception, or fixture limitations explicit. This draft remains uncommitted until the user approves otherwise.
+
+
+## Execution record 2026-10-25
+
+The approved common base was `0f7162c6090799d9d12358f94089ed345f3005bb`. B used isolated branch `refactor/typed-network-connections` and managed worktree `e4-typed-network-connections`. After A completed, B was rebased onto A's `b50141914af8fbe257e1c0b7d30db824f708696a`; the source delta was verified identical to the independently reviewed B patch. The main checkout and other workers' edits were preserved.
+
+### Implementation
+
+- Reference/API increment: original `5464c216017cad33ec97850610843e146441a532`, rebased `c945b9f`. Both new metadata theory rows failed before the declarations existed; all seven reference-artifact tests passed after canonical regeneration. The shared source hash is `548904666492b549fa68fd1608ae1a226c253de2bdd5333ecd91098a3d25ddb2`, carried by all three compile-only reference DLLs.
+- Typed-call increment: original `43a9201a2ad22dee74df8bd9cb5298b71733d55f`, rebased source candidate `f22454653155d56784f9de1798d205d8136d317c`. The configurator now calls the verified typed APIs, carries `IoSystem` as its SDK type and deletes the speculative reflection helper. Direct engineering rejections retain sparse skipped results; native `InvalidOperationException` remains propagated instead of being newly converted into a skip. Unexpected native exception text can differ from the former reflection wrapper.
+- Focused configurator/reference checks passed 74/74. Per-task and strongest whole-workstream reviews found no actionable source findings. A nonblocking report discrepancy was corrected: each stub-regeneration Step7 build had two existing CS0108 warnings in unchanged stub members, distinct from the seven nullable test-build warnings.
+
+### Cumulative offline qualification after A integration
+
+| Check | Observed result |
+| --- | --- |
+| Release stub solution build | Passed, zero errors; seven existing nullable warnings |
+| Canonical reference verifier | Passed; all three source-hash/identity checks current |
+| Ordinary suite, `Category!=Packaging`, CI coverage settings | 7,678/7,678 passed, zero failures/skips; reported duration 6 min |
+| Existing scoped line-coverage gate | 12,973/13,642 lines, 95.09%; exceeds 80% |
+| Required packaging suite | 39/39 passed, zero failures/skips; reported duration 1 min 36 sec |
+| Installed-V21-reference Release solution build | Passed, zero errors; existing nullable warnings only |
+| Source patch identity and whitespace | Reviewed B delta unchanged by rebase; checks passed |
+
+Evidence is retained under ignored `TestResults/e4-qualification-20261025T194849234/`. Collector output uses a separate coverage directory; process-local `TEMP`/`TMP` were restored. No TRX attachment mirror was requested for this full gate. The CI coverage scope excludes worker/native code, so 95.09% is not native helper coverage. Metadata tests and successful builds establish API compatibility, not successful Siemens mutations or fault behavior.
+
+### Handoff and remaining acceptance
+
+B's typed-call source is frozen and ready for C's constants-only Configurator handoff. The coordinator transfers that file after C rebases onto the integrated B result; the literal-sensitive PnDeviceName ordering source test must migrate with its call-site strings. Preserve all typed calls, catches, dependency ordering and immediate verification. C's final combined gate owns post-handoff qualification.
+
+Every deferred live case remains unexecuted by explicit maintainer instruction. Native subnet/IO attachment, engineering rejection/fault behavior and restoration still need later target-specific authorization and disposable-project evidence. No Portal attachment, installation, PLC download/run-stop, remote push or B PR was performed.
