@@ -16,7 +16,7 @@ namespace TiaMcpServer.Plc;
 /// </summary>
 internal sealed class PlcWorkingState
 {
-    private sealed record Table(string Folder, string Name, bool IsDefault, List<TagInfo> Tags, List<UserConstantInfo> Constants);
+    private sealed record Table(string Folder, string Name, List<TagInfo> Tags, List<UserConstantInfo> Constants);
 
     private sealed record Block(string Name, string Type, string? Language, bool IsSystem, int? Number);
 
@@ -51,7 +51,7 @@ internal sealed class PlcWorkingState
         _plc = plc.PlcName;
         _device = plc.DeviceName;
         _inventoryComplete = inventoryComplete;
-        _tables = plc.Tables.Select(t => new Table(NormalizeFolder(t.FolderPath), t.Name, t.IsDefault,
+        _tables = plc.Tables.Select(t => new Table(NormalizeFolder(t.FolderPath), t.Name,
             t.Tags.Select(Copy).ToList(),
             t.UserConstants.Select(c => new UserConstantInfo { Name = c.Name, DataType = c.DataType, Value = c.Value }).ToList())).ToList();
         foreach (var table in _tables) _tableFolders.Add(table.Folder);
@@ -133,7 +133,7 @@ internal sealed class PlcWorkingState
         switch (item.Operation)
         {
             case "create_tag_table":
-                _tables.Add(new Table(NormalizeFolder(item.FolderPath), item.TableName!, false, new(), new()));
+                _tables.Add(new Table(NormalizeFolder(item.FolderPath), item.TableName!, new(), new()));
                 Touch(TableKey(item.TableName!), item);
                 break;
             case "delete_tag_table":
@@ -231,15 +231,11 @@ internal sealed class PlcWorkingState
                 var folder = NormalizeFolder(item.FolderPath);
                 if (!_tableFolders.Contains(folder)) throw NotFound(item, $"tag table folder '{folder}' was not found in PLC '{_plc}'.",
                     !_inventoryComplete || _skipped.Any(s => s.NodeType is ProjectTreeNodeTypes.TagTable or ProjectTreeNodeTypes.TagTableFolder));
-                if (_tables.FirstOrDefault(t => Names.Equals(t.Name, item.TableName)) is { } taken)
-                    guards.Add(Fire(NameCollision, item, $"Tag table name '{item.TableName}' is already used by the table in '{taken.Folder}'; table names are unique across all folders."));
-                if (_skipped.Any(s => s.NodeType is ProjectTreeNodeTypes.TagTable or ProjectTreeNodeTypes.TagTableFolder)) guards.Add(SkippedGuard(item));
                 return Effect(item, new(PlcNameRules.TagTable, _plc, _device, folder, item.TableName, null, null, null), Change("tableName", null, item.TableName), folder);
             }
             case "delete_tag_table":
             {
                 var table = RequireTable(item);
-                if (table.IsDefault) guards.Add(Fire(DefaultTagTable, item, $"Tag table '{table.Name}' is the default tag table of PLC '{_plc}' and cannot be deleted."));
                 if (table.Tags.Count + table.Constants.Count > 0)
                     guards.Add(Fire(DeletesTableContents, item, $"Deleting tag table '{table.Name}' in '{table.Folder}' removes {table.Tags.Count} tags and {table.Constants.Count} user constants."));
                 return Effect(item, TableTarget(table), Array.Empty<PlcFieldChange>(), null, new(table.Tags.Count, table.Constants.Count, Array.Empty<string>(), Array.Empty<string>(), null, null));
@@ -248,7 +244,6 @@ internal sealed class PlcWorkingState
             case "create_user_constant":
             {
                 var table = RequireTable(item);
-                RequireCpuNameFree(item, item.Name!, null, guards);
                 if (item.LogicalAddress is not null) AddressOverlapGuard(item, null, guards);
                 var kind = item.Operation == "create_tag" ? PlcNameRules.Tag : PlcNameRules.UserConstant;
                 return Effect(item, MemberTarget(kind, table, item.Name!),
@@ -259,14 +254,7 @@ internal sealed class PlcWorkingState
             {
                 var table = RequireTable(item);
                 var tag = RequireTag(item, table);
-                if (item.NewName is not null) RequireCpuNameFree(item, item.NewName, new PlcNamedObject(PlcNameRules.Tag, tag.Name, TablePath(table)), guards);
                 if (item.LogicalAddress is not null) AddressOverlapGuard(item, tag, guards);
-                foreach (var (field, requested, current) in new[] { ("externalAccessible", item.ExternalAccessible, tag.ExternalAccessible),
-                             ("externalVisible", item.ExternalVisible, tag.ExternalVisible), ("externalWritable", item.ExternalWritable, tag.ExternalWritable) })
-                {
-                    if (requested is not null && current is null)
-                        guards.Add(Fire(AttributeUnreadable, item, $"The current '{field}' flag of tag '{tag.Name}' is unreadable, so the change cannot be verified."));
-                }
                 return Effect(item, MemberTarget(PlcNameRules.Tag, table, tag.Name),
                     Change("name", tag.Name, item.NewName).Concat(Change("dataType", tag.DataType, item.DataType))
                         .Concat(Change("logicalAddress", tag.LogicalAddress, item.LogicalAddress))
@@ -298,11 +286,6 @@ internal sealed class PlcWorkingState
                 var address = BlockAddress.Parse(item.BlockPath!);
                 var parent = CreationParent(item, address);
                 var name = address.BlockName;
-                if (parent.Blocks.Any(b => Names.Equals(b.Name, name)))
-                    guards.Add(Fire(BlockExists, item, $"Block '{parent.Path}/{name}' already exists; create_block never overwrites a block."));
-                else if (parent.Groups.Any(g => Names.Equals(g.Name, name)))
-                    guards.Add(Fire(NameCollision, item, $"'{name}' is already used by block group '{parent.Path}/{name}'."));
-                else RequireCpuNameFree(item, name, null, guards);
                 var cls = IsOb(item) ? ObClass(item) : null;
                 string? number = null;
                 if (cls is not null && cls.IsSingleton && ObBlocks().FirstOrDefault(o => o.Block.Number == cls.BaseNumber) is { Block: not null } holder)
@@ -329,9 +312,6 @@ internal sealed class PlcWorkingState
             {
                 var address = BlockAddress.Parse(item.BlockPath!);
                 var parent = CreationParent(item, address);
-                if (parent.Groups.Any(g => Names.Equals(g.Name, address.BlockName)) || parent.Blocks.Any(b => Names.Equals(b.Name, address.BlockName)))
-                    guards.Add(Fire(NameCollision, item, $"'{address.BlockName}' is already used by a block or block group in '{parent.Path}'."));
-                if (_skipped.Any(s => SameSelector(s.ParentPath, parent.Selector))) guards.Add(SkippedGuard(item));
                 return Effect(item, new(PlcNameRules.BlockGroup, _plc, _device, null, null, address.BlockName, $"{parent.Path}/{address.BlockName}", null),
                     Change("name", null, address.BlockName), parent.Path);
             }
@@ -370,20 +350,6 @@ internal sealed class PlcWorkingState
     private UserConstantInfo RequireConstant(PlcOperationRequest item, Table table)
         => table.Constants.FirstOrDefault(c => Names.Equals(c.Name, item.Name))
             ?? throw NotFound(item, $"user constant '{item.Name}' was not found in tag table '{table.Name}'.", !_inventoryComplete);
-
-    private void RequireCpuNameFree(PlcOperationRequest item, string name, PlcNamedObject? self, List<FiredGuard> guards)
-    {
-        if (PlcNameRules.FindCollision(name, CpuOccupants(), self) is { } occupant)
-            guards.Add(Fire(NameCollision, item, $"'{name}' collides with {occupant.Kind} '{occupant.Name}' in '{occupant.Container}'; tags, user constants and blocks share one case-insensitive namespace."));
-        // A block the walker could not read may hold the name.
-        if (_skipped.Any(IsBlockTreeNode)) guards.Add(SkippedGuard(item));
-    }
-
-    private IEnumerable<PlcNamedObject> CpuOccupants()
-        => _tables.SelectMany(t => t.Tags.Select(tag => new PlcNamedObject(PlcNameRules.Tag, tag.Name, TablePath(t)))
-                .Concat(t.Constants.Select(c => new PlcNamedObject(PlcNameRules.UserConstant, c.Name, TablePath(t)))))
-            .Concat(_unitRoots.Values.Prepend(_root).SelectMany(DescendantBlocks)
-                .Select(b => new PlcNamedObject(b.Block.IsSystem ? PlcNameRules.SystemBlock : PlcNameRules.Block, b.Block.Name, b.Group.Path)));
 
     private void AddressOverlapGuard(PlcOperationRequest item, TagInfo? self, List<FiredGuard> guards)
     {

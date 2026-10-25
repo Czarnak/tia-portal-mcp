@@ -27,9 +27,6 @@ public static class BlockMutationService
         var normalizedLang = preflight.Language;
         var obClass = normalizedType == "OB" ? ResolveObEventClass(obEventClass) : null;
 
-        // The plan saw no occupant, so anything found now means the project changed since.
-        PlcWritePreconditions.RequireBlockAbsent(group, blockName);
-        PlcWritePreconditions.RequireCpuNameFree(plcSoftware, blockName, currentName: null);
         var obNumber = obClass is null ? (int?)null : PickObNumber(plcSoftware, obClass);
 
         return BlockCreationCoordinator.Execute(
@@ -119,7 +116,6 @@ public static class BlockMutationService
         var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
         var parentGroup = ResolveGroupFromAddress(plcSoftware, address);
 
-        PlcWritePreconditions.RequireGroupNameFree(parentGroup, address.BlockName);
         parentGroup.Groups.Create(address.BlockName);
 
         return new BlockMutationResultInfo

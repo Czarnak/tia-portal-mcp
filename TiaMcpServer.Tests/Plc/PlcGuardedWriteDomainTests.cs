@@ -157,7 +157,7 @@ public sealed class PlcGuardedWriteDomainTests
     }
 
     [Fact]
-    public async Task DryRunListsBlockGuardThenActualCallBlocks()
+    public async Task DuplicateBlock_PreviewsCleanThenPortalRejectionIsForwarded()
     {
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
@@ -165,16 +165,19 @@ public sealed class PlcGuardedWriteDomainTests
 
         var preview = await fixture.RunAsync(true, CreateBlock("block", "PLC_2/Main"));
         var actual = await fixture.RunRawAsync(false, CreateBlock("block", "PLC_2/Main"));
-        var blocked = Document(actual);
+        var applied = Document(actual);
 
         Assert.Equal("preview", preview.Phase);
         Assert.True(preview.Success);
-        Assert.Contains(preview.Guards, g => g.Id == PlcGuardDefinitions.BlockExists && g.Severity == "block");
-        Assert.True(actual.IsError);
-        Assert.Equal("blocked", blocked.Phase);
-        Assert.Equal(WorkerFailureCategories.GuardBlocked, blocked.Error!.Category);
-        Assert.Null(blocked.Batch);
-        Assert.DoesNotContain("create_block", requests.Methods());
+        Assert.Empty(preview.Guards);
+        Assert.False(actual.IsError);
+        Assert.Equal("applied", applied.Phase);
+        Assert.False(applied.Success);
+        Assert.Null(applied.Error);
+        var failure = Assert.Single(applied.Batch!.Operations).Failure!;
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, failure.Category);
+        Assert.Equal("scripted cause", Assert.Single(failure.EngineeringError!.Inner).Message);
+        Assert.Contains("create_block", requests.Methods());
     }
 
     private static PlcOperationRequest CreateOb(string id, string blockPath, string? obEventClass = null)
@@ -222,19 +225,23 @@ public sealed class PlcGuardedWriteDomainTests
     }
 
     [Fact]
-    public async Task CollisionBlocksWholeCall_NothingRuns()
+    public async Task NameCollision_ReachesPortalAndEarlierItemsStay()
     {
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
 
-        var response = await fixture.RunAsync(false, CreateTag("fresh", "Fresh"), CreateTag("start", "start"));
+        var response = await fixture.RunAsync(false, CreateTag("fresh", "Fresh"), CreateTable("table", "Default tag table"), CreateTag("after", "After"));
 
-        Assert.Equal("blocked", response.Phase);
-        Assert.Contains(response.Guards, g => g.Id == PlcGuardDefinitions.NameCollision && g.OperationId == "start");
-        Assert.Null(response.Batch);
-        Assert.DoesNotContain("create_tag", requests.Methods());
-        Assert.DoesNotContain("Fresh", await fixture.InventoryAsync());
+        Assert.Equal("applied", response.Phase);
+        Assert.False(response.Success);
+        Assert.DoesNotContain(response.Guards, g => g.Severity == "block");
+        Assert.Equal(new[] { "succeeded", "failed", "skipped" }, response.Batch!.Operations.Select(o => o.Status));
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, response.Batch.Operations[1].Failure!.Category);
+        Assert.Equal(2, requests.Methods().Count(m => m is "create_tag" or "create_tag_table"));
+        var inventory = await fixture.InventoryAsync();
+        Assert.Contains("Fresh", inventory);
+        Assert.DoesNotContain("After", inventory);
     }
 
     [Fact]
@@ -322,12 +329,13 @@ public sealed class PlcGuardedWriteDomainTests
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-unverifiable");
 
-        var response = await fixture.RunAsync(dryRun, CreateBlock("block", "Station_1/NewFC"));
+        // A legacy-name delete could hit the unreadable block, so the lookup cannot be trusted.
+        var response = await fixture.RunAsync(dryRun, new PlcOperationRequest { OperationId = "block", Operation = "delete_block", BlockPath = "Station_1/Main" });
 
         Assert.Equal(dryRun ? "preview" : "blocked", response.Phase);
         Assert.Contains(response.Guards, g => g.Id == PlcGuardDefinitions.StateUnverifiable && g.Severity == "block");
         Assert.Null(response.Batch);
-        Assert.DoesNotContain("create_block", requests.Methods());
+        Assert.DoesNotContain("delete_block", requests.Methods());
     }
 
     [Fact]
@@ -357,14 +365,14 @@ public sealed class PlcGuardedWriteDomainTests
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip, mode);
-        var item = kind switch
+        var items = kind switch
         {
-            "validation" => new PlcOperationRequest { OperationId = "bad", Operation = "create_tag", TableName = "Default tag table" },
-            "blocked" => CreateTag("tag", "Start"),
-            _ => CreateTag("tag", "Fresh"),
+            "validation" => new[] { new PlcOperationRequest { OperationId = "bad", Operation = "create_tag", TableName = "Default tag table" } },
+            "blocked" => new[] { CreateOb("first", "PLC_2/ProgErr1", "ProgrammingError"), CreateOb("second", "PLC_2/ProgErr2", "ProgrammingError") },
+            _ => new[] { CreateTag("tag", "Fresh") },
         };
 
-        var response = await fixture.RunAsync(kind == "dryRun", item);
+        var response = await fixture.RunAsync(kind == "dryRun", items);
 
         Assert.Equal(phase, response.Phase);
         using var record = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));

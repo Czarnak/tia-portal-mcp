@@ -19,7 +19,8 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// <c>incompleteAfterWrite</c> does the same once any write succeeded (late block, failed verification);
 /// <c>driftAtImport</c> edits block content just before an import checks its hash (a TIA UI edit);
 /// <c>skippedBlock</c> makes the tree walker report an unreadable block under PLC_1's program blocks.
-/// Creating the tag <c>RejectedByPortal</c> fails as Portal's own rejection (<c>engineering_rejected</c> with Siemens evidence).
+/// Creating the tag <c>RejectedByPortal</c>, or a block, block group or tag table whose name is taken, fails as Portal's own
+/// rejection (<c>engineering_rejected</c> with Siemens evidence): the worker no longer pre-checks those names.
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
     bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false)
@@ -247,7 +248,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         switch (request.Method)
         {
             case "create_block":
-                if (group.Blocks.Any(b => Names.Equals(b.Name, address.BlockName))) Throw(WorkerFailureCategories.StateChanged, "The block already exists.");
+                if (group.Blocks.Any(b => Names.Equals(b.Name, address.BlockName))) throw PortalRejection("The block already exists.");
                 (number, obClass) = PickNumber(plc, request);
                 group.Blocks.Add((address.BlockName, request.BlockType!, request.BlockType == "GlobalDB" ? "DB" : request.Language ?? "LAD", number.Value));
                 path = BlocksPath(plc, address.FolderPath, address.BlockName);
@@ -258,7 +259,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 path = blockPath;
                 break;
             case "create_block_group":
-                if (group.Groups.Any(g => Names.Equals(g.Name, address.BlockName))) Throw(WorkerFailureCategories.StateChanged, "The block group already exists.");
+                if (group.Groups.Any(g => Names.Equals(g.Name, address.BlockName))) throw PortalRejection("The block group already exists.");
                 group.Groups.Add(new Group(address.BlockName));
                 path = BlocksPath(plc, address.FolderPath, address.BlockName);
                 break;
@@ -292,6 +293,15 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
     private static IEnumerable<(string Name, string Type, string Language, int Number)> AllBlocks(Group group)
         => group.Blocks.Concat(group.Groups.SelectMany(AllBlocks));
 
+    private static WorkerOperationException PortalRejection(string message)
+        => new(WorkerFailureCategories.EngineeringRejected, "TIA Portal rejected the operation: " + message,
+            engineeringError: new EngineeringErrorInfo
+            {
+                Type = "EngineeringTargetInvocationException",
+                Message = message,
+                Inner = { new EngineeringInnerErrorInfo { Type = "InvalidOperationException", Message = "scripted cause" } },
+            });
+
     private string TagWrite(WorkerRequest request)
     {
         var plc = FindPlc(request.PlcName);
@@ -300,22 +310,14 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         switch (request.Method)
         {
             case "create_tag_table":
-                if (plc.Tables.Any(t => Names.Equals(t.Name, request.TableName))) Throw(WorkerFailureCategories.StateChanged, "The tag table name is taken.");
+                if (plc.Tables.Any(t => Names.Equals(t.Name, request.TableName))) throw PortalRejection("The tag table name is taken.");
                 plc.Tables.Add(table = new TagTableInfo { Name = request.TableName!, FolderPath = folder });
                 break;
             case "delete_tag_table":
                 plc.Tables.Remove(Require(table, "tag table"));
                 break;
             case "create_tag":
-                if (request.Name == RejectedTagName)
-                    throw new WorkerOperationException(WorkerFailureCategories.EngineeringRejected,
-                        "TIA Portal rejected the operation: scripted rejection",
-                        engineeringError: new EngineeringErrorInfo
-                        {
-                            Type = "EngineeringTargetInvocationException",
-                            Message = "scripted rejection",
-                            Inner = { new EngineeringInnerErrorInfo { Type = "InvalidOperationException", Message = "scripted cause" } },
-                        });
+                if (request.Name == RejectedTagName) throw PortalRejection("scripted rejection");
                 Require(table, "tag table").Tags.Add(new TagInfo { Name = request.Name!, DataType = request.DataType!, LogicalAddress = request.LogicalAddress ?? string.Empty,
                     ExternalAccessible = true, ExternalVisible = true, ExternalWritable = true });
                 break;

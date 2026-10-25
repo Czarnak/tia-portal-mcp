@@ -18,7 +18,6 @@ public static class TagMutationService
         RequireName(tableName, "TableName");
 
         var (plc, group) = ResolveGroup(project, plcName, folderPath);
-        PlcWritePreconditions.RequireTableNameFree(plc, tableName);
 
         var table = group.TagTables.Create(tableName);
         return Result("create_tag_table", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, null);
@@ -55,7 +54,6 @@ public static class TagMutationService
         RequireName(dataType, "DataType");
 
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
-        PlcWritePreconditions.RequireCpuNameFree(plc, name, null);
 
         var tag = table.Tags.Create(name, dataType, logicalAddress ?? string.Empty);
         return Result("create_tag", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), tag.Name, null);
@@ -79,14 +77,6 @@ public static class TagMutationService
         var resolved = TagTargetResolver.Resolve(project, plcName, tableName, folderPath, name);
         var table = resolved.Table;
         var tag = resolved.Tag;
-
-        if (!string.IsNullOrWhiteSpace(newName))
-        {
-            PlcWritePreconditions.RequireCpuNameFree(
-                resolved.Plc, newName!, tag.Name, PlcWritePreconditions.TableContainer(resolved.FolderPath, table.Name));
-        }
-
-        PlcWritePreconditions.RequireReadableFlags(tag, externalAccessible, externalVisible, externalWritable);
 
         if (!string.IsNullOrWhiteSpace(newName))
         {
@@ -151,7 +141,6 @@ public static class TagMutationService
         RequireName(dataType, "DataType");
 
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
-        PlcWritePreconditions.RequireCpuNameFree(plc, name, null);
 
         var constant = table.UserConstants.Create(name);
         constant.DataTypeName = dataType;
@@ -201,7 +190,6 @@ public static class TagMutationService
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
         var constant = table.UserConstants.Find(name) ??
             throw NotFound($"User constant '{name}' was not found in tag table '{tableName}'.");
-        PlcWritePreconditions.RequireReadableValue(constant);
 
         constant.Delete();
         return Result("delete_user_constant", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, name);
