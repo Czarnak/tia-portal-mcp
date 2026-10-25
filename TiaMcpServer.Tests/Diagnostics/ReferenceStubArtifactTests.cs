@@ -97,6 +97,34 @@ public class ReferenceStubArtifactTests
             Assert.Equal(0, blob.RemainingBytes);
         }
     }
+
+    [Theory]
+    [InlineData("Siemens.Engineering.HW.Node", "ConnectToSubnet", "Siemens.Engineering.HW.Subnet")]
+    [InlineData("Siemens.Engineering.HW.IoConnector", "ConnectToIoSystem", "Siemens.Engineering.HW.IoSystem")]
+    public void BaseReferenceExposesTypedNetworkConnectionMethod(string receiver, string method, string parameter)
+    {
+        using var stream = File.OpenRead(Path.Combine(RepositoryRoot, "ref", "Siemens.Engineering.Base.dll"));
+        using var pe = new PEReader(stream);
+        var reader = pe.GetMetadataReader();
+        var typeHandle = Assert.Single(reader.TypeDefinitions, h => FullName(reader, h) == receiver);
+        var methodHandle = Assert.Single(reader.GetTypeDefinition(typeHandle).GetMethods(),
+            h => reader.GetString(reader.GetMethodDefinition(h).Name) == method);
+        var definition = reader.GetMethodDefinition(methodHandle);
+        Assert.Equal(MethodAttributes.Public, definition.Attributes & MethodAttributes.MemberAccessMask);
+        Assert.Equal((MethodAttributes)0, definition.Attributes & (MethodAttributes.Static | MethodAttributes.Virtual));
+
+        var blob = reader.GetBlobReader(definition.Signature);
+        var header = blob.ReadSignatureHeader();
+        Assert.Equal(SignatureKind.Method, header.Kind);
+        Assert.True(header.IsInstance);
+        Assert.False(header.IsGeneric);
+        Assert.Equal(1, blob.ReadCompressedInteger());
+        Assert.Equal(SignatureTypeCode.Void, blob.ReadSignatureTypeCode());
+        Assert.Equal(SignatureTypeCode.TypeHandle, blob.ReadSignatureTypeCode());
+        Assert.Equal(parameter, FullName(reader, blob.ReadTypeHandle()));
+        Assert.Equal(0, blob.RemainingBytes);
+    }
+
     internal static string RepositoryRoot => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 
     // Canonical framing: UTF-8 slash-relative path, LF, decimal byte length, LF, exact bytes, LF.
