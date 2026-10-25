@@ -10,6 +10,8 @@ public static class SubnetLifecycleContract
 {
     public const string Ethernet = "Ethernet";
     public const string Profibus = "Profibus";
+    public const string EthernetTypeIdentifier = "System:Subnet.Ethernet";
+    public const string ProfibusTypeIdentifier = "System:Subnet.Profibus";
     public const int MinimumHighestAddress = 0;
     public const int MaximumHighestAddress = 126;
 
@@ -22,6 +24,14 @@ public static class SubnetLifecycleContract
     public static bool IsSupportedNetworkType(string? value)
         => string.Equals(value, Ethernet, StringComparison.Ordinal)
             || string.Equals(value, Profibus, StringComparison.Ordinal);
+
+    public static string? TypeIdentifierFor(string? networkType)
+        => networkType switch
+        {
+            Ethernet => EthernetTypeIdentifier,
+            Profibus => ProfibusTypeIdentifier,
+            _ => null,
+        };
 
     public static bool IsSupportedTransmissionSpeed(string? value)
         => value is not null && TransmissionSpeeds.Contains(value, StringComparer.Ordinal);
