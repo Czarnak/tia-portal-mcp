@@ -93,6 +93,7 @@ Measured on `main` at the analysis baseline, in `full` mode, against the same di
 - [ ] `WorkerExecution.Execute`: on `EngineeringTargetInvocationException` return `engineering_rejected`; on other `EngineeringException` keep `worker_operation_failed`; in both cases attach `EngineeringError` built from `ex` and `ex.InnerException` chain. Portal-loss classification is unchanged and still wins when the disposal revision moved.
 - [ ] `WorkerOperationException` gains an optional `EngineeringError` so call sites that wrap a Siemens exception today (for example the content importers) can forward it instead of flattening it into text.
 - [ ] Host: `StructuredOperationFailure` gets `[JsonIgnore(WhenWritingNull)] EngineeringErrorInfo? EngineeringError`; the PLC item-failure projection copies it from `WorkerResponse`. Register the member in `ConditionalMemberRegisterTests` with "present only when a Siemens exception caused the item failure".
+- [ ] Confirm whether the shared item-failure projection already carries `engineeringError` into `network_write`, `hmi_write` and `vci_write` documents; record the answer for Task 7 and the follow-ups section.
 - [ ] Offline tests: type-to-category mapping for each stub exception type; inner chain ordering; `engineeringError` absent on host-side failures (validation, binding, guard); the text block and `structuredContent` still come from one `CanonicalJson.Serialize` call.
 - [ ] Build with stubs, run the default test filter, commit "Task 1: engineering error contract".
 
@@ -189,6 +190,7 @@ Written only from Task 6 evidence.
 - [ ] `docs/SupportedOperations/PLC_OPERATIONS_SUMMARY.md`: guard table (remaining guards only), the `engineering_rejected` failure, `engineeringError` shape with one captured example, verification semantics (`trusted`, `contentHash`, `superseded`), write contract `2.0`.
 - [ ] `AGENTS.md`: the PLC writes bullet (guard list, verification, the new category); the write-safety line that names categories.
 - [ ] `docs/ARCHITECTURE.md`: §7a failure categories and the PLC write seam.
+- [ ] If Task 1 showed the other three write tools already carry `engineering_rejected`, add one sentence to each of the Network, HMI and VCI operation references naming the category and the `engineeringError` member, and leave their guard tables unchanged.
 - [ ] `docs/IMPROVEMENT_LOG.md`: completed entry with removed line counts, the before/after timing table from Tasks 0 and 6 (root `durationMs`, item sum, planning-plus-verification remainder, Inspector wall-clock, per case) and retained limits; open follow-up for Network, HMI and VCI to adopt the same error contract.
 - [ ] Acceptance report `docs/superpowers/acceptance/reports/2026-xx-xx-plc-write-native-rejections-live-verification.md`, including the timing comparison and the project size it was measured on, and its `docs/README.md` row; update this plan's status and the index row.
 - [ ] Commit "Task 7: documentation".
@@ -204,8 +206,26 @@ Written only from Task 6 evidence.
 | `dryRun:true` | Preview with effects, info guards and content diff; no Siemens mutation call. |
 | Block guard in a dry run | Phase stays `preview` per current behavior; unchanged by this plan. |
 
+## Follow-ups: Network, HMI and VCI
+
+Separate plans, each after this one is merged. They reuse Task 1's contract and the Task 0/6 timing protocol; none of them starts before the PLC live verification has shown that letting Portal reject is sound in practice.
+
+**Shared consequence of Task 1.** The type-based mapping lives in the worker's shared catch (`WorkerExecution.Execute`), so from Task 1 on every write tool's worker response can carry `engineering_rejected` with an `engineeringError`. Task 1 must confirm whether the shared item-failure projection from the D-4 refactor already copies the member into `network_write`, `hmi_write` and `vci_write` item failures; if it does, Task 7 documents the category for all four tools, and the follow-ups below are guard and verification work only.
+
+Classification from the 2026-10-25 analysis, to be re-verified at each follow-up's own baseline:
+
+| Domain | Duplicates Portal (retire) | Portal cannot provide (keep) | Evidence guard (narrow to what kept guards read) | Verification |
+| --- | --- | --- | --- | --- |
+| Network (`NetworkWritePlanner` 209, `NetworkWriteVerifier` 286, worker `NetworkMutationVerifier` 194) | none declared as a guard; check whether planning pre-resolves device-name or subnet-name uniqueness that Portal enforces | `network_connected_delete` (info); the rule that an incomplete consequence inventory blocks every mode | `network_unverifiable` | Largest candidate: identity, final checks and preservation checks re-read what a non-throwing call already proved; keep the preservation check after a requested skip, which is a contract promise |
+| HMI (`HmiWritePlanner` 348, `HmiWriteVerifier` 277) | `hmi_name_collision` | `hmi_deletes_table_contents`, `hmi_deletes_referenced_tag` (Portal leaves references dangling silently); failed-create identity-checked cleanup and `appliedProperties`/`failedProperty` on failed updates, which are partial-mutation reporting, not re-checking | `hmi_state_unverifiable`, still including the 200-query cross-reference cap for delete planning | Keep snapshot invalidation after mutation; drop presence re-reads of created objects |
+| VCI (`VciWritePlanner` 89, `VciWriteVerifier` 65) | `vci_workspace_exists`; `vci_file_key_collision` only if live capture shows Portal rejects a duplicate key rather than silently remapping | `vci_files_remain`, `vci_import_unvalidated` (info); the no-status-read rule in planning and the adjacent owner recheck for sync | `vci_state_unverifiable` | Already small; `vci_name_not_representable` is a filesystem check, not a Portal one, and stays because an export that fails halfway leaves files behind |
+
+Order: HMI first, because its collision guard and planner are the closest match to the PLC change and its live acceptance fixture exists; then Network, where the win is verification rather than guards; VCI last, as it has the least to gain and the export crash risk makes live runs expensive.
+
+Each follow-up plan records: its own baseline timing, the guards retired with the live case that proved the native rejection, the verification checks dropped, and the contract version bump of its write tool.
+
 ## Out of scope
 
-- Network, HMI and VCI guard reviews (separate plans; they reuse Task 1's contract).
+- Network, HMI and VCI guard and verification reviews (see the follow-ups section; separate plans).
 - Any change to lifecycle confirmation, elicitation or audit.
 - Changing the `dryRun` preview phase when a block guard fires.
