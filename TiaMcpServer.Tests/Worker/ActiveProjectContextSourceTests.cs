@@ -12,7 +12,8 @@ public sealed class ActiveProjectContextSourceTests
     public void ProjectDispatch_ResolvesOwnerAfterFreshIdentityCheck()
     {
         var body = Method(Read("Program.cs"), "private static WorkerResponse WithActiveContext(");
-        AssertOrdered(body, "ValidateExpectedAfterProjectResolution(", "return body(session)");
+        AssertOrdered(body, "ProjectOpenGate.Require(session.CurrentProjectPath, request.ProjectPath, _accessMode,",
+            "allowRequestedNotOpen: false, allowNoProject: false", "ValidateExpectedAfterProjectResolution(", "return body(session)");
         // Content writes and compile run on the ProjectBase root of any delivered container; the
         // capability gate in WithSession decides which container kinds reach a handler at all.
         Assert.DoesNotContain("WithProject(", Read("Program.cs"));
@@ -48,11 +49,16 @@ public sealed class ActiveProjectContextSourceTests
     {
         var service = Read("Openness/Project/ProjectLifecycleService.cs");
         var read = Method(service, "private static ActiveProjectContext? ResolveProjectForRead(");
-        AssertOrdered(read, "session.EnsureConnected(", "ProjectOpenPolicy.Decide", "return session.ActiveContext");
+        AssertOrdered(read, "session.EnsureConnected(",
+            "ProjectOpenGate.Require(session.CurrentProjectPath, requestedProjectPath, mode,",
+            "allowRequestedNotOpen: true, allowNoProject: true", "return session.ActiveContext");
         Assert.DoesNotContain(".Open(", read);
         var resolve = Method(service, "private static void EnsureRequestedContext(");
-        AssertOrdered(resolve, "session.EnsureConnected(", "ProjectOpenPolicy.Decide");
+        AssertOrdered(resolve, "session.EnsureConnected(",
+            "ProjectOpenGate.Require(session.CurrentProjectPath, projectPath, session.AccessMode,",
+            "allowRequestedNotOpen: false, allowNoProject: true");
         Assert.DoesNotContain(".Open(", resolve);
+        Assert.DoesNotContain("McpAccessMode.ReadWrite", resolve);
         var mutation = Method(service, "private static Project EnsureProject(");
         AssertOrdered(mutation, "EnsureRequestedContext(session, projectPath)", "RequireStandaloneOwner().Project");
         Assert.DoesNotContain(".Open(", mutation);

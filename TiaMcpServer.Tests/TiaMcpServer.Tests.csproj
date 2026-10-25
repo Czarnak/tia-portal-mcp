@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\TiaPortalSession.cs" Link="Project\TiaPortalSession.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectOpenGate.cs" Link="Project\ProjectOpenGate.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ProjectLifecycleService.Validation.cs" Link="Project\ProjectLifecycleService.Validation.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Multiuser\MultiuserPortalReadDispatch.cs" Link="Multiuser\MultiuserPortalReadDispatch.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Multiuser\MultiuserInventoryService.cs" Link="Multiuser\MultiuserInventoryService.cs" />

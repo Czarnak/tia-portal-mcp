@@ -14,7 +14,8 @@ public sealed class WorkerOpenPolicySourceTests
         Assert.True(open >= 0 && save > open);
         Assert.DoesNotContain("session.OpenProject(", service.Substring(0, open));
         Assert.DoesNotContain("session.OpenProject(", service.Substring(save));
-        Assert.Contains("ProjectOpenPolicy.Decide", service.Substring(save));
+        Assert.Contains("ProjectOpenGate.Require(session.CurrentProjectPath, projectPath, session.AccessMode,", service.Substring(save));
+        Assert.DoesNotContain("ProjectOpenPolicy.Decide", service);
     }
 
     [Fact]
@@ -29,6 +30,12 @@ public sealed class WorkerOpenPolicySourceTests
         Assert.True(start >= 0 && end > start, "Expected worker method boundaries were not found.");
         var body = source.Substring(start, end - start);
         Assert.DoesNotContain("session.OpenProject(", body, StringComparison.Ordinal);
-        Assert.Contains("ProjectOpenDecision.RequestedNotOpen", body, StringComparison.Ordinal);
+        Assert.Contains("ProjectOpenGate.Require(session.CurrentProjectPath, requestedProjectPath, _accessMode,", body);
+        Assert.Contains("allowRequestedNotOpen: false, allowNoProject: false", body);
+        Assert.Contains("catch (WorkerOperationException exception)", body);
+        Assert.Contains("return Failure(exception.FailureCategory, exception.Message)", body);
+        Assert.Equal(1, body.Split("catch (").Length - 1);
+        Assert.DoesNotContain("ProjectOpenPolicy.Decide", body);
+        Assert.DoesNotContain("ProjectOpenDecision.", body);
     }
 }

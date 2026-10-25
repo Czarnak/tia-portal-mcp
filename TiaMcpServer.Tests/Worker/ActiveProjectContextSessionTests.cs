@@ -17,6 +17,23 @@ public sealed class PortalSessionBoundaryCollection { }
 [Collection("Portal session boundary")]
 public sealed class ActiveProjectContextSessionTests
 {
+    [Fact]
+    public void AccessMode_RetainsConstructorParse()
+    {
+        using var f = new Fixture();
+        Assert.Equal(WorkerOperationAuthorization.ParseAccessMode(Environment.GetCommandLineArgs()), f.Session.AccessMode);
+        f.AssertNoLifecycle();
+    }
+
+    [Fact]
+    public void NoOwner_PreservesInvalidOperationAndActualModeGuidance()
+    {
+        using var f = new Fixture();
+        var exception = Assert.Throws<InvalidOperationException>(() => f.Session.RequireStandaloneOwner());
+        Assert.Equal(ProjectOpenPolicy.NoProjectOpenMessage(f.Session.AccessMode), exception.Message);
+        f.AssertNoLifecycle();
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

@@ -1395,48 +1395,29 @@ internal static class Program
     {
         return WithSession(request, session =>
         {
-            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
-            if (failure is not null)
-            {
-                return failure;
-            }
+            ProjectOpenGate.Require(session.CurrentProjectPath, request.ProjectPath, _accessMode,
+                allowRequestedNotOpen: false, allowNoProject: false);
             ValidateExpectedAfterProjectResolution(session, request);
-
-            if (session.ActiveContext is null)
-            {
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
-            }
 
             return body(session);
         });
     }
 
     /// <summary>
-    /// Applies <see cref="ProjectOpenPolicy"/> before a non-lifecycle operation uses the
+    /// Applies <see cref="ProjectOpenGate"/> before a non-lifecycle operation uses the
     /// already-open project. Returns null to continue, or a failure response to the host.
     /// </summary>
     private static WorkerResponse? EnsureRequestedProjectOpen(WorkerTiaPortalSession session, string? requestedProjectPath)
     {
-        var currentPath = session.CurrentProjectPath;
-
-        switch (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath))
+        try
         {
-            case ProjectOpenDecision.RequestedNotOpen:
-                return Failure(
-                    WorkerFailureCategories.AccessDenied,
-                    ProjectOpenPolicy.NotOpenMessage(requestedProjectPath!, _accessMode));
-            case ProjectOpenDecision.Refuse:
-                return Failure(
-                    WorkerFailureCategories.BindingConflict,
-                    ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, _accessMode));
-            default:
-                if (currentPath is not null)
-                    return null;
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
+            ProjectOpenGate.Require(session.CurrentProjectPath, requestedProjectPath, _accessMode,
+                allowRequestedNotOpen: false, allowNoProject: false);
+            return null;
+        }
+        catch (WorkerOperationException exception)
+        {
+            return Failure(exception.FailureCategory, exception.Message);
         }
     }
 
