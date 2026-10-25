@@ -135,6 +135,7 @@
       Link="Host\ProjectLifecycle\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
       Link="Host\StructuredToolResult.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\BatchReadTool.cs" Link="Host\BatchReadTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
       Link="Host\ProjectReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectBindingTools.cs"
@@ -160,6 +161,8 @@
       Link="Host\OperationBatches\OperationBatchStatus.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs"
       Link="Host\OperationBatches\StructuredOperationBatch.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchReadResponse.cs"
+      Link="Host\OperationBatches\OperationBatchReadResponse.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs"
       Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"
@@ -181,7 +184,6 @@
     <Compile Include="..\TiaMcpServer\Hmi\HmiWritePayloadContract.cs" Link="Host\Hmi\HmiWritePayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiWritePayloadBudget.cs" Link="Host\Hmi\HmiWritePayloadBudget.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiReadTools.cs" Link="Host\Hmi\HmiReadTools.cs" />
-    <Compile Include="..\TiaMcpServer\Hmi\HmiToolResponses.cs" Link="Host\Hmi\HmiToolResponses.cs" />
     <Compile Include="..\TiaMcpServer\Hmi\HmiWorkerInvoker.cs" Link="Host\Hmi\HmiWorkerInvoker.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcContentDiff.cs" Link="Host\Plc\PlcContentDiff.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcContractVersion.cs" Link="Host\Plc\PlcContractVersion.cs" />
@@ -327,6 +329,7 @@
     <None Include="Fixtures\DamperAnalog.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\nStageHeater.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Tools\Snapshots\output-schemas.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Tools\Snapshots\batch-read-responses.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\SourceTextEncoding.cs"
       Link="Block\SourceTextEncoding.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\DynamicNumericAttribute.cs"

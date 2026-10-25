@@ -236,7 +236,7 @@ public class HmiReadToolsTests
             },
             (operation, worker) => HmiPayloadContract.Project(operation, worker, Codec, binding.CaptureSnapshot()));
         batch = HmiReadTools.ApplyBudget(batch);
-        var result = StructuredToolResult.Create(new HmiReadResponse(
+        var result = StructuredToolResult.Create(new OperationBatchReadResponse(
             "hmi_read", HmiContractVersion.Current, batch.IsFullySuccessful,
             Error: null, Warnings: Array.Empty<string>(), Batch: batch), isError: false);
 

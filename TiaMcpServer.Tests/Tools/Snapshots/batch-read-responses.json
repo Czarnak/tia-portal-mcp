@@ -1,0 +1,1392 @@
+{
+  "plc_read": {
+    "empty": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch must contain at least one operation."
+      },
+      "success": false,
+      "tool": "plc_read",
+      "warnings": []
+    },
+    "invalid": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Unknown operation 'unknown' for operationId 'bad'. Valid read operations: get_block_content, get_type_content, list_tag_tables."
+      },
+      "success": false,
+      "tool": "plc_read",
+      "warnings": []
+    },
+    "mixed": {
+      "batch": {
+        "counts": {
+          "failed": 1,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 2,
+        "operations": [
+          {
+            "failure": {
+              "category": "worker_operation_failed",
+              "message": "block not found"
+            },
+            "omission": null,
+            "operation": "get_block_content",
+            "operationId": "bad",
+            "result": null,
+            "skipReason": null,
+            "status": "failed",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "get_block_content",
+            "operationId": "ok",
+            "result": {
+              "content": "<Block path=\"PLC_1/Main\" format=\"xml\"/>",
+              "contentHash": "xml:sha256:24f0475d87ef00dbdb618fa0efa7237c0436d82918312206bc2cb986e7695fe5",
+              "format": "xml",
+              "warnings": []
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.0",
+      "error": null,
+      "success": false,
+      "tool": "plc_read",
+      "warnings": []
+    },
+    "null-item": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch contains a null operation."
+      },
+      "success": false,
+      "tool": "plc_read",
+      "warnings": []
+    },
+    "success": {
+      "batch": {
+        "counts": {
+          "failed": 0,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 1,
+        "operations": [
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "get_block_content",
+            "operationId": "ok",
+            "result": {
+              "content": "<Block path=\"PLC_1/Main\" format=\"xml\"/>",
+              "contentHash": "xml:sha256:24f0475d87ef00dbdb618fa0efa7237c0436d82918312206bc2cb986e7695fe5",
+              "format": "xml",
+              "warnings": []
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.0",
+      "error": null,
+      "success": true,
+      "tool": "plc_read",
+      "warnings": []
+    },
+    "unbound": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "binding_conflict",
+        "message": "A worker-verified project binding is required. Call bind_project first, or configure --project and verify it. In read-write/full mode, you can also call open_project explicitly."
+      },
+      "success": false,
+      "tool": "plc_read",
+      "warnings": []
+    }
+  },
+  "network_read": {
+    "empty": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch must contain at least one operation."
+      },
+      "success": false,
+      "tool": "network_read",
+      "warnings": []
+    },
+    "invalid": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Unknown operation 'unknown' for operationId 'bad'. Valid read operations: read_hardware_config, search_equipment_catalog, list_network_objects, inspect_network_object."
+      },
+      "success": false,
+      "tool": "network_read",
+      "warnings": []
+    },
+    "mixed": {
+      "batch": {
+        "counts": {
+          "failed": 2,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 3,
+        "operations": [
+          {
+            "failure": {
+              "category": "worker_operation_failed",
+              "message": "boom"
+            },
+            "omission": null,
+            "operation": "read_hardware_config",
+            "operationId": "bad",
+            "result": null,
+            "skipReason": null,
+            "status": "failed",
+            "warnings": []
+          },
+          {
+            "failure": {
+              "category": "protocol_error",
+              "message": "The worker payload for 'read_hardware_config' did not match its declared result contract and was rejected."
+            },
+            "omission": null,
+            "operation": "read_hardware_config",
+            "operationId": "protocol",
+            "result": null,
+            "skipReason": null,
+            "status": "failed",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "read_hardware_config",
+            "operationId": "ok",
+            "result": {
+              "devices": [
+                {
+                  "items": [
+                    {
+                      "address": null,
+                      "communicationConnections": [],
+                      "items": [],
+                      "name": "PROFINET interface_1",
+                      "networkInterfaces": [
+                        {
+                          "name": "PROFINET interface_1",
+                          "nodes": [
+                            {
+                              "ioSystemName": "IO system_1",
+                              "ipAddress": "192.168.0.10",
+                              "name": "X1",
+                              "nodeId": "node-1",
+                              "nodeType": "Ethernet",
+                              "pnDeviceName": "plc-1",
+                              "selectable": true,
+                              "selector": {
+                                "connectionIndex": null,
+                                "connectionType": null,
+                                "deviceName": "PLC_1",
+                                "interfaceName": "PROFINET interface_1",
+                                "interfaceOperatingMode": null,
+                                "interfacePath": [
+                                  {
+                                    "name": "PROFINET interface_1",
+                                    "positionNumber": 1,
+                                    "typeIdentifier": "OrderNumber:TEST"
+                                  }
+                                ],
+                                "interfaceType": null,
+                                "ioSystemIndex": null,
+                                "ioSystemName": null,
+                                "itemPath": null,
+                                "kind": "node",
+                                "localConnectionId": null,
+                                "localConnectionName": null,
+                                "nodeId": "node-1",
+                                "nodeIndex": null,
+                                "number": null,
+                                "subnetId": null
+                              },
+                              "selectorDiagnostics": [],
+                              "subnetMask": "255.255.255.0",
+                              "subnetName": "PN/IE_1"
+                            }
+                          ],
+                          "selectable": true,
+                          "selector": {
+                            "connectionIndex": null,
+                            "connectionType": null,
+                            "deviceName": "PLC_1",
+                            "interfaceName": "PROFINET interface_1",
+                            "interfaceOperatingMode": null,
+                            "interfaceType": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
+                            "itemPath": [
+                              {
+                                "index": 0,
+                                "name": "PROFINET interface_1",
+                                "positionNumber": 1,
+                                "typeIdentifier": "OrderNumber:TEST"
+                              }
+                            ],
+                            "kind": "networkInterface",
+                            "localConnectionId": null,
+                            "localConnectionName": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "number": null,
+                            "subnetId": null
+                          },
+                          "selectorDiagnostics": []
+                        }
+                      ],
+                      "positionNumber": 1,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": "PLC_1",
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": [
+                          {
+                            "index": 0,
+                            "name": "PROFINET interface_1",
+                            "positionNumber": 1,
+                            "typeIdentifier": "OrderNumber:TEST"
+                          }
+                        ],
+                        "kind": "deviceItem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": null,
+                        "subnetId": null
+                      },
+                      "selectorDiagnostics": [],
+                      "typeIdentifier": "OrderNumber:TEST"
+                    }
+                  ],
+                  "name": "PLC_1",
+                  "typeIdentifier": "OrderNumber:TEST"
+                },
+                {
+                  "items": [
+                    {
+                      "address": null,
+                      "communicationConnections": [],
+                      "items": [],
+                      "name": "IE general_1",
+                      "networkInterfaces": [
+                        {
+                          "name": "PROFINET interface_1",
+                          "nodes": [
+                            {
+                              "ioSystemName": null,
+                              "ipAddress": "192.168.0.20",
+                              "name": "E1",
+                              "nodeId": "0",
+                              "nodeType": "Ethernet",
+                              "pnDeviceName": null,
+                              "selectable": true,
+                              "selector": {
+                                "connectionIndex": null,
+                                "connectionType": null,
+                                "deviceName": "PC_System_1",
+                                "interfaceName": "PROFINET interface_1",
+                                "interfaceOperatingMode": null,
+                                "interfacePath": [
+                                  {
+                                    "name": "IE general_1",
+                                    "positionNumber": 1,
+                                    "typeIdentifier": "OrderNumber:IE-General"
+                                  }
+                                ],
+                                "interfaceType": null,
+                                "ioSystemIndex": null,
+                                "ioSystemName": null,
+                                "itemPath": null,
+                                "kind": "node",
+                                "localConnectionId": null,
+                                "localConnectionName": null,
+                                "nodeId": "0",
+                                "nodeIndex": null,
+                                "number": null,
+                                "subnetId": null
+                              },
+                              "selectorDiagnostics": [],
+                              "subnetMask": "255.255.255.0",
+                              "subnetName": "PN/IE_1"
+                            }
+                          ],
+                          "selectable": true,
+                          "selector": {
+                            "connectionIndex": null,
+                            "connectionType": null,
+                            "deviceName": "PC_System_1",
+                            "interfaceName": "PROFINET interface_1",
+                            "interfaceOperatingMode": null,
+                            "interfaceType": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
+                            "itemPath": [
+                              {
+                                "index": 0,
+                                "name": "IE general_1",
+                                "positionNumber": 1,
+                                "typeIdentifier": "OrderNumber:IE-General"
+                              }
+                            ],
+                            "kind": "networkInterface",
+                            "localConnectionId": null,
+                            "localConnectionName": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "number": null,
+                            "subnetId": null
+                          },
+                          "selectorDiagnostics": []
+                        }
+                      ],
+                      "positionNumber": 1,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": "PC_System_1",
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": [
+                          {
+                            "index": 0,
+                            "name": "IE general_1",
+                            "positionNumber": 1,
+                            "typeIdentifier": "OrderNumber:IE-General"
+                          }
+                        ],
+                        "kind": "deviceItem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": null,
+                        "subnetId": null
+                      },
+                      "selectorDiagnostics": [],
+                      "typeIdentifier": "OrderNumber:IE-General"
+                    },
+                    {
+                      "address": null,
+                      "communicationConnections": [],
+                      "items": [],
+                      "name": "IE general_2",
+                      "networkInterfaces": [
+                        {
+                          "name": "PROFINET interface_2",
+                          "nodes": [
+                            {
+                              "ioSystemName": null,
+                              "ipAddress": "10.0.0.20",
+                              "name": "E2",
+                              "nodeId": "1",
+                              "nodeType": "Ethernet",
+                              "pnDeviceName": null,
+                              "selectable": true,
+                              "selector": {
+                                "connectionIndex": null,
+                                "connectionType": null,
+                                "deviceName": "PC_System_1",
+                                "interfaceName": "PROFINET interface_2",
+                                "interfaceOperatingMode": null,
+                                "interfacePath": [
+                                  {
+                                    "name": "IE general_2",
+                                    "positionNumber": 2,
+                                    "typeIdentifier": "OrderNumber:IE-General"
+                                  }
+                                ],
+                                "interfaceType": null,
+                                "ioSystemIndex": null,
+                                "ioSystemName": null,
+                                "itemPath": null,
+                                "kind": "node",
+                                "localConnectionId": null,
+                                "localConnectionName": null,
+                                "nodeId": "1",
+                                "nodeIndex": null,
+                                "number": null,
+                                "subnetId": null
+                              },
+                              "selectorDiagnostics": [],
+                              "subnetMask": "255.255.255.0",
+                              "subnetName": "PN/IE_2"
+                            }
+                          ],
+                          "selectable": true,
+                          "selector": {
+                            "connectionIndex": null,
+                            "connectionType": null,
+                            "deviceName": "PC_System_1",
+                            "interfaceName": "PROFINET interface_2",
+                            "interfaceOperatingMode": null,
+                            "interfaceType": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
+                            "itemPath": [
+                              {
+                                "index": 1,
+                                "name": "IE general_2",
+                                "positionNumber": 2,
+                                "typeIdentifier": "OrderNumber:IE-General"
+                              }
+                            ],
+                            "kind": "networkInterface",
+                            "localConnectionId": null,
+                            "localConnectionName": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "number": null,
+                            "subnetId": null
+                          },
+                          "selectorDiagnostics": []
+                        }
+                      ],
+                      "positionNumber": 2,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": "PC_System_1",
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": [
+                          {
+                            "index": 1,
+                            "name": "IE general_2",
+                            "positionNumber": 2,
+                            "typeIdentifier": "OrderNumber:IE-General"
+                          }
+                        ],
+                        "kind": "deviceItem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": null,
+                        "subnetId": null
+                      },
+                      "selectorDiagnostics": [],
+                      "typeIdentifier": "OrderNumber:IE-General"
+                    }
+                  ],
+                  "name": "PC_System_1",
+                  "typeIdentifier": "OrderNumber:PC-System"
+                }
+              ],
+              "messages": [],
+              "subnets": [
+                {
+                  "connectedNodeNames": [
+                    "PLC_1.X1",
+                    "PC_System_1.E1"
+                  ],
+                  "ioSystems": [
+                    {
+                      "connectedDeviceNames": [],
+                      "ioControllerName": "PLC_1",
+                      "name": "IO system_1",
+                      "number": 100,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": null,
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": null,
+                        "kind": "ioSystem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": 100,
+                        "subnetId": "subnet-1"
+                      },
+                      "selectorDiagnostics": []
+                    }
+                  ],
+                  "name": "PN/IE_1",
+                  "networkType": "Ethernet",
+                  "selectable": true,
+                  "selector": {
+                    "connectionIndex": null,
+                    "connectionType": null,
+                    "deviceName": null,
+                    "interfaceName": null,
+                    "interfaceOperatingMode": null,
+                    "interfaceType": null,
+                    "ioSystemIndex": null,
+                    "ioSystemName": null,
+                    "itemPath": null,
+                    "kind": "subnet",
+                    "localConnectionId": null,
+                    "localConnectionName": null,
+                    "nodeId": null,
+                    "nodeIndex": null,
+                    "number": null,
+                    "subnetId": "subnet-1"
+                  },
+                  "selectorDiagnostics": [],
+                  "subnetId": "subnet-1",
+                  "typeIdentifier": "Ethernet"
+                },
+                {
+                  "connectedNodeNames": [
+                    "PC_System_1.E2"
+                  ],
+                  "ioSystems": [],
+                  "name": "PN/IE_2",
+                  "networkType": "Ethernet",
+                  "selectable": true,
+                  "selector": {
+                    "connectionIndex": null,
+                    "connectionType": null,
+                    "deviceName": null,
+                    "interfaceName": null,
+                    "interfaceOperatingMode": null,
+                    "interfaceType": null,
+                    "ioSystemIndex": null,
+                    "ioSystemName": null,
+                    "itemPath": null,
+                    "kind": "subnet",
+                    "localConnectionId": null,
+                    "localConnectionName": null,
+                    "nodeId": null,
+                    "nodeIndex": null,
+                    "number": null,
+                    "subnetId": "subnet-2"
+                  },
+                  "selectorDiagnostics": [],
+                  "subnetId": "subnet-2",
+                  "typeIdentifier": "Ethernet"
+                }
+              ]
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.0",
+      "error": null,
+      "success": false,
+      "tool": "network_read",
+      "warnings": []
+    },
+    "null-item": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch contains a null operation."
+      },
+      "success": false,
+      "tool": "network_read",
+      "warnings": []
+    },
+    "success": {
+      "batch": {
+        "counts": {
+          "failed": 0,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 1,
+        "operations": [
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "read_hardware_config",
+            "operationId": "ok",
+            "result": {
+              "devices": [
+                {
+                  "items": [
+                    {
+                      "address": null,
+                      "communicationConnections": [],
+                      "items": [],
+                      "name": "PROFINET interface_1",
+                      "networkInterfaces": [
+                        {
+                          "name": "PROFINET interface_1",
+                          "nodes": [
+                            {
+                              "ioSystemName": "IO system_1",
+                              "ipAddress": "192.168.0.10",
+                              "name": "X1",
+                              "nodeId": "node-1",
+                              "nodeType": "Ethernet",
+                              "pnDeviceName": "plc-1",
+                              "selectable": true,
+                              "selector": {
+                                "connectionIndex": null,
+                                "connectionType": null,
+                                "deviceName": "PLC_1",
+                                "interfaceName": "PROFINET interface_1",
+                                "interfaceOperatingMode": null,
+                                "interfacePath": [
+                                  {
+                                    "name": "PROFINET interface_1",
+                                    "positionNumber": 1,
+                                    "typeIdentifier": "OrderNumber:TEST"
+                                  }
+                                ],
+                                "interfaceType": null,
+                                "ioSystemIndex": null,
+                                "ioSystemName": null,
+                                "itemPath": null,
+                                "kind": "node",
+                                "localConnectionId": null,
+                                "localConnectionName": null,
+                                "nodeId": "node-1",
+                                "nodeIndex": null,
+                                "number": null,
+                                "subnetId": null
+                              },
+                              "selectorDiagnostics": [],
+                              "subnetMask": "255.255.255.0",
+                              "subnetName": "PN/IE_1"
+                            }
+                          ],
+                          "selectable": true,
+                          "selector": {
+                            "connectionIndex": null,
+                            "connectionType": null,
+                            "deviceName": "PLC_1",
+                            "interfaceName": "PROFINET interface_1",
+                            "interfaceOperatingMode": null,
+                            "interfaceType": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
+                            "itemPath": [
+                              {
+                                "index": 0,
+                                "name": "PROFINET interface_1",
+                                "positionNumber": 1,
+                                "typeIdentifier": "OrderNumber:TEST"
+                              }
+                            ],
+                            "kind": "networkInterface",
+                            "localConnectionId": null,
+                            "localConnectionName": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "number": null,
+                            "subnetId": null
+                          },
+                          "selectorDiagnostics": []
+                        }
+                      ],
+                      "positionNumber": 1,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": "PLC_1",
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": [
+                          {
+                            "index": 0,
+                            "name": "PROFINET interface_1",
+                            "positionNumber": 1,
+                            "typeIdentifier": "OrderNumber:TEST"
+                          }
+                        ],
+                        "kind": "deviceItem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": null,
+                        "subnetId": null
+                      },
+                      "selectorDiagnostics": [],
+                      "typeIdentifier": "OrderNumber:TEST"
+                    }
+                  ],
+                  "name": "PLC_1",
+                  "typeIdentifier": "OrderNumber:TEST"
+                },
+                {
+                  "items": [
+                    {
+                      "address": null,
+                      "communicationConnections": [],
+                      "items": [],
+                      "name": "IE general_1",
+                      "networkInterfaces": [
+                        {
+                          "name": "PROFINET interface_1",
+                          "nodes": [
+                            {
+                              "ioSystemName": null,
+                              "ipAddress": "192.168.0.20",
+                              "name": "E1",
+                              "nodeId": "0",
+                              "nodeType": "Ethernet",
+                              "pnDeviceName": null,
+                              "selectable": true,
+                              "selector": {
+                                "connectionIndex": null,
+                                "connectionType": null,
+                                "deviceName": "PC_System_1",
+                                "interfaceName": "PROFINET interface_1",
+                                "interfaceOperatingMode": null,
+                                "interfacePath": [
+                                  {
+                                    "name": "IE general_1",
+                                    "positionNumber": 1,
+                                    "typeIdentifier": "OrderNumber:IE-General"
+                                  }
+                                ],
+                                "interfaceType": null,
+                                "ioSystemIndex": null,
+                                "ioSystemName": null,
+                                "itemPath": null,
+                                "kind": "node",
+                                "localConnectionId": null,
+                                "localConnectionName": null,
+                                "nodeId": "0",
+                                "nodeIndex": null,
+                                "number": null,
+                                "subnetId": null
+                              },
+                              "selectorDiagnostics": [],
+                              "subnetMask": "255.255.255.0",
+                              "subnetName": "PN/IE_1"
+                            }
+                          ],
+                          "selectable": true,
+                          "selector": {
+                            "connectionIndex": null,
+                            "connectionType": null,
+                            "deviceName": "PC_System_1",
+                            "interfaceName": "PROFINET interface_1",
+                            "interfaceOperatingMode": null,
+                            "interfaceType": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
+                            "itemPath": [
+                              {
+                                "index": 0,
+                                "name": "IE general_1",
+                                "positionNumber": 1,
+                                "typeIdentifier": "OrderNumber:IE-General"
+                              }
+                            ],
+                            "kind": "networkInterface",
+                            "localConnectionId": null,
+                            "localConnectionName": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "number": null,
+                            "subnetId": null
+                          },
+                          "selectorDiagnostics": []
+                        }
+                      ],
+                      "positionNumber": 1,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": "PC_System_1",
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": [
+                          {
+                            "index": 0,
+                            "name": "IE general_1",
+                            "positionNumber": 1,
+                            "typeIdentifier": "OrderNumber:IE-General"
+                          }
+                        ],
+                        "kind": "deviceItem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": null,
+                        "subnetId": null
+                      },
+                      "selectorDiagnostics": [],
+                      "typeIdentifier": "OrderNumber:IE-General"
+                    },
+                    {
+                      "address": null,
+                      "communicationConnections": [],
+                      "items": [],
+                      "name": "IE general_2",
+                      "networkInterfaces": [
+                        {
+                          "name": "PROFINET interface_2",
+                          "nodes": [
+                            {
+                              "ioSystemName": null,
+                              "ipAddress": "10.0.0.20",
+                              "name": "E2",
+                              "nodeId": "1",
+                              "nodeType": "Ethernet",
+                              "pnDeviceName": null,
+                              "selectable": true,
+                              "selector": {
+                                "connectionIndex": null,
+                                "connectionType": null,
+                                "deviceName": "PC_System_1",
+                                "interfaceName": "PROFINET interface_2",
+                                "interfaceOperatingMode": null,
+                                "interfacePath": [
+                                  {
+                                    "name": "IE general_2",
+                                    "positionNumber": 2,
+                                    "typeIdentifier": "OrderNumber:IE-General"
+                                  }
+                                ],
+                                "interfaceType": null,
+                                "ioSystemIndex": null,
+                                "ioSystemName": null,
+                                "itemPath": null,
+                                "kind": "node",
+                                "localConnectionId": null,
+                                "localConnectionName": null,
+                                "nodeId": "1",
+                                "nodeIndex": null,
+                                "number": null,
+                                "subnetId": null
+                              },
+                              "selectorDiagnostics": [],
+                              "subnetMask": "255.255.255.0",
+                              "subnetName": "PN/IE_2"
+                            }
+                          ],
+                          "selectable": true,
+                          "selector": {
+                            "connectionIndex": null,
+                            "connectionType": null,
+                            "deviceName": "PC_System_1",
+                            "interfaceName": "PROFINET interface_2",
+                            "interfaceOperatingMode": null,
+                            "interfaceType": null,
+                            "ioSystemIndex": null,
+                            "ioSystemName": null,
+                            "itemPath": [
+                              {
+                                "index": 1,
+                                "name": "IE general_2",
+                                "positionNumber": 2,
+                                "typeIdentifier": "OrderNumber:IE-General"
+                              }
+                            ],
+                            "kind": "networkInterface",
+                            "localConnectionId": null,
+                            "localConnectionName": null,
+                            "nodeId": null,
+                            "nodeIndex": null,
+                            "number": null,
+                            "subnetId": null
+                          },
+                          "selectorDiagnostics": []
+                        }
+                      ],
+                      "positionNumber": 2,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": "PC_System_1",
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": [
+                          {
+                            "index": 1,
+                            "name": "IE general_2",
+                            "positionNumber": 2,
+                            "typeIdentifier": "OrderNumber:IE-General"
+                          }
+                        ],
+                        "kind": "deviceItem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": null,
+                        "subnetId": null
+                      },
+                      "selectorDiagnostics": [],
+                      "typeIdentifier": "OrderNumber:IE-General"
+                    }
+                  ],
+                  "name": "PC_System_1",
+                  "typeIdentifier": "OrderNumber:PC-System"
+                }
+              ],
+              "messages": [],
+              "subnets": [
+                {
+                  "connectedNodeNames": [
+                    "PLC_1.X1",
+                    "PC_System_1.E1"
+                  ],
+                  "ioSystems": [
+                    {
+                      "connectedDeviceNames": [],
+                      "ioControllerName": "PLC_1",
+                      "name": "IO system_1",
+                      "number": 100,
+                      "selectable": true,
+                      "selector": {
+                        "connectionIndex": null,
+                        "connectionType": null,
+                        "deviceName": null,
+                        "interfaceName": null,
+                        "interfaceOperatingMode": null,
+                        "interfaceType": null,
+                        "ioSystemIndex": null,
+                        "ioSystemName": null,
+                        "itemPath": null,
+                        "kind": "ioSystem",
+                        "localConnectionId": null,
+                        "localConnectionName": null,
+                        "nodeId": null,
+                        "nodeIndex": null,
+                        "number": 100,
+                        "subnetId": "subnet-1"
+                      },
+                      "selectorDiagnostics": []
+                    }
+                  ],
+                  "name": "PN/IE_1",
+                  "networkType": "Ethernet",
+                  "selectable": true,
+                  "selector": {
+                    "connectionIndex": null,
+                    "connectionType": null,
+                    "deviceName": null,
+                    "interfaceName": null,
+                    "interfaceOperatingMode": null,
+                    "interfaceType": null,
+                    "ioSystemIndex": null,
+                    "ioSystemName": null,
+                    "itemPath": null,
+                    "kind": "subnet",
+                    "localConnectionId": null,
+                    "localConnectionName": null,
+                    "nodeId": null,
+                    "nodeIndex": null,
+                    "number": null,
+                    "subnetId": "subnet-1"
+                  },
+                  "selectorDiagnostics": [],
+                  "subnetId": "subnet-1",
+                  "typeIdentifier": "Ethernet"
+                },
+                {
+                  "connectedNodeNames": [
+                    "PC_System_1.E2"
+                  ],
+                  "ioSystems": [],
+                  "name": "PN/IE_2",
+                  "networkType": "Ethernet",
+                  "selectable": true,
+                  "selector": {
+                    "connectionIndex": null,
+                    "connectionType": null,
+                    "deviceName": null,
+                    "interfaceName": null,
+                    "interfaceOperatingMode": null,
+                    "interfaceType": null,
+                    "ioSystemIndex": null,
+                    "ioSystemName": null,
+                    "itemPath": null,
+                    "kind": "subnet",
+                    "localConnectionId": null,
+                    "localConnectionName": null,
+                    "nodeId": null,
+                    "nodeIndex": null,
+                    "number": null,
+                    "subnetId": "subnet-2"
+                  },
+                  "selectorDiagnostics": [],
+                  "subnetId": "subnet-2",
+                  "typeIdentifier": "Ethernet"
+                }
+              ]
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.0",
+      "error": null,
+      "success": true,
+      "tool": "network_read",
+      "warnings": []
+    },
+    "unbound": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "binding_conflict",
+        "message": "A worker-verified project binding is required. Call bind_project first, or configure --project and verify it. In read-write/full mode, you can also call open_project explicitly."
+      },
+      "success": false,
+      "tool": "network_read",
+      "warnings": []
+    }
+  },
+  "hmi_read": {
+    "empty": {
+      "batch": null,
+      "contractVersion": "1.1",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch must contain at least one operation."
+      },
+      "success": false,
+      "tool": "hmi_read",
+      "warnings": []
+    },
+    "invalid": {
+      "batch": null,
+      "contractVersion": "1.1",
+      "error": {
+        "category": "validation_error",
+        "message": "Unknown operation 'unknown' for operationId 'bad'. Valid operations: list_hmi_devices, list_tag_tables, list_tags, get_tag, list_system_tags, list_connections, list_alarms, get_alarm, list_alarm_classes, list_logs, list_logging_tags, list_screens, list_screen_items, list_faceplate_instances, get_screen_navigation, get_runtime_settings, list_script_modules, list_text_and_graphic_lists, list_project_languages, validate."
+      },
+      "success": false,
+      "tool": "hmi_read",
+      "warnings": []
+    },
+    "mixed": {
+      "batch": {
+        "counts": {
+          "failed": 1,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 2,
+        "operations": [
+          {
+            "failure": {
+              "category": "target_not_found",
+              "message": "tag not found"
+            },
+            "omission": null,
+            "operation": "get_tag",
+            "operationId": "bad",
+            "result": null,
+            "skipReason": null,
+            "status": "failed",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "list_hmi_devices",
+            "operationId": "ok",
+            "result": {
+              "devices": [
+                {
+                  "deviceName": "HMI_1",
+                  "kind": "unified",
+                  "softwareName": "HMI_1_RT",
+                  "typeIdentifier": null
+                }
+              ],
+              "isComplete": true,
+              "messages": []
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.1",
+      "error": null,
+      "success": false,
+      "tool": "hmi_read",
+      "warnings": []
+    },
+    "null-item": {
+      "batch": null,
+      "contractVersion": "1.1",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch contains a null operation."
+      },
+      "success": false,
+      "tool": "hmi_read",
+      "warnings": []
+    },
+    "success": {
+      "batch": {
+        "counts": {
+          "failed": 0,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 1,
+        "operations": [
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "list_hmi_devices",
+            "operationId": "ok",
+            "result": {
+              "devices": [
+                {
+                  "deviceName": "HMI_1",
+                  "kind": "unified",
+                  "softwareName": "HMI_1_RT",
+                  "typeIdentifier": null
+                }
+              ],
+              "isComplete": true,
+              "messages": []
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.1",
+      "error": null,
+      "success": true,
+      "tool": "hmi_read",
+      "warnings": []
+    },
+    "unbound": {
+      "batch": null,
+      "contractVersion": "1.1",
+      "error": {
+        "category": "binding_conflict",
+        "message": "A worker-verified project binding is required. Call bind_project first, or configure --project and verify it. In read-write/full mode, you can also call open_project explicitly."
+      },
+      "success": false,
+      "tool": "hmi_read",
+      "warnings": []
+    }
+  },
+  "vci_read": {
+    "empty": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch must contain at least one operation."
+      },
+      "success": false,
+      "tool": "vci_read",
+      "warnings": []
+    },
+    "invalid": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Unknown VCI read operation 'unknown'."
+      },
+      "success": false,
+      "tool": "vci_read",
+      "warnings": []
+    },
+    "mixed": {
+      "batch": {
+        "counts": {
+          "failed": 2,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 3,
+        "operations": [
+          {
+            "failure": {
+              "category": "target_not_found",
+              "message": "Synthetic workspace not found."
+            },
+            "omission": null,
+            "operation": "list_mappings",
+            "operationId": "bad",
+            "result": null,
+            "skipReason": null,
+            "status": "failed",
+            "warnings": []
+          },
+          {
+            "failure": {
+              "category": "protocol_error",
+              "message": "The worker payload for 'list_mappings' did not match its declared result contract and was rejected."
+            },
+            "omission": null,
+            "operation": "list_mappings",
+            "operationId": "protocol",
+            "result": null,
+            "skipReason": null,
+            "status": "failed",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "list_workspaces",
+            "operationId": "ok",
+            "result": {
+              "workspaces": [
+                {
+                  "mappingCount": 3,
+                  "name": "Fixture",
+                  "rootPath": null
+                }
+              ]
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.0",
+      "error": null,
+      "success": false,
+      "tool": "vci_read",
+      "warnings": []
+    },
+    "null-item": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "validation_error",
+        "message": "Batch contains a null operation."
+      },
+      "success": false,
+      "tool": "vci_read",
+      "warnings": []
+    },
+    "success": {
+      "batch": {
+        "counts": {
+          "failed": 0,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 1
+        },
+        "operationCount": 1,
+        "operations": [
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "list_workspaces",
+            "operationId": "ok",
+            "result": {
+              "workspaces": [
+                {
+                  "mappingCount": 3,
+                  "name": "Fixture",
+                  "rootPath": null
+                }
+              ]
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.0",
+      "error": null,
+      "success": true,
+      "tool": "vci_read",
+      "warnings": []
+    },
+    "unbound": {
+      "batch": null,
+      "contractVersion": "1.0",
+      "error": {
+        "category": "binding_conflict",
+        "message": "A worker-verified project binding is required. Call bind_project first, or configure --project and verify it. In read-write/full mode, you can also call open_project explicitly."
+      },
+      "success": false,
+      "tool": "vci_read",
+      "warnings": []
+    }
+  }
+}

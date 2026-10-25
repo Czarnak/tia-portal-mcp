@@ -6,8 +6,6 @@ using TiaMcpServer.Cursors;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
-using TiaMcpServer.Contracts.Safety;
-using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 
@@ -28,48 +26,16 @@ public class NetworkReadTools
         Destructive = false,
         OpenWorld = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(NetworkReadResponse))]
+        OutputSchemaType = typeof(OperationBatchReadResponse))]
     [Description("Run up to 50 dedicated network read operations in one call. Valid operations: read_hardware_config, search_equipment_catalog (query), list_network_objects (objectKinds), and inspect_network_object (target). Reads run independently, so a failing item does not stop later operations. Each operation result is returned as declared JSON, not as a nested JSON string. Large catalog searches can be narrowed with query/maxResults or split into separate network_read calls. list_network_objects uses pageSize (1..200), default 100 on every page. read_hardware_config accepts optional deviceName (case-insensitive station/root device name as in devices[].name, not a PLC/CPU device-item name), plcName (PLC software name, used only for tag matching), includeIoDetails (structured addresses and channels), and includeTagMatches (requires includeIoDetails). For bounded hardware pagination, supply pageSize (1..200) or cursor; cursor alone defaults to 100. Page size counts one combined sequence, devices first, then subnets, while the result keeps separate arrays. On continuation, deviceName, plcName, includeIoDetails, and includeTagMatches must remain unchanged. Detailed output can be large, so filter by deviceName or split into separate calls.")]
-    public static async Task<CallToolResult> NetworkRead(
+    public static Task<CallToolResult> NetworkRead(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of dedicated network read operations. Each item is { operationId, operation, ...operation parameters }.")] NetworkOperationRequest[] operations,
         CancellationToken cancellationToken = default)
-    {
-        var validation = NetworkOperationCatalog.ValidateRead(operations);
-        if (!validation.IsValid)
-        {
-            return Error(validation.Category, validation.Error);
-        }
-
-        var mode = workerClient.AccessPolicy.Mode;
-        var accessErrors = NetworkOperationCatalog.ValidateAccessMode(operations, mode);
-        if (accessErrors.Count != 0)
-        {
-            return Error(WorkerFailureCategories.AccessDenied, string.Join("\n", accessErrors));
-        }
-
-        var binding = await workerClient.RequireVerifiedBindingAsync().ConfigureAwait(false);
-        if (!binding.Success)
-        {
-            return Error(binding.FailureCategory!, binding.Error!);
-        }
-
-        var operationExecutor = CompatibilityExecutors.GetValue(
-            workerClient,
-            CreateCompatibilityExecutor);
-
-        var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
-            operations,
-            operationExecutor.ExecuteAsync,
-            cancellationToken)
-            .ConfigureAwait(false);
-
-        var bounded = ApplyBudget(batch);
-
-        // A batch that ran is a successful MCP call even when items inside it failed: isError is
-        // reserved for "the tool could not run", so the caller can tell those two cases apart.
-        return StructuredToolResult.Create(Compose(bounded), isError: false);
-    }
+        => BatchReadTool.RunAsync(workerClient, operations, ToolName, NetworkContractVersion.Current,
+            NetworkOperationCatalog.ValidateRead, NetworkOperationCatalog.ValidateAccessMode,
+            operation => CompatibilityExecutors.GetValue(workerClient, CreateCompatibilityExecutor).ExecuteAsync(operation),
+            RetryGuidance, cancellationToken);
 
     internal static void RegisterExecutor(
         OpennessWorkerClient workerClient,
@@ -100,17 +66,8 @@ public class NetworkReadTools
         StructuredOperationBatch batch,
         int? maxItemChars = null,
         int? maxDocumentChars = null)
-        => StructuredOperationBatchPayloadBudget.Apply(
-            batch,
-            Compose,
-            ToolName,
-            RetryGuidance,
-            maxItemChars,
-            maxDocumentChars);
-
-    private static NetworkReadResponse Compose(StructuredOperationBatch batch)
-        => new(ToolName, NetworkContractVersion.Current, batch.IsFullySuccessful,
-            Error: null, Warnings: Array.Empty<string>(), Batch: batch);
+        => BatchReadTool.ApplyBudget(batch, ToolName, NetworkContractVersion.Current,
+            RetryGuidance, maxItemChars, maxDocumentChars);
 
     private static string RetryGuidance(StructuredOperationItem item) => item.Operation switch
     {
@@ -139,8 +96,5 @@ public class NetworkReadTools
             && pagination.ValueKind == System.Text.Json.JsonValueKind.Object;
 
     internal static CallToolResult Error(string category, string message)
-        => StructuredToolResult.Create(
-            new NetworkReadResponse(ToolName, NetworkContractVersion.Current, false,
-                new NetworkToolError(category, message), Warnings: Array.Empty<string>(), Batch: null),
-            isError: true);
+        => BatchReadTool.Error(ToolName, NetworkContractVersion.Current, category, message);
 }
