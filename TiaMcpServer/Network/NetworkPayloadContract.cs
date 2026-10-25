@@ -77,7 +77,7 @@ public static class NetworkPayloadContract
         var postconditionFailed = result.ValueKind == JsonValueKind.Object
             && result.TryGetProperty("verification", out var evidence)
             && evidence.ValueKind == JsonValueKind.Object
-            && evidence.GetProperty("status").GetString() is "failed" or "unverified";
+            && evidence.GetProperty("status").GetString() is NetworkVerificationStatuses.Failed or NetworkVerificationStatuses.Unverified;
 
         return new StructuredOperationItem(
             operation.OperationId,
@@ -186,12 +186,12 @@ public static class NetworkPayloadContract
             throw new JsonException("Configuration identity contradicts the request.");
         var requested = new Dictionary<string, string>(StringComparer.Ordinal);
         var changes = op.Changes;
-        if (changes?.IpAddress is { } address) requested.Add("Address", address);
-        if (changes?.SubnetMask is { } mask) requested.Add("SubnetMask", mask);
-        if (changes?.PnDeviceNameAutoGeneration is { } generated) requested.Add("PnDeviceNameAutoGeneration", generated ? "true" : "false");
-        if (changes?.PnDeviceName is { } pn) requested.Add("PnDeviceName", pn);
-        if (changes?.Subnet is { } subnet) requested.Add("Subnet", subnet.SubnetId!);
-        if (changes?.IoSystem is { Number: { } number }) requested.Add("IoSystem", Number(number));
+        if (changes?.IpAddress is { } address) requested.Add(NetworkSettingKeys.Address, address);
+        if (changes?.SubnetMask is { } mask) requested.Add(NetworkSettingKeys.SubnetMask, mask);
+        if (changes?.PnDeviceNameAutoGeneration is { } generated) requested.Add(NetworkSettingKeys.PnDeviceNameAutoGeneration, generated ? "true" : "false");
+        if (changes?.PnDeviceName is { } pn) requested.Add(NetworkSettingKeys.PnDeviceName, pn);
+        if (changes?.Subnet is { } subnet) requested.Add(NetworkSettingKeys.Subnet, subnet.SubnetId!);
+        if (changes?.IoSystem is { Number: { } number }) requested.Add(NetworkSettingKeys.IoSystem, Number(number));
         var accounted = new HashSet<string>(StringComparer.Ordinal);
         foreach (var setting in value.AppliedSettings)
         {
@@ -206,11 +206,11 @@ public static class NetworkPayloadContract
         if (!accounted.SetEquals(requested.Keys)) throw new JsonException("Requested settings are unaccounted for.");
         var checks = value.AppliedSettings.ToDictionary(pair => pair.Key, pair => (string?)pair.Value, StringComparer.Ordinal);
         // One applied IoSystem setting is verified as two scalar checks: its subnet and number.
-        if (checks.Remove("IoSystem"))
+        if (checks.Remove(NetworkSettingKeys.IoSystem))
         {
             if (string.IsNullOrWhiteSpace(changes?.IoSystem?.SubnetId)) throw new JsonException("IO system subnet identity is required.");
-            checks["IoSystemSubnet"] = changes!.IoSystem!.SubnetId;
-            checks["IoSystemNumber"] = Number(changes.IoSystem.Number!.Value);
+            checks[NetworkSettingKeys.IoSystemSubnet] = changes!.IoSystem!.SubnetId;
+            checks[NetworkSettingKeys.IoSystemNumber] = Number(changes.IoSystem.Number!.Value);
         }
         // A missing request position becomes -1, which the path validator rejects.
         var identity = new NetworkMutationIdentityInfo
@@ -244,7 +244,8 @@ public static class NetworkPayloadContract
             checks.Add("subnetIdentity", value.SubnetId);
             var name = op.Operation == "create_subnet" ? op.Subnet?.Name : op.SubnetChanges?.Name;
             if (name is not null) checks.Add("Name", name);
-            if (op.Operation == "create_subnet") checks.Add("TypeIdentifier", "System:Subnet." + op.Subnet?.NetworkType);
+            if (op.Operation == "create_subnet") checks.Add("TypeIdentifier", SubnetLifecycleContract.TypeIdentifierFor(op.Subnet?.NetworkType)
+                ?? throw new JsonException("Verification contains missing, duplicate, unexpected or contradictory checks."));
             var address = op.Operation == "create_subnet" ? op.Subnet?.HighestAddress : op.SubnetChanges?.HighestAddress;
             if (address is { } number) checks.Add("HighestAddress", Number(number));
             var speed = op.Operation == "create_subnet" ? op.Subnet?.TransmissionSpeed : op.SubnetChanges?.TransmissionSpeed;
@@ -258,8 +259,8 @@ public static class NetworkPayloadContract
         if (count is null || !int.TryParse(count.Expected, System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out var before) || before < 0)
             throw new JsonException("Root device count evidence is required.");
-        if (count.Status != "unverified" && count.Observed != Number(value.NetworkDeviceCount)
-            || value.NetworkDeviceCountUnchanged != (count.Status == "passed"))
+        if (count.Status != NetworkVerificationStatuses.Unverified && count.Observed != Number(value.NetworkDeviceCount)
+            || value.NetworkDeviceCountUnchanged != (count.Status == NetworkVerificationStatuses.Passed))
             throw new JsonException("Root device count evidence contradicts the result.");
         checks.Add("networkDeviceCountUnchanged", count.Expected);
         ValidateVerification(value.Verification, new() { SubnetId = value.SubnetId }, checks);
@@ -276,17 +277,17 @@ public static class NetworkPayloadContract
         {
             if (check is null || !seen.Add(check.Name) || !expected.TryGetValue(check.Name, out var target) || check.Expected != target)
                 throw new JsonException("Verification contains missing, duplicate, unexpected or contradictory checks.");
-            if (check.Status is not ("passed" or "failed" or "unverified")) throw new JsonException("Invalid check status.");
-            if (check.Status == "passed" && check.Expected != check.Observed
-                || check.Status == "failed" && check.Expected == check.Observed
-                || check.Status == "unverified" && check.Observed is not null
-                || check.Status != "passed" && string.IsNullOrWhiteSpace(check.Message))
+            if (check.Status is not (NetworkVerificationStatuses.Passed or NetworkVerificationStatuses.Failed or NetworkVerificationStatuses.Unverified)) throw new JsonException("Invalid check status.");
+            if (check.Status == NetworkVerificationStatuses.Passed && check.Expected != check.Observed
+                || check.Status == NetworkVerificationStatuses.Failed && check.Expected == check.Observed
+                || check.Status == NetworkVerificationStatuses.Unverified && check.Observed is not null
+                || check.Status != NetworkVerificationStatuses.Passed && string.IsNullOrWhiteSpace(check.Message))
                 throw new JsonException("Verification status contradicts its evidence.");
         }
         if (!seen.SetEquals(expected.Keys)) throw new JsonException("Required checks are missing.");
-        var status = evidence.Checks.Any(check => check.Status == "failed") ? "failed"
-            : evidence.Checks.Any(check => check.Status == "unverified") ? "unverified"
-            : evidence.Checks.Count == 0 && allowNotRequired ? "not_required" : "passed";
+        var status = evidence.Checks.Any(check => check.Status == NetworkVerificationStatuses.Failed) ? NetworkVerificationStatuses.Failed
+            : evidence.Checks.Any(check => check.Status == NetworkVerificationStatuses.Unverified) ? NetworkVerificationStatuses.Unverified
+            : evidence.Checks.Count == 0 && allowNotRequired ? NetworkVerificationStatuses.NotRequired : NetworkVerificationStatuses.Passed;
         if (evidence.Status != status || evidence.Checks.Count == 0 && !allowNotRequired)
             throw new JsonException("Verification summary contradicts its checks.");
     }

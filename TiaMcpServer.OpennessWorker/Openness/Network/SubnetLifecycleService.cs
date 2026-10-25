@@ -17,9 +17,6 @@ namespace TiaMcpServer.OpennessWorker.Openness.Network;
 /// </summary>
 internal static class SubnetLifecycleService
 {
-    private const string EthernetTypeIdentifier = "System:Subnet.Ethernet";
-    private const string ProfibusTypeIdentifier = "System:Subnet.Profibus";
-
     public static SubnetLifecycleResultInfo Create(
         TiaPortal tiaPortal,
         ProjectBase project,
@@ -71,7 +68,7 @@ internal static class SubnetLifecycleService
             ResolveExactSubnetOrThrow(project, subnetId, "update_subnet"),
             subnetId);
         if ((highestAddress is not null || transmissionSpeed is not null)
-            && !string.Equals(currentTypeIdentifier, ProfibusTypeIdentifier, StringComparison.Ordinal))
+            && !string.Equals(currentTypeIdentifier, SubnetLifecycleContract.ProfibusTypeIdentifier, StringComparison.Ordinal))
         {
             throw new WorkerOperationException(
                 WorkerFailureCategories.ValidationError,
@@ -170,17 +167,7 @@ internal static class SubnetLifecycleService
 
     private static string ResolveTypeIdentifier(string networkType)
     {
-        if (string.Equals(networkType, SubnetLifecycleContract.Ethernet, StringComparison.Ordinal))
-        {
-            return EthernetTypeIdentifier;
-        }
-
-        if (string.Equals(networkType, SubnetLifecycleContract.Profibus, StringComparison.Ordinal))
-        {
-            return ProfibusTypeIdentifier;
-        }
-
-        throw new WorkerOperationException(
+        return SubnetLifecycleContract.TypeIdentifierFor(networkType) ?? throw new WorkerOperationException(
             WorkerFailureCategories.ValidationError,
             $"NetworkType '{networkType}' is not supported. Valid values: "
             + $"{SubnetLifecycleContract.Ethernet}, {SubnetLifecycleContract.Profibus}.");
@@ -203,8 +190,8 @@ internal static class SubnetLifecycleService
         }
 
         if (typeIdentifier is null
-            || (!string.Equals(typeIdentifier, EthernetTypeIdentifier, StringComparison.Ordinal)
-                && !string.Equals(typeIdentifier, ProfibusTypeIdentifier, StringComparison.Ordinal)))
+            || (!string.Equals(typeIdentifier, SubnetLifecycleContract.EthernetTypeIdentifier, StringComparison.Ordinal)
+                && !string.Equals(typeIdentifier, SubnetLifecycleContract.ProfibusTypeIdentifier, StringComparison.Ordinal)))
         {
             throw new WorkerOperationException(
                 WorkerFailureCategories.TargetKindUnsupported,

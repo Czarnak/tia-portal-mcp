@@ -62,11 +62,11 @@ internal static class NetworkMutationVerifier
         }
         foreach (var setting in result.AppliedSettings)
         {
-            if (setting.Key == "IoSystem")
+            if (setting.Key == NetworkSettingKeys.IoSystem)
             {
                 // One applied IO relationship is verified as two scalar checks: its subnet and number.
-                Observe(evidence, "IoSystemSubnet", request.IoSystemSubnetId ?? request.SubnetId, () => ReadIoSystem(target).SubnetId);
-                Observe(evidence, "IoSystemNumber", request.IoSystemNumber is { } number ? Number(number) : null,
+                Observe(evidence, NetworkSettingKeys.IoSystemSubnet, request.IoSystemSubnetId ?? request.SubnetId, () => ReadIoSystem(target).SubnetId);
+                Observe(evidence, NetworkSettingKeys.IoSystemNumber, request.IoSystemNumber is { } number ? Number(number) : null,
                     () => ReadIoSystem(target).Number is { } observed ? Number(observed) : null);
                 continue;
             }
@@ -75,12 +75,12 @@ internal static class NetworkMutationVerifier
                 if (target is null) throw new InvalidOperationException("Target could not be resolved uniquely.");
                 switch (setting.Key)
                 {
-                    case "Address": case "SubnetMask": case "PnDeviceName":
+                    case NetworkSettingKeys.Address: case NetworkSettingKeys.SubnetMask: case NetworkSettingKeys.PnDeviceName:
                         return Required(((IEngineeringObject)target.Value.Node).GetAttribute(setting.Key) as string);
-                    case "PnDeviceNameAutoGeneration":
+                    case NetworkSettingKeys.PnDeviceNameAutoGeneration:
                         return ((IEngineeringObject)target.Value.Node).GetAttribute(setting.Key) is bool generated
                             ? Boolean(generated) : throw new InvalidOperationException("Missing attribute.");
-                    case "Subnet":
+                    case NetworkSettingKeys.Subnet:
                         return target.Value.Node.ConnectedSubnet is { } subnet ? HardwareConfigReader.RequireSubnetIdentity(subnet) : null;
                     default: throw new InvalidOperationException("Unknown applied setting.");
                 }
@@ -110,7 +110,7 @@ internal static class NetworkMutationVerifier
             if (request.SubnetName is not null)
                 Observe(evidence, "Name", request.SubnetName, () => Required(RequireSubnet(subnet).Name));
             if (request.Method == "create_subnet")
-                Observe(evidence, "TypeIdentifier", "System:Subnet." + request.SubnetNetworkType,
+                Observe(evidence, "TypeIdentifier", SubnetLifecycleContract.TypeIdentifierFor(request.SubnetNetworkType),
                     () => Required(RequireSubnet(subnet).TypeIdentifier));
             if (request.SubnetHighestAddress is { } address)
                 Observe(evidence, "HighestAddress", Number(address), () => Number(Convert.ToInt32(
@@ -145,7 +145,7 @@ internal static class NetworkMutationVerifier
             result.NetworkDeviceCount = project.Devices.Count;
             return Number(result.NetworkDeviceCount);
         });
-        result.NetworkDeviceCountUnchanged = evidence.Checks.Last().Status == "passed";
+        result.NetworkDeviceCountUnchanged = evidence.Checks.Last().Status == NetworkVerificationStatuses.Passed;
         return NetworkPostconditionChecks.Complete(evidence);
     }
 

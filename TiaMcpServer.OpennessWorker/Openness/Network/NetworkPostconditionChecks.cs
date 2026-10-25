@@ -31,22 +31,22 @@ internal static class NetworkPostconditionChecks
 
     public static NetworkVerificationCheckInfo Compare(string name, string? expected, string? observed, bool readable)
     {
-        var status = !readable ? "unverified"
-            : string.Equals(expected, observed, StringComparison.Ordinal) ? "passed" : "failed";
+        var status = !readable ? NetworkVerificationStatuses.Unverified
+            : string.Equals(expected, observed, StringComparison.Ordinal) ? NetworkVerificationStatuses.Passed : NetworkVerificationStatuses.Failed;
         return new NetworkVerificationCheckInfo
         {
             Name = name, Expected = expected, Observed = readable ? observed : null, Status = status,
-            Message = status == "passed" ? null : "Immediate post-read " + (readable ? "did not match." : "was unavailable.")
+            Message = status == NetworkVerificationStatuses.Passed ? null : "Immediate post-read " + (readable ? "did not match." : "was unavailable.")
                 + " Inspect the project before retrying.",
         };
     }
 
     public static NetworkMutationVerificationInfo Complete(NetworkMutationVerificationInfo evidence)
     {
-        evidence.Status = evidence.Checks.Any(check => check.Status == "failed") ? "failed"
-            : evidence.Checks.Any(check => check.Status == "unverified") ? "unverified"
-            : evidence.Checks.Count == 0 ? "not_required" : "passed";
-        evidence.Message = evidence.Status == "failed" || evidence.Status == "unverified"
+        evidence.Status = evidence.Checks.Any(check => check.Status == NetworkVerificationStatuses.Failed) ? NetworkVerificationStatuses.Failed
+            : evidence.Checks.Any(check => check.Status == NetworkVerificationStatuses.Unverified) ? NetworkVerificationStatuses.Unverified
+            : evidence.Checks.Count == 0 ? NetworkVerificationStatuses.NotRequired : NetworkVerificationStatuses.Passed;
+        evidence.Message = evidence.Status == NetworkVerificationStatuses.Failed || evidence.Status == NetworkVerificationStatuses.Unverified
             ? "The mutation may have taken effect. Inspect current state before retrying." : null;
         return evidence;
     }

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25. After installing E-4 candidate `b5e29e4`, the maintainer authorized live testing on an open disposable project. The scoped native checks and restoration passed; fault and broader-mode limits remain explicit. This branch remains local; see the [execution record](#execution-record-2026-10-25) and [native acceptance record](#native-acceptance-record-2026-10-25).
+**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25. After installing E-4 candidate `b5e29e4`, the maintainer authorized live testing on an open disposable project. The scoped native checks and restoration passed; fault and broader-mode limits remain explicit. E-4 subsequently merged through [PR #193](https://github.com/Czarnak/tia-portal-mcp/pull/193); see the [execution record](#execution-record-2026-10-25) and [native acceptance record](#native-acceptance-record-2026-10-25).
 
 **Goal:** Replace speculative reflection in network attachment with the verified TIA Portal V21 typed APIs while preserving selection, partial-result, and rejection behavior.
 
@@ -183,7 +183,7 @@ pwsh -NoProfile -File scripts/verify-coverage-threshold.ps1 -CoveragePath ($task
 Record numerator/denominator and exit status. `coverage.runsettings` excludes worker code; do not claim this rate covers the changed native helpers.
 - [x] Obtain independent review of the owned diff, especially native exception propagation, aggregate stub provenance, and partial outcomes. Fix only accepted findings, rerun affected checks, and commit each fix conventionally after its verification.
 - [x] Record `git rev-parse HEAD`, `git status --short`, `git diff --check`, actual test counts, warning/SDK provenance, and the deferred live cases. Release the global slot and report the candidate to the coordinator.
-- [ ] Coordinator integrates in default A/B/C order, with C rebasing after B and only then substituting configurator constants. Revalidate the combined candidate with the same serialized policy; rerun only checks affected by integration changes or unresolved evidence gaps. Do not push, publish, or archive the worktree without separate authorization.
+- [x] Coordinator integrates in default A/B/C order, with C rebasing after B and only then substituting configurator constants. Revalidate the combined candidate with the same serialized policy; rerun only checks affected by integration changes or unresolved evidence gaps. Do not push, publish, or archive the worktree without separate authorization.
 
 ### Task 4: Deferred native acceptance after explicit target authorization
 
@@ -271,4 +271,4 @@ All eight entered guarded calls (one preview, one dependency denial, three attem
 
 ### Remaining limits
 
-The successful paths and natural engineering rejections were exercised once on one IO-station type. Native `InvalidOperationException`, fatal loss, timeout, ambiguous live identities, other equipment/firmware, read-write/read-only modes and local sessions were not tested. No project save, hardware/PLC compile, download, online connection or PLC runtime action ran. This is not commissioning or plant acceptance. The prior offline qualification remains separate evidence; expensive suites were not rerun for these documentation-only updates. The branch remains local pending separate publication authorization.
+The successful paths and natural engineering rejections were exercised once on one IO-station type. Native `InvalidOperationException`, fatal loss, timeout, ambiguous live identities, other equipment/firmware, read-write/read-only modes and local sessions were not tested. No project save, hardware/PLC compile, download, online connection or PLC runtime action ran. This is not commissioning or plant acceptance. The prior offline qualification remains separate evidence; expensive suites were not rerun for these documentation-only updates. E-4 was subsequently published and merged through [PR #193](https://github.com/Czarnak/tia-portal-mcp/pull/193); this native record remains limited to its frozen candidate and executed cases.

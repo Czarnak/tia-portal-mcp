@@ -12,6 +12,27 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkMutationVerificationTests
 {
     [Theory]
+    [InlineData("passed", "passed")]
+    [InlineData("passed,unverified", "unverified")]
+    [InlineData("unverified,failed", "failed")]
+    [InlineData("failed,unverified", "failed")]
+    [InlineData("", "not_required")]
+    public void Complete_PreservesStatusPrecedence(string statuses, string expected)
+    {
+        var checks = statuses.Length == 0
+            ? new List<NetworkVerificationCheckInfo>()
+            : statuses.Split(',').Select(status => new NetworkVerificationCheckInfo { Status = status }).ToList();
+
+        var verification = NetworkPostconditionChecks.Complete(new NetworkMutationVerificationInfo { Checks = checks });
+
+        Assert.Equal(expected, verification.Status);
+        if (expected is "passed" or "not_required")
+            Assert.Null(verification.Message);
+        else
+            Assert.False(string.IsNullOrEmpty(verification.Message));
+    }
+
+    [Theory]
     [InlineData(0, true, "worker_operation_failed")]
     [InlineData(2, true, "worker_operation_failed")]
     [InlineData(1, false, "worker_operation_failed")]

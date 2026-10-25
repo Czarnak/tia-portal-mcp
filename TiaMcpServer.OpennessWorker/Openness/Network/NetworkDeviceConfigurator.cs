@@ -64,12 +64,12 @@ public static class NetworkDeviceConfigurator
                 "Requested network dependency discovery was unreadable. No configuration was attempted.");
         }
 
-        ApplyNodeAttribute(node, "Address", ipAddress, result);
-        ApplyNodeAttribute(node, "SubnetMask", subnetMask, result);
+        ApplyNodeAttribute(node, NetworkSettingKeys.Address, ipAddress, result);
+        ApplyNodeAttribute(node, NetworkSettingKeys.SubnetMask, subnetMask, result);
         // An explicit name is only settable once automatic generation is off; the caller opts in.
         if (pnDeviceNameAutoGeneration is { } generated)
-            ApplyNodeAttribute(node, "PnDeviceNameAutoGeneration", generated, generated ? "true" : "false", result);
-        ApplyNodeAttribute(node, "PnDeviceName", pnDeviceName, result);
+            ApplyNodeAttribute(node, NetworkSettingKeys.PnDeviceNameAutoGeneration, generated, generated ? "true" : "false", result);
+        ApplyNodeAttribute(node, NetworkSettingKeys.PnDeviceName, pnDeviceName, result);
 
         var subnetConnected = false;
         if (subnetRequested)
@@ -82,7 +82,7 @@ public static class NetworkDeviceConfigurator
             var skip = NetworkPostconditionChecks.IoSystemSkipReason(subnetRequested, subnetConnected, ioConnector is not null);
             if (skip is not null)
             {
-                result.SkippedSettings["IoSystem"] = skip;
+                result.SkippedSettings[NetworkSettingKeys.IoSystem] = skip;
             }
             else
             {
@@ -154,12 +154,12 @@ public static class NetworkDeviceConfigurator
         try
         {
             node.ConnectToSubnet(subnet);
-            result.AppliedSettings["Subnet"] = subnetId;
+            result.AppliedSettings[NetworkSettingKeys.Subnet] = subnetId;
             return true;
         }
         catch (EngineeringException ex)
         {
-            result.SkippedSettings["Subnet"] = ex.Message;
+            result.SkippedSettings[NetworkSettingKeys.Subnet] = ex.Message;
         }
 
         return false;
@@ -214,11 +214,11 @@ public static class NetworkDeviceConfigurator
         try
         {
             ioConnector.ConnectToIoSystem(ioSystem);
-            result.AppliedSettings["IoSystem"] = ioSystemNumber.ToString(CultureInfo.InvariantCulture);
+            result.AppliedSettings[NetworkSettingKeys.IoSystem] = ioSystemNumber.ToString(CultureInfo.InvariantCulture);
         }
         catch (EngineeringException ex)
         {
-            result.SkippedSettings["IoSystem"] = ex.Message;
+            result.SkippedSettings[NetworkSettingKeys.IoSystem] = ex.Message;
         }
     }
 

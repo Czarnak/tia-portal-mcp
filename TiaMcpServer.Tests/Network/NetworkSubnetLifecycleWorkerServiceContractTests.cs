@@ -31,14 +31,14 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
     public void Service_MapsOnlyTheTwoApprovedTypeIdentifiers()
     {
         var source = ServiceSource;
-        Assert.Contains(
-            "private const string EthernetTypeIdentifier = \"System:Subnet.Ethernet\";",
-            source,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "private const string ProfibusTypeIdentifier = \"System:Subnet.Profibus\";",
-            source,
-            StringComparison.Ordinal);
+        Assert.Contains("SubnetLifecycleContract.TypeIdentifierFor(networkType)", source, StringComparison.Ordinal);
+        Assert.Contains("SubnetLifecycleContract.EthernetTypeIdentifier", source, StringComparison.Ordinal);
+        Assert.Contains("SubnetLifecycleContract.ProfibusTypeIdentifier", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("private const string EthernetTypeIdentifier", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("private const string ProfibusTypeIdentifier", source, StringComparison.Ordinal);
+        Assert.Contains("WorkerFailureCategories.ValidationError", source, StringComparison.Ordinal);
+        Assert.Contains("NetworkType '{networkType}' is not supported. Valid values: ", source, StringComparison.Ordinal);
+        Assert.Contains("{SubnetLifecycleContract.Ethernet}, {SubnetLifecycleContract.Profibus}.", source, StringComparison.Ordinal);
     }
 
     [Fact]
