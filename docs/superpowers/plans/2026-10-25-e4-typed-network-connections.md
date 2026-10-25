@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25. The maintainer approved and committed the plans as `0f7162c`, authorized implementation, and explicitly stopped before all live TIA testing. Native acceptance remains pending. This branch remains local; see the [execution record](#execution-record-2026-10-25).
+**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25. After installing E-4 candidate `b5e29e4`, the maintainer authorized live testing on an open disposable project. The scoped native checks and restoration passed; fault and broader-mode limits remain explicit. This branch remains local; see the [execution record](#execution-record-2026-10-25) and [native acceptance record](#native-acceptance-record-2026-10-25).
 
 **Goal:** Replace speculative reflection in network attachment with the verified TIA Portal V21 typed APIs while preserving selection, partial-result, and rejection behavior.
 
@@ -191,13 +191,15 @@ Record numerator/denominator and exit status. `coverage.runsettings` excludes wo
 
 **Interfaces:** Consumes an explicitly authorized disposable project copy, exact selectors, operations, access mode, restoration scope, and candidate SHA; produces bounded native acceptance and restoration evidence.
 
-- [ ] Obtain later explicit permission for the exact disposable target and `configure_network_device` cases. Rebuild the accepted SHA against installed V21 references after any stub build; verify host/worker binaries and target identity before attachment.
+- [x] Obtain later explicit permission for the exact disposable target and `configure_network_device` cases. Rebuild the accepted SHA against installed V21 references after any stub build; verify host/worker binaries and target identity before attachment.
 - [ ] Capture original node subnet, IO attachment, scalar settings, exact selectors, and fixture identity. Approve a restoration route before mutation; use existing networks/IO systems where possible.
-- [ ] Attach a selected node to the authorized subnet and its available IO connector to an authorized compatible IO system; inspect both attachments afterward using the original selectors and record typed applied settings plus verification.
-- [ ] Exercise a specifically authorized native engineering-rejection case with documented unmet attachment prerequisites; verify the matching sparse skipped key/message, preserved earlier applied settings, and unchanged rejected attachment. If a safe rejection cannot be reproduced, record it as unexecuted.
-- [ ] If safely reproducible within the authorized fixture, reject requested subnet attachment and confirm IO attachment is suppressed. Otherwise retain the offline skip-precedence evidence and state the native gap.
-- [ ] Check an authorized invalid/ambiguous dependency denial before mutation and compare the post-read with the captured original state. Do not inject undocumented native faults to manufacture `InvalidOperationException`; its native path remains unverified unless separately authorized and reproducible.
-- [ ] Restore and verify the captured original attachment/scalar state, or dispose of the authorized fixture copy as explicitly agreed. Record exact candidate SHA, assembly identities, target evidence, executed/unexecuted cases, and restoration proof. No download or PLC state changes.
+- [x] Attach a selected node to the authorized subnet and its available IO connector to an authorized compatible IO system; inspect both attachments afterward using the original selectors and record typed applied settings plus verification.
+- [x] Exercise a specifically authorized native engineering-rejection case with documented unmet attachment prerequisites; verify the matching sparse skipped key/message, preserved earlier applied settings, and unchanged rejected attachment. If a safe rejection cannot be reproduced, record it as unexecuted.
+- [x] If safely reproducible within the authorized fixture, reject requested subnet attachment and confirm IO attachment is suppressed. Otherwise retain the offline skip-precedence evidence and state the native gap.
+- [x] Check an authorized invalid/ambiguous dependency denial before mutation and compare the post-read with the captured original state. Do not inject undocumented native faults to manufacture `InvalidOperationException`; its native path remains unverified unless separately authorized and reproducible.
+- [x] Restore and verify the captured original attachment/scalar state, or dispose of the authorized fixture copy as explicitly agreed. Record exact candidate SHA, assembly identities, target evidence, executed/unexecuted cases, and restoration proof. No download or PLC state changes.
+
+**Sequencing deviation:** The baseline and planned discard/reopen route were captured before mutation, but explicit approval for that destructive restoration was obtained only after the live cases, when automatic review blocked the first close request. The original advance-approval requirement above remains unchecked. The actual close ran only after the maintainer's explicit approval; restoration was then verified.
 
 ## Completion boundary
 
@@ -234,4 +236,39 @@ Evidence is retained under ignored `TestResults/e4-qualification-20261025T194849
 
 B's typed-call source is frozen and ready for C's constants-only Configurator handoff. The coordinator transfers that file after C rebases onto the integrated B result; the literal-sensitive PnDeviceName ordering source test must migrate with its call-site strings. Preserve all typed calls, catches, dependency ordering and immediate verification. C's final combined gate owns post-handoff qualification.
 
-Every deferred live case remains unexecuted by explicit maintainer instruction. Native subnet/IO attachment, engineering rejection/fault behavior and restoration still need later target-specific authorization and disposable-project evidence. No Portal attachment, installation, PLC download/run-stop, remote push or B PR was performed.
+The offline handoff stopped before live TIA testing as instructed. The maintainer subsequently installed this branch and authorized the scoped native run recorded below. Installation was performed by the maintainer; no PLC download/run-stop, remote push or B PR was performed by the agent.
+
+## Native acceptance record 2026-10-25
+
+**Result:** Scoped PASS for the executed standalone, `full`-mode cases on installed candidate `b5e29e4558a36653950734d95b6a7c3263fd9c46`. This is E-4 with A integrated, before E-5. Native fault injection and other access modes/container kinds are not qualified by this run.
+
+### Authorization and provenance
+
+The maintainer stated that the local E-4 tool was installed, a disposable project was open, and live testing could proceed. The sole open project was bound by exact observed path and Portal PID. It reported `isModified:false` before testing. Tracked documentation calls this project **Fixture A**; exact paths, selectors, raw requests/responses and receipts remain in ignored `TestResults/e4-live-20261025/`.
+
+The installed package was `4.2.0-local.24.gb5e29e4`. Both installed binaries matched the E-4 worktree's current Release build outputs byte for byte: host SHA256 `8211DEEBE3D085D280FC44C58CD48BD077F8485098689F294314AF847EAC8333`, worker SHA256 `774287DD60CDF7750E6689AD4BFEB12E7CA2C160DB12ABF4808C3405AD11BF44`. The installed Siemens Base assembly retained version `21.0.0.0`, file version `2100.0.121.1` and the previously reviewed SHA256 `8C12B0FA70C298F1CD1221105880752AB204ED63C9F6D9DCB68833D977BCB5D0`. No rebuild or production-source edit was needed during acceptance.
+
+The original IO endpoint had one selectable node, complete attachment evidence and no configured communication connections. Its hardware state and all four subnet/IO-system inventories were captured. A compatible attachment preview passed. Because an already-attached node cannot be moved by this public connect operation, a temporary IO station of the same observed supported type was created as **Probe A**, using existing networks and controllers. Its fresh baseline proved both subnet and IO attachment absent.
+
+### Executed checks
+
+| Case | Observed result |
+| --- | --- |
+| Invalid IO-system number with a requested scalar change | Host preflight returned `target_not_found`; no mutation was entered. A fresh scalar read retained the original values. This is dependency-denial evidence, not native exception evidence. |
+| Attach the original already-connected node to another subnet, with dependent IO attachment requested | Native subnet connection was rejected. The typed result retained `skippedSettings.Subnet`; `skippedSettings.IoSystem` stated that IO attachment was suppressed. All final preservation checks passed, and an independent hardware read exactly matched the original endpoint and subnet inventory. |
+| Attach initially unattached Probe A to a compatible subnet and IO system | Root and item success were true; `appliedSettings` contained exactly `Subnet` and `IoSystem`, with no skipped settings. Immediate and final checks for `Subnet`, `IoSystemSubnet` and `IoSystemNumber` passed. An independent hardware read confirmed both relationships and controller membership. TIA also adapted the temporary probe's IP address to the destination network. |
+| Reapply Probe A's observed address, then request another IO assignment while its connector was already attached | The native IO call was rejected. `appliedSettings.Address` retained the successful same-value setter; `skippedSettings.IoSystem` retained the native diagnostic. This does not claim a changed address was rolled back. Applied-setting verification and preservation of the prior IO attachment passed; an independent hardware read exactly matched the preceding connected-probe snapshot. |
+
+Both native rejections returned typed attempted-operation failures (`success:false`, `error:null`, `phase:"applied"`) with successful preservation verification. These expected failures passed their acceptance checks; they are not reported as successful write operations. No native fault was manufactured, and no failed call was automatically replayed.
+
+### Restoration and receipt verification
+
+The planned restoration route was discard/reopen of the initially unmodified disposable copy, since the public configure operation has no unassign action. Automatic approval review initially blocked `close_project(saveBeforeClose:false)`. The maintainer then explicitly approved closing without saving, reopening the same exact file and verifying restoration. The approved close and reopen both succeeded; closed status was independently observed before opening.
+
+After reopening, Fixture A was open and unmodified at the same path, with its original saved modification timestamp. A fresh hardware read of the original endpoint and all four subnet/IO inventories exactly matched the captured baseline. Node inventory returned to 108; an exact lookup of Probe A returned the expected `target_not_found`. This proves the scoped in-memory restoration; no byte-identical project-file claim is made because TIA held the descriptor exclusively during the initial hash attempt.
+
+All eight entered guarded calls (one preview, one dependency denial, three attempted configure calls, one temporary-device creation, and close/open restoration) matched exactly one audit v2 record each. Delivered response SHA256 values recomputed correctly, all eight text/structured document pairs matched, and recorded item statuses/confirmation origins matched the receipts. The approval-review rejection did not enter the server pipeline and is retained separately. Raw receipts and the derived `audit-summary.json`/`restorechecks.json` are local ignored evidence.
+
+### Remaining limits
+
+The successful paths and natural engineering rejections were exercised once on one IO-station type. Native `InvalidOperationException`, fatal loss, timeout, ambiguous live identities, other equipment/firmware, read-write/read-only modes and local sessions were not tested. No project save, hardware/PLC compile, download, online connection or PLC runtime action ran. This is not commissioning or plant acceptance. The prior offline qualification remains separate evidence; expensive suites were not rerun for these documentation-only updates. The branch remains local pending separate publication authorization.
