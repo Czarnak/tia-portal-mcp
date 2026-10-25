@@ -39,6 +39,28 @@ What Openness does not do, and the server must keep doing:
 - Build with `-m:1`. Run `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"` after each task. Packaging tests only if a product `.csproj` changes.
 - Commit after each task with the task name in the message. Push to this branch only.
 - Documentation (Task 7) is last and is written from the live evidence of Task 6, not before it.
+- Task 0 runs before any code change and Task 6 repeats it unchanged on the candidate; a timing comparison measured on different projects, modes or cold workers is not evidence.
+
+## Task 0: Baseline call timing (maintainer's machine, before any code change)
+
+Measured on `main` at the analysis baseline, in `full` mode, against the same disposable project copy Task 6 will use, so the before and after numbers compare like with like.
+
+**Metric source:** the audit v2 record each call appends under `%LOCALAPPDATA%\TiaMcpServer\audit\writes-yyyy-MM-dd.jsonl`. `durationMs` at the record root is the whole guarded call from pipeline entry to the audited document; `items[].durationMs` is each item's mutation (including any replan). Planning plus verification is the root value minus the sum of the item values. The MCP Inspector's observed wall-clock per call is recorded alongside as a secondary figure, since it includes host validation and transport that the audit does not.
+
+**Protocol:**
+
+| Case | Call | Why |
+| --- | --- | --- |
+| T1 | `plc_write` with one `create_tag` | smallest write; isolates fixed planning cost |
+| T2 | `plc_write` with 10 items: create table, 5 tags, 2 constants, 1 block group, 1 block | typical multi-item call; shows per-item planning and verification |
+| T3 | `plc_write` with one `update_block_logic` (fresh `expectedContentHash`) | content path; export, hash and diff stay after the change |
+| T4 | `plc_write` with one `delete_block_group` holding the T2 block | delete-consequence path; its reads stay after the change |
+| T5 | T2 with `dryRun:true` | planning alone |
+
+- [ ] Record the project size: PLC count, tag count, block count, so the numbers can be interpreted.
+- [ ] Discard the first call after server start (worker warm-up), then run each case three times and take the median of the audit root `durationMs`, the item sum and the Inspector wall-clock.
+- [ ] Save the raw audit records and a results table in `docs/superpowers/acceptance/reports/inputs/2026-xx-xx-plc-write-timing-before.md` (or the inputs location the repository uses at the time).
+- [ ] Commit "Task 0: baseline plc_write timing" on this branch before Task 1 starts.
 
 ## Task 1: Engineering error contract
 
@@ -157,6 +179,7 @@ Run in `full` mode against a disposable copy of a project. Capture the exact `en
 - [ ] For each L1–L7, re-read the target with `plc_read` and confirm the project is unchanged.
 - [ ] Decide `plc_ob_singleton_exists` from L6: retire it (and its `PlcWorkingState` code and tests) in a follow-up commit if Portal rejected the duplicate.
 - [ ] Note the Portal UI language used; the captured messages are in that language.
+- [ ] Re-run the Task 0 protocol T1–T5 unchanged (same project copy, same mode, warm worker, three runs, median) on the Task 5 candidate; save the raw records and results table next to the baseline as `...-timing-after.md`.
 - [ ] Pin the captured messages as FakeWorker fixtures in `PlcGuardedWriteMcpTests` so the document shape is regression-tested offline. Commit "Task 6: live verification fixtures".
 
 ## Task 7: Documentation (last)
@@ -166,8 +189,8 @@ Written only from Task 6 evidence.
 - [ ] `docs/SupportedOperations/PLC_OPERATIONS_SUMMARY.md`: guard table (remaining guards only), the `engineering_rejected` failure, `engineeringError` shape with one captured example, verification semantics (`trusted`, `contentHash`, `superseded`), write contract `2.0`.
 - [ ] `AGENTS.md`: the PLC writes bullet (guard list, verification, the new category); the write-safety line that names categories.
 - [ ] `docs/ARCHITECTURE.md`: §7a failure categories and the PLC write seam.
-- [ ] `docs/IMPROVEMENT_LOG.md`: completed entry with removed line counts and retained limits; open follow-up for Network, HMI and VCI to adopt the same error contract.
-- [ ] Acceptance report `docs/superpowers/acceptance/reports/2026-xx-xx-plc-write-native-rejections-live-verification.md` and its `docs/README.md` row; update this plan's status and the index row.
+- [ ] `docs/IMPROVEMENT_LOG.md`: completed entry with removed line counts, the before/after timing table from Tasks 0 and 6 (root `durationMs`, item sum, planning-plus-verification remainder, Inspector wall-clock, per case) and retained limits; open follow-up for Network, HMI and VCI to adopt the same error contract.
+- [ ] Acceptance report `docs/superpowers/acceptance/reports/2026-xx-xx-plc-write-native-rejections-live-verification.md`, including the timing comparison and the project size it was measured on, and its `docs/README.md` row; update this plan's status and the index row.
 - [ ] Commit "Task 7: documentation".
 
 ## Review focus
