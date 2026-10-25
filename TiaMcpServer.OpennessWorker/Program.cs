@@ -574,23 +574,10 @@ internal static class Program
                 "The PROFIBUS edit probe requires HighestAddress and TransmissionSpeed values.");
         }
 
-        return WithSession(request, session =>
+        return WithActiveContext(request, session =>
         {
-            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
-            if (failure is not null)
-            {
-                return failure;
-            }
-            ValidateExpectedAfterProjectResolution(session, request);
-            if (session.ActiveContext is null || session.TiaPortal is null)
-            {
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    "No project or TIA Portal session is available for the subnet mutation probe.");
-            }
-
             return Success(SubnetLifecycleMutationProbeService.Run(
-                session.TiaPortal,
+                session.TiaPortal!,
                 session.RequireStandaloneOwner().Project,
                 probeRunId,
                 request.ProbeConnectedEthernetSubnetId!,
@@ -728,7 +715,7 @@ internal static class Program
         ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
         ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
 
-        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Create(
+        return WithActiveContext(request, session => Success(SubnetLifecycleService.Create(
             session.TiaPortal!,
             session.EngineeringRoot!,
             request.SubnetName!,
@@ -766,7 +753,7 @@ internal static class Program
         ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
         ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
 
-        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Update(
+        return WithActiveContext(request, session => Success(SubnetLifecycleService.Update(
             session.TiaPortal!,
             session.EngineeringRoot!,
             request.SubnetId!,
@@ -789,7 +776,7 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
         }
 
-        return WithSubnetLifecycleProject(request, session => Success(SubnetLifecycleService.Delete(
+        return WithActiveContext(request, session => Success(SubnetLifecycleService.Delete(
             session.TiaPortal!,
             session.EngineeringRoot!,
             request.SubnetId!)));
@@ -816,34 +803,6 @@ internal static class Program
                 $"SubnetTransmissionSpeed value '{value}' is not supported. Valid values: "
                 + $"{string.Join(", ", SubnetLifecycleContract.TransmissionSpeeds)}.");
         }
-    }
-
-    /// <summary>
-    /// Shared session/project plumbing for the three subnet lifecycle operations: connects, selects
-    /// only an already-open project or local session, and requires both <see cref="WorkerTiaPortalSession.TiaPortal"/>
-    /// and an engineering root — the lifecycle service needs the portal handle
-    /// for <c>ExclusiveAccess</c>/<c>Transaction</c>, not just the project.
-    /// </summary>
-    private static WorkerResponse WithSubnetLifecycleProject(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
-    {
-        return WithSession(request, session =>
-        {
-            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
-            if (failure is not null)
-            {
-                return failure;
-            }
-            ValidateExpectedAfterProjectResolution(session, request);
-
-            if (session.ActiveContext is null || session.TiaPortal is null)
-            {
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    "No project or TIA Portal session is available for the subnet lifecycle operation.");
-            }
-
-            return body(session);
-        });
     }
 
     private static WorkerResponse ReadCrossReferences(WorkerRequest request)
@@ -1390,22 +1349,18 @@ internal static class Program
     private static WorkerResponse WithEngineeringRoot(WorkerRequest request, Func<ProjectBase, WorkerResponse> body)
         => WithActiveContext(request, session => body(session.EngineeringRoot!));
 
-    /// <summary>Opens an Openness session, ensures a project is available, then runs <paramref name="body"/>.</summary>
+    /// <summary>Checks the active context and Portal after fresh identity validation, then runs <paramref name="body"/>.</summary>
     private static WorkerResponse WithActiveContext(WorkerRequest request, Func<WorkerTiaPortalSession, WorkerResponse> body)
     {
         return WithSession(request, session =>
         {
-            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
-            if (failure is not null)
-            {
-                return failure;
-            }
+            ProjectOpenGate.Require(session.CurrentProjectPath, request.ProjectPath, _accessMode,
+                allowRequestedNotOpen: false, allowNoProject: false);
             ValidateExpectedAfterProjectResolution(session, request);
 
-            if (session.ActiveContext is null)
+            if (session.ActiveContext is null || session.TiaPortal is null)
             {
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
+                return Failure(WorkerFailureCategories.WorkerOperationFailed,
                     ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
             }
 
@@ -1414,29 +1369,20 @@ internal static class Program
     }
 
     /// <summary>
-    /// Applies <see cref="ProjectOpenPolicy"/> before a non-lifecycle operation uses the
+    /// Applies <see cref="ProjectOpenGate"/> before a non-lifecycle operation uses the
     /// already-open project. Returns null to continue, or a failure response to the host.
     /// </summary>
     private static WorkerResponse? EnsureRequestedProjectOpen(WorkerTiaPortalSession session, string? requestedProjectPath)
     {
-        var currentPath = session.CurrentProjectPath;
-
-        switch (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath))
+        try
         {
-            case ProjectOpenDecision.RequestedNotOpen:
-                return Failure(
-                    WorkerFailureCategories.AccessDenied,
-                    ProjectOpenPolicy.NotOpenMessage(requestedProjectPath!, _accessMode));
-            case ProjectOpenDecision.Refuse:
-                return Failure(
-                    WorkerFailureCategories.BindingConflict,
-                    ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, _accessMode));
-            default:
-                if (currentPath is not null)
-                    return null;
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    ProjectOpenPolicy.NoProjectOpenMessage(_accessMode));
+            ProjectOpenGate.Require(session.CurrentProjectPath, requestedProjectPath, _accessMode,
+                allowRequestedNotOpen: false, allowNoProject: false);
+            return null;
+        }
+        catch (WorkerOperationException exception)
+        {
+            return Failure(exception.FailureCategory, exception.Message);
         }
     }
 

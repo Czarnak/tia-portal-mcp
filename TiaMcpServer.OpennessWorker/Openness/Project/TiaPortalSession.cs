@@ -30,12 +30,13 @@ public class TiaPortalSession : IDisposable
         // read-only worker must reject every TIA confirmation dialog. This keeps the final
         // Siemens-facing layer fail-closed if a nominally read operation unexpectedly asks
         // TIA Portal to confirm a state-changing action.
-        var accessMode = WorkerOperationAuthorization.ParseAccessMode(Environment.GetCommandLineArgs());
+        AccessMode = WorkerOperationAuthorization.ParseAccessMode(Environment.GetCommandLineArgs());
         _allowTiaConfirmations = allowTiaConfirmations &&
-            WorkerOperationAuthorization.AllowsTiaConfirmations(accessMode);
+            WorkerOperationAuthorization.AllowsTiaConfirmations(AccessMode);
     }
 
     internal ActiveProjectContext? ActiveContext => _activeContext;
+    internal McpAccessMode AccessMode { get; }
     internal ProjectBase? EngineeringRoot => _activeContext?.EngineeringRoot;
 
     /// <summary>Standalone-only compatibility bridge for existing content services.</summary>
@@ -44,7 +45,7 @@ public class TiaPortalSession : IDisposable
     internal StandaloneProjectOwner RequireStandaloneOwner()
     {
         if (_activeContext is null)
-            throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(McpAccessMode.ReadWrite));
+            throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(AccessMode));
         if (_activeContext.Owner is StandaloneProjectOwner owner)
             return owner;
         throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported,

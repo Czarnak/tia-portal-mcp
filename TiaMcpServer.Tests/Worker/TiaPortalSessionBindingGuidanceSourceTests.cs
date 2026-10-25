@@ -26,7 +26,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         Assert.Contains("--project", guidance, StringComparison.Ordinal);
         Assert.DoesNotContain("get_project_status", guidance, StringComparison.Ordinal);
 
-        foreach (var relativePath in new[] { "TiaMcpServer.OpennessWorker/Program.cs", "TiaMcpServer.FakeWorker/Program.cs" })
+        foreach (var relativePath in new[] { "TiaMcpServer.OpennessWorker/Openness/Project/ProjectOpenGate.cs", "TiaMcpServer.FakeWorker/Program.cs" })
         {
             var workerSource = File.ReadAllText(Path.Combine(repositoryRoot, relativePath));
             Assert.Contains("ProjectOpenPolicy.NoProjectOpenMessage(", workerSource, StringComparison.Ordinal);
@@ -39,6 +39,16 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         Assert.DoesNotContain("Provide a projectPath argument or open a project in TIA Portal.", lifecycle);
         Assert.Contains("session.RequireStandaloneOwner().Project", lifecycle);
         Assert.Contains("ProjectOpenPolicy.NoProjectOpenMessage(", source, StringComparison.Ordinal);
+        Assert.Contains("internal McpAccessMode AccessMode { get; }", source);
+        Assert.Contains("AccessMode = WorkerOperationAuthorization.ParseAccessMode(Environment.GetCommandLineArgs());", source);
+        Assert.Contains("WorkerOperationAuthorization.AllowsTiaConfirmations(AccessMode)", source);
+        Assert.Equal(1, source.Split("WorkerOperationAuthorization.ParseAccessMode(").Length - 1);
+        var ownerStart = source.IndexOf("internal StandaloneProjectOwner RequireStandaloneOwner()", StringComparison.Ordinal);
+        var ownerEnd = source.IndexOf("public TiaPortal? TiaPortal", ownerStart, StringComparison.Ordinal);
+        Assert.True(ownerStart >= 0 && ownerEnd > ownerStart);
+        var owner = source.Substring(ownerStart, ownerEnd - ownerStart);
+        Assert.Contains("throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(AccessMode))", owner);
+        Assert.DoesNotContain("McpAccessMode.ReadWrite", owner);
 
         var clientSource = File.ReadAllText(Path.Combine(repositoryRoot, "TiaMcpServer", "Worker", "OpennessWorkerClient.cs"));
         var refusalStart = clientSource.IndexOf("An invalidated source can be re-grounded", StringComparison.Ordinal);

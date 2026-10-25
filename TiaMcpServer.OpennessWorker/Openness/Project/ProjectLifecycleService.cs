@@ -12,8 +12,8 @@ public static partial class ProjectLifecycleService
 {
     /// <summary>
     /// Pure read: never opens, closes, or switches a project. Reuses
-    /// <see cref="ProjectOpenPolicy"/> - the same decision engine every other read-only worker
-    /// operation already uses via <c>Program.EnsureRequestedProjectOpen</c> - so "a read must
+    /// <see cref="ProjectOpenGate"/> - the same gate every other read-only worker
+    /// operation already uses - so "a read must
     /// never silently attach a different project" is enforced identically everywhere instead of
     /// this method re-deriving its own rule.
     /// </summary>
@@ -56,13 +56,8 @@ public static partial class ProjectLifecycleService
     {
         session.EnsureConnected(requestedProjectPath);
 
-        var currentPath = session.CurrentProjectPath;
-        if (ProjectOpenPolicy.Decide(currentPath, requestedProjectPath) == ProjectOpenDecision.Refuse)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.BindingConflict,
-                ProjectOpenPolicy.RefusalMessage(currentPath!, requestedProjectPath!, mode));
-        }
+        ProjectOpenGate.Require(session.CurrentProjectPath, requestedProjectPath, mode,
+            allowRequestedNotOpen: true, allowNoProject: true);
 
         return session.ActiveContext;
     }
@@ -365,15 +360,8 @@ public static partial class ProjectLifecycleService
     {
         session.EnsureConnected(projectPath);
 
-        switch (ProjectOpenPolicy.Decide(session.CurrentProjectPath, projectPath))
-        {
-            case ProjectOpenDecision.RequestedNotOpen:
-                throw new WorkerOperationException(WorkerFailureCategories.AccessDenied,
-                    ProjectOpenPolicy.NotOpenMessage(projectPath!, McpAccessMode.ReadWrite));
-            case ProjectOpenDecision.Refuse:
-                throw new WorkerOperationException(WorkerFailureCategories.BindingConflict,
-                    ProjectOpenPolicy.RefusalMessage(session.CurrentProjectPath!, projectPath!, McpAccessMode.ReadWrite));
-        }
+        ProjectOpenGate.Require(session.CurrentProjectPath, projectPath, session.AccessMode,
+            allowRequestedNotOpen: false, allowNoProject: true);
     }
 
     private static void ValidateExpectedImmediatelyBeforeMutation(
