@@ -1,0 +1,188 @@
+# PLC Write Native Rejections Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Status:** Draft approved in discussion on 2026-10-25; not yet implemented. The maintainer agreed the three scope decisions below and asked that documentation be the last task, after live verification. Branch: `refactor/plc-write-native-rejections`.
+
+**Goal:** Stop re-implementing TIA Portal's own rejections in `plc_write`. Let Openness reject name collisions, existing targets and protected objects, and surface each native rejection as a typed, verbatim engineering error in the canonical document. Keep the guards and checks that Openness cannot provide: delete consequences, address overlap and optimistic content concurrency.
+
+**Architecture:** The guarded single-call pipeline (`Safety/Pipeline`) is unchanged: validate, verified binding, resolve targets, guards, `dryRun`, mutate, verify, audit. Inside the PLC domain, planning shrinks to the reads consequence guards need, the worker's duplicate preconditions go, and verification keeps only the content-hash re-export. A new `engineering_rejected` failure category carries an `engineeringError` object built from the Openness exception type and message chain, never from message parsing.
+
+**Tech Stack:** C#/.NET 10 host, netstandard2.0 contracts, net48 worker, xUnit, FakeWorker; Windows/PowerShell for live steps. No new dependencies.
+
+**Analysis baseline:** `main` at `7c04b44` (merge of PR 191), inspected on 2026-10-25. Line numbers below are navigation aids; revalidate before editing.
+
+## Why
+
+The PLC write domain checks the same facts three times: a host planner guard (`plc_name_collision`, `plc_block_exists`, `plc_default_tag_table`), a worker precondition (`PlcWritePreconditions`) and TIA Portal itself. The first two layers cost a full tag inventory and a project-tree page per touched PLC before any mutation, 572 lines of in-call state tracking (`PlcWorkingState`), 309 lines of worker preconditions and a post-write re-read that mostly confirms what a non-throwing Openness call already proved. The third layer is authoritative and free.
+
+What Openness does not do, and the server must keep doing:
+
+- Tell a caller what a delete removes (`plc_deletes_block`, `plc_deletes_group_contents`, `plc_deletes_table_contents`).
+- Warn that a logical address overlaps another tag (`plc_address_overlap`); Portal permits the overlap.
+- Reject a content write planned against stale content (`expectedContentHash` → `state_changed`).
+- Report the normalized content hash after an import so the next `expectedContentHash` is correct.
+
+## Approved scope decisions
+
+1. **Error surfacing.** A Siemens exception during a `plc_write` item becomes a typed failure. `EngineeringTargetInvocationException` maps to the new closed category `engineering_rejected`; every other `EngineeringException` stays `worker_operation_failed`. Both carry a conditional `engineeringError` object with the exception type, the verbatim message and the inner-exception chain. Categories derive from the exception type only. Messages are localized by the Portal UI language and are never parsed.
+2. **Pre-flight target resolution.** Planning keeps resolving the targets of update and delete operations, so a mistyped path still fails the whole call as `target_not_found` before any mutation, and the delete-consequence guards get the read they need. Planning stops resolving collision state for creates; Portal rejects a duplicate at mutation time.
+3. **`plc_ob_singleton_exists`.** Expected to be a duplicate of Portal's own duplicate-block-number rejection. It is retired only after Task 6 confirms the native rejection live; until then it stays.
+
+## Global constraints
+
+- Preserve the 8/19/19 tool surface, `plc_write` arguments, the `dryRun` flag, binding leases, access-mode gates, stop-at-first-failure, no rollback, audit v2 and the canonical text/structured equality rule.
+- `ProjectCapabilityCatalog.OperationFor` and `OperationPolicyCatalog` are unchanged: no worker method is added or removed.
+- New conditional JSON members are registered in `ConditionalMemberRegisterTests`; new worker payload members write explicit nulls and go through the worker-payload reader.
+- Block creation never passes the Openness import override option, so no guard is needed to prevent overwrites. Any code path that could pass it is a defect in this plan's scope.
+- Do not widen into Network, HMI or VCI. Their equivalents are later plans that reuse the error contract from Task 1.
+- Build with `-m:1`. Run `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"` after each task. Packaging tests only if a product `.csproj` changes.
+- Commit after each task with the task name in the message. Push to this branch only.
+- Documentation (Task 7) is last and is written from the live evidence of Task 6, not before it.
+
+## Task 1: Engineering error contract
+
+**Files:**
+- Create: `TiaMcpServer.Contracts/Worker/EngineeringErrorInfo.cs`
+- Modify: `TiaMcpServer.Contracts/Worker/WorkerFailureCategories.cs` (add `EngineeringRejected = "engineering_rejected"`, register in `Known`)
+- Modify: `TiaMcpServer.Contracts/Worker/WorkerResponse.cs` (add `EngineeringError`)
+- Modify: `TiaMcpServer.OpennessWorker/Worker/WorkerOperationException.cs` (optional `EngineeringError`)
+- Modify: `TiaMcpServer.OpennessWorker/Worker/WorkerExecution.cs` (type-based mapping, build the info from the chain)
+- Modify: `TiaMcpServer/OperationBatches/StructuredOperationBatch.cs` (`StructuredOperationFailure.EngineeringError`, conditional)
+- Modify: `TiaMcpServer/Plc/PlcWritePayloadContract.cs` or the item-failure projection the PLC domain uses, so the member reaches the item failure
+- Tests: `TiaMcpServer.Tests/Worker/WorkerExecutionTests.cs` (or nearest existing), `TiaMcpServer.Tests/Json/ConditionalMemberRegisterTests.cs`, `TiaMcpServer.Tests/Plc/PlcGuardedWriteMcpTests.cs`
+
+**Shape:**
+
+```json
+"failure": {
+  "category": "engineering_rejected",
+  "message": "Operation 'op-3': TIA Portal rejected create_tag.",
+  "engineeringError": {
+    "type": "EngineeringTargetInvocationException",
+    "message": "<verbatim Siemens text>",
+    "inner": [ { "type": "...", "message": "..." } ]
+  }
+}
+```
+
+- [ ] Add `EngineeringErrorInfo { Type, Message, Inner[] }` with explicit-null serialization; `Inner` is an empty array, never null.
+- [ ] Add `engineering_rejected` to the closed category list and its documentation comment; add it to the host-side category tests that enumerate `Known`.
+- [ ] `WorkerExecution.Execute`: on `EngineeringTargetInvocationException` return `engineering_rejected`; on other `EngineeringException` keep `worker_operation_failed`; in both cases attach `EngineeringError` built from `ex` and `ex.InnerException` chain. Portal-loss classification is unchanged and still wins when the disposal revision moved.
+- [ ] `WorkerOperationException` gains an optional `EngineeringError` so call sites that wrap a Siemens exception today (for example the content importers) can forward it instead of flattening it into text.
+- [ ] Host: `StructuredOperationFailure` gets `[JsonIgnore(WhenWritingNull)] EngineeringErrorInfo? EngineeringError`; the PLC item-failure projection copies it from `WorkerResponse`. Register the member in `ConditionalMemberRegisterTests` with "present only when a Siemens exception caused the item failure".
+- [ ] Offline tests: type-to-category mapping for each stub exception type; inner chain ordering; `engineeringError` absent on host-side failures (validation, binding, guard); the text block and `structuredContent` still come from one `CanonicalJson.Serialize` call.
+- [ ] Build with stubs, run the default test filter, commit "Task 1: engineering error contract".
+
+## Task 2: Retire duplicate guards and worker preconditions
+
+**Files:**
+- Modify: `TiaMcpServer/Plc/PlcGuardDefinitions.cs` (remove `NameCollision`, `BlockExists`, `DefaultTagTable`, `AttributeUnreadable`)
+- Modify: `TiaMcpServer/Plc/PlcWorkingState.cs` (remove the collision and existence evaluation; OB singleton stays until Task 6)
+- Modify: `TiaMcpServer.OpennessWorker/Openness/Plc/PlcWritePreconditions.cs` (remove `RequireCpuNameFree`, `RequireTableNameFree`, `RequireBlockAbsent`, `RequireGroupNameFree`, `RequireReadableFlags`)
+- Modify call sites: `TagMutationService.cs` lines 21, 58, 85, 89, 154; `BlockMutationService.cs` lines 31, 32, 122
+- Tests: `PlcGuardDefinitionsTests.cs`, `PlcWorkingStateTests.cs`, `PlcGuardedWriteDomainTests.cs`, `PlcWritePlannerTests.cs`
+
+**Kept in `PlcWritePreconditions`:** `RequireContentHash` (adjacent optimistic concurrency), `RequireReadableDescendants` (delete-group consequence evidence). `RequireReadableValue` on constant update/delete stays only if the effect reports the old value; otherwise it goes too. Decide while editing and note the outcome in the execution record.
+
+- [ ] Remove the four guard ids and their definitions; update the guard-catalog tests that pin the id list.
+- [ ] Remove the worker name-free and absence checks; the Openness call is now the first and only collision check.
+- [ ] Confirm `create_block` never passes the import override option; add a test on the import options if one does not exist.
+- [ ] Replace tests that asserted `guard_blocked` for collisions with tests that assert the worker response is forwarded as `engineering_rejected` (FakeWorker scripted failure).
+- [ ] Build, test, commit "Task 2: retire duplicate PLC guards and preconditions".
+
+## Task 3: Shrink planning
+
+**Files:**
+- Modify: `TiaMcpServer/Plc/PlcWritePlanner.cs`, `TiaMcpServer/Plc/PlcWorkingState.cs`, `TiaMcpServer/Plc/PlcWriteDomain.cs`, `TiaMcpServer/Plc/PlcWriteModels.cs`
+- Modify: `TiaMcpServer/Safety/Pipeline/WriteExecution.cs` only if the replan hook becomes unused by every domain; otherwise the PLC domain returns a no-op replan
+- Tests: `PlcWritePlannerTests.cs`, `PlcWorkingStateTests.cs`, `PlcGuardedWriteDomainTests.cs`
+
+Planning reads per operation kind, lazily and once per PLC per call:
+
+| Operation kind | Read | Purpose |
+| --- | --- | --- |
+| any | PLC inventory (`list_tag_tables` root) | resolve the PLC selector (`target_not_found`/`target_ambiguous`) |
+| update/delete tag, constant, table | tag inventory of that PLC | resolve the target; `plc_deletes_table_contents`; `plc_address_overlap` on update |
+| create tag | tag inventory of that PLC | `plc_address_overlap` only |
+| delete block, delete group | project-tree page of that PLC | resolve the target; `plc_deletes_block`, `plc_deletes_group_contents` |
+| create block, create group | none | Portal rejects a duplicate |
+| content update | export in the write's format | hash check, diff evidence |
+
+- [ ] Remove in-call collision tracking and `dependsOn` from `PlcWorkingState`; keep the selector resolution and the consequence enumeration.
+- [ ] Remove `ReplanAsync` from the PLC domain (or make it a no-op if the pipeline interface keeps it); later items that target objects created earlier in the call are resolved by the worker at mutation time.
+- [ ] `plc_state_unverifiable` narrows to: incomplete PLC inventory, unreadable delete consequences, unexportable content. Update its definition text.
+- [ ] Preserve `dryRun` output: effects, guards and the content diff still appear in the preview.
+- [ ] Build, test, commit "Task 3: plan only what consequence guards need".
+
+## Task 4: Shrink verification
+
+**Files:**
+- Modify: `TiaMcpServer/Plc/PlcWriteVerifier.cs`, `TiaMcpServer/Plc/PlcWriteModels.cs`, `TiaMcpServer/Plc/PlcContractVersion.cs`
+- Modify: `TiaMcpServer.OpennessWorker/Openness/Block/BlockPostconditionVerifier.cs`, `TiaMcpServer.OpennessWorker/Openness/Plc/PlcTypePostconditionVerifier.cs` only where they re-read presence; the hash re-export stays
+- Tests: `PlcWriteVerifierTests.cs`, `PlcWritePayloadContractTests.cs`, `PlcGuardedWriteMcpTests.cs`
+
+- [ ] Verification keeps the `contentHash` check for `update_block_logic` and `update_type_content`; every other succeeded item reports check `trusted` with a message that the Openness call completed without rejection. `superseded` stays for an object a later item changed again.
+- [ ] Remove the post-write inventory and tree reads from the verifier.
+- [ ] Contract version: `PlcContractVersion.Current` is shared by `plc_read`. Introduce `PlcWriteContractVersion = "2.0"` for `plc_write` and leave the read version at `1.0`; update the conformance probes.
+- [ ] Build, test, commit "Task 4: verify content hashes only".
+
+## Task 5: Offline qualification
+
+- [ ] `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true` clean.
+- [ ] `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"` green; record the test count.
+- [ ] `ToolOutputContractConformanceTests` and `ConditionalMemberRegisterTests` green with the new member.
+- [ ] Review the diff adversarially against the constraints above; in particular confirm no code path reaches Siemens before the binding gate and that a Siemens exception in planning (reads) still maps through the existing read failure categories, not `engineering_rejected`.
+- [ ] Record line counts removed per file in the execution record. Commit "Task 5: offline qualification".
+
+## Task 6: Live verification (maintainer's machine, TIA Portal V21)
+
+Run in `full` mode against a disposable copy of a project. Capture the exact `engineeringError` document for each case; these become test fixtures and documentation examples.
+
+| Case | Operation | Expected |
+| --- | --- | --- |
+| L1 | `create_tag` with an existing tag name | item `engineering_rejected`, `type: EngineeringTargetInvocationException`, project unchanged |
+| L2 | `create_tag_table` with an existing table name in another folder | `engineering_rejected`, project unchanged |
+| L3 | `create_block` where the block exists | `engineering_rejected`, existing block content unchanged (hash equal before and after) |
+| L4 | `create_block_group` with an existing group name | `engineering_rejected` |
+| L5 | `delete_tag_table` on the default table | `engineering_rejected` |
+| L6 | `create_block` OB with a number already used | `engineering_rejected`; if Portal accepts it, keep `plc_ob_singleton_exists` |
+| L7 | `update_tag` renaming to a colliding name | `engineering_rejected`, original tag unchanged |
+| L8 | happy path: create table, tag, block, group; update tag; delete all four | `applied`, `trusted` checks, info guards on the deletes |
+| L9 | `update_block_logic` with a stale `expectedContentHash` | `state_changed`, no import |
+| L10 | multi-item call where item 2 collides | item 1 applied, item 2 `engineering_rejected`, item 3 `skipped`, `success:false`, `error:null`, `isError:false` |
+| L11 | `dryRun:true` on L10's call | phase `preview`, no mutation, no `engineering_rejected` (collisions are not planned) |
+
+- [ ] Run L1–L11 and save the responses under `docs/superpowers/acceptance/reports/` inputs (final report in Task 7).
+- [ ] For each L1–L7, re-read the target with `plc_read` and confirm the project is unchanged.
+- [ ] Decide `plc_ob_singleton_exists` from L6: retire it (and its `PlcWorkingState` code and tests) in a follow-up commit if Portal rejected the duplicate.
+- [ ] Note the Portal UI language used; the captured messages are in that language.
+- [ ] Pin the captured messages as FakeWorker fixtures in `PlcGuardedWriteMcpTests` so the document shape is regression-tested offline. Commit "Task 6: live verification fixtures".
+
+## Task 7: Documentation (last)
+
+Written only from Task 6 evidence.
+
+- [ ] `docs/SupportedOperations/PLC_OPERATIONS_SUMMARY.md`: guard table (remaining guards only), the `engineering_rejected` failure, `engineeringError` shape with one captured example, verification semantics (`trusted`, `contentHash`, `superseded`), write contract `2.0`.
+- [ ] `AGENTS.md`: the PLC writes bullet (guard list, verification, the new category); the write-safety line that names categories.
+- [ ] `docs/ARCHITECTURE.md`: §7a failure categories and the PLC write seam.
+- [ ] `docs/IMPROVEMENT_LOG.md`: completed entry with removed line counts and retained limits; open follow-up for Network, HMI and VCI to adopt the same error contract.
+- [ ] Acceptance report `docs/superpowers/acceptance/reports/2026-xx-xx-plc-write-native-rejections-live-verification.md` and its `docs/README.md` row; update this plan's status and the index row.
+- [ ] Commit "Task 7: documentation".
+
+## Review focus
+
+| Condition | Required behavior |
+| --- | --- |
+| Siemens rejects item N of M | Items before N `applied`, N `engineering_rejected` with `engineeringError`, later items `skipped`; `success:false`, `error:null`, `isError:false`; one audit record with actual statuses. |
+| Siemens throws during a planning read | Existing read category (`worker_operation_failed`, `target_not_found`, …) at the call level; never `engineering_rejected`. |
+| Portal disposed during the item | `portal_lost` wins over `engineering_rejected`; binding and cursors invalidated. |
+| Stale `expectedContentHash` | `state_changed` before any import, in planning and again adjacent to the import. |
+| `dryRun:true` | Preview with effects, info guards and content diff; no Siemens mutation call. |
+| Block guard in a dry run | Phase stays `preview` per current behavior; unchanged by this plan. |
+
+## Out of scope
+
+- Network, HMI and VCI guard reviews (separate plans; they reuse Task 1's contract).
+- Any change to lifecycle confirmation, elicitation or audit.
+- Changing the `dryRun` preview phase when a block guard fires.
