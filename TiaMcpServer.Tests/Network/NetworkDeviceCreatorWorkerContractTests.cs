@@ -22,11 +22,11 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     public void PnDeviceNameAutoGeneration_IsSetBeforePnDeviceName()
     {
         var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
-        var autoGeneration = source.IndexOf("\"PnDeviceNameAutoGeneration\", generated", StringComparison.Ordinal);
-        var name = source.IndexOf("ApplyNodeAttribute(node, \"PnDeviceName\", pnDeviceName", StringComparison.Ordinal);
+        var autoGeneration = source.IndexOf("NetworkSettingKeys.PnDeviceNameAutoGeneration, generated", StringComparison.Ordinal);
+        var name = source.IndexOf("ApplyNodeAttribute(node, NetworkSettingKeys.PnDeviceName, pnDeviceName", StringComparison.Ordinal);
         Assert.True(autoGeneration >= 0 && name > autoGeneration);
         var verifier = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkMutationVerifier.cs");
-        Assert.Contains("case \"PnDeviceNameAutoGeneration\":", verifier);
+        Assert.Contains("case NetworkSettingKeys.PnDeviceNameAutoGeneration:", verifier);
     }
 
     [Fact]
