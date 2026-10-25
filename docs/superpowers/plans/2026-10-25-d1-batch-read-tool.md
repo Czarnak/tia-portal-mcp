@@ -10,7 +10,7 @@
 
 **Spec:** [Approved D-1 design](../specs/2026-10-25-d1-batch-read-tool-design.md), implementing [D-1 in the authoritative review](2026-10-17-codebase-simplification-review.md#workstream-d-host-structural-consolidation-no-wire-change).
 
-**Status:** Planned against `main` at `cfdda59`, 2026-10-25. Scope approved; implementation and execution method remain pending. No product tests, build or live TIA calls were run during planning.
+**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25 on `refactor/d1-batch-read-tool`, using native execution in the existing checkout. Product baseline: `cfdda59`; planning commit: `9af9580`. No live TIA calls were made. Integration and publication remain pending maintainer instruction.
 
 ## Global Constraints
 
@@ -83,8 +83,8 @@ Use one private shared response composer for both budget measurement and deliver
 
 **Interfaces:** Consumes current domain entry points and `McpProtocolTestHarness`. Produces deterministic pre-D-1 canonical response expectations; the existing output-schema snapshot remains the schema authority.
 
-- [ ] Add `CanonicalResponsesMatchPreD1` cases for all four tools: valid unbound rejection, empty/invalid batch rejection, and deterministic non-cursor success/mixed-failure calls using existing domain FakeWorker scenarios. Generate the fixture from unchanged production code, inspect it, then freeze it. Do not normalize away contract fields; use existing cursor suites for nondeterministic opaque tokens.
-- [ ] Assert exact canonical response equality and MCP error flags, including these invariants on the corresponding rejection/executed cases:
+- [x] Add `CanonicalResponsesMatchPreD1` cases for all four tools: valid unbound rejection, empty/invalid batch rejection, and deterministic non-cursor success/mixed-failure calls using existing domain FakeWorker scenarios. Generate the fixture from unchanged production code, inspect it, then freeze it. Do not normalize away contract fields; use existing cursor suites for nondeterministic opaque tokens.
+- [x] Assert exact canonical response equality and MCP error flags, including these invariants on the corresponding rejection/executed cases:
 
   ```csharp
   Assert.Equal(expectedCanonicalText, actualCanonicalText);
@@ -93,8 +93,8 @@ Use one private shared response composer for both budget measurement and deliver
   Assert.Equal(expectedVersion, result.StructuredContent.Value.GetProperty("contractVersion").GetString());
   ```
 
-- [ ] Run the focused gate below against unchanged production code. Characterization and existing schema snapshots must pass; no artificial RED is required for pre-existing behavior. Extend assertions only where the Review Focus matrix lacks coverage.
-- [ ] Inspect the fixture/source diff and commit: `test: pin batch read tool compatibility`.
+- [x] Run the focused gate below against unchanged production code. Characterization and existing schema snapshots must pass; no artificial RED is required for pre-existing behavior. Extend assertions only where the Review Focus matrix lacks coverage.
+- [x] Inspect the fixture/source diff and commit: `test: pin batch read tool compatibility`.
 
 ## Task 2: Add shared runner and migrate PLC
 
@@ -102,11 +102,11 @@ Use one private shared response composer for both budget measurement and deliver
 
 **Interfaces:** Produces the three helper signatures and two records above; consumes existing catalogs, `RequireVerifiedBindingAsync`, the per-item execution-engine overload and the existing payload budget.
 
-- [ ] Add `BatchReadToolTests` referencing the new interface before implementation. Cover validation denial bypassing access/execution, access denial bypassing binding/execution, valid unbound rejection, ordered failed/protocol-failed/succeeded items, and cancellation before/between items. Use existing FakeWorker binding support for executed cases; use local delegates/counters for gate assertions. Observe the missing-helper compile failure, then implement and require behavioral assertions to pass.
-- [ ] Add budget assertions through the shared `ApplyBudget`: explicit small limits differing from defaults; escaped/non-ASCII IDs; stable equal-size omission ties; warning pressure. Assert the final canonical document fits, `presentedChars` matches its length, failure categories survive and inputs are unchanged. Reuse existing batch test fixtures and algorithms.
-- [ ] Implement the shared flow without catching new exceptions or moving cancellation ahead of existing admission gates. Validate nullable operations with the domain catalog before dereferencing; join catalog access errors with the existing newline separator. Call `ExecuteReadsAsync(operations, execute, cancellationToken)` and retain exact failure/omission semantics.
-- [ ] Migrate PLC: its callback awaits `PlcWorkerInvoker.InvokeReadAsync` then calls `PlcPayloadContract.Project`. Switch its `OutputSchemaType`, keep forwarding `Error`/`ApplyBudget` adapters and existing retry strings, and remove only `PlcReadResponse`/`PlcToolError`. Link new host files in the test project.
-- [ ] Run helper/PLC/OperationBatches/schema/conformance gates. Require the frozen PLC response expectations and unchanged full schema snapshot to pass. Inspect the diff and commit: `refactor: share batch read orchestration for PLC`.
+- [x] Add `BatchReadToolTests` referencing the new interface before implementation. Cover validation denial bypassing access/execution, access denial bypassing binding/execution, valid unbound rejection, ordered failed/protocol-failed/succeeded items, and cancellation before/between items. Use existing FakeWorker binding support for executed cases; use local delegates/counters for gate assertions. Observe the missing-helper compile failure, then implement and require behavioral assertions to pass.
+- [x] Add budget assertions through the shared `ApplyBudget`: explicit small limits differing from defaults; escaped/non-ASCII IDs; stable equal-size omission ties; warning pressure. Assert the final canonical document fits, `presentedChars` matches its length, failure categories survive and inputs are unchanged. Reuse existing batch test fixtures and algorithms.
+- [x] Implement the shared flow without catching new exceptions or moving cancellation ahead of existing admission gates. Validate nullable operations with the domain catalog before dereferencing; join catalog access errors with the existing newline separator. Call `ExecuteReadsAsync(operations, execute, cancellationToken)` and retain exact failure/omission semantics.
+- [x] Migrate PLC: its callback awaits `PlcWorkerInvoker.InvokeReadAsync` then calls `PlcPayloadContract.Project`. Switch its `OutputSchemaType`, keep forwarding `Error`/`ApplyBudget` adapters and existing retry strings, and remove only `PlcReadResponse`/`PlcToolError`. Link new host files in the test project.
+- [x] Run helper/PLC/OperationBatches/schema/conformance gates. Require the frozen PLC response expectations and unchanged full schema snapshot to pass. Inspect the diff and commit: `refactor: share batch read orchestration for PLC`.
 
 ## Task 3: Migrate VCI, then HMI
 
@@ -114,10 +114,10 @@ Use one private shared response composer for both budget measurement and deliver
 
 **Interfaces:** Consumes Task 2's helper. VCI supplies `ReadVciAsync` plus `VciPayloadContract.Project`; HMI supplies `HmiWorkerInvoker.InvokeReadAsync` plus `HmiPayloadContract.Project`.
 
-- [ ] Migrate VCI with unchanged method mapping, query creation and retry guidance. Preserve its current cancellation behavior: the token reaches the engine, not a newly cancellable native/worker call. Change `OutputSchemaType` and forwarding adapters; delete the now-empty VCI response file (the test glob needs no individual removal).
-- [ ] Run VCI/helper/schema/conformance/cancellation cases, including the frozen VCI responses, and commit: `refactor: use shared batch reads for VCI`.
-- [ ] Migrate HMI with the existing cursor codec. Its async callback must first await the worker invocation and then evaluate `workerClient.BindingSnapshot` in the projector call; never capture it before the await. Keep contract `1.1`, catalog diagnostics and paged/unpaged retry strings. Replace the HMI response constructor in its existing test and remove the empty response file and its explicit test link.
-- [ ] Run HMI/helper/schema/conformance/cancellation and HMI cursor cases. Retain assertions that issued cursors continue under the same binding and reject changed binding/query; require the frozen HMI responses and unchanged schema snapshot. Commit: `refactor: use shared batch reads for HMI`.
+- [x] Migrate VCI with unchanged method mapping, query creation and retry guidance. Preserve its current cancellation behavior: the token reaches the engine, not a newly cancellable native/worker call. Change `OutputSchemaType` and forwarding adapters; delete the now-empty VCI response file (the test glob needs no individual removal).
+- [x] Run VCI/helper/schema/conformance/cancellation cases, including the frozen VCI responses, and commit: `refactor: use shared batch reads for VCI`.
+- [x] Migrate HMI with the existing cursor codec. Its async callback must first await the worker invocation and then evaluate `workerClient.BindingSnapshot` in the projector call; never capture it before the await. Keep contract `1.1`, catalog diagnostics and paged/unpaged retry strings. Replace the HMI response constructor in its existing test and remove the empty response file and its explicit test link.
+- [x] Run HMI/helper/schema/conformance/cancellation and HMI cursor cases. Retain assertions that issued cursors continue under the same binding and reject changed binding/query; require the frozen HMI responses and unchanged schema snapshot. Commit: `refactor: use shared batch reads for HMI`.
 
 ## Task 4: Migrate Network and qualify the whole change
 
@@ -125,11 +125,11 @@ Use one private shared response composer for both budget measurement and deliver
 
 **Interfaces:** Consumes Task 2's helper and the existing `NetworkReadOperationExecutor.ExecuteAsync`; retains `RegisterExecutor`, compatibility codecs and `ConditionalWeakTable` until D-5.
 
-- [ ] Supply a deferred callback that resolves `CompatibilityExecutors.GetValue(workerClient, CreateCompatibilityExecutor)` and invokes `ExecuteAsync` for the item. Keep lookup inside the callback so rejected calls never initialize the executor; the existing table reuses it across items. Do not introduce DI/factory changes to preserve allocation timing.
-- [ ] Change `OutputSchemaType` and forwarding adapters; remove only the Network read envelope/error declarations. Update old test constructors to the shared record. Preserve all hardware-page detection and per-operation retry guidance.
-- [ ] Run the complete focused gate: mixed worker/protocol failures continue, both pagination paths retain cursors, budget omissions retain page-safe guidance, and the existing executor registration path remains used. Require frozen Network responses and the unchanged schema snapshot for both protocol versions.
-- [ ] Inspect all four wrappers and search for remaining old response/error type references. Confirm there is one orchestration implementation and one read envelope/error pair, with no changes to excluded behavior. Run final qualification below; obtain an independent full-diff review covering all five Review Focus rows and fix any actionable finding with its own verification/commit.
-- [ ] Update architecture sections 7/7a to describe the shared host runner/envelope. Record actual commands, results, coverage and limits here and in the authoritative D-1 entry. Do not mark implementation complete from planning or static inspection. Commit: `refactor: use shared batch reads for Network` (commit review fixes separately when needed).
+- [x] Supply a deferred callback that resolves `CompatibilityExecutors.GetValue(workerClient, CreateCompatibilityExecutor)` and invokes `ExecuteAsync` for the item. Keep lookup inside the callback so rejected calls never initialize the executor; the existing table reuses it across items. Do not introduce DI/factory changes to preserve allocation timing.
+- [x] Change `OutputSchemaType` and forwarding adapters; remove only the Network read envelope/error declarations. Update old test constructors to the shared record. Preserve all hardware-page detection and per-operation retry guidance.
+- [x] Run the complete focused gate: mixed worker/protocol failures continue, both pagination paths retain cursors, budget omissions retain page-safe guidance, and the existing executor registration path remains used. Require frozen Network responses and the unchanged schema snapshot for both protocol versions.
+- [x] Inspect all four wrappers and search for remaining old response/error type references. Confirm there is one orchestration implementation and one read envelope/error pair, with no changes to excluded behavior. Run final qualification below; obtain an independent full-diff review covering all five Review Focus rows and fix any actionable finding with its own verification/commit.
+- [x] Update architecture sections 7/7a to describe the shared host runner/envelope. Record actual commands, results, coverage and limits here and in the authoritative D-1 entry. Do not mark implementation complete from planning or static inspection. Commit: `refactor: use shared batch reads for Network` (commit review fixes separately when needed).
 
 ## Verification and handoff
 
@@ -165,4 +165,22 @@ Require successful command exits, no failed/skipped required cases, an unchanged
 
 Only test-project link/resource changes are planned, so packaging is not required. Run `Category=Packaging` if execution actually changes a product `.csproj` or another trigger listed in `docs/development/building.md`/`.github/workflows/packaging.yml`.
 
-No live TIA test is required while the approved host-only scope holds. Choose the execution method before implementation; native execution with one final independent review is the suggested fit because the four migrations depend on one small shared interface. No implementation is authorized merely by saving this plan.
+No live TIA test is required while the approved host-only scope holds. The maintainer selected native execution with one final independent review on 2026-10-25; integration and remote publication remain separate actions.
+
+## Execution record (2026-10-25)
+
+- Baseline Release stub solution build passed with seven existing warnings and zero errors. Captured 24 actual response documents across four tools before changing production code; removed the temporary capture writer and froze the fixture. The initial focused gate passed 597 tests with no failures/skips (`daf72d6`).
+- Observed the new helper tests fail compilation on the absent helper/shared response types (six errors). Implemented the runner, shared records and PLC adapter; 189 focused tests passed with no failures/skips (`d34bad0`).
+- Migrated VCI with its existing cancellation behavior: 202 focused tests passed (`2b87c74`). Migrated HMI with post-worker binding capture: 169 focused tests passed (`c514faa`). Neither gate had failures/skips.
+- Migrated Network with deferred cached-executor lookup, retained compatibility codecs/registration and updated old response constructors. The final Release stub solution build passed with seven existing warnings and zero errors; the combined focused gate passed 608 tests with no failures/skips. The existing output-schema fixture passed unchanged for default and `2025-11-25` protocols, as did all 24 frozen response documents.
+- A fresh independent `gpt-6-astra` reviewer inspected the complete frozen diff and surrounding source: no Critical, Important or Minor findings; all five Review Focus rows passed. The complete patch SHA-256 was `1B50DB80F796C8AD80D69C83C526E21749D57829B178701D188EE2FE7C40A156`; the executable/test subset hash was `863de14ec6dd1e26c6ca7232974355dd33f92d4a46296d695e9ffdf539fe51f4`. Source was compared with that frozen artifact and remained unchanged during review.
+- Final non-packaging suite: **7,618 passed, zero failed/skipped**, in 14 minutes 25 seconds. Scoped line coverage: **13,003/13,678 (95.06%)**, passing the existing 80% gate. The shared runner's 23 executable lines were all hit and its reported branch rate was 100%; its validation/access/binding denials, successful and failed execution, cancellation and budgeting have direct runtime assertions. Raw local logs are under ignored `TestResults/d1/` (`baseline-build.log`, `task1-tests.log`, `task2-red.log`, `task2-tests.log`, `task3-vci-tests.log`, `task3-hmi-tests.log`, `task4-build.log`, `task4-focused.log`, `full-tests.log`, `coverage-threshold.log`); Cobertura output is under `TestResults/d1/full/385c42a4-2d96-45cb-8de1-82267fa72fd2/`. These are offline/FakeWorker results, not native acceptance.
+- Packaging was not required: no product project or other packaging-trigger files changed. No installed-reference build or live TIA verification was performed; worker/native code and signatures are unchanged. Final documentation-only evidence updates used link/whitespace/source-diff checks without repeating the passing product suite.
+
+### Execution rulings
+
+- Used the current checkout as explicitly requested, with a dedicated renamed branch; no new worktree or changes to `main`.
+- Git Bash's task-start utility failed with `NtCreateDirectoryObject` access denied. Used equivalent native PowerShell/apply_patch bookkeeping and verification in this plan's ignored workspace; no product changes were needed for the tooling limitation.
+- An implicit `dotnet test` build stalled with an empty log and was interrupted. Explicit serial builds followed by `--no-build --no-restore` test runs succeeded; retained this split throughout execution.
+- Reviewed a frozen complete worktree diff while full coverage ran, including the not-yet-committed Network migration. Kept executable files fixed and compared the source diff with the artifact before finalization; evidence-only documentation was completed afterward.
+- The reviewer excluded live/native/hardware acceptance, consistent with the approved scope. Accepted that boundary because worker/native code is unchanged; no new live acceptance is claimed. These rulings do not change product behavior, and the full-suite completion gate passed.

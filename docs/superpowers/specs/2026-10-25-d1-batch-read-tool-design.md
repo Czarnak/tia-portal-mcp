@@ -1,6 +1,6 @@
 # D-1 shared batch read tool design
 
-**Status:** Scope and approach approved in chat on 2026-10-25; recorded here for implementation planning. No product changes or runtime verification have been performed.
+**Status:** Scope and approach approved in chat on 2026-10-25; native implementation, independent review and offline qualification are complete. No live TIA verification was performed. See the implementation plan's execution record for actual evidence.
 
 **Authority:** [D-1 in the codebase simplification review](../plans/2026-10-17-codebase-simplification-review.md#workstream-d-host-structural-consolidation-no-wire-change). Current source inspected at clean `main`, `cfdda59`, on 2026-10-25.
 
@@ -41,4 +41,4 @@ Use existing schema snapshots plus deterministic pre-refactor canonical-response
 
 No live TIA test is required for this scope. Offline/FakeWorker evidence proves the host refactor's compatibility; it does not establish new native acceptance. If implementation requires changing an excluded behavior or the public schema baseline, stop and reassess the scope rather than accepting the drift.
 
-Execution method is not selected. See the [implementation plan](../plans/2026-10-25-d1-batch-read-tool.md).
+The maintainer selected native execution with a final independent review on 2026-10-25. See the [implementation plan](../plans/2026-10-25-d1-batch-read-tool.md).

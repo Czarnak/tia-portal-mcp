@@ -453,9 +453,12 @@ operations, including the Phase 4 subnet lifecycle operations (`create_subnet`,
 catalog before a worker invocation; a new worker method belongs to its owning domain catalog.
 `BatchOperationCatalog` and `BatchWorkerInvoker` were removed with the generic batch tools.
 
-`OperationBatches` provides request-agnostic shared execution and
-payload-budget infrastructure to both domains. Its network call sites use network-specific
-payload-budget hints, such as narrowing `query`/`maxResults` or splitting a network batch.
+`OperationBatches` provides request-agnostic shared execution and payload-budget infrastructure.
+`Tools/BatchReadTool.RunAsync<TItem>` owns the common PLC, Network, HMI and VCI read flow:
+catalog validation, effective-mode access checks, verified binding, independent item execution,
+response budgeting and canonical delivery. Domain adapters retain their catalogs, invocation and
+typed projection callbacks, cursor handling and retry guidance. Network keeps its cached pagination
+executor; HMI captures the binding for cursor projection after each worker call returns.
 
 Both catalogs enforce a maximum of 50 operations and reject unknown operations, missing
 required fields, inapplicable fields, and invalid bounds before worker invocation.
@@ -508,6 +511,11 @@ registered tool is now structured; the three batch tools were removed rather tha
 - `TiaMcpServer/Tools/StructuredToolResult.cs` renders one canonical JSON document and returns it
   as both the `content` text block and a detached `structuredContent` `JsonElement`, from a single
   `CanonicalJson.Serialize` call, so the two representations cannot drift apart.
+- `TiaMcpServer/OperationBatches/OperationBatchReadResponse.cs` defines the shared read envelope
+  and tool-level error record. Rejections carry `batch:null` and MCP `isError:true`; a batch that
+  ran carries `error:null` and `isError:false`, even when individual items failed or were omitted.
+  The shared runner uses the same response composer for exact budget measurement and delivery.
+  Domain contract versions remain HMI `1.1` and PLC/Network/VCI `1.0`.
 - `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs` provides the shared
   item/failure/omission/count/truncation batch model and a read/write execution engine whose
   stop decision covers `protocol_error` alongside ordinary worker failures.
