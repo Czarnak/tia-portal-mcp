@@ -148,13 +148,14 @@ public sealed class PlcWritePreconditionsTests
     }
 
     [Fact]
-    public void DeleteDefaultTable_Refused()
+    public void DeleteDefaultTable_ReachesPortal()
     {
         var (project, plc, table) = Single();
         table.IsDefault = true;
-        Fails(() => TagMutationService.DeleteTagTable(project, "PLC_1", "Default", null),
-            WorkerFailureCategories.WorkerOperationFailed);
-        Assert.Single(plc.TagTableGroup.TagTables);
+
+        TagMutationService.DeleteTagTable(project, "PLC_1", "Default", null);
+
+        Assert.Empty(plc.TagTableGroup.TagTables);
     }
 
     [Fact]

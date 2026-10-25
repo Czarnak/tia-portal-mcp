@@ -30,13 +30,6 @@ public static class TagMutationService
         string? folderPath)
     {
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
-        if (table.IsDefault)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.WorkerOperationFailed,
-                $"Tag table '{tableName}' is the default tag table and cannot be deleted.");
-        }
-
         table.Delete();
         return Result("delete_tag_table", project, plc.Name, tableName, NormalizeFolderPath(folderPath), null, null);
     }
