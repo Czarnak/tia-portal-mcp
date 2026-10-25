@@ -43,8 +43,9 @@ cold-adopted local session and a standalone regression; see the
 [PR5 report](docs/superpowers/acceptance/reports/2026-10-09-multiuser-pr5-live-verification.md).
 
 PR6 enables `plc_write`, `network_write`, `compile_check` and `save_project` on local sessions.
-Every content handler, write and compile included, runs through `WithEngineeringRoot`; content
-services take `ProjectBase`, and there is no standalone-only content helper. A local
+Content handlers, write and compile included, use `WithEngineeringRoot`, or `WithActiveContext`
+when native access or transactions also need the Portal handle. Content services take `ProjectBase`;
+capability gates determine eligible container kinds. A local
 `save_project` calls `LocalSession.Save()` with the identity re-check adjacent to the save; it
 never updates from or checks in to the Project Server, and read-write confirmation says so.
 `StandaloneOnlyProbes` keeps the IO-system and subnet qualification probes standalone-only.

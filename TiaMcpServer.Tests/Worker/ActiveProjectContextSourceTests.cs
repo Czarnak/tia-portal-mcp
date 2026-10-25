@@ -13,15 +13,18 @@ public sealed class ActiveProjectContextSourceTests
     {
         var body = Method(Read("Program.cs"), "private static WorkerResponse WithActiveContext(");
         AssertOrdered(body, "ProjectOpenGate.Require(session.CurrentProjectPath, request.ProjectPath, _accessMode,",
-            "allowRequestedNotOpen: false, allowNoProject: false", "ValidateExpectedAfterProjectResolution(", "return body(session)");
+            "allowRequestedNotOpen: false, allowNoProject: false", "ValidateExpectedAfterProjectResolution(",
+            "session.ActiveContext is null || session.TiaPortal is null", "WorkerFailureCategories.WorkerOperationFailed",
+            "ProjectOpenPolicy.NoProjectOpenMessage(_accessMode)", "return body(session)");
         // Content writes and compile run on the ProjectBase root of any delivered container; the
         // capability gate in WithSession decides which container kinds reach a handler at all.
         Assert.DoesNotContain("WithProject(", Read("Program.cs"));
         var root = Method(Read("Program.cs"), "private static WorkerResponse WithEngineeringRoot(");
         Assert.Contains("WithActiveContext(request, session => body(session.EngineeringRoot!))", root);
         Assert.DoesNotContain("session.Project", Read("Program.cs"));
-        var subnet = Method(Read("Program.cs"), "private static WorkerResponse WithSubnetLifecycleProject(");
-        AssertOrdered(subnet, "ValidateExpectedAfterProjectResolution(", "body(session)");
+        Assert.DoesNotContain("WithSubnetLifecycleProject(", Read("Program.cs"));
+        var vci = Method(Read("Program.cs"), "private static WorkerResponse WriteVci(");
+        Assert.Contains("WithActiveContext(request, session => Success(VciDispatch.Write(session.TiaPortal!", vci);
     }
 
     [Fact]
@@ -30,7 +33,9 @@ public sealed class ActiveProjectContextSourceTests
         // Internal probes save or compile-and-revert a project; they are not delivered for local sessions.
         var program = Read("Program.cs");
         Assert.Equal(4, program.Split("session.RequireStandaloneOwner().Project").Length - 1);
-        Assert.Contains("SubnetLifecycleMutationProbeService.Run(", Method(program, "private static WorkerResponse ProbeSubnetLifecycleMutations("));
+        var subnet = Method(program, "private static WorkerResponse ProbeSubnetLifecycleMutations(");
+        AssertOrdered(subnet, "WithActiveContext(request,", "SubnetLifecycleMutationProbeService.Run(",
+            "session.TiaPortal", "session.RequireStandaloneOwner().Project");
     }
 
     [Fact]

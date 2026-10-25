@@ -96,28 +96,32 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
     }
 
     [Fact]
-    public void WorkerProgram_UsesASharedHelperForTheRepeatedSessionAndProjectRequirement()
+    public void WorkerProgram_SubnetLifecycleUsesCommonActiveContextAndAnyEngineeringRoot()
     {
         var source = ProgramSource;
 
-        // The three method-name strings stay explicit in the dispatch switch and (already, from
-        // Task 3) the policy catalog — only the repeated session/project plumbing is shared.
-        var helperOccurrences = CountOccurrences(source, "WithSubnetLifecycleProject(request,");
-        Assert.Equal(3, helperOccurrences);
-        Assert.Contains("private static WorkerResponse WithSubnetLifecycleProject(", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "WithSession(request, session =>",
-            ExtractMethodBody(source, "WithSubnetLifecycleProject"),
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("WithSubnetLifecycleProject(", source, StringComparison.Ordinal);
         Assert.Contains(
             "_sharedSession.EnsureConnected(request.ProjectPath);",
             ExtractMethodBody(source, "WithSession"),
             StringComparison.Ordinal);
-        Assert.Contains("session.TiaPortal", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
         // Subnet lifecycle runs on any container's ProjectBase root (local sessions included).
-        Assert.DoesNotContain("RequireStandaloneOwner", ExtractMethodBody(source, "WithSubnetLifecycleProject"), StringComparison.Ordinal);
         foreach (var handler in new[] { "CreateSubnet", "UpdateSubnet", "DeleteSubnet" })
-            Assert.Equal(1, CountOccurrences(ExtractMethodBody(source, handler), "session.EngineeringRoot!,"));
+        {
+            var body = ExtractMethodBody(source, handler);
+            Assert.Equal(1, CountOccurrences(body, "WithActiveContext(request,"));
+            Assert.Equal(1, CountOccurrences(body, "session.EngineeringRoot!,"));
+            Assert.Contains("session.TiaPortal!", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("RequireStandaloneOwner", body, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void WorkerProgram_SubnetMutationProbeUsesCommonContextButRequiresStandaloneOwner()
+    {
+        var body = ExtractMethodBody(ProgramSource, "ProbeSubnetLifecycleMutations");
+        Assert.Contains("WithActiveContext(request,", body, StringComparison.Ordinal);
+        Assert.Contains("session.RequireStandaloneOwner().Project,", body, StringComparison.Ordinal);
     }
 
     private static int CountOccurrences(string source, string value)
