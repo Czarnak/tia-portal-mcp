@@ -138,9 +138,6 @@ namespace TiaMcpServer
                 .WithAccessModeTools(accessMode);
 
             using var host = builder.Build();
-            NetworkReadTools.RegisterExecutor(
-                host.Services.GetRequiredService<OpennessWorkerClient>(),
-                host.Services.GetRequiredService<NetworkReadOperationExecutor>());
             await host.RunAsync();
             return 0;
         }

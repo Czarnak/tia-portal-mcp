@@ -2,6 +2,7 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.Safety;
@@ -60,9 +61,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_ProjectCompletenessFixtureReturnsGroupedDeviceAsOrdinaryHardware()
     {
         using var client = await CreateClientAsync(ProjectCompletenessScenario);
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[] { ReadHardware("complete") });
 
         Assert.False(result.IsError);
@@ -83,9 +87,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_IncludeIoDetailsReturnsStructuredAddressesChannelsAndTagMatches()
     {
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 ReadHardware("io-map", includeIoDetails: true, includeTagMatches: true),
@@ -154,9 +161,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_IncludeIoDetailsWithoutTagMatchesReturnsEmptyTagMatchCollections()
     {
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[] { ReadHardware("no-tag-matches", includeIoDetails: true, includeTagMatches: false) });
 
         Assert.False(result.IsError);
@@ -178,9 +188,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_DeviceNameFilterExcludesTheNonMatchingFixtureDevice()
     {
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[] { ReadHardware("other-device", deviceName: "OTHER_PLC") });
 
         Assert.False(result.IsError);
@@ -196,9 +209,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_PlcNameMismatchSuppressesTagMatches()
     {
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 ReadHardware("plc-name-mismatch", includeIoDetails: true, includeTagMatches: true, plcName: "plc_1"),
@@ -227,9 +243,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_WithoutIncludeIoDetailsOmitsIoDetailsEntirely()
     {
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[] { ReadHardware("plain") });
 
         Assert.False(result.IsError);
@@ -247,9 +266,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_DeviceNameFilterIsForwardedToTheWorker()
     {
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 ReadHardware("filtered", includeIoDetails: true, deviceName: "PLC_1", plcName: "PLC_1"),
@@ -267,9 +289,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_DeviceNameFilterMatchesFixtureWithoutCaseSensitivity()
     {
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 ReadHardware("mixed-case-device", deviceName: "plc_1"),
@@ -289,9 +314,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_MalformedIoDetailsPayloadBecomesProtocolErrorWithoutEchoingIt()
     {
         using var client = await CreateClientAsync("network-io-map-malformed");
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[] { ReadHardware("malformed", includeIoDetails: true) });
 
         // The batch ran (tool call is not an error), but the item failed the declared contract.
@@ -308,9 +336,12 @@ public class NetworkIoMapFakeWorkerTests : IDisposable
     public async Task NetworkRead_ReadOnlyModePermitsTheIoMapRead()
     {
         using var client = await CreateClientAsync(mode: McpAccessMode.ReadOnly);
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 ReadHardware("readonly", includeIoDetails: true, includeTagMatches: true),

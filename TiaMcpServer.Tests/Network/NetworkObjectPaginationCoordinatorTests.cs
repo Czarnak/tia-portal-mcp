@@ -241,7 +241,7 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         using var fixture = new Fixture(response, Page());
         var before = fixture.Client.BindingSnapshot;
 
-        var result = await NetworkReadTools.NetworkRead(fixture.Client, new[] { Operation(), Operation(id: "later") });
+        var result = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { Operation(), Operation(id: "later") });
 
         Assert.False(result.IsError);
         var items = AssertCanonical(result).GetProperty("batch").GetProperty("operations");
@@ -266,7 +266,7 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         using var fixture = new Fixture(path, Page(path: path), Page(path: path, terminal: true));
         var expectedSize = Assert.IsType<AuthenticatedCursorSizeException>(
             Assert.Throws<CursorException>(() => fixture.Codec.Encode(fixture.State())).InnerException);
-        var result = await NetworkReadTools.NetworkRead(fixture.Client, new[] { Operation(), Operation(id: "later") });
+        var result = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { Operation(), Operation(id: "later") });
         var document = AssertCanonical(result);
         var items = document.GetProperty("batch").GetProperty("operations");
         var item = items[0];
@@ -291,7 +291,7 @@ public sealed class NetworkObjectPaginationCoordinatorTests
     {
         var path = @"C:\Projects\" + new string('a', 1800) + @"\Demo.ap21";
         using var fixture = new Fixture(path, Page(path: path, terminal: true));
-        var result = await NetworkReadTools.NetworkRead(fixture.Client, new[] { Operation() });
+        var result = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { Operation() });
         var item = AssertCanonical(result).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", item.GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Null, item.GetProperty("result").GetProperty("nextCursor").ValueKind);
@@ -303,14 +303,14 @@ public sealed class NetworkObjectPaginationCoordinatorTests
     {
         using var fixture = new Fixture();
         var badCursor = Operation("unsigned");
-        var itemResult = await NetworkReadTools.NetworkRead(fixture.Client, new[] { badCursor });
+        var itemResult = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor });
         var item = AssertCanonical(itemResult).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal(WorkerFailureCategories.InvalidCursor, item.GetProperty("failure").GetProperty("category").GetString());
         Assert.True(fixture.Binding.Clear(null, out _));
-        var unbound = AssertCanonical(await NetworkReadTools.NetworkRead(fixture.Client, new[] { badCursor }));
+        var unbound = AssertCanonical(await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor }));
         Assert.Equal(WorkerFailureCategories.BindingConflict, unbound.GetProperty("error").GetProperty("category").GetString());
         badCursor.PageSize = 0;
-        var invalid = AssertCanonical(await NetworkReadTools.NetworkRead(fixture.Client, new[] { badCursor }));
+        var invalid = AssertCanonical(await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor }));
         Assert.Equal(WorkerFailureCategories.ValidationError, invalid.GetProperty("error").GetProperty("category").GetString());
         Assert.Empty(fixture.Requests);
     }
@@ -352,6 +352,7 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         internal OpennessWorkerClient Client { get; }
         internal NetworkObjectPageCursorCodec Codec { get; }
         internal NetworkObjectPaginationCoordinator Coordinator { get; }
+        internal NetworkReadOperationExecutor Executor { get; }
         internal bool BlockInventory { set { if (value) File.WriteAllText(Path.Combine(_directory, "block"), "1"); } }
 
         internal Fixture(params WorkerResponse[] responses) : this(ProjectPath, responses) { }
@@ -367,8 +368,8 @@ public sealed class NetworkObjectPaginationCoordinatorTests
             Codec = new NetworkObjectPageCursorCodec(_protector);
             Coordinator = new NetworkObjectPaginationCoordinator(Client, Codec);
             var hardwareCodec = new HardwarePageCursorCodec(_protector);
-            NetworkReadTools.RegisterExecutor(Client, new NetworkReadOperationExecutor(Client,
-                new HardwarePaginationCoordinator(Client, hardwareCodec, new HardwarePageProjector(hardwareCodec)), Coordinator));
+            Executor = new NetworkReadOperationExecutor(Client,
+                new HardwarePaginationCoordinator(Client, hardwareCodec, new HardwarePageProjector(hardwareCodec)), Coordinator);
             var script = Path.Combine(_directory, "worker.ps1");
             File.WriteAllText(script, Script, new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(_directory, "responses.json"), JsonSerializer.Serialize(responses, WorkerJson.Envelope));

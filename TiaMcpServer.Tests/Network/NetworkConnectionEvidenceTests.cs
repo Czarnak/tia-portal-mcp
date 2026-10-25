@@ -1,6 +1,7 @@
 using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.OpennessWorker.Openness.Network;
 using TiaMcpServer.Tests.TestSupport;
@@ -192,8 +193,10 @@ public sealed class NetworkConnectionEvidenceTests
         var binding = new ProjectSessionBinding(null);
         using var client = new OpennessWorkerClient(binding, logger: null,
             workerExecutablePath: FakeWorkerLocator.Locate());
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
-        var result = await NetworkReadTools.NetworkRead(client, new[] { new NetworkOperationRequest
+        var result = await NetworkReadTools.NetworkRead(client, executor, new[] { new NetworkOperationRequest
         { OperationId = "hardware", Operation = "read_hardware_config"} });
         Assert.False(result.IsError);
         var item = Assert.IsType<JsonElement>(result.StructuredContent).GetProperty("batch").GetProperty("operations")[0];

@@ -57,7 +57,14 @@ public class McpToolSchemaTests
         var execution = new WriteExecution(new OpennessWriteBindingGate(workerClient),
             new JsonlWriteAuditSink(Path.Combine(Path.GetTempPath(), "tia-schema-" + Guid.NewGuid().ToString("N"))),
             LifecycleWriteDomain.Catalog, TimeProvider.System);
+        var hardwareCodec = new HardwarePageCursorCodec(protector);
+        var objectCodec = new NetworkObjectPageCursorCodec(protector);
+        var hardwareProjector = new HardwarePageProjector(hardwareCodec);
+        var hardwareCoordinator = new HardwarePaginationCoordinator(workerClient, hardwareCodec, hardwareProjector);
+        var objectCoordinator = new NetworkObjectPaginationCoordinator(workerClient, objectCodec);
+        var networkExecutor = new NetworkReadOperationExecutor(workerClient, hardwareCoordinator, objectCoordinator);
         return new FakeServiceProvider(binding, workerClient, coordinator, execution,
+            protector, hardwareCodec, objectCodec, hardwareProjector, hardwareCoordinator, objectCoordinator, networkExecutor,
             new TiaMcpServer.Hmi.HmiPageCursorCodec(protector));
     }
 

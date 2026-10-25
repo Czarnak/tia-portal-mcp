@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Draft for maintainer review. Preparing this plan does not authorize implementation. Leave this draft and its documentation-index entry uncommitted until the maintainer reviews them.
+**Status:** Implemented, independently reviewed and offline-qualified on 2026-10-25. The maintainer approved this plan and committed it locally as `e2c108b` before implementation. The original checklist is retained below; the [execution record](#execution-record-2026-10-25) records completed work, exact candidates and evidence limits.
 
 **Goal:** Remove duplicated write records, validation and payload-failure plumbing, and route `network_read` directly through its existing DI executor while preserving public contracts and domain-specific outcomes.
 
@@ -23,11 +23,11 @@
 - Keep native TIA calls, worker dispatch, contracts, packaging and dependencies unchanged. Offline qualification is the acceptance gate for this bounded host refactor; it does not prove native or plant behavior. No live TIA action is authorized by this plan.
 - Keep production and tests wired together: `Safety/Pipeline/*.cs` is already linked into tests; `OperationBatches` source links are explicit.
 - One build/test slot across all worktrees, including focused checks. Other agents may inspect/edit while that slot is occupied. Do not run full suites concurrently.
-- During later approved implementation, commit each completed implementation/fix increment after relevant checks. This draft request authorizes no commit, push, PR, merge, deployment or worktree creation now.
+- Commit completed implementation/fix increments after relevant checks. The maintainer subsequently authorized separate worktrees/branches, implementation, feature-branch pushes and PR creation when offline verification suffices. Remote merging, deployment and live TIA actions remain outside that request.
 
-## Scope decisions for review
+## Approved scope decisions
 
-1. **D-3:** Replace the PLC/HMI/VCI plan/replan record pairs and share validation across all four write domains. Keep domain classes, caches, mutation dispatch, response records and verification local. Omit `WriteCall.FromItems`: its former project-path work has disappeared, and current wrappers only normalize `operations ?? []` and pass `dryRun`. This is a proposed reduction of the historical item, not an already-implemented change.
+1. **D-3:** Replace the PLC/HMI/VCI plan/replan record pairs and share validation across all four write domains. Keep domain classes, caches, mutation dispatch, response records and verification local. Omit `WriteCall.FromItems`: its former project-path work has disappeared, and current wrappers only normalize `operations ?? []` and pass `dryRun`. The maintainer approved this reduction of the historical item before implementation.
 2. **D-4:** Share null-result failed items and guarded protocol diagnostics. Retain domain decoding, exception filters, public rejection text and result-bearing partial failures. Do not introduce a universal projection runner, remove VCI reflection, or refactor pagination coordinators merely to remove forwarding methods.
 3. **D-5:** Keep the static method and inject `NetworkReadOperationExecutor`. Remove the compatibility registry/codecs/factory and manual startup bridge. Update both test DI builders and all direct callers; do not replace the registry with another cache or convert tools to instance classes.
 4. **Concurrency:** D-3 is independent of both read-side changes. D-4 and D-5 are also code-independent after D-1 because their executor/projector interface remains unchanged. Retain D-4-before-D-5 integration to make review and failure attribution easier; it does not block parallel implementation.
@@ -208,4 +208,53 @@ try {
 - The scoped duplicate records/validation/failure construction and Network compatibility registry are removed without expanding into domain/state-machine redesign.
 - Public schemas, frozen canonical responses and domain-specific failure/omission evidence remain unchanged; diagnostic sink failures cannot replace protocol rejection.
 - Each stream and the combined candidate have fresh relevant evidence, independent review and recorded commit identities; combined qualification meets the existing 80% line threshold with zero failed/skipped tests.
-- Documentation distinguishes implemented/offline-qualified work from native or plant acceptance. The current plan-preparation step ends with only this draft and its index entry uncommitted.
+- Documentation distinguishes implemented/offline-qualified work from native or plant acceptance. Initial plan preparation remained uncommitted for review; the maintainer then committed the plan and authorized implementation and PR delivery.
+
+## Execution record (2026-10-25)
+
+The common implementation base was `e2c108b9c7cdff62f97675bebe05869ff15ecddc`, the maintainer's local plan commit on `main`. Remote `main` was `e9eb004b03234484ce3a5a5a2a268c37df343639` when checked. Three managed worktrees and named branches were created from that same base; a fourth local-only worktree combined the reviewed commits for qualification. The original `main` checkout was not used for implementation.
+
+| Stream | Branch and source candidate | Isolated evidence | Review |
+| --- | --- | --- | --- |
+| D-3 | `refactor/d3-write-records`, `0481d99fcfa8a920efaace0566839ce160682eaf` | Missing-`Compose` compile red before production edits; 230 focused planner/domain/admission tests passed, zero failed/skipped | Independent task review approved, no actionable findings |
+| D-4 | `refactor/d4-payload-failures`, `28e18c0c933dca17824ffc27f50f3346ebdb90e4` | Missing-helper/overload compile red; 911 focused payload/schema/canonical tests and 7,622 full non-packaging tests passed, zero failed/skipped | Independent task review approved, no actionable findings |
+| D-5 | `refactor/d5-network-read-di`, implementation `cea22ae4e5cd34b52f5268b0b0227b7869235832`, fixture fix `128c57c5c97e2e1688d69ddbe48938e4071c138f` | Missing-signature compile red; 161 focused schema/cursor/cancellation tests passed; reflection-fixture red reproduced eight failures, then all 18 `NetworkToolsTests` passed after the fix | Independent task review and scoped fix review approved, no actionable findings |
+
+The serial baseline Release stub build passed with seven existing warnings and zero errors; 116 unchanged compatibility/schema/conformance tests passed with zero failures/skips. D-5 also passed a serial Release stub solution build. Frozen canonical responses and both protocol schema snapshots were preserved.
+
+### Implemented behavior
+
+- D-3 introduces shared `PlanResult<TEffect>`/`ReplanResult<TEffect>` for PLC/HMI/VCI and lazy `WriteValidation.Compose` for the four write domains. Catalog rejection still precedes budget measurement, then access validation. Equality at the effective document limit remains admitted. Per-domain state, mutation, verification and failure text are preserved. `WriteCall.FromItems` was deliberately omitted under the approved scope.
+- D-4 shares null-result failure construction and guards existing diagnostic formatting/writing. PLC import evidence, typed Network/HMI/VCI partial failures, HMI cursor omissions and Network validator diagnostics remain local and unchanged. Previously silent hardware/write rejection paths remain silent.
+- D-5 injects the existing executor into the static `NetworkRead` method and removes the compatibility registry/codecs/factory and startup bridge. Both test DI builders, seven direct-caller files and the additional reflective `NetworkToolsTests` helper supply the executor. Protectors are explicitly owned/disposed, and continuation callers reuse their executor/protector.
+
+### Combined verification and follow-up
+
+Reviewed commits were combined locally with D-4 before D-5. The initial combined candidate `64b21a03c109c283b36409401c8fab4af7b66d95` passed the broad code review but its full run reported **7,623 passed, eight failed, zero skipped**. All eight failures were `TargetParameterCountException` from `NetworkToolsTests` invoking `NetworkRead` reflectively with the old three-argument list. This helper had escaped the initial direct-caller inventory.
+
+The original D-5 implementer reproduced the failures before changing the helper, supplied the injected executor with the existing test factory/protector, preserved null-client rejection assertions, and passed all 18 tests in that class. A bounded audit of 403 test C# files, Network read string/reflection paths and static-null `Invoke` calls found no other stale invocation. The fix changed one test file (four insertions, one deletion); production code did not change. A separate scoped review approved it.
+
+The final combined source candidate is `3ec5b7e71fa7549020f9aefdf88c1a15089c9ac9`. Its Release stub solution build passed with seven existing warnings and zero errors. The fresh full non-packaging run passed **7,631 tests, zero failed, zero skipped**, in 6 minutes 5 seconds. CI-scoped line coverage was **12,973 / 13,642 (95.09%)**, exceeding the existing 80% threshold. The shared `WriteValidation` class (eight executable lines), new plan/replan records (six executable lines) and guarded diagnostic helper (seven executable lines) were fully covered. The final broad code review and scoped fixture-fix review found no actionable issues.
+
+Exact qualification commands, run serially with unique ignored result directories and process-local `TEMP`/`TMP`, were:
+
+```powershell
+dotnet restore TiaMcpServer.slnx /p:UseTiaPortalReferenceStubs=true
+dotnet build TiaMcpServer.slnx -m:1 --no-restore --configuration Release /p:UseTiaPortalReferenceStubs=true
+dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --configuration Release --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory $runRoot --logger "trx;LogFileName=tests.trx" --filter "Category!=Packaging"
+./scripts/verify-coverage-threshold.ps1 -CoveragePath $coveragePath -MinimumLineRate 0.80
+```
+
+The extra D-4 full run covered **12,986 / 13,655** CI-scoped lines (**95.10%**); 58/60 changed executable production lines were covered, including all seven lines of the new diagnostic helper and all ten factory lines. Two existing VCI-write rejection call sites remained unexecuted. TRX logging copied the collector report to its attachment directory: both coverage files were byte-identical by SHA-256. The initial postprocessing check rejected the duplicate file count; report equality and the threshold were then verified without rerunning tests. The local qualification helper accepts identical copies and rejects differing reports.
+
+Local evidence directories (not committed) are `TestResults/d3-*`, `TestResults/d4-*` and `TestResults/d5-*` in their respective worktrees, plus `TestResults/combined-full-6feb392e21094413b653469c90824b9e` and `TestResults/combined-final-c7c5cf64b0ee4fdf85cfefc4b4e9463c` in the local verification worktree. Source qualification refers to the exact candidates above; subsequent documentation-only commits do not change tested production/test code.
+
+### Implementation rulings
+
+1. Preserve VCI's existing guard-cache update on failed replans and success-only deferred removal. The plan's preservation wording does not authorize harmonizing domain state policies; changing that interpretation could alter dependency guards.
+2. Keep previously silent hardware/HMI-write/VCI-write diagnostic paths silent, sharing the failed-item factory there and guarding only existing diagnostic paths. Adding stderr behavior would expand the refactor; the retained limitation is unchanged diagnostic coverage for those paths.
+3. Use isolated focused checks for each branch plus the planned full combined gate for D-3/D-5, rather than add two unplanned full reruns. D-4's extra full run was already underway and was retained. The combined gate caught the missed reflective fixture; any concern that combined changes could mask an isolated regression requires a focused independent follow-up.
+
+### Evidence limits
+
+No live TIA operation, installed-tool deployment, PLC operation or plant acceptance was performed. These changes affect host records, validation/projection wiring and test construction; native invocation paths and worker/contracts remain unchanged. Offline/FakeWorker and stub-build evidence is the acceptance scope for this refactor. Packaging tests and a dependency audit were not triggered: only the test project's source include changed, and product projects, packaging and dependencies were untouched.
