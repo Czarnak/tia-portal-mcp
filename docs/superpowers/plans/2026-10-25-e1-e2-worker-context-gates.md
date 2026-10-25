@@ -194,7 +194,7 @@ The ordinary suite/80% gate above uses existing CI scope. `TiaMcpServer.Tests/co
 - [ ] **Step 5: Only after separate target-specific authorization, run a serialized disposable-project smoke.** Cover standalone status with no project (`IsOpen=false`), a bound content read, subnet round trip including a bound local session, and representative standalone VCI write. Verify wrong/stale binding refusal before mutation; retain exact target/session provenance and preservation/restoration evidence. No live step is authorized now, and offline/source checks cannot be reported as native acceptance.
 
 
-## Execution record — 2026-10-25
+## Execution record 2026-10-25
 
 The maintainer approved the three plans, committed them locally as `0f7162c6090799d9d12358f94089ed345f3005bb`, and authorized isolated implementation while stopping before every live TIA test. All three worktrees started from that exact base. A used branch `refactor/worker-context-gates` in managed worktree `e1-e2-worker-context-gates`; the main checkout was preserved.
 
@@ -224,4 +224,3 @@ The existing coverage configuration excludes worker namespaces, including the ne
 Offline qualification is sufficient for this bounded E-1/E-2 refactor: it adds no native engineering call, transaction behavior, mutation argument or container capability. Independent whole-workstream review found no concrete new native uncertainty requiring live testing before publishing the PR. The maintainer's conditional A push/PR authorization therefore applies. Native mutation/restoration, plant behavior, live fault locations and deployment remain unverified and unclaimed; the future smoke step above was not executed.
 
 A's source is ready for the coordinator's A -> B -> C local integration. The mandatory B-before-C Configurator handoff and combined final qualification belong to the sibling plans. No B/C remote write or remote merge follows from A's delivery permission.
-
