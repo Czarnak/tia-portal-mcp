@@ -327,6 +327,7 @@
     <None Include="Fixtures\DamperAnalog.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\nStageHeater.scl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Tools\Snapshots\output-schemas.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Tools\Snapshots\batch-read-responses.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\SourceTextEncoding.cs"
       Link="Block\SourceTextEncoding.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\DynamicNumericAttribute.cs"
