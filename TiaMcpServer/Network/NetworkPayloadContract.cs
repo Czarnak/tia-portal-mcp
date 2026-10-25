@@ -46,7 +46,7 @@ public static class NetworkPayloadContract
 
         if (!workerResult.Success)
         {
-            return Failed(
+            return StructuredOperationItem.Failed(
                 operation,
                 workerResult.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                 workerResult.Error ?? $"Network operation '{operation.Operation}' failed.",
@@ -60,8 +60,9 @@ public static class NetworkPayloadContract
         }
         catch (JsonException exception)
         {
-            TryWriteProtocolDiagnostic(writeProtocolDiagnostic, operation.Operation, exception);
-            return Failed(
+            StructuredPayloadProjection.TryWriteProtocolDiagnostic(
+                operation.Operation, writeProtocolDiagnostic, () => CreateProtocolDiagnostic(operation.Operation, exception));
+            return StructuredOperationItem.Failed(
                 operation,
                 WorkerFailureCategories.ProtocolError,
                 $"The worker payload for '{operation.Operation}' did not match its declared result "
@@ -117,33 +118,25 @@ public static class NetworkPayloadContract
         }
         return CanonicalJson.ToElement(root);
     }
-    private static void TryWriteProtocolDiagnostic(
-        Action<string> writeProtocolDiagnostic,
+    private static string CreateProtocolDiagnostic(
         string operation,
         JsonException exception)
     {
-        try
-        {
-            var validators = new StackTrace(exception, fNeedFileInfo: false)
-                .GetFrames()
-                .Select(frame => frame.GetMethod())
-                .Where(method => method?.DeclaringType == typeof(NetworkPayloadContract))
-                .Select(method => method!.Name)
-                .Where(name => !string.Equals(name, nameof(Project), StringComparison.Ordinal))
-                .Distinct(StringComparer.Ordinal)
-                .Take(6)
-                .ToArray();
-            var validatorChain = validators.Length == 0
-                ? "unavailable"
-                : string.Join(">", validators);
-            var diagnostic = "TiaMcpServer: worker payload contract rejection: "
-                + $"operation={operation}; validators={validatorChain}.";
-            writeProtocolDiagnostic(diagnostic.Length <= 512 ? diagnostic : diagnostic[..512]);
-        }
-        catch
-        {
-            // Diagnostics must never replace the stable fail-closed protocol_error response.
-        }
+        var validators = new StackTrace(exception, fNeedFileInfo: false)
+            .GetFrames()
+            .Select(frame => frame.GetMethod())
+            .Where(method => method?.DeclaringType == typeof(NetworkPayloadContract))
+            .Select(method => method!.Name)
+            .Where(name => !string.Equals(name, nameof(Project), StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .Take(6)
+            .ToArray();
+        var validatorChain = validators.Length == 0
+            ? "unavailable"
+            : string.Join(">", validators);
+        var diagnostic = "TiaMcpServer: worker payload contract rejection: "
+            + $"operation={operation}; validators={validatorChain}.";
+        return diagnostic.Length <= 512 ? diagnostic : diagnostic[..512];
     }
 
     /// <summary>
@@ -1037,19 +1030,4 @@ public static class NetworkPayloadContract
             throw new JsonException($"'{member}' is declared non-nullable but the payload was null.");
         }
     }
-
-    private static StructuredOperationItem Failed(
-        NetworkOperationRequest operation,
-        string category,
-        string message,
-        IReadOnlyList<string> warnings)
-        => new(
-            operation.OperationId,
-            operation.Operation,
-            OperationBatchStatus.Failed,
-            Result: null,
-            new StructuredOperationFailure(category, message),
-            Omission: null,
-            SkipReason: null,
-            warnings);
 }

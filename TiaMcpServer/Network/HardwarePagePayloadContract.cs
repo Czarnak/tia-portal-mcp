@@ -160,13 +160,5 @@ internal static class HardwarePagePayloadContract
         string category,
         string message,
         IReadOnlyList<string> warnings)
-        => new(
-            operation.OperationId,
-            operation.Operation,
-            OperationBatchStatus.Failed,
-            Result: null,
-            new StructuredOperationFailure(category, message),
-            Omission: null,
-            SkipReason: null,
-            warnings);
+        => StructuredOperationItem.Failed(operation, category, message, warnings);
 }
