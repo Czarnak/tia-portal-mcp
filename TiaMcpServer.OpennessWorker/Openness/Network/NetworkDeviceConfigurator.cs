@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Reflection;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -44,7 +43,7 @@ public static class NetworkDeviceConfigurator
         // even if a later subnet connection might have failed and made that IO attach a skip.
         var subnetRequested = !string.IsNullOrWhiteSpace(subnetId);
         Subnet? connectedSubnet = null;
-        object? ioSystem = null;
+        IoSystem? ioSystem = null;
         IoConnector? ioConnector = null;
         try
         {
@@ -154,22 +153,13 @@ public static class NetworkDeviceConfigurator
     {
         try
         {
-            // UNVERIFIED SDK CALL: V21 subnet connection API may be Node.ConnectToSubnet(Subnet) or equivalent.
-            InvokeFirstAvailable(node, new[] { "ConnectToSubnet", "Connect" }, subnet);
+            node.ConnectToSubnet(subnet);
             result.AppliedSettings["Subnet"] = subnetId;
             return true;
         }
         catch (EngineeringException ex)
         {
             result.SkippedSettings["Subnet"] = ex.Message;
-        }
-        catch (InvalidOperationException ex)
-        {
-            result.SkippedSettings["Subnet"] = ex.Message;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is EngineeringException engineeringException)
-        {
-            result.SkippedSettings["Subnet"] = engineeringException.Message;
         }
 
         return false;
@@ -217,27 +207,18 @@ public static class NetworkDeviceConfigurator
 
     private static void ConnectIoSystem(
         IoConnector ioConnector,
-        object ioSystem,
+        IoSystem ioSystem,
         int ioSystemNumber,
         ConfigureNetworkDeviceResultInfo result)
     {
         try
         {
-            // UNVERIFIED SDK CALL: V21 IO connector attachment may be ConnectToIoSystem(IoSystem) or equivalent.
-            InvokeFirstAvailable(ioConnector, new[] { "ConnectToIoSystem", "Connect" }, ioSystem);
+            ioConnector.ConnectToIoSystem(ioSystem);
             result.AppliedSettings["IoSystem"] = ioSystemNumber.ToString(CultureInfo.InvariantCulture);
         }
         catch (EngineeringException ex)
         {
             result.SkippedSettings["IoSystem"] = ex.Message;
-        }
-        catch (InvalidOperationException ex)
-        {
-            result.SkippedSettings["IoSystem"] = ex.Message;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is EngineeringException engineeringException)
-        {
-            result.SkippedSettings["IoSystem"] = engineeringException.Message;
         }
     }
 
@@ -245,9 +226,9 @@ public static class NetworkDeviceConfigurator
     /// Matches exactly one IO system by its modeled number within the already-resolved owning
     /// subnet. Zero or multiple matches fail closed.
     /// </summary>
-    private static object FindExactlyOneIoSystem(Subnet subnet, int number)
+    private static IoSystem FindExactlyOneIoSystem(Subnet subnet, int number)
     {
-        object? match = null;
+        IoSystem? match = null;
         var count = 0;
         var unreadable = false;
         foreach (IoSystem candidate in subnet.IoSystems)
@@ -302,33 +283,5 @@ public static class NetworkDeviceConfigurator
         => !string.IsNullOrWhiteSpace(candidateId)
             && !string.IsNullOrWhiteSpace(requestedId)
             && string.Equals(candidateId, requestedId, StringComparison.Ordinal);
-
-    private static void InvokeFirstAvailable(object target, IEnumerable<string> methodNames, object argument)
-    {
-        foreach (var methodName in methodNames)
-        {
-            var method = target.GetType()
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                .FirstOrDefault(candidate =>
-                {
-                    if (!string.Equals(candidate.Name, methodName, StringComparison.Ordinal))
-                    {
-                        return false;
-                    }
-
-                    var parameters = candidate.GetParameters();
-                    return parameters.Length == 1 && parameters[0].ParameterType.IsInstanceOfType(argument);
-                });
-
-            if (method is not null)
-            {
-                method.Invoke(target, new[] { argument });
-                return;
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"No supported connection method was found on '{target.GetType().Name}'.");
-    }
 
 }

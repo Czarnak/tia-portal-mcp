@@ -129,6 +129,7 @@ namespace Siemens.Engineering.HW
     public abstract class IoConnector : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
         public global::Siemens.Engineering.HW.IoSystem ConnectedToIoSystem { get => throw new global::System.NotSupportedException(); }
+        public void ConnectToIoSystem(global::Siemens.Engineering.HW.IoSystem ioSystem) => throw new global::System.NotSupportedException();
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
@@ -189,6 +190,7 @@ namespace Siemens.Engineering.HW
         public string Name { get => throw new global::System.NotSupportedException(); }
         public string NodeId { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HW.NetType NodeType { get => throw new global::System.NotSupportedException(); }
+        public void ConnectToSubnet(global::Siemens.Engineering.HW.Subnet subnet) => throw new global::System.NotSupportedException();
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
