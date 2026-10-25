@@ -135,6 +135,7 @@
       Link="Host\ProjectLifecycle\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer\Tools\StructuredToolResult.cs"
       Link="Host\StructuredToolResult.cs" />
+    <Compile Include="..\TiaMcpServer\Tools\BatchReadTool.cs" Link="Host\BatchReadTool.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectReadTools.cs"
       Link="Host\ProjectReadTools.cs" />
     <Compile Include="..\TiaMcpServer\Tools\ProjectBindingTools.cs"
@@ -160,6 +161,8 @@
       Link="Host\OperationBatches\OperationBatchStatus.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs"
       Link="Host\OperationBatches\StructuredOperationBatch.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchReadResponse.cs"
+      Link="Host\OperationBatches\OperationBatchReadResponse.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs"
       Link="Host\OperationBatches\StructuredOperationBatchExecutionEngine.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchPayloadBudget.cs"

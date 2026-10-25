@@ -4,8 +4,6 @@ using ModelContextProtocol.Server;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
-using TiaMcpServer.Contracts.Safety;
-using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 
@@ -20,58 +18,24 @@ public class PlcReadTools
         Destructive = false,
         OpenWorld = false,
         UseStructuredContent = true,
-        OutputSchemaType = typeof(PlcReadResponse))]
+        OutputSchemaType = typeof(OperationBatchReadResponse))]
     [Description("Run up to 50 PLC read operations in one call. Valid operations: get_block_content (blockPath, optional format xml|source and withDependencies), get_type_content (typePath, optional format and withDependencies), and list_tag_tables (optional plcName, omitted reads every PLC; optional tableName and folderPath narrow to one table or one tag-table folder). Reads run independently, so a failing item does not stop later operations. Content results are { format, content, contentHash, warnings }; contentHash is null for withDependencies reads. list_tag_tables returns { isComplete, messages, plcs[] } as declared JSON. A result larger than the budget is omitted whole with guidance; narrow it or re-run that operationId in its own plc_read call.")]
-    public static async Task<CallToolResult> PlcRead(
+    public static Task<CallToolResult> PlcRead(
         OpennessWorkerClient workerClient,
         [Description("Ordered list of PLC read operations. Each item is { operationId, operation, ...operation parameters }.")] PlcOperationRequest[] operations,
         CancellationToken cancellationToken = default)
-    {
-        var validation = PlcOperationCatalog.ValidateRead(operations);
-        if (!validation.IsValid)
-        {
-            return Error(validation.Category, validation.Error);
-        }
-
-        var mode = workerClient.AccessPolicy.Mode;
-        var accessErrors = PlcOperationCatalog.ValidateAccessMode(operations, mode);
-        if (accessErrors.Count != 0)
-        {
-            return Error(WorkerFailureCategories.AccessDenied, string.Join("\n", accessErrors));
-        }
-
-        var binding = await workerClient.RequireVerifiedBindingAsync().ConfigureAwait(false);
-        if (!binding.Success)
-        {
-            return Error(binding.FailureCategory!, binding.Error!);
-        }
-
-        var batch = await StructuredOperationBatchExecutionEngine.ExecuteReadsAsync(
-            operations,
-            operation => PlcWorkerInvoker.InvokeReadAsync(workerClient, operation, cancellationToken),
-            PlcPayloadContract.Project,
-            cancellationToken)
-            .ConfigureAwait(false);
-
-        // A batch that ran is a successful MCP call even when items failed: isError means "could not run".
-        return StructuredToolResult.Create(Compose(ApplyBudget(batch)), isError: false);
-    }
+        => BatchReadTool.RunAsync(workerClient, operations, ToolName, PlcContractVersion.Current,
+            PlcOperationCatalog.ValidateRead, PlcOperationCatalog.ValidateAccessMode,
+            async operation => PlcPayloadContract.Project(operation,
+                await PlcWorkerInvoker.InvokeReadAsync(workerClient, operation, cancellationToken).ConfigureAwait(false)),
+            RetryGuidance, cancellationToken);
 
     internal static StructuredOperationBatch ApplyBudget(
         StructuredOperationBatch batch,
         int? maxItemChars = null,
         int? maxDocumentChars = null)
-        => StructuredOperationBatchPayloadBudget.Apply(
-            batch,
-            Compose,
-            ToolName,
-            RetryGuidance,
-            maxItemChars,
-            maxDocumentChars);
-
-    private static PlcReadResponse Compose(StructuredOperationBatch batch)
-        => new(ToolName, PlcContractVersion.Current, batch.IsFullySuccessful,
-            Error: null, Warnings: Array.Empty<string>(), Batch: batch);
+        => BatchReadTool.ApplyBudget(batch, ToolName, PlcContractVersion.Current,
+            RetryGuidance, maxItemChars, maxDocumentChars);
 
     private static string RetryGuidance(StructuredOperationItem item) => item.Operation switch
     {
@@ -87,8 +51,5 @@ public class PlcReadTools
     };
 
     internal static CallToolResult Error(string category, string message)
-        => StructuredToolResult.Create(
-            new PlcReadResponse(ToolName, PlcContractVersion.Current, false,
-                new PlcToolError(category, message), Warnings: Array.Empty<string>(), Batch: null),
-            isError: true);
+        => BatchReadTool.Error(ToolName, PlcContractVersion.Current, category, message);
 }
