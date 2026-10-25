@@ -161,6 +161,8 @@
       Link="Host\OperationBatches\OperationBatchStatus.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatch.cs"
       Link="Host\OperationBatches\StructuredOperationBatch.cs" />
+    <Compile Include="..\TiaMcpServer\OperationBatches\StructuredPayloadProjection.cs"
+      Link="Host\OperationBatches\StructuredPayloadProjection.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\OperationBatchReadResponse.cs"
       Link="Host\OperationBatches\OperationBatchReadResponse.cs" />
     <Compile Include="..\TiaMcpServer\OperationBatches\StructuredOperationBatchExecutionEngine.cs"

@@ -48,7 +48,24 @@ public sealed record StructuredOperationItem(
     StructuredOperationFailure? Failure,
     StructuredOperationOmission? Omission,
     string? SkipReason,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings)
+{
+    public static StructuredOperationItem Failed(
+        IOperationBatchItem item,
+        string category,
+        string message,
+        IReadOnlyList<string> warnings,
+        BlockImportOutcomeInfo? blockImportOutcome = null)
+        => new(
+            item.OperationId,
+            item.Operation,
+            OperationBatchStatus.Failed,
+            Result: null,
+            new StructuredOperationFailure(category, message, blockImportOutcome),
+            Omission: null,
+            SkipReason: null,
+            warnings);
+}
 
 public sealed record StructuredOperationCounts(
     int Succeeded,

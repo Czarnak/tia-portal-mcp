@@ -27,15 +27,18 @@ public static class VciWritePayloadContract
             var outcome = result.Success ? CanonicalJson.DeserializeWorkerPayload<VciWriteOutcomeInfo>(result.Payload) : result.VciWriteOutcome;
             if (outcome is not null) Validate(outcome);
             var failed = !result.Success || outcome!.Failed > 0;
+            if (outcome is null)
+                return StructuredOperationItem.Failed(item, result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                    result.Error ?? "One or more VCI leaves failed.", result.Warnings);
             return new(item.OperationId, item.Operation, failed ? OperationBatchStatus.Failed : OperationBatchStatus.Succeeded,
-                outcome is null ? null : CanonicalJson.ToElement(outcome),
+                CanonicalJson.ToElement(outcome),
                 failed ? new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "One or more VCI leaves failed.") : null,
                 null, null, result.Warnings);
         }
         catch (JsonException)
         {
-            return new(item.OperationId, item.Operation, OperationBatchStatus.Failed, null,
-                new(WorkerFailureCategories.ProtocolError, "The VCI worker outcome did not match its declared result contract and was rejected."), null, null, result.Warnings);
+            return StructuredOperationItem.Failed(item, WorkerFailureCategories.ProtocolError,
+                "The VCI worker outcome did not match its declared result contract and was rejected.", result.Warnings);
         }
     }
 

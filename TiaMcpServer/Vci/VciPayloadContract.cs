@@ -19,12 +19,16 @@ public static class VciPayloadContract
     private static readonly MethodInfo NormalizeMethod = typeof(VciPayloadContract).GetMethod(nameof(Normalize), BindingFlags.NonPublic | BindingFlags.Static)!;
 
     public static StructuredOperationItem Project(VciOperationRequest item, WorkerCallResult result)
+        => Project(item, result, Console.Error.WriteLine);
+
+    internal static StructuredOperationItem Project(
+        VciOperationRequest item,
+        WorkerCallResult result,
+        Action<string> writeDiagnostic)
     {
         var warnings = result.Warnings ?? Array.Empty<string>();
-        StructuredOperationItem Failed(string category, string message) => new(item.OperationId, item.Operation,
-            OperationBatchStatus.Failed, null, new StructuredOperationFailure(category, message), null, null, warnings);
         if (!result.Success)
-            return Failed(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "VCI read failed.");
+            return StructuredOperationItem.Failed(item, result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "VCI read failed.", warnings);
         try
         {
             if (!ResultTypes.TryGetValue(item.Operation, out var type)) throw new JsonException();
@@ -33,8 +37,8 @@ public static class VciPayloadContract
         }
         catch (JsonException)
         {
-            Console.Error.WriteLine($"TiaMcpServer: worker payload contract rejection: operation={item.Operation}.");
-            return Failed(WorkerFailureCategories.ProtocolError, $"The worker payload for '{item.Operation}' did not match its declared result contract and was rejected.");
+            StructuredPayloadProjection.TryWriteProtocolDiagnostic(item.Operation, writeDiagnostic);
+            return StructuredOperationItem.Failed(item, WorkerFailureCategories.ProtocolError, $"The worker payload for '{item.Operation}' did not match its declared result contract and was rejected.", warnings);
         }
     }
 

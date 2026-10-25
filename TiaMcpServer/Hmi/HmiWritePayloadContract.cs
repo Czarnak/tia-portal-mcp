@@ -16,9 +16,12 @@ public static class HmiWritePayloadContract
         {
             if (!result.Success)
             {
-                if (result.HmiWriteOutcome is { } failedOutcome) Validate(failedOutcome);
+                if (result.HmiWriteOutcome is not { } failedOutcome)
+                    return StructuredOperationItem.Failed(operation,
+                        result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "The HMI write failed.", warnings);
+                Validate(failedOutcome);
                 return new(operation.OperationId, operation.Operation, OperationBatchStatus.Failed,
-                    result.HmiWriteOutcome is null ? null : CanonicalJson.ToElement(result.HmiWriteOutcome),
+                    CanonicalJson.ToElement(failedOutcome),
                     new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed, result.Error ?? "The HMI write failed."), null, null, warnings);
             }
             var (outcome, _, element) = CanonicalJson.NormalizeWorkerPayload<HmiWriteOutcomeInfo>(result.Payload);
@@ -27,8 +30,8 @@ public static class HmiWritePayloadContract
         }
         catch (JsonException)
         {
-            return new(operation.OperationId, operation.Operation, OperationBatchStatus.Failed, null,
-                new(WorkerFailureCategories.ProtocolError, "The HMI worker payload did not match its declared result contract and was rejected."), null, null, warnings);
+            return StructuredOperationItem.Failed(operation, WorkerFailureCategories.ProtocolError,
+                "The HMI worker payload did not match its declared result contract and was rejected.", warnings);
         }
     }
 

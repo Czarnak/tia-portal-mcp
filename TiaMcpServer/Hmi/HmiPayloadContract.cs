@@ -66,7 +66,7 @@ public static class HmiPayloadContract
         var warnings = workerResult.Warnings ?? Array.Empty<string>();
         if (!workerResult.Success)
         {
-            return Failed(
+            return StructuredOperationItem.Failed(
                 operation,
                 workerResult.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                 workerResult.Error ?? $"HMI operation '{operation.Operation}' failed.",
@@ -102,18 +102,8 @@ public static class HmiPayloadContract
         catch (Exception exception) when (exception is CursorException or JsonException)
         {
             // An unsealable worker snapshot id is a worker contract violation like any undecodable payload.
-            // Server-side diagnostic only: names the operation, never the rejected payload.
-            try
-            {
-                writeProtocolDiagnostic(
-                    $"TiaMcpServer: worker payload contract rejection: operation={operation.Operation}.");
-            }
-            catch
-            {
-                // Diagnostics must never replace the stable fail-closed protocol_error response.
-            }
-
-            return Failed(
+            StructuredPayloadProjection.TryWriteProtocolDiagnostic(operation.Operation, writeProtocolDiagnostic);
+            return StructuredOperationItem.Failed(
                 operation,
                 WorkerFailureCategories.ProtocolError,
                 $"The worker payload for '{operation.Operation}' did not match its declared result "
@@ -170,19 +160,4 @@ public static class HmiPayloadContract
 
     private static JsonElement NormalizeAs<T>(string payload)
         => CanonicalJson.NormalizeWorkerPayload<T>(payload).Element;
-
-    private static StructuredOperationItem Failed(
-        HmiOperationRequest operation,
-        string category,
-        string message,
-        IReadOnlyList<string> warnings)
-        => new(
-            operation.OperationId,
-            operation.Operation,
-            OperationBatchStatus.Failed,
-            Result: null,
-            new StructuredOperationFailure(category, message),
-            Omission: null,
-            SkipReason: null,
-            warnings);
 }
