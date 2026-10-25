@@ -79,11 +79,14 @@ public class ReadToolCancellationTests
         Directory.CreateDirectory(audit.Path);
         using var log = new FakeWorkerRequestLog(audit.Path);
         using var client = await CreateClientAsync();
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
         var before = log.Methods().Length;
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             NetworkReadTools.NetworkRead(
                 client,
+                executor,
                 new[] { new NetworkOperationRequest { OperationId = "n", Operation = "search_equipment_catalog", Query = "CPU" } },
                 Cancelled()));
 

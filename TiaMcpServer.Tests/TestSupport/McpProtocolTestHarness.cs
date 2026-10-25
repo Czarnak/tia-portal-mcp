@@ -168,6 +168,23 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
             new OpennessWriteBindingGate(sp.GetRequiredService<OpennessWorkerClient>()),
             new JsonlWriteAuditSink(auditDirectory), WriteGuardRegistration.ProductionCatalog(), TimeProvider.System));
         collection.AddSingleton(_ => AuthenticatedCursorProtector.CreateProcessScoped());
+        collection.AddSingleton(sp => new HardwarePageCursorCodec(
+            sp.GetRequiredService<AuthenticatedCursorProtector>()));
+        collection.AddSingleton(sp => new NetworkObjectPageCursorCodec(
+            sp.GetRequiredService<AuthenticatedCursorProtector>()));
+        collection.AddSingleton(sp => new HardwarePageProjector(
+            sp.GetRequiredService<HardwarePageCursorCodec>()));
+        collection.AddSingleton(sp => new HardwarePaginationCoordinator(
+            sp.GetRequiredService<OpennessWorkerClient>(),
+            sp.GetRequiredService<HardwarePageCursorCodec>(),
+            sp.GetRequiredService<HardwarePageProjector>()));
+        collection.AddSingleton(sp => new NetworkObjectPaginationCoordinator(
+            sp.GetRequiredService<OpennessWorkerClient>(),
+            sp.GetRequiredService<NetworkObjectPageCursorCodec>()));
+        collection.AddSingleton(sp => new NetworkReadOperationExecutor(
+            sp.GetRequiredService<OpennessWorkerClient>(),
+            sp.GetRequiredService<HardwarePaginationCoordinator>(),
+            sp.GetRequiredService<NetworkObjectPaginationCoordinator>()));
         collection.AddSingleton(sp => new ProjectTreeCursorCodec(
             sp.GetRequiredService<AuthenticatedCursorProtector>()));
         collection.AddSingleton(sp => new TiaMcpServer.Hmi.HmiPageCursorCodec(

@@ -329,9 +329,12 @@ public class NetworkOperationFakeWorkerTests
     public async Task NetworkRead_HardwareAndCatalogSucceedInRequestedOrderWithDeclaredJsonResults()
     {
         using var client = await CreateBoundClientAsync(Scenario);
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[] { ReadHardware("hardware"), SearchCatalog("catalog") });
 
         Assert.False(result.IsError, Text(result));
@@ -360,8 +363,10 @@ public class NetworkOperationFakeWorkerTests
     public async Task NetworkRead_MultiHomedPcStationExposesBothNodesWithDistinctNodeIds()
     {
         using var client = await CreateBoundClientAsync(Scenario);
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
-        var result = await NetworkReadTools.NetworkRead(client, new[] { ReadHardware("hardware") });
+        var result = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("hardware") });
 
         Assert.False(result.IsError, Text(result));
         var hardware = Assert.IsType<JsonElement>(result.StructuredContent)
@@ -489,9 +494,12 @@ public class NetworkOperationFakeWorkerTests
     public async Task ListNetworkObjects_RoundTripReturnsSixItemsWithCommunicationConnectionUnselectable()
     {
         using var client = await CreateBoundClientAsync("list-network-objects-success");
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 new NetworkOperationRequest
@@ -530,9 +538,12 @@ public class NetworkOperationFakeWorkerTests
     public async Task InspectNetworkObject_RoundTripReturnsNineAttributesAndEvidence()
     {
         using var client = await CreateBoundClientAsync("inspect-network-object-success");
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 new NetworkOperationRequest
@@ -591,6 +602,8 @@ public class NetworkOperationFakeWorkerTests
         string scenario)
     {
         using var client = await CreateBoundClientAsync(scenario);
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
         var target = operationName == "inspect_network_object"
             ? new NetworkObjectTarget { Kind = "node", DeviceName = "PLC_1", NodeId = "node-1" }
             : null;
@@ -600,6 +613,7 @@ public class NetworkOperationFakeWorkerTests
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 new NetworkOperationRequest
@@ -622,9 +636,12 @@ public class NetworkOperationFakeWorkerTests
     public async Task ListNetworkObjects_LargeListScenarioReturnsCursorWithTwentyItems()
     {
         using var client = await CreateBoundClientAsync("list-network-objects-large");
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
 
         var result = await NetworkReadTools.NetworkRead(
             client,
+            executor,
             new[]
             {
                 new NetworkOperationRequest
@@ -652,18 +669,20 @@ public class NetworkOperationFakeWorkerTests
     public async Task ListNetworkObjects_PublicCursor_ContinuesAcrossTwoCalls()
     {
         using var client = await CreateBoundClientAsync("list-network-objects-large");
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client, protector);
         var operation = new NetworkOperationRequest
         {
             OperationId = "page", Operation = "list_network_objects",
             ObjectKinds = new[] { "node" }, PageSize = 20,
         };
-        var first = await NetworkReadTools.NetworkRead(client, new[] { operation });
+        var first = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
         Assert.Equal(Text(first), CanonicalJson.Serialize(Structured(first)));
         var firstPage = Structured(first).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         var cursor = firstPage.GetProperty("nextCursor").GetString();
         Assert.NotEqual("large-list-page-2", cursor);
         operation.Cursor = cursor;
-        var second = await NetworkReadTools.NetworkRead(client, new[] { operation });
+        var second = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
         Assert.Equal(Text(second), CanonicalJson.Serialize(Structured(second)));
         var secondItem = Structured(second).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", secondItem.GetProperty("status").GetString());
@@ -678,29 +697,33 @@ public class NetworkOperationFakeWorkerTests
     }
 
     [Fact]
-    public async Task ListNetworkObjects_RegisteredExecutor_UsesInjectedProtector()
+    public async Task ListNetworkObjects_InjectedExecutor_UsesInjectedProtector()
     {
         using var client = await CreateBoundClientAsync("list-network-objects-large");
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var codec = new NetworkObjectPageCursorCodec(protector);
         var hardwareCodec = new HardwarePageCursorCodec(protector);
-        NetworkReadTools.RegisterExecutor(client, new NetworkReadOperationExecutor(client,
+        var executor = new NetworkReadOperationExecutor(client,
             new HardwarePaginationCoordinator(client, hardwareCodec, new HardwarePageProjector(hardwareCodec)),
-            new NetworkObjectPaginationCoordinator(client, codec)));
-        var result = await NetworkReadTools.NetworkRead(client, new[]
+            new NetworkObjectPaginationCoordinator(client, codec));
+        var operation = new NetworkOperationRequest
         {
-            new NetworkOperationRequest
-            {
-                OperationId = "registered", Operation = "list_network_objects",
-                ObjectKinds = new[] { "node" }, PageSize = 20,
-            },
-        });
+            OperationId = "injected", Operation = "list_network_objects",
+            ObjectKinds = new[] { "node" }, PageSize = 20,
+        };
+        var result = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
         Assert.Equal(Text(result), CanonicalJson.Serialize(Structured(result)));
         var token = Structured(result).GetProperty("batch").GetProperty("operations")[0]
             .GetProperty("result").GetProperty("nextCursor").GetString();
         var state = codec.Decode(token!);
         Assert.Equal("large-list-page-2", state.WorkerCursor);
         Assert.True(state.HostBinding.Matches(client.BindingSnapshot));
+        operation.Cursor = token;
+        var continuation = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
+        Assert.Equal(Text(continuation), CanonicalJson.Serialize(Structured(continuation)));
+        var continuedItem = Structured(continuation).GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("succeeded", continuedItem.GetProperty("status").GetString());
+        Assert.Equal(20, continuedItem.GetProperty("result").GetProperty("returnedCount").GetInt32());
     }
 
     private static JsonElement Structured(CallToolResult result)
