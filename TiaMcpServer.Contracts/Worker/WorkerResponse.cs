@@ -26,6 +26,10 @@ public class WorkerResponse
     /// </summary>
     public string? FailureCategory { get; init; }
 
+    /// <summary>The Siemens exception behind a failure; omitted unless one caused it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EngineeringErrorInfo? EngineeringError { get; set; }
+
     /// <summary>Typed evidence for update_block_logic; omitted for unrelated methods.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BlockImportOutcomeInfo? BlockImportOutcome { get; set; }

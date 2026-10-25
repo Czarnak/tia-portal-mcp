@@ -82,6 +82,7 @@ namespace Siemens.Engineering
     {
         public EngineeringException() { }
         public EngineeringException(string message) : base(message) { }
+        public EngineeringException(string message, Exception inner) : base(message, inner) { }
     }
 
     // Match the Openness hierarchy: Portal loss is not an ordinary EngineeringException.

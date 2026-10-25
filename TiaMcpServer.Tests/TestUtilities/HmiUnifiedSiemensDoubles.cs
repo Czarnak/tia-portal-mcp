@@ -10,6 +10,7 @@ namespace Siemens.Engineering
     public sealed class EngineeringTargetInvocationException : EngineeringException
     {
         public EngineeringTargetInvocationException(string message) : base(message) { }
+        public EngineeringTargetInvocationException(string message, Exception inner) : base(message, inner) { }
     }
 
     public sealed class EngineeringObjectDisposedException : EngineeringException

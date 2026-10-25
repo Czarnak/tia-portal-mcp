@@ -373,6 +373,55 @@ public sealed class WriteExecutionTests
     }
 
     [Fact]
+    public async Task EngineeringRejectedItem_CarriesTheSiemensErrorOnThatItemOnly()
+    {
+        _domain.FailureEngineeringError = new EngineeringErrorInfo
+        {
+            Type = "EngineeringTargetInvocationException",
+            Message = "Siemens says no.",
+            Inner = { new EngineeringInnerErrorInfo { Type = "InvalidOperationException", Message = "deeper" } }
+        };
+
+        var (result, doc) = await RunAsync(new[]
+        {
+            Item("a"), Item("b", failWith: WorkerFailureCategories.EngineeringRejected), Item("c")
+        });
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        var operations = doc.GetProperty("batch").GetProperty("operations");
+        Assert.False(operations[0].TryGetProperty("failure", out var succeeded) && succeeded.ValueKind != JsonValueKind.Null);
+        var failure = operations[1].GetProperty("failure");
+        Assert.Equal("engineering_rejected", failure.GetProperty("category").GetString());
+        var error = failure.GetProperty("engineeringError");
+        Assert.Equal("EngineeringTargetInvocationException", error.GetProperty("type").GetString());
+        Assert.Equal("Siemens says no.", error.GetProperty("message").GetString());
+        var inner = Assert.Single(error.GetProperty("inner").EnumerateArray());
+        Assert.Equal("InvalidOperationException", inner.GetProperty("type").GetString());
+        Assert.Equal("deeper", inner.GetProperty("message").GetString());
+        Assert.Equal(OperationBatchStatus.Skipped, operations[2].GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task FailureWithoutSiemensEvidence_OmitsTheEngineeringErrorMember()
+    {
+        var (_, doc) = await RunAsync(new[] { Item("a", failWith: WorkerFailureCategories.WorkerOperationFailed) });
+
+        var failure = doc.GetProperty("batch").GetProperty("operations")[0].GetProperty("failure");
+        Assert.False(failure.TryGetProperty("engineeringError", out _));
+    }
+
+    [Fact]
+    public async Task HostSideRejection_NeverCarriesAnEngineeringError()
+    {
+        _domain.FailureEngineeringError = new EngineeringErrorInfo { Type = "X", Message = "stale" };
+        _domain.PlanFailure = new WriteToolError(WorkerFailureCategories.TargetNotFound, "No such target.");
+
+        var (_, doc) = await RunAsync(new[] { Item("a", failWith: WorkerFailureCategories.EngineeringRejected) });
+
+        Assert.DoesNotContain("engineeringError", doc.GetRawText());
+    }
+
+    [Fact]
     public async Task SingleItemFailure_HasNoPartialWriteGuard()
     {
         var (result, doc) = await RunAsync(new[] { Item("a", failWith: WorkerFailureCategories.WorkerOperationFailed) });

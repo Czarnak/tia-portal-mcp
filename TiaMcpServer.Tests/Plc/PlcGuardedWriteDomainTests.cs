@@ -39,6 +39,44 @@ public sealed class PlcGuardedWriteDomainTests
     }
 
     [Fact]
+    public async Task PortalRejectionOfItemTwo_IsTypedWithSiemensEvidence_AndTextEqualsStructured()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+
+        var result = await fixture.RunRawAsync(false, CreateTag("a", "First"), CreateTag("b", "RejectedByPortal"), CreateTag("c", "Third"));
+
+        var structured = (JsonElement)result.StructuredContent!;
+        Assert.Equal(structured.GetRawText(), Assert.IsType<ModelContextProtocol.Protocol.TextContentBlock>(Assert.Single(result.Content)).Text);
+        Assert.False(result.IsError);
+        var response = Document(result);
+        Assert.Equal("applied", response.Phase);
+        Assert.False(response.Success);
+        Assert.Null(response.Error);
+        var items = response.Batch!.Operations;
+        Assert.Equal(new[] { "succeeded", "failed", "skipped" }, items.Select(item => item.Status));
+        Assert.Null(items[0].Failure);
+        var failure = items[1].Failure!;
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, failure.Category);
+        var siemens = failure.EngineeringError!;
+        Assert.Equal("EngineeringTargetInvocationException", siemens.Type);
+        Assert.Equal("scripted rejection", siemens.Message);
+        var inner = Assert.Single(siemens.Inner);
+        Assert.Equal(("InvalidOperationException", "scripted cause"), (inner.Type, inner.Message));
+    }
+
+    [Fact]
+    public async Task HostSideGuardRejection_CarriesNoEngineeringError()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+
+        var result = await fixture.RunRawAsync(false, CreateTag("a", "First", table: "No such table"));
+
+        Assert.DoesNotContain("engineeringError", ((JsonElement)result.StructuredContent!).GetRawText());
+    }
+
+    [Fact]
     public async Task BindingIdentityChange_PreventsDispatch()
     {
         using var audit = new TempAuditDirectory();

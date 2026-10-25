@@ -39,6 +39,13 @@ public static class WorkerFailureCategories
     /// <summary>The worker responded, but the operation itself failed for a reason not covered by another category.</summary>
     public const string WorkerOperationFailed = "worker_operation_failed";
 
+    /// <summary>
+    /// TIA Portal itself rejected a mutation (an <c>EngineeringTargetInvocationException</c> during a write method).
+    /// The attempt reached Siemens, so it is not a precondition refusal; the Siemens text rides on
+    /// <see cref="WorkerResponse.EngineeringError"/>. Read methods never use this category.
+    /// </summary>
+    public const string EngineeringRejected = "engineering_rejected";
+
     /// <summary>The worker did not respond within the request timeout. The operation outcome is unknown; never retried automatically.</summary>
     public const string WorkerTimeout = "worker_timeout";
 
@@ -103,6 +110,7 @@ public static class WorkerFailureCategories
         TargetKindUnsupported,
         UnsupportedCapability,
         WorkerOperationFailed,
+        EngineeringRejected,
         WorkerTimeout,
         WorkerCrashed,
         PostconditionFailed,

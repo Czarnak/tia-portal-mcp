@@ -184,8 +184,11 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
         return Task.FromResult(item.FailWith is null
             ? WorkerCallResult.Ok("{\"done\":true}")
-            : WorkerCallResult.Fail(item.FailWith, $"{item.OperationId} failed."));
+            : WorkerCallResult.Fail(item.FailWith, $"{item.OperationId} failed.") with { EngineeringError = FailureEngineeringError });
     }
+
+    /// <summary>Siemens evidence the worker attached to a scripted failure; the domain's own projection ignores it.</summary>
+    public EngineeringErrorInfo? FailureEngineeringError { get; set; }
 
     public StructuredOperationItem Project(FakeWriteItem item, WorkerCallResult result)
     {

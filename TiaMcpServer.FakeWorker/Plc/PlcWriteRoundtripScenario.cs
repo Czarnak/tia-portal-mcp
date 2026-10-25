@@ -19,10 +19,13 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// <c>incompleteAfterWrite</c> does the same once any write succeeded (late block, failed verification);
 /// <c>driftAtImport</c> edits block content just before an import checks its hash (a TIA UI edit);
 /// <c>skippedBlock</c> makes the tree walker report an unreadable block under PLC_1's program blocks.
+/// Creating the tag <c>RejectedByPortal</c> fails as Portal's own rejection (<c>engineering_rejected</c> with Siemens evidence).
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
     bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false)
 {
+    private const string RejectedTagName = "RejectedByPortal";
+
     private static readonly StringComparer Names = StringComparer.OrdinalIgnoreCase;
 
     private sealed class Group(string name, bool isSystem = false)
@@ -66,7 +69,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 FinalReadStage = "not_started", ContentRelation = "unknown",
                 TemporarySourceState = request.Format == SourceFormatNames.Source ? "not_created" : "not_applicable",
             };
-            return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message, BlockImportOutcome = notStarted }, WorkerJson.Envelope);
+            return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message, BlockImportOutcome = notStarted, EngineeringError = ex.EngineeringError }, WorkerJson.Envelope);
         }
     }
 
@@ -304,6 +307,15 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 plc.Tables.Remove(Require(table, "tag table"));
                 break;
             case "create_tag":
+                if (request.Name == RejectedTagName)
+                    throw new WorkerOperationException(WorkerFailureCategories.EngineeringRejected,
+                        "TIA Portal rejected the operation: scripted rejection",
+                        engineeringError: new EngineeringErrorInfo
+                        {
+                            Type = "EngineeringTargetInvocationException",
+                            Message = "scripted rejection",
+                            Inner = { new EngineeringInnerErrorInfo { Type = "InvalidOperationException", Message = "scripted cause" } },
+                        });
                 Require(table, "tag table").Tags.Add(new TagInfo { Name = request.Name!, DataType = request.DataType!, LogicalAddress = request.LogicalAddress ?? string.Empty,
                     ExternalAccessible = true, ExternalVisible = true, ExternalWritable = true });
                 break;

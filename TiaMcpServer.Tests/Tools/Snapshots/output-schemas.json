@@ -776,6 +776,35 @@
                   }
                 },
                 "default": null
+              },
+              "engineeringError": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "inner": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "default": null
               }
             },
             "required": [
@@ -946,6 +975,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/result/properties/failure/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/result/properties/failure/properties/engineeringError",
                 "default": null
               }
             },
@@ -1150,6 +1183,37 @@
               },
               "temporarySourceState": {
                 "type": "string"
+              }
+            },
+            "default": null,
+            "additionalProperties": false
+          },
+          "engineeringError": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "inner": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
               }
             },
             "default": null,
@@ -2157,6 +2221,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/error/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/error/properties/engineeringError",
                 "default": null
               }
             },
@@ -3224,6 +3292,35 @@
                   }
                 },
                 "default": null
+              },
+              "engineeringError": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "inner": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "default": null
               }
             },
             "required": [
@@ -3394,6 +3491,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/result/properties/failure/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/result/properties/failure/properties/engineeringError",
                 "default": null
               }
             },
@@ -3598,6 +3699,35 @@
               }
             },
             "default": null
+          },
+          "engineeringError": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "inner": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "default": null
           }
         },
         "required": [
@@ -3664,6 +3794,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/error/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/error/properties/engineeringError",
                 "default": null
               }
             },
@@ -4531,6 +4665,35 @@
                   }
                 },
                 "default": null
+              },
+              "engineeringError": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "inner": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "default": null
               }
             },
             "required": [
@@ -4701,6 +4864,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/result/properties/failure/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/result/properties/failure/properties/engineeringError",
                 "default": null
               }
             },
@@ -4905,6 +5072,37 @@
               },
               "temporarySourceState": {
                 "type": "string"
+              }
+            },
+            "default": null,
+            "additionalProperties": false
+          },
+          "engineeringError": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "inner": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
               }
             },
             "default": null,
@@ -5323,6 +5521,10 @@
               "blockImportOutcome": {
                 "$ref": "#/properties/error/properties/blockImportOutcome",
                 "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/error/properties/engineeringError",
+                "default": null
               }
             },
             "required": [
@@ -5625,6 +5827,35 @@
                         },
                         "temporarySourceState": {
                           "type": "string"
+                        }
+                      },
+                      "default": null
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
                         }
                       },
                       "default": null
@@ -6257,6 +6488,37 @@
                       },
                       "default": null,
                       "additionalProperties": false
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "default": null,
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -6737,6 +6999,35 @@
                         },
                         "temporarySourceState": {
                           "type": "string"
+                        }
+                      },
+                      "default": null
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
                         }
                       },
                       "default": null
@@ -7467,6 +7758,37 @@
                         },
                         "temporarySourceState": {
                           "type": "string"
+                        }
+                      },
+                      "default": null,
+                      "additionalProperties": false
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "default": null,
@@ -8731,6 +9053,35 @@
                   }
                 },
                 "default": null
+              },
+              "engineeringError": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "inner": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "default": null
               }
             },
             "required": [
@@ -8901,6 +9252,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/result/properties/failure/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/result/properties/failure/properties/engineeringError",
                 "default": null
               }
             },
@@ -9176,6 +9531,35 @@
                         },
                         "temporarySourceState": {
                           "type": "string"
+                        }
+                      },
+                      "default": null
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
                         }
                       },
                       "default": null
@@ -9961,6 +10345,37 @@
                       },
                       "default": null,
                       "additionalProperties": false
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "default": null,
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -10377,6 +10792,35 @@
               }
             },
             "default": null
+          },
+          "engineeringError": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "inner": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "default": null
           }
         },
         "required": [
@@ -10598,6 +11042,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/error/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/error/properties/engineeringError",
                 "default": null
               }
             },
@@ -11465,6 +11913,35 @@
                   }
                 },
                 "default": null
+              },
+              "engineeringError": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "inner": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "default": null
               }
             },
             "required": [
@@ -11635,6 +12112,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/result/properties/failure/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/result/properties/failure/properties/engineeringError",
                 "default": null
               }
             },
@@ -12479,6 +12960,35 @@
                   }
                 },
                 "default": null
+              },
+              "engineeringError": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "inner": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "default": null
               }
             },
             "required": [
@@ -12649,6 +13159,10 @@
               },
               "blockImportOutcome": {
                 "$ref": "#/properties/result/properties/failure/properties/blockImportOutcome",
+                "default": null
+              },
+              "engineeringError": {
+                "$ref": "#/properties/result/properties/failure/properties/engineeringError",
                 "default": null
               }
             },
@@ -12929,6 +13443,37 @@
                         },
                         "temporarySourceState": {
                           "type": "string"
+                        }
+                      },
+                      "default": null,
+                      "additionalProperties": false
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "default": null,
@@ -13478,6 +14023,37 @@
                         },
                         "temporarySourceState": {
                           "type": "string"
+                        }
+                      },
+                      "default": null,
+                      "additionalProperties": false
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "default": null,
