@@ -1,6 +1,7 @@
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
@@ -77,8 +78,10 @@ public class NetworkToolsTests
         OpennessWorkerClient? client,
         NetworkOperationRequest[] operations)
     {
+        using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
+        var executor = NetworkReadTestFactory.Create(client!, protector);
         var task = RequiredToolMethod("NetworkReadTools", "NetworkRead")
-            .Invoke(null, new object?[] { client, operations, CancellationToken.None }) as Task<CallToolResult>;
+            .Invoke(null, new object?[] { client, executor, operations, CancellationToken.None }) as Task<CallToolResult>;
         Assert.NotNull(task);
         return await task!;
     }
