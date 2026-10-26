@@ -267,4 +267,6 @@ Tests and test support: `TiaMcpServer.Tests` 260 removed / 546 added (plus 576 a
 
 Final default test count: 7711 passed, 0 failed (`dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`).
 
+Builds: the stub build and the full-solution build against the installed TIA V21 assemblies both end with 0 errors and 8 warnings. Seven of the eight (Hmi tests, `NetworkObjectSelectorResolver.cs:548/569`) also appear when the base `534937a` is built with stubs; the eighth, a nullable dereference at `PlcWorkingStateTests.cs:468`, was introduced by Task 3 (`7a483ac`) and is left open.
+
 Controller rulings (R1-R11) are listed in the SDD ledger and will be carried into the Task 7 report.
