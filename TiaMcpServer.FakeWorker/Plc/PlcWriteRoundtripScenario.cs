@@ -22,6 +22,7 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// <c>skippedBlock</c> makes the tree walker report an unreadable block under PLC_1's program blocks.
 /// Creating the tag <c>RejectedByPortal</c>, or a block, block group or tag table whose name is taken, fails as Portal's own
 /// rejection (<c>engineering_rejected</c> with Siemens evidence): the worker no longer pre-checks those names.
+/// Creating a tag whose name the table already holds returns the live-captured Siemens document verbatim.
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
     bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false, bool exportLostAfterWrite = false)
@@ -304,6 +305,14 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 Inner = { new EngineeringInnerErrorInfo { Type = "InvalidOperationException", Message = "scripted cause" } },
             });
 
+    /// <summary>Portal's create_tag collision as captured live (TIA Portal V21, English UI, 2026-10-26).</summary>
+    internal const string LiveTagCollisionMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.SW.Tags.PlcTagComposition'."
+        + "\r\n\r\nAn attempt was made to create an object that already exists.";
+
+    private static WorkerOperationException LiveTagCollision()
+        => new(WorkerFailureCategories.EngineeringRejected, "TIA Portal rejected the operation: " + LiveTagCollisionMessage,
+            engineeringError: new EngineeringErrorInfo { Type = "EngineeringTargetInvocationException", Message = LiveTagCollisionMessage });
+
     private string TagWrite(WorkerRequest request)
     {
         var plc = FindPlc(request.PlcName);
@@ -320,7 +329,8 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 break;
             case "create_tag":
                 if (request.Name == RejectedTagName) throw PortalRejection("scripted rejection");
-                Require(table, "tag table").Tags.Add(new TagInfo { Name = request.Name!, DataType = request.DataType!, LogicalAddress = request.LogicalAddress ?? string.Empty,
+                if (Require(table, "tag table").Tags.Any(t => Names.Equals(t.Name, request.Name))) throw LiveTagCollision();
+                table!.Tags.Add(new TagInfo { Name = request.Name!, DataType = request.DataType!, LogicalAddress = request.LogicalAddress ?? string.Empty,
                     ExternalAccessible = true, ExternalVisible = true, ExternalWritable = true });
                 break;
             case "update_tag":

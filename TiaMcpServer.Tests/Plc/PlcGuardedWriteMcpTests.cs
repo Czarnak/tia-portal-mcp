@@ -157,6 +157,84 @@ public sealed class PlcGuardedWriteMcpTests
         Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
 
+    // Captured live (Task 6, L1/L10: TIA Portal V21, English UI); the FakeWorker replays it verbatim.
+    private const string LiveTagCollisionMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.SW.Tags.PlcTagComposition'."
+        + "\r\n\r\nAn attempt was made to create an object that already exists.";
+
+    private static object CreateTag(string id, string name)
+        => new { operationId = id, operation = "create_tag", plcName = "PLC_2", tableName = "Default tag table", name, dataType = "Bool" };
+
+    private static void AssertLiveTagCollision(JsonElement item)
+    {
+        Assert.Equal("failed", item.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("result").ValueKind);
+        var failure = item.GetProperty("failure");
+        Assert.Equal("engineering_rejected", failure.GetProperty("category").GetString());
+        Assert.Equal("TIA Portal rejected the operation: " + LiveTagCollisionMessage, failure.GetProperty("message").GetString());
+        var error = failure.GetProperty("engineeringError");
+        Assert.Equal(new[] { "inner", "message", "type" }, error.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal("EngineeringTargetInvocationException", error.GetProperty("type").GetString());
+        Assert.Equal(LiveTagCollisionMessage, error.GetProperty("message").GetString());
+        Assert.Empty(error.GetProperty("inner").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task LiveL1_CreateTagWithExistingName_IsEngineeringRejectedWithCapturedDocument()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
+
+        var reply = await harness.Client.CallToolAsync("plc_write",
+            new Dictionary<string, object?> { ["operations"] = new[] { CreateTag("l1-01", "Start") } });
+
+        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.False(reply.IsError == true);
+        Assert.Equal("applied", root.GetProperty("phase").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        var item = Assert.Single(root.GetProperty("batch").GetProperty("operations").EnumerateArray());
+        AssertLiveTagCollision(item);
+        Assert.Empty(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
+        Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean());
+        Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
+    [Fact]
+    public async Task LiveL10_SecondItemCollides_FirstAppliedSecondRejectedThirdSkipped()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
+
+        var reply = await harness.Client.CallToolAsync("plc_write", new Dictionary<string, object?>
+        {
+            ["operations"] = new[] { CreateTag("l10-01", "L10Tag1"), CreateTag("l10-02", "Start"), CreateTag("l10-03", "L10Tag3") },
+        });
+
+        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.False(reply.IsError == true);
+        Assert.Equal("applied", root.GetProperty("phase").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        var batch = root.GetProperty("batch");
+        var counts = batch.GetProperty("counts");
+        Assert.Equal((1, 1, 1, 0), (counts.GetProperty("succeeded").GetInt32(), counts.GetProperty("failed").GetInt32(),
+            counts.GetProperty("skipped").GetInt32(), counts.GetProperty("omitted").GetInt32()));
+        var items = batch.GetProperty("operations").EnumerateArray().ToArray();
+        Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
+        Assert.Equal("L10Tag1", items[0].GetProperty("result").GetProperty("tagName").GetString());
+        AssertLiveTagCollision(items[1]);
+        Assert.Equal("skipped", items[2].GetProperty("status").GetString());
+        Assert.Equal("earlierOperationFailed", items[2].GetProperty("skipReason").GetString());
+        var guard = Assert.Single(root.GetProperty("guards").EnumerateArray());
+        Assert.Equal(("partial_write_no_rollback", "info", "l10-02"), (guard.GetProperty("id").GetString(),
+            guard.GetProperty("severity").GetString(), guard.GetProperty("operationId").GetString()));
+        var check = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
+        Assert.Equal(("l10-01", "trusted"), (check.GetProperty("operationId").GetString(), check.GetProperty("check").GetString()));
+        Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
     [Fact]
     public async Task ObEventClassSchemaEnumListsClassesAndNull()
     {

@@ -465,7 +465,7 @@ public class PlcWorkingStateTests
             update);
 
         Assert.Equal(("PLC_1/Units/Unit_A/Blocks/Sub/FC_New", "PLC_1/Units/Unit_A/Blocks/Sub"),
-            (results[0].Resolution.Effect!.Target.BlockPath, results[0].Resolution.Effect.Placement));
+            (results[0].Resolution.Effect!.Target.BlockPath, results[0].Resolution.Effect!.Placement));
         Assert.Equal("PLC_1/Blocks/Motors", results[1].Resolution.Effect!.Placement);
         Assert.Equal("group", results[2].DependsOn);
         Assert.Equal("PLC_1/Blocks/Motors/FB_Motor", results[3].Resolution.Effect!.Target.BlockPath);
