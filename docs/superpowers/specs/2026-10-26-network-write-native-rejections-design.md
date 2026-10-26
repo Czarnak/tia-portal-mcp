@@ -91,7 +91,8 @@ Maintainer decisions taken in the design discussion on 2026-10-26:
   payload members write explicit nulls and decode through the worker-payload reader; null-policy
   changes update `WorkerPayloadNullPolicyRegisterTests`.
 - Tests link host sources by file: a new `Safety/Pipeline` file is picked up by the glob; a new or
-  renamed `Network/` file must be added to `TiaMcpServer.Tests.csproj`.
+  renamed `Network/` file must be added to `TiaMcpServer.Tests.csproj`, and the explicit rows for
+  the deleted `PlcWriteVerifier.cs` and `NetworkWriteVerifier.cs` must be removed from it.
 - Build with `-m:1`; run `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"` after each
   task; packaging tests only if a product `.csproj` changes.
 - Commit after each task with a short one-line message; push only to this branch.
@@ -160,11 +161,25 @@ and reason about across the four write tools, with HMI and VCI as named follow-u
   the existing `HmiWriteOutcome`/`VciWriteOutcome` pattern and is registered as a conditional
   member: "present only when a `configure_network_device` item was rejected after at least zero
   settings were applied".
+- **`portal_lost` keeps precedence over the wrap site.** The configurator now throws
+  `WorkerOperationException`, which `WorkerExecution.Execute` does not catch today (it catches only
+  `EngineeringException`, `NonRecoverableException`, `InvalidOperationException` and `IOException`),
+  so the exception would land in `Program`'s generic `WorkerOperationException` catch and bypass the
+  B-16/Q3 disposal check: a Portal closed mid-item would surface as `worker_operation_failed` with
+  an `engineeringError` and leave the binding verified. `WorkerExecution.Execute` therefore gains one
+  more catch: a `WorkerOperationException` that carries an `EngineeringError` is re-checked against
+  the disposal revision captured at entry; if the revision moved, the response is `portal_lost`
+  (the partial outcome stays on it as evidence for the caller's inspect step); otherwise the
+  exception is rethrown unchanged and `Program` produces the typed failure as before. The rule stays
+  in one place, every future wrap site (the content-importer follow-up included) inherits it
+  without carrying disposal knowledge, and AGENTS.md's "`portal_lost` wins over both" stays true.
+  `WorkerExecutionTests` pins both branches.
 - **Host projection.** `NetworkPayloadContract.Project` builds a failed configure item as
   `status: failed`, `result` decoded from the outcome (`deviceName`, `appliedSettings`, `messages`),
   `failure {category, message, engineeringError}`; the shared `WriteRun.WithEngineeringError`
-  already copies the member. A failed item of any other Network operation has `result: null` as
-  today.
+  already copies the member. A partial outcome whose applied keys are not a subset of the request
+  is `protocol_error`, following the `HmiWritePayloadContract` precedent. A failed item of any other
+  Network operation has `result: null` as today.
 - **Pre-flight failures inside the worker stay typed refusals.** A requested IO-system attach on an
   interface with no IO connector fails `target_not_found` before the first setter (today it is a
   skip). The "requested subnet was not connected, so IO was skipped" case cannot occur: a failed
@@ -374,6 +389,8 @@ write, by maintainer decision at that point, as PLC R14 did. The default is that
 
 ### 6.9 Documentation (last, from evidence)
 
+- `docs/SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md`: it documents `networkDeviceCount`
+  and the subnet verification checks, all of which leave the contract.
 - `docs/SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md`: the `network_write` section rewritten
   for 2.0 (phases unchanged, guards, stop-at-first inside configure, `appliedSettings` on failure,
   `engineering_rejected` with one captured example, `trusted`/`superseded`, the three-outcome table
@@ -403,7 +420,9 @@ write, by maintainer decision at that point, as PLC R14 did. The default is that
   `NetworkMutationVerificationTests` (409), `NetworkGuardedWriteBudgetTests` (660) and the
   FakeWorker scenarios need to be rewritten against 2.0; which assertions survive is the builder's
   call, with the rule that every retired behavior gets a test proving its absence (for example, one
-  hardware read per call, no second read before item two).
+  hardware read per call, no second read before item two). `NetworkDeviceCreatorWorkerContractTests`
+  asserts on the configurator's source text (`IoSystemSkipReason(`) and is rewritten when that skip
+  path goes.
 - The order of the N2 items and the exact disposable project.
 
 ## 8. Risks and how the design handles them
