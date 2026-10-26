@@ -419,7 +419,7 @@ execution. This uses cached event evidence, without native liveness calls or
 message matching. Deliberate detach, stale callbacks and earlier disposal do not
 qualify. For a mutation worker method (`ProjectMutation` in `OperationPolicyCatalog`, passed to
 `WorkerExecution.Execute` as `mutates`), an `EngineeringTargetInvocationException` maps to
-`engineering_rejected`; any other engineering error, and a target-invocation error from a read
+`engineering_rejected`; the flag spans the entire method, including connection, identity and target checks before a native write. It does not prove a setter or create was reached. Any other engineering error, and a target-invocation error from a read
 method, remains `worker_operation_failed`. Both carry `WorkerResponse.EngineeringError`
 (`EngineeringErrorInfo`: type, verbatim message, inner chain). `portal_lost` is decided first and
 carries no engineering error.
@@ -1064,7 +1064,7 @@ rename to a colliding name, so `TagMutationService.UpdateTag` applies the rename
 Verification (`PlcWriteVerifier`, contract `2.0`) reads back content only: `contentHash` for a
 content item (one re-export, whose hash cannot be predicted because the export carries a generated
 id), `trusted` for every other completed item, and `superseded` for an item a later item changed
-again; a failed non-content item has no entry. The conservative supersede rule treats an unresolved
+again or may have changed after an attempted failure; a failed non-content item has no entry and leaves final state unverified, requiring `plc_read`. The conservative supersede rule treats an unresolved
 `PLC/Name` content target as owned by any later same-name block item or any later group delete on
 that PLC.
 
@@ -1076,7 +1076,7 @@ cannot be written. A content preview may include a bounded `contentDiff` (40 exc
 8,192 characters per side, 32,768 characters per call).
 
 Later items may use objects created earlier in the same call; such items carry `DependsOn` and are
-re-planned just before their own mutation (independent items replan as a no-op). `PlcWritePayloadBudget`
+re-planned just before their own mutation; the runner does not re-plan independent items. `PlcWritePayloadBudget`
 applies the configured value and document budgets (60,000/180,000 by default) and omits whole values.
 Worker resolution uses `PlcSoftwareLocator.FindUnique`, which considers every PLC including grouped
 devices and fails `target_ambiguous` on several matches; the shared target resolvers make

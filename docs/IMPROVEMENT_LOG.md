@@ -263,9 +263,9 @@ and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-
 - **`plc_ob_singleton_exists` is retained, not proven redundant.** Portal's own response to a duplicate
   singleton OB was never observed because no `plc_write` input reaches it. Retiring the guard needs a
   probe outside `plc_write` (a direct Openness or TIA Scripting import of a second OB 80).
-- **Cross-folder duplicate tag tables** were never tested live: `plc_write` cannot create tag-table
-  folders.
-- **`update_tag` partial application.** An unsupported external-access flag fails mid-update, after a
+- **Namespace coverage remains scoped.** Additional probes cover cross-table tag creation, a constant against an existing tag, a tag against an FC and child-folder tag-table creation against an existing root-table name. Cross-group block duplicates, the reverse cross-kind directions and arbitrary pairs of child
+  folders remain unverified; do not generalize those four rejection cases.
+- **`update_tag` partial application (review finding, not exercised live).** An unsupported external-access flag can fail mid-update, after a
   rename or data-type change in the same item has applied. The rename read-back compares ordinally; if
   Portal ever normalised the case of a requested name, a case-only rename would fail
   `postcondition_failed`.
@@ -278,8 +278,8 @@ and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-
   `EngineeringObjectDisposedException` row and host-side absence of `engineeringError` is asserted
   only for one rejection kind.
 - **Short-path block key.** The "undetermined" block key in `PlcWriteVerifier` is a path-shape
-  heuristic (two segments) tied to `PlannedPath`; add a comment, and move the no-op replan test to
-  `PlcGuardedWriteDomainTests`.
+  heuristic (two segments) tied to `PlannedPath`; the conservative rule is documented in code.
+  The unreachable independent-item replan cache and its direct no-op test were removed at closeout.
 - **Post-write `contentHash` is not reproducible from content** (the export carries a generated id).
   Documented; callers take it from the verification or a fresh `plc_read`. Making it deterministic
   would need the sanitizer to cover the generated id.
@@ -445,9 +445,9 @@ the suite becomes a problem again.
 ## Completed: plc_write native rejections (2026-10-26)
 
 [Plan](superpowers/plans/2026-10-25-plc-write-native-rejections.md), [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
-`plc_write` stopped re-implementing TIA Portal's own rejections: Portal rejects collisions, existing
-targets and the default-table delete, and the item fails `engineering_rejected` with a verbatim
-`engineeringError`. Write contract `2.0`; `plc_read` stays `1.0`.
+`plc_write` stopped pre-checking create collisions; the recorded duplicate tag/table/block/group
+cases, four additional namespace directions and default-table delete failed `engineering_rejected` with a bounded
+`engineeringError`. Write contract `2.0`; `plc_read` stays `1.0`. Final fix `e7803a4` clarifies uncertainty after a failed later non-content item, removes unreachable independent-item replan storage and narrows tool claims; the final default suite passed 7717 tests with 7 pre-existing warnings. Its host changes are offline-qualified; the added native probes used installed `7445c5f`, whose worker code is unchanged.
 
 - **Removed** (`534937a..7445c5f`, production files): 492 lines removed, 280 added. Largest:
   worker `PlcWritePreconditions.cs` -209/+8, `PlcWriteVerifier.cs` -101/+37, `PlcWorkingState.cs`

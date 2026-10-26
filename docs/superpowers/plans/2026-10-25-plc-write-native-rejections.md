@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Implemented and live-verified on 2026-10-26 (Tasks 0-7 done; branch `refactor/plc-write-native-rejections`, unmerged and unpushed). Singleton-OB guard retained (R13); a live finding on colliding `update_tag` renames was fixed with a read-back (R14). See the [live verification report](../acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md); Network, HMI and VCI adoption stays open in the [improvement log](../../IMPROVEMENT_LOG.md#open-plc_write-native-rejections-follow-ups-2026-10-26). Original status: draft approved in discussion on 2026-10-25, with the three scope decisions below and documentation as the last task.
+**Status:** Implemented and live-verified on 2026-10-26 (Tasks 0-7 done; branch `refactor/plc-write-native-rejections`, unmerged). Singleton-OB guard retained (R13); a live finding on colliding `update_tag` renames was fixed with a read-back (R14). See the [live verification report](../acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md); Network, HMI and VCI adoption stays open in the [improvement log](../../IMPROVEMENT_LOG.md#open-plc_write-native-rejections-follow-ups-2026-10-26). Original status: draft approved in discussion on 2026-10-25, with the three scope decisions below and documentation as the last task.
 
 **Goal:** Stop re-implementing TIA Portal's own rejections in `plc_write`. Let Openness reject name collisions, existing targets and protected objects, and surface each native rejection as a typed, verbatim engineering error in the canonical document. Keep the guards and checks that Openness cannot provide: delete consequences, address overlap and optimistic content concurrency.
 
@@ -232,7 +232,7 @@ Each follow-up plan records: its own baseline timing, the guards retired with th
 
 ## Execution record
 
-Line counts for `534937a..7445c5f`, the last code commit (`git diff --numstat`), removed / added. The first version of this record was taken at `828dfa6` and predated the rename read-back and the Task 6 fixtures.
+Line counts for `534937a..7445c5f`, the final Task 6 code commit (`git diff --numstat`), removed / added. The first version of this record was taken at `828dfa6` and predated the rename read-back and the Task 6 fixtures.
 
 Production files (total 492 removed, 280 added):
 
@@ -265,11 +265,11 @@ Tests and test support: `TiaMcpServer.Tests` 258 removed / 658 added (plus 576 a
 
 `RequireReadableValue`: kept for `update_user_constant`, because its planned effect reports the value it replaces and verification needs it; removed for `delete_user_constant`.
 
-Final default test count: 7711 passed, 0 failed (`dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`).
+Intermediate Task 5 default test count: 7711 passed, 0 failed (`dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`).
 
-Builds: the stub build and the full-solution build against the installed TIA V21 assemblies both end with 0 errors and 8 warnings. Seven of the eight (Hmi tests, `NetworkObjectSelectorResolver.cs:548/569`) also appear when the base `534937a` is built with stubs; the eighth, a nullable dereference at `PlcWorkingStateTests.cs:468`, was introduced by Task 3 (`7a483ac`) and is left open.
+Intermediate Task 5 builds: the stub build and full-solution build against installed TIA V21 assemblies ended with 0 errors and 8 warnings. Seven also occur on base `534937a`; the eighth, `PlcWorkingStateTests.cs:468`, was fixed by Task 6 (`bac9121`). The final pre-closeout default suite at `7445c5f` passed 7715 tests with 0 failures; the final stub build had 0 errors and 7 pre-existing warnings.
 
-Controller rulings (R1-R11) are listed in the SDD ledger and will be carried into the Task 7 report.
+Controller rulings are retained in the SDD ledger and acceptance report. Final fix `e7803a4` passed 7717 default tests (0 failures/skips, 7 pre-existing warnings); 52 focused tests passed after the three expected red regression cases. The redundant independent-item replan cache/test was removed and failed-later-item verification wording corrected. Additional installed-candidate C1-C4 probes rejected the exact documented namespace directions; observed inventories/tree were restored without saving. The new host fixes have offline evidence only; see the linked acceptance report and its inputs.
 
 L6 decision: plc_ob_singleton_exists kept (R13). Live, the tool offered no route to Portal with a duplicate singleton OB (`create_block` picks the number; an `update_block_logic` that declares one is refused before import), so Portal's own rejection was never observed.
 

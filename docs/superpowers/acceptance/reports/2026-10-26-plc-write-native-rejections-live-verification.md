@@ -1,6 +1,6 @@
 # plc_write native rejections live verification
 
-Date: 2026-10-26. Verdict: **PASS for the executed installed-candidate scope on a disposable standalone project copy**, with two deviations (L2 same-folder only, L6 not reachable) and one live defect (L7) that was fixed and re-verified.
+Date: 2026-10-26. Verdict: **PASS for the executed installed-candidate scope on a disposable standalone project copy**, with initial deviations (L2 same-folder only, L6 not reachable) and one live defect (L7) that was fixed and re-verified.
 Branch `refactor/plc-write-native-rejections`, plan: [PLC write native rejections plan](../../plans/2026-10-25-plc-write-native-rejections.md).
 Nothing here is plant, hardware or online-PLC evidence, and nothing was saved: the project copy was bound with `bind_project` and never saved or closed.
 
@@ -11,8 +11,9 @@ Nothing here is plant, hardware or online-PLC evidence, and nothing was saved: t
 | Baseline | `4.2.0-local.33.g02ffe5a` | `main` at `02ffe5a`, the branch base | Timing before the change |
 | 6a | `4.2.0-local.44.g7c9cf92` | Task 5 qualified candidate | L1-L11, timing Sets A and B |
 | 6c | `4.2.0-local.48.g7445c5f` | `7445c5f` (adds the rename read-back and fixtures) | L7 re-run, hash probe, L1 regression, timing Set C |
+| Final collision probes | `4.2.0-local.48.g7445c5f` | Worker mutation code unchanged through `20f512f`; `e7803a4` changes host code only | C1-C4 namespace directions and scoped cleanup |
 
-All runs: `--access-mode full` (audit `accessMode:"full"`), `contractVersion:"2.0"` confirmed on the first `plc_write` of 6a and 6c, Claude Code as the MCP client, TIA Portal V21, Portal UI language English. The project is a disposable copy, recorded as `<disposable-copy>`; the target was `PLC_1`.
+Initial timing/L-case runs: `--access-mode full` (audit `accessMode:"full"`), `contractVersion:"2.0"` confirmed on the first `plc_write` of 6a and 6c, Claude Code as the MCP client, TIA Portal V21, Portal UI language English. The project is a disposable copy, recorded as `<disposable-copy>`; the target was `PLC_1`.
 
 Measured project size: `PLC_1` (S7-1500) holds 1 block (`Main`, OB1), 2 tag tables (`Default tag table` and one table whose name contains a slash), 2 tags and 0 user constants. The project has 4 PLC software objects and 111 top-level tree nodes (about 100 devices); the other three PLCs were counted at folder level only (1 to 11 direct children in the program-blocks folder, 1 to 6 tables), because their tag totals would flood the response budget. The measured PLC is the small one, so the fixed cost in the timing is not a large-table effect.
 
@@ -20,13 +21,17 @@ Measured project size: `PLC_1` (S7-1500) holds 1 block (`Main`, OB1), 2 tag tabl
 
 - Default suite `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`: 7715 passed, 0 failed at `7445c5f`.
 - Stub build: 0 errors, 7 warnings, all present on the base `534937a` (a nullable warning introduced mid-branch was fixed in `bac9121`). The full-solution build against the installed TIA V21 assemblies also ended with 0 errors in Task 5, with the same warnings.
-- Production diff `534937a..7445c5f` (the last code commit): 492 lines removed, 280 added (largest: worker `PlcWritePreconditions.cs` -209/+8, `PlcWriteVerifier.cs` -101/+37, `PlcWorkingState.cs` -74/+64, `PlcNameRules.cs` -34/+2). Tests: -258/+658 lines (FakeWorker -7/+38) plus +576 lines in the regenerated `output-schemas.json` snapshot.
+- Production diff `534937a..7445c5f` (the final Task 6 code commit): 492 lines removed, 280 added (largest: worker `PlcWritePreconditions.cs` -209/+8, `PlcWriteVerifier.cs` -101/+37, `PlcWorkingState.cs` -74/+64, `PlcNameRules.cs` -34/+2). Tests: -258/+658 lines (FakeWorker -7/+38) plus +576 lines in the regenerated `output-schemas.json` snapshot.
 - Packaging tests were not run: no product `.csproj`, `Directory.Build.props`, `global.json` or `reference-stubs/` file changed.
 - Fourteen CLI startup tests (`RemovedOptionTests`, `WorkerTimeoutStartupTests`) failed once under parallel load and passed on rerun. They have no `[Collection]` and the flakiness predates the branch.
 
+## Final fix offline gate
+
+Final fix `e7803a4` passed `dotnet test TiaMcpServer.Tests --no-restore --filter "Category!=Packaging" -m:1`: 7717 passed, 0 failed, 0 skipped, with 7 pre-existing warnings. The focused verifier/planner/domain tests passed 52; the regression first failed in the three expected cases. This qualifies the host superseding-message/cache changes offline. The final live probes below used the installed `7445c5f` candidate and unchanged worker mutation paths; they do not establish live acceptance of the new host changes. A fresh controller-run `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true --no-restore` also passed with 0 errors and 7 warnings (39.20 s). No suite was repeated for documentation-only closeout.
+
 ## What the live run established
 
-### Native rejections (L1-L11, build `g7c9cf92`)
+### L1-L11 matrix (native rejections: L1-L5 and L10, build `g7c9cf92`)
 
 | Case | Verdict | Result |
 | --- | --- | --- |
@@ -61,6 +66,21 @@ The hash cannot be computed from the submitted content: four identical `update_b
 ### L1 regression (build `g7445c5f`)
 
 `create_tag` of an existing name: identical to 6a, `engineering_rejected`, project unchanged.
+
+### Additional namespace probes (C1-C4, installed build `g7445c5f`)
+
+The user authorized the sole open disposable standalone project; the controller explicitly bound it and used `full` mode with write contract `2.0`. `PLC_A` and `PLC_B` are redacted PLC identities in the same project. The latter had an existing tag-table folder; no folder was created. Exact sanitized requests, canonical documents and restoration record: [collision namespace probes](inputs/2026-10-26-plc-write-collision-namespace-probes.md).
+
+| Case | Existing object and attempted create | Observed result |
+| --- | --- | --- |
+| C1 | Tag in table A; create same tag name in table B on `PLC_A` | `engineering_rejected`, `EngineeringTargetInvocationException`, `PlcTagComposition.Create` |
+| C2 | Tag in table A; create same name as a user constant in table B on `PLC_A` | `engineering_rejected`, `EngineeringTargetInvocationException`, `PlcUserConstantComposition.Create` |
+| C3 | FC in a temporary block group; create same name as a tag in table B on `PLC_A` | `engineering_rejected`, `EngineeringTargetInvocationException`, `PlcTagComposition.Create` |
+| C4 | Tag table at root; create same table name in an existing child folder on `PLC_B` | `engineering_rejected`, `EngineeringTargetInvocationException`, `PlcTagTableComposition.Create` |
+
+Each call returned `phase:"applied"`, `success:false`, `error:null` and a failed item carrying `engineeringError`; no silent create was observed. Post-probe reads showed the source tag unchanged, table B and the root fixture table empty, and the child-folder duplicate absent. The temporary FC remained readable; no before/after FC hash comparison was captured. These observations require no new create readback or host collision guard.
+
+Cleanup preview identified only three owned temporary tables (one tag, no constants) and one temporary group (one FC, no subgroups); all four cleanup items succeeded. Affected tag inventories equalled preflight as decoded JSON. A fresh depth-4 typed tree equalled preflight across 158 nodes, with no test-prefix objects. At the final observation the same project was open; `lastModified` was unchanged, but `isModified:true` recorded unsaved edit history. No save, close, download or PLC control occurred. This restores the observed scopes; it is not proof of every byte of in-memory state. Reverse directions, other object kinds, CPU models/versions and arbitrary folder layouts remain untested.
 
 ### Review-focus conditions
 
@@ -99,7 +119,7 @@ Set C against before:
 | T4 | -36% | +3% | -52% |
 | T5 | +6% | n/a | +6% |
 
-Reading: the planning-plus-verification remainder roughly halves for T1, T2 and T4 (-51 to -52%), which is where the removed tag inventory and project-tree reads and the post-write re-reads were. Item sums, which are Siemens time, stay within -9 to +3%. T3, the content path, is unchanged (remainder -7%, root +1%): its export, hash and diff stay. Root time falls 36% for T1 and T4 and 13% for T2, because T2 is dominated by ten sequential Siemens mutations. T5 (planning of ten creates) is flat. Run 3 was 10 to 20% slower than runs 1 and 2 on T2, T3 and T4 in the baseline and in Set C alike; medians absorb it. No claim of speed-up beyond Set C is made.
+Reading, Set C only: the planning-plus-verification remainder roughly halves for T1, T2 and T4 (-51 to -52%), consistent with removing reads from those paths; these timings do not isolate a cause. Item sums stay within -9 to +3%. T3 has remainder -7% and root +1%; its export, hash and diff remain in the implementation. Root time falls 36% for T1 and T4 and 13% for T2; T2 includes ten sequential mutations. T5 root rises 6%. Run 3 was 10 to 20% slower than runs 1 and 2 on T2, T3 and T4 in the baseline and in Set C alike; the table reports medians. Sets A and B provide context only and do not establish an unchanged T3 or a speed-up.
 
 Deviations from the protocol (Set C): the untimed T3 pre-read was done once, in the warm-up, and its hash (identical to the baseline) was reused (a stale hash would have returned `state_changed`; none did); the L7, hash-probe and L1 calls ran on the same worker immediately before, so the warm-up was not a cold start. In 6a Set A, T3 and T4 of run 1 were sent in one client batch; the host serialized them, so those figures are valid.
 
@@ -130,7 +150,8 @@ Rulings by the controller, in order. Each was provisional against the plan's "Ap
 
 ## Evidence limits
 
-- **L2** covered same-folder duplicates only: `plc_write` cannot create tag-table folders and the project has none.
+- **L2** initially covered same-folder duplicates only. The additional C4 probe covers child-folder creation against an existing root table in another PLC; arbitrary child-folder pairs remain unverified.
+- **Other namespaces** remain unverified beyond the four additional directions: cross-group block duplicates, reverse cross-kind creates and arbitrary namespace combinations are not covered.
 - **L6** was not reachable through `plc_write`: Portal's own response to a duplicate singleton OB is unknown, so the guard stays.
 - **Unsupported-flag failure.** An `update_tag` that requests an external-access flag the tag cannot take fails mid-update, after a rename or data-type change in the same item has applied (no rollback). It was identified in review, not exercised live.
 - **Create into a missing parent** group or tag-table folder now fails at mutation instead of in pre-flight; this and the `target_not_found` of a later delete of a never-placed object are offline-tested only.

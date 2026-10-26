@@ -221,9 +221,9 @@ failure schema.
 
 Guards are evaluated for every item before the first mutation. Block guards stop the call in every
 mode (a dry run lists them and still returns `preview`); info guards become warnings. Guards cover
-only what TIA Portal cannot tell the caller. Name collisions, existing blocks, existing groups and
-tables, and the default tag table are not guarded: planning does not check creates, and Portal
-rejects them at mutation (see [Failures from TIA Portal](#failures-from-tia-portal)).
+consequence and unreadable-evidence checks, plus the retained singleton-OB check. Name collisions, existing blocks, existing groups and
+tables, and the default tag table are not guarded: planning does not check creates. Scoped live cases show native
+rejections, with the exact namespace directions and limits below (see [Failures from TIA Portal](#failures-from-tia-portal)).
 
 | Guard | Severity | Fires when |
 |---|---|---|
@@ -250,9 +250,9 @@ on `update_tag` is no longer a guard; the request reaches Portal.
 When Portal itself rejects a mutation, the item fails with a typed category and the Openness
 exception, never a message parsed by the server:
 
-- `engineering_rejected`: the worker method was a mutation and Openness threw
+- `engineering_rejected`: the worker method was classified as a mutation and Openness threw
   `EngineeringTargetInvocationException` (a duplicate tag, table, block or group; a delete Portal
-  refuses). The failure carries `engineeringError`.
+  refuses). Classification covers the whole method, including connection, identity and target checks before a native write; it does not prove a setter or create was reached. The failure carries `engineeringError`.
 - `worker_operation_failed`: any other Siemens `EngineeringException`. It also carries
   `engineeringError` when the exception reached the worker's shared catch.
 - Reads never produce `engineering_rejected`. A Siemens exception during a planning read keeps its
@@ -294,10 +294,12 @@ is rejected, items before N are `applied`, item N is `engineering_rejected`, lat
 `skipped` with `earlierOperationFailed`, and nothing is rolled back. See the
 [live cases](../superpowers/acceptance/reports/inputs/2026-10-26-plc-write-native-rejections-live-cases.md).
 
+[Additional probes](../superpowers/acceptance/reports/inputs/2026-10-26-plc-write-collision-namespace-probes.md) demonstrated four more native rejection directions on one disposable project: creating a tag in a second table against an existing tag name, creating a user constant against that tag name, creating a tag against an existing FC name, and creating a table in an existing child folder against an existing root-table name. The reverse cross-kind directions, cross-group block duplicates and arbitrary folder layouts remain unverified. The source tag and empty tables were checked after the probes; the FC remained readable, without a before/after hash comparison. Cleanup restored the observed inventories and typed tree; unsaved edit history remained.
+
 Portal does not throw for every collision. A rename through `update_tag` to a name another tag in
 the table holds is silently ignored. The worker applies the rename first, reads `Name` back and, if
 Portal kept the old name, fails the item `postcondition_failed` before any other property is
-applied ("No other property was changed"). The unsupported-flag case is different: an
+applied ("No other property was changed"). Review identified a separate unsupported-flag risk, not exercised live: an
 `update_tag` that requests an external-access flag the tag cannot take fails mid-update, after a
 rename or data-type change in the same item has already applied; there is no rollback.
 
@@ -328,10 +330,10 @@ Verification (write contract `2.0`; `plc_read` stays `1.0`) reads back only cont
 - `contentHash`: a completed `update_block_logic`/`update_type_content` item is re-exported and its
   hash reported (`contentHash` and `actual`). A failed content item also reports the current hash,
   since a failed import may have committed.
-- `superseded`: an item whose object a later item changed again; the later item asserts the final
+- `superseded`: an item whose object a later item changed or may have changed; only a later completed item or content check provides final
   state. A short-path (`PLC/Name`) `update_block_logic` target is not resolved through the tree, so
   conservatively any later block item of the same name, or any `delete_block_group` on that PLC,
-  supersedes it, and it gets no content check.
+  supersedes it, and it gets no content check. If the later item failed without verification, final state is uncertain; inspect it with `plc_read`.
 - A failed non-content item has no verification entry (nothing to verify). Inspect the object with
   `plc_read` before retrying.
 
@@ -349,9 +351,9 @@ Take it from the verification or a fresh read.
   planning.
 - With an incomplete inventory, a selector miss is `plc_state_unverifiable` (block), not
   `target_not_found`.
-- Duplicate tag-table names were tested only within the same folder: `plc_write` cannot create
-  tag-table folders, so a cross-folder duplicate was not reachable.
-- An `update_tag` that requests an unsupported external-access flag can fail after a rename or
+- Duplicate tag-table names were tested within one folder and, in an additional probe, child-folder creation against an existing root name. `plc_write` cannot create
+  tag-table folders; arbitrary pairs of child folders were not exercised.
+- Review identified, without live exercise, that an `update_tag` requesting an unsupported external-access flag can fail after a rename or
   data-type change in the same item has applied (no rollback).
 - Portal's own rejection of a duplicate singleton OB was never observed (see the guard note above).
 - Content importers (`update_block_logic`, `update_type_content`) still flatten import failures to
@@ -370,7 +372,7 @@ Take it from the verification or a fresh read.
 `plc_write` replaced the token-bound tag safety snapshots. Tag, table and constant writes plan
 against the tag inventory their guards need: an unreadable constant value blocks, table deletion
 and address overlaps are info. Name collisions and the default tag table are no longer guarded;
-Portal rejects them as `engineering_rejected`. The 2026-10-07
+The recorded duplicate/default-delete cases failed as `engineering_rejected`; this is scoped evidence, not a guarantee for every namespace collision. The 2026-10-07
 [validation report](../superpowers/acceptance/reports/2026-10-07-plc-write-validation.md)
 records the original offline and live acceptance of this path, and the 2026-10-26
 [native rejections report](../superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md)
@@ -385,7 +387,7 @@ and public `list_tag_tables` completeness changes remain deferred.
 
 `plc_write` replaced the token-bound project-tree safety snapshots. Block and group writes plan
 against a project-tree snapshot only where a guard needs it (deletes and OB creates): deletes are
-info, an existing block on create is Portal's `engineering_rejected`, and an unreadable node makes
+info, the recorded same-target duplicate block create failed as `engineering_rejected`, and an unreadable node makes
 the snapshot incomplete, which blocks as `plc_state_unverifiable` instead of hiding what a delete
 removes. The
 [validation report](../superpowers/acceptance/reports/2026-10-07-plc-write-validation.md) records

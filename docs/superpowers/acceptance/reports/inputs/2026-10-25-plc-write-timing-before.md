@@ -19,10 +19,10 @@ Counts are read from `browse_project_tree` and `plc_read list_tag_tables`; folde
 
 | PLC | Station | Program-blocks folder direct children | Tag tables | Tags (user) | User constants |
 | --- | --- | --- | --- | --- | --- |
-| `PLC_1` (S7-1500, measured) | S7-1500/ET200MP station_1 | 1 (`Main` OB1) | 2 (`Default tag table`, `TagWith/Slash`) | 2 | 0 |
-| `Software_PLC` | KFIPC1 | 11 | 6 | not read | not read |
-| `PLC_Wash` | ET 200SP station_4 | 11 | 6 | not read | not read |
-| `PLC_2/SlashTest` | S7-1500/ET200MP station_2 | 1 | 1 | not read | not read |
+| `PLC_1` (S7-1500, measured) | Station_1 | 1 (`Main` OB1) | 2 (`Default tag table`, `TableWith/Slash`) | 2 | 0 |
+| `PLC_2` | Station_2 | 11 | 6 | not read | not read |
+| `PLC_3` | Station_3 | 11 | 6 | not read | not read |
+| `PLC_4/SlashTest` | Station_4 | 1 | 1 | not read | not read |
 
 Totals: 4 PLC software objects, 111 top-level tree nodes (about 100 devices). PLC_1 has 1 block, 2 tables, 2 tags. Tag totals for the other three PLCs were not read (would flood the response budget); the measured PLC is the small one, so tag-table lookups are cheap and the fixed cost below is not a large-table effect.
 
