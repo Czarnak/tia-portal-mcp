@@ -71,9 +71,19 @@ public static class TagMutationService
         var table = resolved.Table;
         var tag = resolved.Tag;
 
+        // Rename first and read it back: Portal silently keeps the old name when another object holds
+        // the new one, so a call that did not throw is no proof. Fail before any other property changes.
         if (!string.IsNullOrWhiteSpace(newName))
         {
             tag.Name = newName!;
+            var actualName = tag.Name;
+            if (!string.Equals(actualName, newName, StringComparison.Ordinal))
+            {
+                throw new WorkerOperationException(
+                    WorkerFailureCategories.PostconditionFailed,
+                    $"update_tag: Portal did not rename tag '{name}' to '{newName}'; the tag is still named '{actualName}'. "
+                    + "Another object may already hold that name. No other property was changed.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(dataType))

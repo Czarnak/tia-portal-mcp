@@ -159,6 +159,40 @@ public sealed class PlcWritePreconditionsTests
     }
 
     [Fact]
+    public void UpdateTag_RenameSilentlyIgnoredByPortalIsPostconditionFailedBeforeOtherProperties()
+    {
+        var (project, _, table) = Single();
+        table.Tags.Create("TagA", "Bool", "%I0.0");
+        var tag = table.Tags.Create("TagB", "Bool", "%I0.1");
+        tag.IgnoreNameWrites = true;
+
+        var ex = Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "TagB", "TagA",
+            "Int", "%IW2", true, true, true), WorkerFailureCategories.PostconditionFailed);
+
+        Assert.Contains("'TagB'", ex.Message);
+        Assert.Contains("'TagA'", ex.Message);
+        Assert.Equal("TagB", tag.Name);
+        Assert.Equal("Bool", tag.DataTypeName);
+        Assert.Equal("%I0.1", tag.LogicalAddress);
+        Assert.False(tag.ExternalAccessible);
+        Assert.False(tag.ExternalVisible);
+        Assert.False(tag.ExternalWritable);
+    }
+
+    [Fact]
+    public void UpdateTag_AppliedRenameIsReadBackAndReported()
+    {
+        var (project, _, table) = Single();
+        table.Tags.Create("TagB", "Bool", "%I0.1");
+
+        var result = TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "TagB", "TagC",
+            null, null, null, null, true);
+
+        Assert.Equal("TagC", result.TagName);
+        Assert.True(table.Tags.Single().ExternalWritable);
+    }
+
+    [Fact]
     public void UpdateTag_HasNoIsSafetyParameterOrWorkerField()
     {
         Assert.Null(typeof(WorkerRequest).GetProperty("IsSafety"));
