@@ -270,3 +270,9 @@ Final default test count: 7711 passed, 0 failed (`dotnet test TiaMcpServer.Tests
 Builds: the stub build and the full-solution build against the installed TIA V21 assemblies both end with 0 errors and 8 warnings. Seven of the eight (Hmi tests, `NetworkObjectSelectorResolver.cs:548/569`) also appear when the base `534937a` is built with stubs; the eighth, a nullable dereference at `PlcWorkingStateTests.cs:468`, was introduced by Task 3 (`7a483ac`) and is left open.
 
 Controller rulings (R1-R11) are listed in the SDD ledger and will be carried into the Task 7 report.
+
+L6 decision: plc_ob_singleton_exists kept (R13). Live, the tool offered no route to Portal with a duplicate singleton OB (`create_block` picks the number; an `update_block_logic` that declares one is refused before import), so Portal's own rejection was never observed.
+
+L7 finding: TIA Portal V21 does not throw when `update_tag` renames a tag to a name another tag in the table holds; it silently keeps the old name, and the item was reported `succeeded` with check `trusted`. A rename to an unused name works. Fixed by `fix: plc write rename read-back` (R14): the worker applies the rename first, reads `Name` back and fails the item as `postcondition_failed` before any other property changes. `update_tag` is the only PLC rename path. The `PlcWorkingStateTests.cs:468` warning is fixed by the Task 6 fixtures commit.
+
+Live evidence: `docs/superpowers/acceptance/reports/inputs/2026-10-26-plc-write-native-rejections-live-cases.md` and `2026-10-26-plc-write-timing-after.md`.
