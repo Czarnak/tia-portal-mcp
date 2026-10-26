@@ -210,7 +210,7 @@ change between planning and import fails that item with `state_changed`. A docum
 budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and cannot be updated through
 `plc_write`. A source declaring more than one object (a `withDependencies` read) is refused.
 Block updates import into the existing block, compile the affected PLC scope, and verify the result
-by re-export; type updates require a declaration whose name matches the target. Import/update never
+by re-export (the verification `contentHash`, below); type updates require a declaration whose name matches the target. Import/update never
 creates, renames, deletes, or upserts the addressed object. A preview can carry a bounded
 `contentDiff` of current versus requested text (see the
 [import/export options](IMPORT_EXPORT_OPTIONS_SUMMARY.md)). A failed `update_block_logic` import
@@ -220,20 +220,86 @@ failure schema.
 ### Guards
 
 Guards are evaluated for every item before the first mutation. Block guards stop the call in every
-mode (a dry run lists them and still returns `preview`); info guards become warnings.
+mode (a dry run lists them and still returns `preview`); info guards become warnings. Guards cover
+only what TIA Portal cannot tell the caller. Name collisions, existing blocks, existing groups and
+tables, and the default tag table are not guarded: planning does not check creates, and Portal
+rejects them at mutation (see [Failures from TIA Portal](#failures-from-tia-portal)).
 
 | Guard | Severity | Fires when |
 |---|---|---|
-| `plc_state_unverifiable` | block | Evidence relevant to the target is incomplete or unreadable. An incomplete root inventory fires it for every item, and so does updating or deleting a constant whose value is unreadable. Unreadable evidence is never treated as empty. |
-| `plc_name_collision` | block | A new or renamed tag, constant, block, group or table collides with an existing or in-call object. Tag and constant names are compared case-insensitively across tags, user constants and blocks in the PLC's CPU namespace; table names across the PLC's whole tag-table hierarchy. |
-| `plc_block_exists` | block | `create_block` targets an existing block; existing blocks are never overwritten. |
+| `plc_state_unverifiable` | block | The PLC inventory is incomplete, the update or delete target or what a delete removes is unreadable, the user-constant value an update replaces is unreadable, or the content cannot be exported. Unreadable evidence is never treated as empty. |
 | `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class and the PLC already holds that class's OB number, or an earlier item in the same call creates it. The message names the class, the number and the existing block. |
-| `plc_default_tag_table` | block | `delete_tag_table` targets the default tag table. |
-| `plc_attribute_unreadable` | block | `update_tag` requests an external-access flag that is unreadable on the current tag. |
 | `plc_deletes_block` | info | `delete_block` removes the block and its content. |
 | `plc_deletes_group_contents` | info | `delete_block_group` removes every block and group inside it; the effect lists them. |
 | `plc_deletes_table_contents` | info | `delete_tag_table` removes its tags and user constants. |
 | `plc_address_overlap` | info | The requested logical address is already used by another tag; TIA Portal allows the overlap. |
+
+`plc_ob_singleton_exists` stayed because Portal's own rejection of a duplicate singleton OB was never
+observed: `create_block` picks the OB number itself, and an `update_block_logic` that declares a
+duplicate number or event class is refused before any import, so no `plc_write` input reaches Portal
+with one. The second `TimeErrorInterrupt` OB was blocked by the guard, also within one call.
+
+The guards `plc_name_collision`, `plc_block_exists`, `plc_default_tag_table` and
+`plc_attribute_unreadable` were removed with write contract `2.0`. Deleting the default tag table
+is now Portal's rejection: `engineering_rejected` with "The operation is not valid because of the
+current status of object" (the message does not say "default"). An unreadable external-access flag
+on `update_tag` is no longer a guard; the request reaches Portal.
+
+### Failures from TIA Portal
+
+When Portal itself rejects a mutation, the item fails with a typed category and the Openness
+exception, never a message parsed by the server:
+
+- `engineering_rejected`: the worker method was a mutation and Openness threw
+  `EngineeringTargetInvocationException` (a duplicate tag, table, block or group; a delete Portal
+  refuses). The failure carries `engineeringError`.
+- `worker_operation_failed`: any other Siemens `EngineeringException`. It also carries
+  `engineeringError` when the exception reached the worker's shared catch.
+- Reads never produce `engineering_rejected`. A Siemens exception during a planning read keeps its
+  read category (`worker_operation_failed`, `target_not_found`, and so on) at the call level.
+- `portal_lost` wins over both: if the Portal attachment was disposed during the item, the category
+  is `portal_lost` with no `engineeringError`, and the binding and cursors are invalidated.
+
+`engineeringError` is `{ "type", "message", "inner": [ { "type", "message" } ] }`: the exception type
+name, its message verbatim, and the inner-exception chain outermost first (`inner` is always an
+array, empty when there is no inner exception). The contract bounds a message at 4,000 characters
+and the chain at 8 entries; longer text is cut without a marker. The member is conditional: absent
+on failures that did not come from Siemens and on host-side rejections. Messages are in the Portal
+UI language, so callers must not parse them; the live run used an English UI. Captured example,
+`create_tag` with a name the table already holds (item 1 of 1; the call is `phase:"applied"`,
+`success:false`, `error:null`, `isError:false`):
+
+```json
+{
+  "operationId": "l1-01",
+  "operation": "create_tag",
+  "status": "failed",
+  "failure": {
+    "category": "engineering_rejected",
+    "message": "TIA Portal rejected the operation: Error when calling method 'Create' of type 'Siemens.Engineering.SW.Tags.PlcTagComposition'.\r\n\r\nAn attempt was made to create an object that already exists.",
+    "engineeringError": {
+      "inner": [],
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.SW.Tags.PlcTagComposition'.\r\n\r\nAn attempt was made to create an object that already exists.",
+      "type": "EngineeringTargetInvocationException"
+    }
+  }
+}
+```
+
+Other live captures have the same shape and `inner:[]`: a duplicate tag table
+(`PlcTagTableComposition`), a duplicate block group (`PlcBlockUserGroupComposition`), a duplicate
+block (`create_block` is an XML import, so the message mentions `Import` of
+`PlcBlockComposition`, a line and a position) and deleting the default tag table. When item N of M
+is rejected, items before N are `applied`, item N is `engineering_rejected`, later items are
+`skipped` with `earlierOperationFailed`, and nothing is rolled back. See the
+[live cases](../superpowers/acceptance/reports/inputs/2026-10-26-plc-write-native-rejections-live-cases.md).
+
+Portal does not throw for every collision. A rename through `update_tag` to a name another tag in
+the table holds is silently ignored. The worker applies the rename first, reads `Name` back and, if
+Portal kept the old name, fails the item `postcondition_failed` before any other property is
+applied ("No other property was changed"). The unsupported-flag case is different: an
+`update_tag` that requests an external-access flag the tag cannot take fails mid-update, after a
+rename or data-type change in the same item has already applied; there is no rollback.
 
 ### Execution, verification and audit
 
@@ -242,14 +308,37 @@ Binding-gate failures preserve their original category, including `worker_timeou
 or mutation; a missing, mismatched or changed binding is `binding_conflict`.
 
 Items run sequentially. Later items may use objects created earlier in the same call; they carry
-`dependsOn` and are re-planned just before their own mutation. The first failure stops the call and
-later items are `skipped`. There is no rollback or automatic replay: re-read affected objects with
-`plc_read` before retrying. Phases are `preview`, `applied`, `blocked` and `error`; `isError` is true
-only for a rejection before anything ran, and a call that ran and failed returns `success:false` with
-`error:null`. Verification re-reads every attempted item; an item whose object a later item changed
-again is reported `superseded`. Budgets are 60,000 characters per value and 180,000 per document by default;
-whole values are omitted, never cut. Every entered call appends one audit v2 record to
-`writes-yyyy-MM-dd.jsonl`, with confirmation `none` in read-write and `policy` in full.
+`dependsOn` and are re-planned just before their own mutation. Creates are not pre-checked, so a
+create into a missing parent block group or tag-table folder fails at mutation (Portal or the
+worker rejects the item) instead of in pre-flight, and a later delete of an object that was never
+placed fails the whole call as `target_not_found`. Update and delete targets are still resolved
+before the first mutation, so a mistyped path fails the whole call `target_not_found` before
+anything runs. The first failure stops the call and later items are `skipped`. There is no
+rollback or automatic replay: re-read affected objects with `plc_read` before retrying. Phases are
+`preview`, `applied`, `blocked` and `error`; `isError` is true only for a rejection before anything
+ran, and a call that ran and failed returns `success:false` with `error:null`. Budgets are 60,000
+characters per value and 180,000 per document by default; whole values are omitted, never cut. Every
+entered call appends one audit v2 record to `writes-yyyy-MM-dd.jsonl`, with the actual item
+statuses and confirmation `none` in read-write and `policy` in full.
+
+Verification (write contract `2.0`; `plc_read` stays `1.0`) reads back only content:
+
+- `trusted`: a completed non-content item. The Openness call returned without rejection and nothing
+  was read back. The `exists`, `absent`, `values` and `observed` checks of contract `1.0` are gone.
+- `contentHash`: a completed `update_block_logic`/`update_type_content` item is re-exported and its
+  hash reported (`contentHash` and `actual`). A failed content item also reports the current hash,
+  since a failed import may have committed.
+- `superseded`: an item whose object a later item changed again; the later item asserts the final
+  state. A short-path (`PLC/Name`) `update_block_logic` target is not resolved through the tree, so
+  conservatively any later block item of the same name, or any `delete_block_group` on that PLC,
+  supersedes it, and it gets no content check.
+- A failed non-content item has no verification entry (nothing to verify). Inspect the object with
+  `plc_read` before retrying.
+
+The verification `contentHash` equals the hash the next `plc_read` of that object returns and can be
+used as the next `expectedContentHash`. It cannot be computed from the submitted content: the export
+carries a generated id, and four identical `update_block_logic` writes gave four different hashes.
+Take it from the verification or a fresh read.
 
 ### Known limits
 
@@ -260,8 +349,13 @@ whole values are omitted, never cut. Every entered call appends one audit v2 rec
   planning.
 - With an incomplete inventory, a selector miss is `plc_state_unverifiable` (block), not
   `target_not_found`.
-- Blocks inside software units are counted in the CPU namespace, so a tag named like an unpublished
-  unit block is blocked as `plc_name_collision`. This fails closed; see the
+- Duplicate tag-table names were tested only within the same folder: `plc_write` cannot create
+  tag-table folders, so a cross-folder duplicate was not reachable.
+- An `update_tag` that requests an unsupported external-access flag can fail after a rename or
+  data-type change in the same item has applied (no rollback).
+- Portal's own rejection of a duplicate singleton OB was never observed (see the guard note above).
+- Content importers (`update_block_logic`, `update_type_content`) still flatten import failures to
+  `worker_operation_failed` without `engineeringError`; see the
   [improvement log](../IMPROVEMENT_LOG.md).
 - Created OBs use TIA Portal defaults: no event parameters (cyclic time, phase offset, priority,
   time-of-day schedule, hardware-interrupt triggers) and no renumbering of existing blocks. See the
@@ -273,12 +367,14 @@ whole values are omitted, never cut. Every entered call appends one audit v2 rec
 
 ## Tag safety acceptance boundary
 
-`plc_write` replaced the token-bound tag safety snapshots. Tag, table and constant writes now plan
-against one tag inventory per call and fire the guards above: name collisions, the default tag
-table and unreadable flags or constants block; table deletion and address overlaps are info.
-Collisions and stale state found at mutation time fail the item with `state_changed`. The
-2026-10-07 [validation report](../superpowers/acceptance/reports/2026-10-07-plc-write-validation.md)
-records the offline and live acceptance of this path.
+`plc_write` replaced the token-bound tag safety snapshots. Tag, table and constant writes plan
+against the tag inventory their guards need: an unreadable constant value blocks, table deletion
+and address overlaps are info. Name collisions and the default tag table are no longer guarded;
+Portal rejects them as `engineering_rejected`. The 2026-10-07
+[validation report](../superpowers/acceptance/reports/2026-10-07-plc-write-validation.md)
+records the original offline and live acceptance of this path, and the 2026-10-26
+[native rejections report](../superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md)
+records the contract `2.0` change.
 
 Historical: PR 5 bound typed tag snapshots to preview/apply tokens. Its
 [live acceptance report](../superpowers/acceptance/reports/2026-09-01-pr5-tag-operation-safety-scopes-live.md)
@@ -288,9 +384,10 @@ and public `list_tag_tables` completeness changes remain deferred.
 ## Project-tree safety acceptance boundary
 
 `plc_write` replaced the token-bound project-tree safety snapshots. Block and group writes plan
-against one project-tree snapshot per involved PLC: an existing block on create blocks, deletes are
-info, and an unreadable node makes the snapshot incomplete, which blocks as `plc_state_unverifiable`
-instead of hiding a collision. The
+against a project-tree snapshot only where a guard needs it (deletes and OB creates): deletes are
+info, an existing block on create is Portal's `engineering_rejected`, and an unreadable node makes
+the snapshot incomplete, which blocks as `plc_state_unverifiable` instead of hiding what a delete
+removes. The
 [validation report](../superpowers/acceptance/reports/2026-10-07-plc-write-validation.md) records
 the offline and live acceptance of this path.
 

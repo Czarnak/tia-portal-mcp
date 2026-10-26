@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Draft approved in discussion on 2026-10-25; not yet implemented. The maintainer agreed the three scope decisions below and asked that documentation be the last task, after live verification. Branch: `refactor/plc-write-native-rejections`.
+**Status:** Implemented and live-verified on 2026-10-26 (Tasks 0-7 done; branch `refactor/plc-write-native-rejections`, unmerged and unpushed). Singleton-OB guard retained (R13); a live finding on colliding `update_tag` renames was fixed with a read-back (R14). See the [live verification report](../acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md); Network, HMI and VCI adoption stays open in the [improvement log](../../IMPROVEMENT_LOG.md#open-plc_write-native-rejections-follow-ups-2026-10-26). Original status: draft approved in discussion on 2026-10-25, with the three scope decisions below and documentation as the last task.
 
 **Goal:** Stop re-implementing TIA Portal's own rejections in `plc_write`. Let Openness reject name collisions, existing targets and protected objects, and surface each native rejection as a typed, verbatim engineering error in the canonical document. Keep the guards and checks that Openness cannot provide: delete consequences, address overlap and optimistic content concurrency.
 
