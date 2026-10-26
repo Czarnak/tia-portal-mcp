@@ -16,9 +16,9 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkNodeReadSelectorBuilder.cs" Link="Network\NetworkNodeReadSelectorBuilder.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwareDiscoveryEvidenceCapture.cs"
       Link="Network\HardwareDiscoveryEvidenceCapture.cs" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
