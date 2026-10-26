@@ -201,7 +201,7 @@ public sealed class PlcGuardedWriteMcpTests
         Assert.False(reply.IsError == true);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.Equal(dryRun == true ? "preview" : "applied", root.GetProperty("phase").GetString());
-        Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
+        Assert.Equal("2.0", root.GetProperty("contractVersion").GetString());
         Assert.Equal(0, prompts);
         Assert.Equal(dryRun != true, requests.Methods().Contains("create_tag"));
         Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));

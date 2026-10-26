@@ -17,13 +17,14 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// of Locked fail, to model unreadable content.
 /// With <c>inventoryIncomplete</c> the inventory reports a PLC whose tag tables could not be read;
 /// <c>incompleteAfterWrite</c> does the same once any write succeeded (late block, failed verification);
+/// <c>exportLostAfterWrite</c> makes block exports fail once any write succeeded (the post-write hash re-export);
 /// <c>driftAtImport</c> edits block content just before an import checks its hash (a TIA UI edit);
 /// <c>skippedBlock</c> makes the tree walker report an unreadable block under PLC_1's program blocks.
 /// Creating the tag <c>RejectedByPortal</c>, or a block, block group or tag table whose name is taken, fails as Portal's own
 /// rejection (<c>engineering_rejected</c> with Siemens evidence): the worker no longer pre-checks those names.
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
-    bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false)
+    bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false, bool exportLostAfterWrite = false)
 {
     private const string RejectedTagName = "RejectedByPortal";
 
@@ -202,6 +203,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
     private string Export(WorkerRequest request)
     {
         var (plc, _, block, path) = ResolveBlock(request.BlockPath!);
+        if (exportLostAfterWrite && _wrote) Throw(WorkerFailureCategories.WorkerOperationFailed, "The block could not be exported after the write.");
         if (block == "Locked") Throw(WorkerFailureCategories.WorkerOperationFailed, "The block could not be exported: access denied.");
         if (block == "Empty_DB") return Ok(string.Empty);
         return Ok(Content(plc, path, request.Format ?? SourceFormatNames.Xml));

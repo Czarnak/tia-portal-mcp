@@ -115,7 +115,7 @@ public static class PlcWritePayloadBudget
     /// </summary>
     internal static int MeasureProtectedCore(IReadOnlyList<PlcOperationRequest> items)
         => Budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), 2, 1, false,
-            core => new PlcGuardedWriteResponse("plc_write", PlcContractVersion.Current, WritePhases.Applied, false,
+            core => new PlcGuardedWriteResponse("plc_write", PlcWriteContractVersion.Current, WritePhases.Applied, false,
                 core.Error, core.Warnings, core.Guards,
                 items.Select(i => new PlcWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(), core.Batch,
                 new(false, items.Select(i => new PlcOperationVerification(i.OperationId, false, "contentHash", null, null, null, DiagnosticSummary)).ToArray(),

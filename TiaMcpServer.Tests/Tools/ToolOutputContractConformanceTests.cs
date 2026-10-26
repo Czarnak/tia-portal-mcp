@@ -450,7 +450,7 @@ public sealed class ToolOutputContractConformanceTests
         {
             var document = result.StructuredContent!.Value;
             Assert.Equal("plc_write", document.GetProperty("tool").GetString());
-            Assert.Equal("1.0", document.GetProperty("contractVersion").GetString());
+            Assert.Equal("2.0", document.GetProperty("contractVersion").GetString());
             Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
             Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
             Assert.Equal(probe.ExpectIsError ? "error" : "preview", document.GetProperty("phase").GetString());

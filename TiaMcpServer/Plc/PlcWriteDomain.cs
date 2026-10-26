@@ -23,7 +23,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
 
     public string ToolName => "plc_write";
 
-    public string ContractVersion => PlcContractVersion.Current;
+    public string ContractVersion => PlcWriteContractVersion.Current;
 
     public bool ConfirmsEveryCall => false;
 

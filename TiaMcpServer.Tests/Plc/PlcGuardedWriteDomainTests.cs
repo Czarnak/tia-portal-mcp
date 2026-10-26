@@ -131,7 +131,7 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Equal(2, response.Batch!.Counts.Succeeded);
         Assert.Equal("table", response.Effects[1].Effect!.DependsOn);
         Assert.True(response.Verification!.Success);
-        Assert.Equal(new[] { "exists", "values" }, response.Verification.Operations.Select(o => o.Check));
+        Assert.Equal(new[] { "trusted", "trusted" }, response.Verification.Operations.Select(o => o.Check));
         Assert.Contains("Valve1", await fixture.InventoryAsync());
     }
 
@@ -359,16 +359,17 @@ public sealed class PlcGuardedWriteDomainTests
     public async Task VerificationFailure_IsSuccessFalseWithWarning()
     {
         using var audit = new TempAuditDirectory();
-        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-late-block");
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-export-lost");
+        var hash = await fixture.ReadHashAsync("Station_1/Main", "xml");
 
-        var response = await fixture.RunAsync(false, CreateTable("table"));
+        var response = await fixture.RunAsync(false, CreateTag("tag", "Fresh"), UpdateBlock("content", "Station_1/Main", hash));
 
         Assert.Equal("applied", response.Phase);
         Assert.False(response.Success);
         Assert.Null(response.Error);
-        Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
+        Assert.Equal(new[] { "succeeded", "succeeded" }, response.Batch!.Operations.Select(o => o.Status));
         Assert.False(response.Verification!.Success);
-        Assert.False(Assert.Single(response.Verification.Operations).Success);
+        Assert.Equal(new[] { ("trusted", true), ("contentHash", false) }, response.Verification.Operations.Select(o => (o.Check, o.Success)));
         Assert.Contains(WriteExecution.VerificationFailureMessage, response.Warnings);
     }
 
