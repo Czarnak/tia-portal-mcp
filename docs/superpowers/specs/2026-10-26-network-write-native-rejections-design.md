@@ -347,8 +347,13 @@ exactly as `inputs/2026-10-25-plc-write-timing-before.md` did.
 | N5 | one `add_network_device` | create path; catalog instantiation dominates |
 
 The maintainer adapts the exact selectors to the disposable project and records its size (devices,
-nodes, subnets). The first call after server start is discarded. Restoration between runs is by
-explicit inverse operations, never automatic.
+nodes, subnets). Restoration between runs is by closing the project without saving and reopening
+it (`close_project` then `open_project` in `full` mode, or the TIA Portal UI), by maintainer
+decision: the project is identical at the start of every actual run, and the device added by N2 and
+N5 never accumulates. A reopen clears Portal's project-side caches, so every actual run is preceded
+by one untimed `network_read` `read_hardware_config` as warm-up, in the before and after series
+alike; the first call after server start is discarded as well. N4 mutates nothing and needs no
+reopen. Lifecycle and warm-up calls are never part of the measured figures.
 
 ### 6.8 Live probing protocol (three outcomes)
 
@@ -365,7 +370,8 @@ Each case is run in `full` mode on the disposable copy and classified into one o
 For every case, a `network_read` (`inspect_network_object` on the exact target, or a filtered
 `read_hardware_config`) records whether the write landed, so a silently dropped write (the PLC L7
 pattern) is told apart from an accepted collision. The Portal UI language is noted; captured
-messages are in that language.
+messages are in that language. After a case's `network_read` and `compile_check` observations are
+captured, the project is restored the same way as in §6.7: closed without saving and reopened.
 
 | Case | Operation | What it probes |
 | --- | --- | --- |
