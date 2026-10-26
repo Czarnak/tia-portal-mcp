@@ -14,10 +14,6 @@ public class PlcGuardDefinitionsTests
         Assert.Equal(new Dictionary<string, string>
         {
             [PlcGuardDefinitions.StateUnverifiable] = WriteGuardSeverities.Block,
-            [PlcGuardDefinitions.NameCollision] = WriteGuardSeverities.Block,
-            [PlcGuardDefinitions.BlockExists] = WriteGuardSeverities.Block,
-            [PlcGuardDefinitions.DefaultTagTable] = WriteGuardSeverities.Block,
-            [PlcGuardDefinitions.AttributeUnreadable] = WriteGuardSeverities.Block,
             [PlcGuardDefinitions.ObSingletonExists] = WriteGuardSeverities.Block,
             [PlcGuardDefinitions.DeletesBlock] = WriteGuardSeverities.Info,
             [PlcGuardDefinitions.DeletesGroupContents] = WriteGuardSeverities.Info,

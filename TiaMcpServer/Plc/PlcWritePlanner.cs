@@ -10,9 +10,11 @@ using TiaMcpServer.Contracts.Worker;
 namespace TiaMcpServer.Plc;
 
 /// <summary>
-/// Plans plc_write items from public reads only: one tag inventory, one project-tree snapshot per
-/// involved PLC and one export per content item. Earlier items are applied to a working state so
-/// later items see them and carry <c>DependsOn</c>. The shared runner owns sequencing and mutation.
+/// Plans plc_write items from public reads only, each at most once per call: the tag inventory
+/// (which also resolves the PLC), the project tree of a PLC only when one of its items needs it
+/// (<see cref="PlcWorkingState.NeedsTree"/>) and one export per content item. Earlier items are
+/// applied to a working state so later items see them and carry <c>DependsOn</c>; only those
+/// dependent items are re-planned before their mutation. The shared runner owns sequencing and mutation.
 /// </summary>
 public sealed class PlcWritePlanner(OpennessWorkerClient client)
 {
@@ -21,18 +23,29 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     private sealed record ItemOutcome(PlcWorkingState? State, PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards,
         IReadOnlyList<CheckedPrecondition> Preconditions, WriteToolError? Error);
 
+    /// <summary>The planning reads of one call: the inventory, each PLC's working state and which PLCs need a tree.</summary>
+    private sealed class CallReads(PlcTagInventoryInfo inventory, IReadOnlyList<PlcOperationRequest> items)
+    {
+        public PlcTagInventoryInfo Inventory { get; } = inventory;
+
+        public Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState> States { get; } = new(ReferenceEqualityComparer.Instance);
+
+        public HashSet<PlcTagInventoryPlcInfo> TreePlcs { get; } = new(items.Where(PlcWorkingState.NeedsTree)
+            .Select(item => MatchPlc(item, inventory).Plc).OfType<PlcTagInventoryPlcInfo>(), ReferenceEqualityComparer.Instance);
+    }
+
     public async Task<PlanResult<PlcWriteEffect>> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         if (evidence.Error is { } inventoryError) return Failed(inventoryError);
-        var states = new Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState>(ReferenceEqualityComparer.Instance);
+        var reads = new CallReads(evidence.Inventory!, items);
         // One budget per call keeps every diff of the call inside the per-call excerpt bound.
         var budget = new PlcContentDiffBudget();
         var plans = new List<ItemPlan<PlcWriteEffect>>();
         var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
         foreach (var item in items)
         {
-            var outcome = await ResolveAsync(item, evidence.Inventory!, states, budget).ConfigureAwait(false);
+            var outcome = await ResolveAsync(item, reads, budget).ConfigureAwait(false);
             if (outcome.Error is { } error) return Failed(error);
             var effect = outcome.Effect ?? throw new InvalidOperationException($"Operation '{item.OperationId}' resolved without an effect or an error.");
             var dependsOn = outcome.State?.LastTouchedBy(effect.Target);
@@ -45,22 +58,21 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         return new PlanResult<PlcWriteEffect>(WritePlan<PlcWriteEffect>.Ok(plans), guards);
     }
 
-    /// <summary>Re-reads real state for one dependent item just before its own mutation.</summary>
+    /// <summary>Re-reads real state for one dependent item just before its own mutation, with that item's read set.</summary>
     public async Task<ReplanResult<PlcWriteEffect>> ReplanAsync(PlcOperationRequest item)
     {
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         var outcome = evidence.Error is { } inventoryError
             ? new ItemOutcome(null, null, Array.Empty<FiredGuard>(), Array.Empty<CheckedPrecondition>(), inventoryError)
-            : await ResolveAsync(item, evidence.Inventory!,
-                new Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState>(ReferenceEqualityComparer.Instance), new PlcContentDiffBudget()).ConfigureAwait(false);
+            : await ResolveAsync(item, new CallReads(evidence.Inventory!, new[] { item }), new PlcContentDiffBudget()).ConfigureAwait(false);
         return outcome.Error is { } error
             ? new ReplanResult<PlcWriteEffect>(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>())
             : new ReplanResult<PlcWriteEffect>(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards);
     }
 
-    private async Task<ItemOutcome> ResolveAsync(PlcOperationRequest item, PlcTagInventoryInfo inventory,
-        Dictionary<PlcTagInventoryPlcInfo, PlcWorkingState> states, PlcContentDiffBudget budget)
+    private async Task<ItemOutcome> ResolveAsync(PlcOperationRequest item, CallReads reads, PlcContentDiffBudget budget)
     {
+        var inventory = reads.Inventory;
         var (plc, matchError) = MatchPlc(item, inventory);
         if (matchError is { Category: WorkerFailureCategories.TargetNotFound } && !inventory.IsComplete)
         {
@@ -72,11 +84,17 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         }
 
         if (matchError is not null) return Fail(matchError);
-        if (!states.TryGetValue(plc!, out var state))
+        if (!reads.States.TryGetValue(plc!, out var state))
         {
-            var (tree, treeError) = await ReadTreeAsync(plc!).ConfigureAwait(false);
-            if (treeError is not null) return Fail(treeError);
-            states[plc!] = state = PlcWorkingState.Create(plc!, inventory.IsComplete, tree!);
+            ProjectTreeObservation? tree = null;
+            if (reads.TreePlcs.Contains(plc!))
+            {
+                var (read, treeError) = await ReadTreeAsync(plc!).ConfigureAwait(false);
+                if (treeError is not null) return Fail(treeError);
+                tree = read;
+            }
+
+            reads.States[plc!] = state = PlcWorkingState.Create(plc!, inventory.IsComplete, tree);
         }
 
         var resolution = state.Resolve(item);

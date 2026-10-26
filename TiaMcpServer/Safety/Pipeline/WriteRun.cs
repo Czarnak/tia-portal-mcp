@@ -6,6 +6,7 @@ using TiaMcpServer.Tools;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Safety.Pipeline;
 
@@ -399,8 +400,17 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         _cancellationToken.ThrowIfCancellationRequested();
         _mutated[index] = true;
         var result = await _domain.MutateAsync(item).ConfigureAwait(false);
-        return _domain.Project(item, result);
+        return WithEngineeringError(_domain.Project(item, result), result);
     }
+
+    /// <summary>
+    /// The one place a Siemens exception reaches a write item's failure, for every domain: the worker
+    /// attaches it to the failed response and no domain projection has to remember to copy it.
+    /// </summary>
+    private static StructuredOperationItem WithEngineeringError(StructuredOperationItem projected, WorkerCallResult result)
+        => result is { Success: false, EngineeringError: { } error } && projected.Failure is { EngineeringError: null } failure
+            ? projected with { Failure = failure with { EngineeringError = error } }
+            : projected;
 
     /// <summary>Re-plans a dependent item and applies the late acknowledge rule to its guards.</summary>
     private async Task<WriteToolError?> ReplanAsync(int index)

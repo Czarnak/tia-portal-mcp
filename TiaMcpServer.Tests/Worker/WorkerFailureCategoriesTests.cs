@@ -23,6 +23,13 @@ public sealed class WorkerFailureCategoriesTests
         Assert.All(WorkerFailureCategories.PreconditionRefusals, c => Assert.True(WorkerFailureCategories.IsKnown(c)));
     }
 
+    [Fact]
+    public void EngineeringRejected_IsKnownWithTheDocumentedWireValue()
+    {
+        Assert.Equal("engineering_rejected", WorkerFailureCategories.EngineeringRejected);
+        Assert.True(WorkerFailureCategories.IsKnown(WorkerFailureCategories.EngineeringRejected));
+    }
+
     [Theory]
     [InlineData("validation_error", true)]
     [InlineData("target_not_found", true)]
@@ -35,6 +42,7 @@ public sealed class WorkerFailureCategoriesTests
     [InlineData("worker_timeout", false)]
     [InlineData("worker_crashed", false)]
     [InlineData("worker_operation_failed", false)]
+    [InlineData("engineering_rejected", false)]
     [InlineData("protocol_error", false)]
     [InlineData("postcondition_failed", false)]
     [InlineData("", false)]

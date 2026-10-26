@@ -84,66 +84,29 @@ public sealed class PlcWritePreconditionsTests
         Assert.Contains("hidden", ex.Message);
     }
 
-    // ---- Collisions
+    // ---- Names are Portal's to reject: the first Openness call is the only collision check
 
     [Fact]
-    public void CreateTag_CollidesWithConstantBlockOrSystemBlockCaseInsensitive()
+    public void TagTableAndConstantWrites_ReachPortalEvenWhenAnotherObjectHoldsTheName()
     {
         var (project, plc, table) = Single();
         table.UserConstants.Create("Const");
         plc.BlockGroup.Blocks.Items.Add(new PlcBlock { Name = "Main" });
-        var system = new PlcSystemBlockGroup { Name = "Sys" };
-        system.Blocks.Items.Add(new PlcBlock { Name = "SysBlock" });
-        plc.BlockGroup.SystemBlockGroups.Items.Add(system);
-        var nested = new PlcBlockGroup { Name = "Area" };
-        nested.Blocks.Items.Add(new PlcBlock { Name = "Deep" });
-        plc.BlockGroup.Groups.Items.Add(nested);
-
-        foreach (var name in new[] { "CONST", "main", "sysblock", "DEEP" })
-        {
-            Fails(() => TagMutationService.CreateTag(project, "PLC_1", "Default", null, name, "Bool", null),
-                WorkerFailureCategories.StateChanged);
-        }
-
-        Assert.Empty(table.Tags);
-    }
-
-    [Fact]
-    public void RenameTag_CollidesAcrossTables()
-    {
-        var (project, plc, table) = Single();
-        table.Tags.Create("Motor", "Bool", "%I0.0");
-        plc.TagTableGroup.TagTables.Create("Other").Tags.Create("Valve", "Bool", "%I0.1");
-
-        Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", "VALVE",
-            null, null, null, null, null), WorkerFailureCategories.StateChanged);
-
-        // Case-only rename of itself is not a collision.
-        TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", "MOTOR",
-            null, null, null, null, null);
-        Assert.Equal("MOTOR", Assert.Single(table.Tags).Name);
-    }
-
-    [Fact]
-    public void CreateUserConstant_CollidesWithTag()
-    {
-        var (project, plc, table) = Single();
-        plc.TagTableGroup.TagTables.Create("Other").Tags.Create("Motor", "Bool", "%I0.0");
-        Fails(() => TagMutationService.CreateUserConstant(project, "PLC_1", "Default", null, "motor", "Int", "1"),
-            WorkerFailureCategories.StateChanged);
-        Assert.Empty(table.UserConstants);
-    }
-
-    [Fact]
-    public void CreateTagTable_NameTakenInOtherFolderIsStateChanged()
-    {
-        var (project, plc, _) = Single();
         var folder = new PlcTagTableGroup { Name = "Elsewhere" };
         plc.TagTableGroup.Groups.Items.Add(folder);
         folder.TagTables.Create("Shared");
+        table.Tags.Create("Motor", "Bool", "%I0.0");
+        plc.TagTableGroup.TagTables.Create("Other").Tags.Create("Valve", "Bool", "%I0.1");
 
-        Fails(() => TagMutationService.CreateTagTable(project, "PLC_1", "SHARED", null),
-            WorkerFailureCategories.StateChanged);
+        foreach (var name in new[] { "CONST", "main" })
+            TagMutationService.CreateTag(project, "PLC_1", "Default", null, name, "Bool", null);
+        TagMutationService.CreateUserConstant(project, "PLC_1", "Default", null, "motor", "Int", "1");
+        TagMutationService.CreateTagTable(project, "PLC_1", "SHARED", null);
+        TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", "VALVE", null, null, null, null, null);
+
+        Assert.Equal(new[] { "VALVE", "CONST", "main" }, table.Tags.Select(t => t.Name));
+        Assert.Equal(new[] { "Const", "motor" }, table.UserConstants.Select(c => c.Name));
+        Assert.Contains(plc.TagTableGroup.TagTables, t => t.Name == "SHARED");
     }
 
     // ---- Readability / default table
@@ -152,39 +115,81 @@ public sealed class PlcWritePreconditionsTests
     public void UpdateConstant_NullValueRefused()
     {
         var (project, _, table) = Single();
-        var constant = table.UserConstants.Create("K");
-        constant.Value = null!;
+        table.UserConstants.Create("K").Value = null!;
+
         Fails(() => TagMutationService.UpdateUserConstant(project, "PLC_1", "Default", null, "K", null, "2"),
             WorkerFailureCategories.WorkerOperationFailed);
-        Fails(() => TagMutationService.DeleteUserConstant(project, "PLC_1", "Default", null, "K"),
-            WorkerFailureCategories.WorkerOperationFailed);
+
         Assert.Single(table.UserConstants);
     }
 
     [Fact]
-    public void UpdateTag_UnreadableRequestedFlagRefused()
+    public void DeleteConstant_NullValueReachesPortal()
+    {
+        var (project, _, table) = Single();
+        table.UserConstants.Create("K").Value = null!;
+
+        TagMutationService.DeleteUserConstant(project, "PLC_1", "Default", null, "K");
+
+        Assert.Empty(table.UserConstants);
+    }
+
+    [Fact]
+    public void UpdateTag_UnreadableRequestedFlagReachesPortal()
     {
         var (project, _, table) = Single();
         var tag = table.Tags.Create("Motor", "Bool", "%I0.0");
         tag.ExternalVisibleFailure = new EngineeringNotSupportedException("no such attribute");
 
-        Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", null,
-            null, null, null, true, null), WorkerFailureCategories.WorkerOperationFailed);
+        var exception = Record.Exception(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", null,
+            null, null, null, true, null));
 
-        // A flag that was not requested may stay unreadable.
-        TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "Motor", null,
-            null, null, true, null, null);
-        Assert.True(tag.ExternalAccessible);
+        Assert.Null(exception);
     }
 
     [Fact]
-    public void DeleteDefaultTable_Refused()
+    public void DeleteDefaultTable_ReachesPortal()
     {
         var (project, plc, table) = Single();
         table.IsDefault = true;
-        Fails(() => TagMutationService.DeleteTagTable(project, "PLC_1", "Default", null),
-            WorkerFailureCategories.WorkerOperationFailed);
-        Assert.Single(plc.TagTableGroup.TagTables);
+
+        TagMutationService.DeleteTagTable(project, "PLC_1", "Default", null);
+
+        Assert.Empty(plc.TagTableGroup.TagTables);
+    }
+
+    [Fact]
+    public void UpdateTag_RenameSilentlyIgnoredByPortalIsPostconditionFailedBeforeOtherProperties()
+    {
+        var (project, _, table) = Single();
+        table.Tags.Create("TagA", "Bool", "%I0.0");
+        var tag = table.Tags.Create("TagB", "Bool", "%I0.1");
+        tag.IgnoreNameWrites = true;
+
+        var ex = Fails(() => TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "TagB", "TagA",
+            "Int", "%IW2", true, true, true), WorkerFailureCategories.PostconditionFailed);
+
+        Assert.Contains("'TagB'", ex.Message);
+        Assert.Contains("'TagA'", ex.Message);
+        Assert.Equal("TagB", tag.Name);
+        Assert.Equal("Bool", tag.DataTypeName);
+        Assert.Equal("%I0.1", tag.LogicalAddress);
+        Assert.False(tag.ExternalAccessible);
+        Assert.False(tag.ExternalVisible);
+        Assert.False(tag.ExternalWritable);
+    }
+
+    [Fact]
+    public void UpdateTag_AppliedRenameIsReadBackAndReported()
+    {
+        var (project, _, table) = Single();
+        table.Tags.Create("TagB", "Bool", "%I0.1");
+
+        var result = TagMutationService.UpdateTag(project, "PLC_1", "Default", null, "TagB", "TagC",
+            null, null, null, null, true);
+
+        Assert.Equal("TagC", result.TagName);
+        Assert.True(table.Tags.Single().ExternalWritable);
     }
 
     [Fact]
@@ -209,43 +214,22 @@ public sealed class PlcWritePreconditionsTests
 
     // ---- Blocks and groups
 
-    [Fact]
-    public void CreateBlock_ExistingTargetRefused()
-    {
-        var (project, plc, _) = Single();
-        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Main" });
-
-        Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/main", "FB", "SCL", null),
-            WorkerFailureCategories.StateChanged);
-
-        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
-    }
-
-    [Fact]
-    public void CreateBlock_NameTakenByGroupInSameParentRefused()
-    {
-        var (project, plc, _) = Single();
-        plc.BlockGroup.Groups.Items.Add(new PlcBlockUserGroup { Name = "Main" });
-
-        Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/MAIN", "FB", "SCL", null),
-            WorkerFailureCategories.StateChanged);
-
-        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
-    }
-
     [Theory]
     [InlineData("MOTOR")]
     [InlineData("const")]
-    public void CreateBlock_CollidesWithTagOrConstantCaseInsensitive(string name)
+    [InlineData("area")]
+    public void CreateBlock_ReachesPortalEvenWhenAnotherObjectHoldsTheName(string name)
     {
         var (project, plc, table) = Single();
+        plc.BlockGroup.Groups.Items.Add(new PlcBlockUserGroup { Name = "Area" });
         table.Tags.Create("Motor", "Bool", "%I0.0");
         table.UserConstants.Create("Const");
+        Imported(plc, new FB { Name = name, Number = 9 });
 
-        Fails(() => BlockMutationService.CreateBlock(project, "PLC_1/" + name, "FB", "SCL", null),
-            WorkerFailureCategories.StateChanged);
+        BlockMutationService.CreateBlock(project, "PLC_1/" + name, "FB", "SCL", null);
 
-        Assert.Empty(plc.BlockGroup.Blocks.ImportCalls);
+        // The import never overrides: Portal alone decides about an occupied name.
+        Assert.Equal(ImportOptions.None, Assert.Single(plc.BlockGroup.Blocks.ImportCalls));
     }
 
     [Fact]
@@ -346,7 +330,7 @@ public sealed class PlcWritePreconditionsTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void CreateBlockGroup_NameTakenInParentRefused(bool takenByBlock)
+    public void CreateBlockGroup_ReachesPortalEvenWhenNameIsTaken(bool takenByBlock)
     {
         var (project, plc, _) = Single();
         if (takenByBlock)
@@ -355,10 +339,9 @@ public sealed class PlcWritePreconditionsTests
             plc.BlockGroup.Groups.Items.Add(new PlcBlockUserGroup { Name = "Area" });
         var before = plc.BlockGroup.Groups.Items.Count;
 
-        Fails(() => BlockMutationService.CreateBlockGroup(project, "PLC_1/AREA"),
-            WorkerFailureCategories.StateChanged);
+        BlockMutationService.CreateBlockGroup(project, "PLC_1/AREA");
 
-        Assert.Equal(before, plc.BlockGroup.Groups.Items.Count);
+        Assert.Equal(before + 1, plc.BlockGroup.Groups.Items.Count);
     }
 
     [Fact]

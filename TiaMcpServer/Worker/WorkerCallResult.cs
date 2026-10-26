@@ -43,6 +43,9 @@ public sealed record WorkerCallResult(
     /// <summary>Typed update_block_logic evidence; absent for unrelated calls.</summary>
     public BlockImportOutcomeInfo? BlockImportOutcome { get; init; }
 
+    /// <summary>The Siemens exception behind a worker failure; absent for host-side failures.</summary>
+    public EngineeringErrorInfo? EngineeringError { get; init; }
+
     public HmiWriteOutcomeInfo? HmiWriteOutcome { get; init; }
 
     public VciWriteOutcomeInfo? VciWriteOutcome { get; init; }

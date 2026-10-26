@@ -45,6 +45,10 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.VciWriteOutcome",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
+        // Worker mutation failures: present only when a Siemens exception caused the failure.
+        "WorkerResponse.EngineeringError",
+        // Write item failures: present only when a Siemens exception caused the item failure.
+        "StructuredOperationFailure.EngineeringError",
         // Only explicit bind_project inspection actions add this host value; default binding omits it.
         "ProjectBindingResult.Inspection",
         // Local-session owners carry typed context; standalone and unbound values omit it.

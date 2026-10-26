@@ -251,66 +251,52 @@ public class PlcWorkingStateTests
         var results = Run(State(), Tag("d", "delete_tag", "Start"), Tag("c", "create_tag", "Start"));
 
         Assert.Equal("d", results[1].DependsOn);
-        Assert.DoesNotContain(PlcGuardDefinitions.NameCollision, GuardIds(results[1].Resolution));
+        Assert.Empty(results[1].Resolution.Guards);
     }
 
     [Fact]
-    public void TwoCreatesOfSameNameCollide()
+    public void TwoCreatesOfSameNameBothResolveWithoutGuards()
     {
         var results = Run(State(), Tag("a", "create_tag", "Twin"), Tag("b", "create_user_constant", "twin", "Motors", "/Line"));
 
-        Assert.DoesNotContain(PlcGuardDefinitions.NameCollision, GuardIds(results[0].Resolution));
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(results[1].Resolution));
+        Assert.Empty(results[0].Resolution.Guards);
+        Assert.Empty(results[1].Resolution.Guards);
     }
 
     [Fact]
-    public void TagNameCollidesWithBlockCaseInsensitive()
+    public void NamesPortalWouldRejectResolveWithoutCollisionGuards()
     {
         var state = State();
-
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(state.Resolve(Tag("a", "create_tag", "main"))));
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(state.Resolve(Tag("b", "create_tag", "tcon"))));
-        var rename = Tag("c", "update_tag", "Start");
+        var rename = Tag("r", "update_tag", "Start");
         rename.NewName = "FB_MOTOR";
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(state.Resolve(rename)));
+
+        foreach (var item in new[]
+                 {
+                     Tag("tag-vs-block", "create_tag", "main"),
+                     Tag("tag-vs-system-block", "create_tag", "tcon"),
+                     Tag("constant-vs-tag", "create_user_constant", "start"),
+                     rename,
+                     new PlcOperationRequest { OperationId = "table", Operation = "create_tag_table", TableName = "motors" },
+                     Blocks("block-vs-tag", "create_block", "PLC_1/start", "FC"),
+                     Blocks("block-vs-constant", "create_block", "PLC_1/Blocks/Motors/MAXSPEED", "FC"),
+                     Blocks("block-exists", "create_block", "PLC_1/Blocks/Main", "OB"),
+                     Blocks("group-vs-group", "create_block_group", "PLC_1/Blocks/motors"),
+                     Blocks("group-vs-block", "create_block_group", "PLC_1/Main"),
+                 })
+        {
+            var resolution = state.Resolve(item);
+            Assert.Null(resolution.Error);
+            Assert.Empty(resolution.Guards);
+        }
     }
 
     [Fact]
-    public void TableNameCollidesAcrossFolders()
+    public void CreateBlockGroupPlansPlacementInParent()
     {
-        var resolution = State().Resolve(new PlcOperationRequest { OperationId = "t", Operation = "create_tag_table", TableName = "motors" });
+        var fresh = State().Resolve(Blocks("c", "create_block_group", "PLC_1/Blocks/Motors/Fresh"));
 
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(resolution));
-    }
-
-    [Fact]
-    public void CreateBlockNameCollidesWithTagOrConstant()
-    {
-        var state = State();
-
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(state.Resolve(Blocks("a", "create_block", "PLC_1/start", "FC"))));
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(state.Resolve(Blocks("b", "create_block", "PLC_1/Blocks/Motors/MAXSPEED", "FC"))));
-        Assert.Empty(state.Resolve(Blocks("c", "create_block", "PLC_1/Blocks/Motors/Fresh", "FC")).Guards);
-    }
-
-    [Fact]
-    public void CreateBlockGroupNameTakenInParentCollides()
-    {
-        var state = State();
-
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(state.Resolve(Blocks("a", "create_block_group", "PLC_1/Blocks/motors"))));
-        Assert.Contains(PlcGuardDefinitions.NameCollision, GuardIds(state.Resolve(Blocks("b", "create_block_group", "PLC_1/Main"))));
-        var fresh = state.Resolve(Blocks("c", "create_block_group", "PLC_1/Blocks/Motors/Fresh"));
         Assert.Empty(fresh.Guards);
         Assert.Equal("PLC_1/Blocks/Motors", fresh.Effect!.Placement);
-    }
-
-    [Fact]
-    public void CreateBlockOnExistingFiresBlockExists()
-    {
-        var resolution = State().Resolve(Blocks("a", "create_block", "PLC_1/Blocks/Main", "OB"));
-
-        Assert.Contains(PlcGuardDefinitions.BlockExists, GuardIds(resolution));
     }
 
     [Fact]
@@ -328,24 +314,20 @@ public class PlcWorkingStateTests
     }
 
     [Fact]
-    public void DeleteDefaultTableFires()
+    public void DeleteDefaultTableOnlyInformsAboutContents()
     {
         var resolution = State().Resolve(new PlcOperationRequest { OperationId = "d", Operation = "delete_tag_table", TableName = "Default tag table" });
 
-        Assert.Contains(PlcGuardDefinitions.DefaultTagTable, GuardIds(resolution));
+        Assert.Equal(new[] { PlcGuardDefinitions.DeletesTableContents }, GuardIds(resolution));
     }
 
     [Fact]
-    public void UnreadableFlagFiresAttributeUnreadable()
+    public void UpdateOfUnreadableFlagResolvesWithoutGuard()
     {
-        var state = State();
         var unreadable = Tag("u", "update_tag", "Motor1", "Motors", "/Line");
         unreadable.ExternalWritable = true;
-        var readable = Tag("r", "update_tag", "Start");
-        readable.ExternalWritable = false;
 
-        Assert.Contains(PlcGuardDefinitions.AttributeUnreadable, GuardIds(state.Resolve(unreadable)));
-        Assert.Empty(state.Resolve(readable).Guards);
+        Assert.Empty(State().Resolve(unreadable).Guards);
     }
 
     [Fact]
@@ -447,9 +429,8 @@ public class PlcWorkingStateTests
                  {
                      Blocks("hidden-group", "delete_block", "PLC_1/Blocks/Hidden/X"),
                      Blocks("hidden-block", "delete_block", "PLC_1/Blocks/Motors/Nope"),
-                     Blocks("unique", "update_block_logic", "PLC_1/Nope"),
+                     Blocks("unique", "delete_block", "PLC_1/Nope"),
                      Blocks("group", "delete_block_group", "PLC_1/Blocks/Hidden"),
-                     Blocks("parent", "create_block", "PLC_1/Blocks/Hidden/New", "FC"),
                  })
         {
             var resolution = state.Resolve(item);
@@ -468,7 +449,27 @@ public class PlcWorkingStateTests
         Assert.Equal("target_not_found", state.Resolve(Tag("t", "delete_tag", "Nope")).Error?.Category);
         Assert.Equal("target_not_found", state.Resolve(Tag("c", "create_tag", "Fresh", "Hidden")).Error?.Category);
         Assert.Equal("target_not_found", state.Resolve(Blocks("b", "delete_block", "PLC_1/Blocks/Hidden/X")).Error?.Category);
-        Assert.Equal("target_not_found", state.Resolve(Blocks("u", "update_block_logic", "PLC_1/Nope")).Error?.Category);
+        Assert.Equal("target_not_found", state.Resolve(Blocks("u", "delete_block", "PLC_1/Nope")).Error?.Category);
+    }
+
+    [Fact]
+    public void TreelessStatePlansCreatesAndContentFromTheRequestedPath()
+    {
+        var state = PlcWorkingState.Create(Inventory(), true, tree: null);
+        var update = Blocks("u", "update_block_logic", "PLC_1/Blocks/Motors/FB_Motor");
+
+        var results = Run(state,
+            Blocks("fc", "create_block", "PLC_1/Units/Unit_A/Blocks/Sub/FC_New", "FC"),
+            Blocks("group", "create_block_group", "PLC_1/Blocks/Motors/New"),
+            Blocks("in-group", "create_block", "PLC_1/Blocks/Motors/New/FC_In", "FC"),
+            update);
+
+        Assert.Equal(("PLC_1/Units/Unit_A/Blocks/Sub/FC_New", "PLC_1/Units/Unit_A/Blocks/Sub"),
+            (results[0].Resolution.Effect!.Target.BlockPath, results[0].Resolution.Effect!.Placement));
+        Assert.Equal("PLC_1/Blocks/Motors", results[1].Resolution.Effect!.Placement);
+        Assert.Equal("group", results[2].DependsOn);
+        Assert.Equal("PLC_1/Blocks/Motors/FB_Motor", results[3].Resolution.Effect!.Target.BlockPath);
+        Assert.Throws<InvalidOperationException>(() => state.Resolve(Blocks("d", "delete_block", "PLC_1/Main")));
     }
 
     [Fact]
@@ -480,7 +481,8 @@ public class PlcWorkingStateTests
         var resolution = State().Resolve(update);
 
         Assert.Contains(PlcGuardDefinitions.StateUnverifiable, GuardIds(resolution));
-        Assert.Contains(PlcGuardDefinitions.StateUnverifiable,
+        // A delete needs no value: only the update's effect reports the value it replaces.
+        Assert.DoesNotContain(PlcGuardDefinitions.StateUnverifiable,
             GuardIds(State().Resolve(Tag("d", "delete_user_constant", "Unreadable", "Motors", "/Line"))));
     }
 

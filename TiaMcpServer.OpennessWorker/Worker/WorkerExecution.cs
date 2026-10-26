@@ -5,7 +5,14 @@ namespace TiaMcpServer.OpennessWorker.Worker;
 
 internal static class WorkerExecution
 {
-    internal static WorkerResponse Execute(Func<WorkerResponse> body, Func<long> portalDisposalRevision)
+    /// <param name="mutates">
+    /// True when the request's method changes project state. Only then does an
+    /// <see cref="EngineeringTargetInvocationException"/> mean "Portal rejected the mutation"
+    /// (<see cref="WorkerFailureCategories.EngineeringRejected"/>); reads keep
+    /// <see cref="WorkerFailureCategories.WorkerOperationFailed"/> because Openness throws the same type
+    /// for an unsupported property on the current device.
+    /// </param>
+    internal static WorkerResponse Execute(Func<WorkerResponse> body, Func<long> portalDisposalRevision, bool mutates = false)
     {
         var before = portalDisposalRevision();
         try
@@ -16,7 +23,10 @@ internal static class WorkerExecution
         {
             if (portalDisposalRevision() != before)
                 return PortalLost(ex);
-            return Failure(WorkerFailureCategories.WorkerOperationFailed, $"TIA Portal operation failed: {ex.Message}");
+            var error = Describe(ex);
+            return mutates && ex is EngineeringTargetInvocationException
+                ? Failure(WorkerFailureCategories.EngineeringRejected, $"TIA Portal rejected the operation: {ex.Message}", error)
+                : Failure(WorkerFailureCategories.WorkerOperationFailed, $"TIA Portal operation failed: {ex.Message}", error);
         }
         catch (NonRecoverableException ex)
         {
@@ -32,11 +42,29 @@ internal static class WorkerExecution
         }
     }
 
+    /// <summary>
+    /// The exception's type and verbatim message plus its inner chain, outermost first, bounded by
+    /// <see cref="EngineeringErrorInfo.MaxInnerCount"/> and <see cref="EngineeringErrorInfo.MaxMessageChars"/>.
+    /// Content importers that wrap a Siemens exception can pass this to <see cref="WorkerOperationException"/>.
+    /// </summary>
+    internal static EngineeringErrorInfo Describe(Exception exception)
+    {
+        var info = new EngineeringErrorInfo { Type = exception.GetType().Name, Message = Bound(exception.Message) };
+        for (var inner = exception.InnerException; inner is not null && info.Inner.Count < EngineeringErrorInfo.MaxInnerCount; inner = inner.InnerException)
+            info.Inner.Add(new EngineeringInnerErrorInfo { Type = inner.GetType().Name, Message = Bound(inner.Message) });
+        return info;
+    }
+
+    private static string Bound(string? message)
+        => message is null || message.Length <= EngineeringErrorInfo.MaxMessageChars
+            ? message ?? string.Empty
+            : message.Substring(0, EngineeringErrorInfo.MaxMessageChars);
+
     private static WorkerResponse PortalLost(Exception exception)
         => Failure(WorkerFailureCategories.PortalLost,
             $"The TIA Portal connection was lost: {exception.Message}. Restart TIA Portal and explicitly bind_project again. "
             + "An attempted mutation may have completed; inspect the project before retrying.");
 
-    private static WorkerResponse Failure(string category, string error)
-        => new() { Success = false, FailureCategory = category, Error = error };
+    private static WorkerResponse Failure(string category, string error, EngineeringErrorInfo? engineeringError = null)
+        => new() { Success = false, FailureCategory = category, Error = error, EngineeringError = engineeringError };
 }

@@ -10,13 +10,14 @@ using TiaMcpServer.Contracts.Worker;
 namespace TiaMcpServer.Plc;
 
 /// <summary>
-/// The planner's in-call picture of one PLC: its tag inventory and block tree, with every earlier
-/// planned item applied. Resolution of a missing or ambiguous target is an error; incomplete or
-/// unreadable evidence only fires <see cref="PlcGuardDefinitions.StateUnverifiable"/>.
+/// The planner's in-call picture of one PLC: its tag inventory and, only when an item needs it, its
+/// block tree, with every earlier planned item applied. Update and delete targets are resolved
+/// (missing or ambiguous is an error); creates are never checked against existing state, Portal
+/// rejects them. Incomplete or unreadable evidence only fires <see cref="PlcGuardDefinitions.StateUnverifiable"/>.
 /// </summary>
 internal sealed class PlcWorkingState
 {
-    private sealed record Table(string Folder, string Name, bool IsDefault, List<TagInfo> Tags, List<UserConstantInfo> Constants);
+    private sealed record Table(string Folder, string Name, List<TagInfo> Tags, List<UserConstantInfo> Constants);
 
     private sealed record Block(string Name, string Type, string? Language, bool IsSystem, int? Number);
 
@@ -38,7 +39,7 @@ internal sealed class PlcWorkingState
     private readonly string? _device;
     private readonly bool _inventoryComplete;
     private readonly List<Table> _tables;
-    private readonly HashSet<string> _tableFolders = new(Names) { "/" };
+    private readonly bool _hasTree;
     private readonly Group _root;
     private readonly Dictionary<string, Group> _unitRoots = new(Names);
     private readonly IReadOnlyList<ProjectTreeSkippedNodeInfo> _skipped;
@@ -46,31 +47,38 @@ internal sealed class PlcWorkingState
     private readonly Dictionary<string, (int Sequence, string OperationId)> _touches = new(StringComparer.Ordinal);
     private int _sequence;
 
-    private PlcWorkingState(PlcTagInventoryPlcInfo plc, bool inventoryComplete, ProjectTreeObservation tree)
+    private PlcWorkingState(PlcTagInventoryPlcInfo plc, bool inventoryComplete, ProjectTreeObservation? tree)
     {
         _plc = plc.PlcName;
         _device = plc.DeviceName;
         _inventoryComplete = inventoryComplete;
-        _tables = plc.Tables.Select(t => new Table(NormalizeFolder(t.FolderPath), t.Name, t.IsDefault,
+        _tables = plc.Tables.Select(t => new Table(NormalizeFolder(t.FolderPath), t.Name,
             t.Tags.Select(Copy).ToList(),
             t.UserConstants.Select(c => new UserConstantInfo { Name = c.Name, DataType = c.DataType, Value = c.Value }).ToList())).ToList();
-        foreach (var table in _tables) _tableFolders.Add(table.Folder);
 
         var basePath = new[] { Segment(ProjectTreeNodeTypes.Device, _device ?? string.Empty), Segment(ProjectTreeNodeTypes.PlcSoftware, _plc) };
         _basePath = basePath;
-        _skipped = tree.Skipped.Where(s => s.ParentPath.Count >= 2 && SameSelector(s.ParentPath.Take(2).ToArray(), basePath)).ToArray();
-        var software = tree.Roots.FirstOrDefault(r => r.NodeType == ProjectTreeNodeTypes.PlcSoftware && Names.Equals(r.Name, _plc));
+        _hasTree = tree is not null;
+        _skipped = tree?.Skipped.Where(s => s.ParentPath.Count >= 2 && SameSelector(s.ParentPath.Take(2).ToArray(), basePath)).ToArray()
+            ?? Array.Empty<ProjectTreeSkippedNodeInfo>();
+        var software = tree?.Roots.FirstOrDefault(r => r.NodeType == ProjectTreeNodeTypes.PlcSoftware && Names.Equals(r.Name, _plc));
         var children = software?.Children ?? new List<ProjectTreeNode>();
         _root = OwnerRoot(children, $"{_plc}/Blocks", basePath);
-        foreach (var folder in children.Where(c => c.NodeType == ProjectTreeNodeTypes.TagTableFolder))
-            CollectTableFolders(folder, "/");
         foreach (var unit in children.Where(c => c.NodeType == ProjectTreeNodeTypes.SoftwareUnit))
             _unitRoots[unit.Name] = OwnerRoot(unit.Children ?? new(), $"{_plc}/Units/{unit.Name}/Blocks",
                 basePath.Append(Segment(ProjectTreeNodeTypes.SoftwareUnit, unit.Name)).ToArray());
     }
 
-    public static PlcWorkingState Create(PlcTagInventoryPlcInfo plc, bool inventoryComplete, ProjectTreeObservation tree)
+    /// <param name="tree">The PLC's project tree, or null when no item of the call needs it (see <see cref="NeedsTree"/>).</param>
+    public static PlcWorkingState Create(PlcTagInventoryPlcInfo plc, bool inventoryComplete, ProjectTreeObservation? tree)
         => new(plc, inventoryComplete, tree);
+
+    /// <summary>
+    /// Block deletes resolve their target and enumerate what they remove from the tree; an OB create
+    /// needs the OB inventory for <see cref="PlcGuardDefinitions.ObSingletonExists"/>. Nothing else reads it.
+    /// </summary>
+    public static bool NeedsTree(PlcOperationRequest item)
+        => item.Operation is "delete_block" or "delete_block_group" || item.Operation == "create_block" && IsOb(item);
 
     public PlcResolution Resolve(PlcOperationRequest item)
     {
@@ -109,7 +117,8 @@ internal sealed class PlcWorkingState
         }
         catch (ResolutionException)
         {
-            // An unverifiable target cannot be applied; its block guard stops the call anyway.
+            // An unverifiable target (its block guard stops the call) or a create into a parent the
+            // tree lacks (Portal rejects it at mutation) is not applied; its touches are already recorded.
         }
     }
 
@@ -133,7 +142,7 @@ internal sealed class PlcWorkingState
         switch (item.Operation)
         {
             case "create_tag_table":
-                _tables.Add(new Table(NormalizeFolder(item.FolderPath), item.TableName!, false, new(), new()));
+                _tables.Add(new Table(NormalizeFolder(item.FolderPath), item.TableName!, new(), new()));
                 Touch(TableKey(item.TableName!), item);
                 break;
             case "delete_tag_table":
@@ -182,9 +191,11 @@ internal sealed class PlcWorkingState
                 break;
             case "create_block":
                 var address = BlockAddress.Parse(item.BlockPath!);
-                CreationParent(item, address).Blocks.Add(new Block(address.BlockName, BlockNodeType(item.BlockType!),
-                    item.BlockType == "GlobalDB" ? "DB" : item.Language ?? "LAD", false, IsOb(item) ? PlanObNumber(ObClass(item)) : null));
                 Touch(CpuKey(address.BlockName), item);
+                // Without a tree no later item reads blocks; a missing parent is Portal's rejection, never a plan error.
+                if (_hasTree)
+                    CreationParent(item, address).Blocks.Add(new Block(address.BlockName, BlockNodeType(item.BlockType!),
+                        item.BlockType == "GlobalDB" ? "DB" : item.Language ?? "LAD", false, IsOb(item) ? PlanObNumber(ObClass(item)) : null));
                 break;
             case "delete_block":
                 var (group, block) = FindBlock(item, BlockAddress.Parse(item.BlockPath!));
@@ -193,10 +204,11 @@ internal sealed class PlcWorkingState
                 break;
             case "create_block_group":
                 var target = BlockAddress.Parse(item.BlockPath!);
+                Touch(GroupKey(PlannedPath(target)), item);
+                if (!_hasTree) break;
                 var parent = CreationParent(item, target);
                 parent.Groups.Add(new Group(target.BlockName, $"{parent.Path}/{target.BlockName}", parent,
                     parent.Selector.Append(Segment(ProjectTreeNodeTypes.BlockFolder, target.BlockName)).ToArray(), false));
-                Touch(GroupKey($"{parent.Path}/{target.BlockName}"), item);
                 break;
             case "delete_block_group":
                 var doomed = DeletionGroup(item, BlockAddress.Parse(item.BlockPath!));
@@ -229,17 +241,11 @@ internal sealed class PlcWorkingState
             case "create_tag_table":
             {
                 var folder = NormalizeFolder(item.FolderPath);
-                if (!_tableFolders.Contains(folder)) throw NotFound(item, $"tag table folder '{folder}' was not found in PLC '{_plc}'.",
-                    !_inventoryComplete || _skipped.Any(s => s.NodeType is ProjectTreeNodeTypes.TagTable or ProjectTreeNodeTypes.TagTableFolder));
-                if (_tables.FirstOrDefault(t => Names.Equals(t.Name, item.TableName)) is { } taken)
-                    guards.Add(Fire(NameCollision, item, $"Tag table name '{item.TableName}' is already used by the table in '{taken.Folder}'; table names are unique across all folders."));
-                if (_skipped.Any(s => s.NodeType is ProjectTreeNodeTypes.TagTable or ProjectTreeNodeTypes.TagTableFolder)) guards.Add(SkippedGuard(item));
                 return Effect(item, new(PlcNameRules.TagTable, _plc, _device, folder, item.TableName, null, null, null), Change("tableName", null, item.TableName), folder);
             }
             case "delete_tag_table":
             {
                 var table = RequireTable(item);
-                if (table.IsDefault) guards.Add(Fire(DefaultTagTable, item, $"Tag table '{table.Name}' is the default tag table of PLC '{_plc}' and cannot be deleted."));
                 if (table.Tags.Count + table.Constants.Count > 0)
                     guards.Add(Fire(DeletesTableContents, item, $"Deleting tag table '{table.Name}' in '{table.Folder}' removes {table.Tags.Count} tags and {table.Constants.Count} user constants."));
                 return Effect(item, TableTarget(table), Array.Empty<PlcFieldChange>(), null, new(table.Tags.Count, table.Constants.Count, Array.Empty<string>(), Array.Empty<string>(), null, null));
@@ -248,7 +254,6 @@ internal sealed class PlcWorkingState
             case "create_user_constant":
             {
                 var table = RequireTable(item);
-                RequireCpuNameFree(item, item.Name!, null, guards);
                 if (item.LogicalAddress is not null) AddressOverlapGuard(item, null, guards);
                 var kind = item.Operation == "create_tag" ? PlcNameRules.Tag : PlcNameRules.UserConstant;
                 return Effect(item, MemberTarget(kind, table, item.Name!),
@@ -259,14 +264,7 @@ internal sealed class PlcWorkingState
             {
                 var table = RequireTable(item);
                 var tag = RequireTag(item, table);
-                if (item.NewName is not null) RequireCpuNameFree(item, item.NewName, new PlcNamedObject(PlcNameRules.Tag, tag.Name, TablePath(table)), guards);
                 if (item.LogicalAddress is not null) AddressOverlapGuard(item, tag, guards);
-                foreach (var (field, requested, current) in new[] { ("externalAccessible", item.ExternalAccessible, tag.ExternalAccessible),
-                             ("externalVisible", item.ExternalVisible, tag.ExternalVisible), ("externalWritable", item.ExternalWritable, tag.ExternalWritable) })
-                {
-                    if (requested is not null && current is null)
-                        guards.Add(Fire(AttributeUnreadable, item, $"The current '{field}' flag of tag '{tag.Name}' is unreadable, so the change cannot be verified."));
-                }
                 return Effect(item, MemberTarget(PlcNameRules.Tag, table, tag.Name),
                     Change("name", tag.Name, item.NewName).Concat(Change("dataType", tag.DataType, item.DataType))
                         .Concat(Change("logicalAddress", tag.LogicalAddress, item.LogicalAddress))
@@ -286,9 +284,10 @@ internal sealed class PlcWorkingState
             {
                 var table = RequireTable(item);
                 var constant = RequireConstant(item, table);
-                if (constant.Value is null)
-                    guards.Add(Fire(StateUnverifiable, item, $"The value of user constant '{constant.Name}' is unreadable, so its current state cannot be verified."));
                 var delete = item.Operation == "delete_user_constant";
+                // Only the update's effect reports the value it replaces; a delete needs no value.
+                if (!delete && constant.Value is null)
+                    guards.Add(Fire(StateUnverifiable, item, $"The value of user constant '{constant.Name}' is unreadable, so its current state cannot be verified."));
                 return Effect(item, MemberTarget(PlcNameRules.UserConstant, table, constant.Name),
                     delete ? Array.Empty<PlcFieldChange>() : Change("dataType", constant.DataType, item.DataType).Concat(Change("value", constant.Value, item.Value)).ToArray(),
                     null, delete ? new(0, 1, Array.Empty<string>(), Array.Empty<string>(), null, null) : null);
@@ -296,13 +295,7 @@ internal sealed class PlcWorkingState
             case "create_block":
             {
                 var address = BlockAddress.Parse(item.BlockPath!);
-                var parent = CreationParent(item, address);
-                var name = address.BlockName;
-                if (parent.Blocks.Any(b => Names.Equals(b.Name, name)))
-                    guards.Add(Fire(BlockExists, item, $"Block '{parent.Path}/{name}' already exists; create_block never overwrites a block."));
-                else if (parent.Groups.Any(g => Names.Equals(g.Name, name)))
-                    guards.Add(Fire(NameCollision, item, $"'{name}' is already used by block group '{parent.Path}/{name}'."));
-                else RequireCpuNameFree(item, name, null, guards);
+                var path = PlannedPath(address);
                 var cls = IsOb(item) ? ObClass(item) : null;
                 string? number = null;
                 if (cls is not null && cls.IsSingleton && ObBlocks().FirstOrDefault(o => o.Block.Number == cls.BaseNumber) is { Block: not null } holder)
@@ -310,30 +303,32 @@ internal sealed class PlcWorkingState
                 else if (cls is not null)
                     number = (PlanObNumber(cls) ?? throw new ArgumentException($"no OB number from {ObNumberRules.FirstFree} to {ObNumberRules.Max} is free in PLC '{_plc}'."))
                         .ToString(CultureInfo.InvariantCulture);
-                return Effect(item, new(PlcNameRules.Block, _plc, _device, null, null, name, $"{parent.Path}/{name}", null),
+                return Effect(item, new(PlcNameRules.Block, _plc, _device, null, null, address.BlockName, path, null),
                     Change("blockType", null, item.BlockType).Concat(Change("language", null, item.Language)).Concat(Change("obEventClass", null, cls?.Name))
                         .Concat(Change("number", null, number)).ToArray(),
-                    parent.Path);
+                    ParentPath(path));
+            }
+            case "update_block_logic":
+            {
+                // The export resolves the block (target_not_found/target_ambiguous); the tree is not read.
+                var address = BlockAddress.Parse(item.BlockPath!);
+                var path = address.IsDeterministic ? PlannedPath(address) : $"{_plc}/{address.BlockName}";
+                return Effect(item, new(PlcNameRules.Block, _plc, _device, null, null, address.BlockName, path, null), Array.Empty<PlcFieldChange>(), null);
             }
             case "delete_block":
-            case "update_block_logic":
             {
                 var (group, block) = FindBlock(item, BlockAddress.Parse(item.BlockPath!), guards);
                 var path = $"{group.Path}/{block.Name}";
                 var target = new PlcTargetIdentity(PlcNameRules.Block, _plc, _device, null, null, block.Name, path, null);
-                if (item.Operation == "update_block_logic") return Effect(item, target, Array.Empty<PlcFieldChange>(), null);
                 guards.Add(Fire(DeletesBlock, item, $"Deleting block '{path}' ({block.Type}, {block.Language ?? "unknown language"}) removes it and its content."));
                 return Effect(item, target, Array.Empty<PlcFieldChange>(), null, new(0, 0, new[] { path }, Array.Empty<string>(), block.Type, block.Language));
             }
             case "create_block_group":
             {
                 var address = BlockAddress.Parse(item.BlockPath!);
-                var parent = CreationParent(item, address);
-                if (parent.Groups.Any(g => Names.Equals(g.Name, address.BlockName)) || parent.Blocks.Any(b => Names.Equals(b.Name, address.BlockName)))
-                    guards.Add(Fire(NameCollision, item, $"'{address.BlockName}' is already used by a block or block group in '{parent.Path}'."));
-                if (_skipped.Any(s => SameSelector(s.ParentPath, parent.Selector))) guards.Add(SkippedGuard(item));
-                return Effect(item, new(PlcNameRules.BlockGroup, _plc, _device, null, null, address.BlockName, $"{parent.Path}/{address.BlockName}", null),
-                    Change("name", null, address.BlockName), parent.Path);
+                var path = PlannedPath(address);
+                return Effect(item, new(PlcNameRules.BlockGroup, _plc, _device, null, null, address.BlockName, path, null),
+                    Change("name", null, address.BlockName), ParentPath(path));
             }
             case "delete_block_group":
             {
@@ -371,20 +366,6 @@ internal sealed class PlcWorkingState
         => table.Constants.FirstOrDefault(c => Names.Equals(c.Name, item.Name))
             ?? throw NotFound(item, $"user constant '{item.Name}' was not found in tag table '{table.Name}'.", !_inventoryComplete);
 
-    private void RequireCpuNameFree(PlcOperationRequest item, string name, PlcNamedObject? self, List<FiredGuard> guards)
-    {
-        if (PlcNameRules.FindCollision(name, CpuOccupants(), self) is { } occupant)
-            guards.Add(Fire(NameCollision, item, $"'{name}' collides with {occupant.Kind} '{occupant.Name}' in '{occupant.Container}'; tags, user constants and blocks share one case-insensitive namespace."));
-        // A block the walker could not read may hold the name.
-        if (_skipped.Any(IsBlockTreeNode)) guards.Add(SkippedGuard(item));
-    }
-
-    private IEnumerable<PlcNamedObject> CpuOccupants()
-        => _tables.SelectMany(t => t.Tags.Select(tag => new PlcNamedObject(PlcNameRules.Tag, tag.Name, TablePath(t)))
-                .Concat(t.Constants.Select(c => new PlcNamedObject(PlcNameRules.UserConstant, c.Name, TablePath(t)))))
-            .Concat(_unitRoots.Values.Prepend(_root).SelectMany(DescendantBlocks)
-                .Select(b => new PlcNamedObject(b.Block.IsSystem ? PlcNameRules.SystemBlock : PlcNameRules.Block, b.Block.Name, b.Group.Path)));
-
     private void AddressOverlapGuard(PlcOperationRequest item, TagInfo? self, List<FiredGuard> guards)
     {
         var wanted = NormalizeAddress(item.LogicalAddress);
@@ -397,6 +378,7 @@ internal sealed class PlcWorkingState
 
     private (Group Group, Block Block) FindBlock(PlcOperationRequest item, BlockAddress address, List<FiredGuard>? guards = null)
     {
+        RequireTree(item);
         if (address.IsDeterministic)
         {
             var group = ResolveGroup(item, Owner(item, address), address.FolderPath);
@@ -421,9 +403,23 @@ internal sealed class PlcWorkingState
         => address.IsDeterministic ? ResolveGroup(item, Owner(item, address), address.FolderPath) : _root;
 
     private Group DeletionGroup(PlcOperationRequest item, BlockAddress address)
-        => address.IsDeterministic
+    {
+        RequireTree(item);
+        return address.IsDeterministic
             ? ResolveGroup(item, Owner(item, address), address.FolderPath.Append(address.BlockName).ToArray())
             : ResolveGroup(item, _root, new[] { address.BlockName });
+    }
+
+    /// <summary>A planner defect, never a caller error: the item's PLC was planned without its tree.</summary>
+    private void RequireTree(PlcOperationRequest item)
+    {
+        if (!_hasTree) throw new InvalidOperationException($"Operation '{item.OperationId}' ({item.Operation}) needs the project tree of PLC '{_plc}', which was not read.");
+    }
+
+    /// <summary>The canonical path a block or group path names; an undetermined path names the owner's root group.</summary>
+    private string PlannedPath(BlockAddress address)
+        => string.Join("/", (address.UnitName is null ? new[] { _plc, "Blocks" } : new[] { _plc, "Units", address.UnitName, "Blocks" })
+            .Concat(address.FolderPath).Append(address.BlockName));
 
     private Group Owner(PlcOperationRequest? item, BlockAddress address)
         => address.UnitName is null ? _root
@@ -445,7 +441,8 @@ internal sealed class PlcWorkingState
 
     /// <summary>Every OB with a readable number, in all groups (system groups included) and software units.</summary>
     private IEnumerable<(Group Group, Block Block)> ObBlocks()
-        => _unitRoots.Values.Prepend(_root).SelectMany(DescendantBlocks).Where(b => b.Block.Type == ProjectTreeNodeTypes.Ob && b.Block.Number is not null);
+        => _hasTree ? _unitRoots.Values.Prepend(_root).SelectMany(DescendantBlocks).Where(b => b.Block.Type == ProjectTreeNodeTypes.Ob && b.Block.Number is not null)
+            : throw new InvalidOperationException($"The OB inventory of PLC '{_plc}' was not read.");
 
     private int? PlanObNumber(ObEventClass cls) => ObNumberRules.Pick(cls, ObBlocks().Select(b => b.Block.Number!.Value).ToHashSet());
 
@@ -486,13 +483,6 @@ internal sealed class PlcWorkingState
                     int.TryParse(child.Details?.GetValueOrDefault("Number"), NumberStyles.None, CultureInfo.InvariantCulture, out var number) ? number : null));
             }
         }
-    }
-
-    private void CollectTableFolders(ProjectTreeNode folder, string path)
-    {
-        _tableFolders.Add(path);
-        foreach (var child in (folder.Children ?? new()).Where(c => c.NodeType == ProjectTreeNodeTypes.TagTableFolder))
-            CollectTableFolders(child, path == "/" ? "/" + child.Name : $"{path}/{child.Name}");
     }
 
     private PlcWriteEffect Effect(PlcOperationRequest item, PlcTargetIdentity target, IReadOnlyList<PlcFieldChange> changes, string? placement, PlcRemoval? removes = null)

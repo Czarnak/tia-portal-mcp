@@ -2311,6 +2311,7 @@ public class OpennessWorkerClient : IDisposable
                 ResolvedProjectPath = response.ResolvedProjectPath,
                 SessionIdentity = response.SessionIdentity,
                 PortalProcessId = response.PortalProcessId,
+                EngineeringError = response.EngineeringError,
                 HmiWriteOutcome = response.HmiWriteOutcome,
                 VciWriteOutcome = response.VciWriteOutcome,
                 BlockImportOutcome = response.BlockImportOutcome,

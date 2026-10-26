@@ -18,10 +18,12 @@ namespace Siemens.Engineering
             : throw new EngineeringException($"Attribute '{attributeName}' is not modeled.");
         private string name = string.Empty;
         public Exception? NameFailure { get; set; }
+        /// <summary>Models Portal silently keeping the old name (a colliding rename does not throw).</summary>
+        public bool IgnoreNameWrites { get; set; }
         public string Name
         {
             get => NameFailure is null ? name : throw NameFailure;
-            set => name = value;
+            set { if (!IgnoreNameWrites) name = value; }
         }
         public CrossReference.CrossReferenceService? CrossReferenceService { get; set; }
         public Exception? CrossReferenceServiceFailure { get; set; }
@@ -82,6 +84,7 @@ namespace Siemens.Engineering
     {
         public EngineeringException() { }
         public EngineeringException(string message) : base(message) { }
+        public EngineeringException(string message, Exception inner) : base(message, inner) { }
     }
 
     // Match the Openness hierarchy: Portal loss is not an ordinary EngineeringException.

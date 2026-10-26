@@ -1,6 +1,7 @@
 # Improvement Log — tia-portal-mcp
 
-Open engineering follow-ups for this project, started 2026-07-15. Resolved items are removed.
+Open engineering follow-ups for this project, started 2026-07-15. Resolved items are removed; the
+latest completed entry stays at the end.
 Historical implementation, qualification and acceptance records remain indexed in
 [the documentation map](README.md). Workstream C follow-up merge identities and verification
 are recorded in the [orchestration ledger](superpowers/plans/2026-10-24-workstream-c-followups-orchestration.md#completion-ledger).
@@ -198,11 +199,6 @@ Found while building and live-accepting [PR B](superpowers/plans/2026-10-06-plc-
 blocks it. Known limits are also listed in the
 [PLC operations summary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#known-limits).
 
-- **Software-unit blocks counted in the CPU namespace (M2, confirmed false live).** `create_tag`
-  named `SU_DB` is blocked as `plc_name_collision` against `PLC_LAD/Units/Test_SU/Blocks/SU_DB`.
-  The maintainer confirmed that unpublished unit blocks cannot be referenced outside the unit. It
-  fails closed. Exclude unpublished unit blocks from the CPU namespace, and check the related
-  worker minor where a unit-scoped create checks the top-level PLC namespace instead of the unit's.
 - **Per-target inventory completeness (D7).** Completeness exists only at the inventory root, so
   one unreadable table or device item makes `plc_state_unverifiable` fire for every item in the
   call. Track completeness per PLC/table so unrelated targets can plan.
@@ -226,14 +222,11 @@ blocks it. Known limits are also listed in the
   already accepted still blocks the dependent item in read-write (`GuardDecisions.DecideLate`). No
   PLC guard is acknowledge-level today, so `plc_write` is unaffected.
 - **plc_write review minors (Tasks 1–8),** one line each:
-  - `PlcNameRulesTests` lacks the "same name, different kind/container, self passed" collision case.
   - `PlcSoftwareLocator` keeps two near-identical device walkers and a duplicated name filter.
   - `RequireReadableValue`'s `EngineeringException` branch and nested system-block group recursion are untested.
   - No behavioural test drives `BlockImporter`/`PlcTypeImporter` into a hash mismatch; the `IndexOf` source-order contracts are brittle.
-  - `RequireNameUnoccupied` uses Siemens `Blocks.Find` (case sensitivity unverified) but `OrdinalIgnoreCase` for groups.
   - Duplicated "No block exists at…" message; the XML path resolves the target twice.
   - `PlcTypeTargetResolver` throw sites are covered only by a source contract.
-  - The created-earlier check keys on folder path (the planner catches the missed case).
   - `blockImportOutcome` on failures sits outside the document-budget drop order.
   - `ConditionalMemberRegisterTests` scans one host type by hand.
   - `Apply` re-runs `Resolve` (double resolution per item); `RequireTable` is called twice in one case.
@@ -241,10 +234,57 @@ blocks it. Known limits are also listed in the
   - The `StaleContentHash` test's "before any write" assertion can never fail.
   - `HiddenAt` is over-conservative: a skipped sibling makes a miss in a fully read group unverifiable (block, never a wrong not-found).
   - Effect-presentation omission reason is ambiguous (diff versus whole effect).
-  - `VerifyStructural` reports `actual:"absent"` for `target_ambiguous`.
   - The `uiOpen` list was not edited for the `plc_write` probes (default branch used).
   - Rename `Start`→`Go` then create `Start` supersedes the rename on the shared key, so `Go` is never verified; verifier and planner supersession keys differ.
   - `WorkerTransportFailureGuidanceTests` rows for retired names only test the unknown-operation path.
+
+## Open: plc_write native rejections follow-ups (2026-10-26)
+
+Left open by the [native rejections plan](superpowers/plans/2026-10-25-plc-write-native-rejections.md)
+and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
+
+- **Network, HMI and VCI adopt the same error contract.** Separate plans, after this branch merges,
+  reusing the `engineering_rejected` / `engineeringError` contract and the timing protocol of
+  `docs/superpowers/acceptance/reports/inputs/2026-10-25-plc-write-timing-before.md`. Order from the
+  plan: HMI (its `hmi_name_collision` guard is the closest match), then Network (the win is
+  verification, not guards), then VCI. `hmi_write` and `vci_write` wrap Siemens exceptions in
+  `WorkerOperationException` before the shared catch, so neither produces `engineeringError` today;
+  `network_write` services often catch `EngineeringException` themselves. Each plan records its own
+  baseline, the guards retired with the live case that proved the native rejection, and its contract
+  version bump.
+- **Content importers still flatten Siemens errors.** `update_block_logic` and `update_type_content`
+  import failures, and the exporters, are re-wrapped as `worker_operation_failed` with no
+  `engineeringError`. `WorkerOperationException.EngineeringError` exists but has no producer; the
+  wrap sites would call `WorkerExecution.Describe(ex)`, and the category choice there needs the same
+  type-based rule.
+- **`engineeringError` bounds are silent.** `WorkerExecution.Describe` cuts a message at 4,000
+  characters and the inner chain at 8 entries without a marker, which contradicts "verbatim". Drop the
+  caps or add a truncation marker.
+- **`plc_ob_singleton_exists` is retained, not proven redundant.** Portal's own response to a duplicate
+  singleton OB was never observed because no `plc_write` input reaches it. Retiring the guard needs a
+  probe outside `plc_write` (a direct Openness or TIA Scripting import of a second OB 80).
+- **Namespace coverage remains scoped.** Additional probes cover cross-table tag creation, a constant against an existing tag, a tag against an FC and child-folder tag-table creation against an existing root-table name. Cross-group block duplicates, the reverse cross-kind directions and arbitrary pairs of child
+  folders remain unverified; do not generalize those four rejection cases.
+- **`update_tag` partial application (review finding, not exercised live).** An unsupported external-access flag can fail mid-update, after a
+  rename or data-type change in the same item has applied. The rename read-back compares ordinally; if
+  Portal ever normalised the case of a requested name, a case-only rename would fail
+  `postcondition_failed`.
+- **Failed non-content items have no verification entry** (nothing to verify, unlike Network and HMI,
+  which still report `observed`). Add a `not_verified` check if a visible entry is wanted.
+- **Verification wording and tests.** `BlockMutationService` still logs "resolved and compiled" and
+  sets `reExportSucceeded:true` without a re-export; a comment in `PlcWriteRoundtripScenario.cs`
+  still says "failed verification"; the FakeWorker `update_tag` allows a colliding rename, so no MCP
+  test pins the `postcondition_failed` item shape; the mapping test lacks an
+  `EngineeringObjectDisposedException` row and host-side absence of `engineeringError` is asserted
+  only for one rejection kind.
+- **Short-path block key.** The "undetermined" block key in `PlcWriteVerifier` is a path-shape
+  heuristic (two segments) tied to `PlannedPath`; the conservative rule is documented in code.
+  The unreachable independent-item replan cache and its direct no-op test were removed at closeout.
+- **Post-write `contentHash` is not reproducible from content** (the export carries a generated id).
+  Documented; callers take it from the verification or a fresh `plc_read`. Making it deterministic
+  would need the sanitizer to cover the generated id.
+- **Pre-existing flake.** 14 CLI startup tests (`RemovedOptionTests`, `WorkerTimeoutStartupTests`)
+  fail under parallel load and have no `[Collection]`.
 
 ## Open: Deeper project-tree resolver optimization (Issue #32 follow-up)
 
@@ -401,3 +441,35 @@ the suite becomes a problem again.
 - Authentication/authorization-event subscriptions, server-push/long-polling MCP notifications
   and an MCP-callable `doctor` remain deferred; `doctor` is CLI-only.
 - Splitting `WorkerRequest` into per-operation DTOs remains deferred while the protocol is stable.
+
+## Completed: plc_write native rejections (2026-10-26)
+
+[Plan](superpowers/plans/2026-10-25-plc-write-native-rejections.md), [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
+`plc_write` stopped pre-checking create collisions; the recorded duplicate tag/table/block/group
+cases, four additional namespace directions and default-table delete failed `engineering_rejected` with a bounded
+`engineeringError`. Write contract `2.0`; `plc_read` stays `1.0`. Final fix `e7803a4` clarifies uncertainty after a failed later non-content item, removes unreachable independent-item replan storage and narrows tool claims; the final default suite passed 7717 tests with 7 pre-existing warnings. Its host changes are offline-qualified; the added native probes used installed `7445c5f`, whose worker code is unchanged.
+
+- **Removed** (`534937a..7445c5f`, production files): 492 lines removed, 280 added. Largest:
+  worker `PlcWritePreconditions.cs` -209/+8, `PlcWriteVerifier.cs` -101/+37, `PlcWorkingState.cs`
+  -74/+64, `PlcNameRules.cs` -34/+2, `PlcWritePlanner.cs` -14/+32. Tests: -258/+658 lines (plus +576 in the
+  regenerated `output-schemas.json` snapshot); FakeWorker -7/+38. Guards `plc_name_collision`,
+  `plc_block_exists`, `plc_default_tag_table` and `plc_attribute_unreadable` are gone; verification
+  keeps only the content-hash re-export.
+- **Timing** (audit `durationMs`, `full` mode, `PLC_1` of a disposable copy with 1 block, 2 tag tables,
+  2 tags; 4 PLCs and 111 top-level tree nodes in the project; medians in ms; Inspector wall-clock not
+  measured). Before = `main` at `02ffe5a`; Set C = `7445c5f`, the protocol-complete quiet run.
+
+  | Case | Root before | Root after | Item sum before | Item sum after | Remainder before | Remainder after |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | T1 `create_tag` | 17,826 | 11,442 (-36%) | 5,201 | 5,178 | 12,673 | 6,264 (-51%) |
+  | T2 10 items | 137,669 | 119,732 (-13%) | 124,185 | 112,428 | 13,484 | 6,437 (-52%) |
+  | T3 `update_block_logic` | 54,933 | 55,378 (+1%) | 37,318 | 38,335 | 18,356 | 17,073 (-7%) |
+  | T4 `delete_block_group` | 18,814 | 12,017 (-36%) | 5,325 | 5,472 | 13,718 | 6,545 (-52%) |
+  | T5 T2 `dryRun` | 5,975 | 6,308 (+6%) | 0 | 0 | 5,975 | 6,308 |
+
+  Sets A (noisy machine) and B (off-protocol replicate) are in the report as context. The remainder
+  (planning plus verification) roughly halves for T1, T2 and T4; the content path (T3) is unchanged.
+- **Retained limits:** cross-folder duplicate tag tables untested (L2); Portal's duplicate singleton OB
+  rejection unreachable through the tool (L6); an `update_tag` unsupported-flag failure can follow an
+  applied rename or type change; a create into a missing parent group or folder now fails at mutation;
+  14 CLI startup tests are flaky under parallel load (pre-existing).

@@ -20,6 +20,81 @@ public sealed class WorkerExecutionTests
     }
 
     [Fact]
+    public void MutationTargetInvocationFailure_MapsToEngineeringRejectedWithVerbatimChain()
+    {
+        var root = new InvalidOperationException("root cause");
+        var middle = new EngineeringException("middle", root);
+        var result = WorkerExecution.Execute(
+            () => throw new EngineeringTargetInvocationException("Siemens text", middle), () => 0, mutates: true);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, result.FailureCategory);
+        var info = Assert.IsType<EngineeringErrorInfo>(result.EngineeringError);
+        Assert.Equal("EngineeringTargetInvocationException", info.Type);
+        Assert.Equal("Siemens text", info.Message);
+        Assert.Collection(info.Inner,
+            first => { Assert.Equal("EngineeringException", first.Type); Assert.Equal("middle", first.Message); },
+            second => { Assert.Equal("InvalidOperationException", second.Type); Assert.Equal("root cause", second.Message); });
+    }
+
+    [Fact]
+    public void MutationOtherEngineeringFailure_StaysOrdinaryButCarriesTheError()
+    {
+        var result = WorkerExecution.Execute(
+            () => throw new EngineeringNotSupportedException("not supported here"), () => 0, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        var info = Assert.IsType<EngineeringErrorInfo>(result.EngineeringError);
+        Assert.Equal("EngineeringNotSupportedException", info.Type);
+        Assert.Equal("not supported here", info.Message);
+        Assert.Empty(info.Inner);
+    }
+
+    [Fact]
+    public void ReadTargetInvocationFailure_NeverMapsToEngineeringRejected()
+    {
+        var result = WorkerExecution.Execute(
+            () => throw new EngineeringTargetInvocationException("read failed"), () => 0);
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Equal("TIA Portal operation failed: read failed", result.Error);
+        Assert.Equal("read failed", result.EngineeringError!.Message);
+    }
+
+    [Fact]
+    public void MutationTargetInvocationFailure_AfterPortalDisposal_StillMapsToPortalLost()
+    {
+        var revision = 0L;
+        var result = WorkerExecution.Execute(
+            () => { revision++; throw new EngineeringTargetInvocationException("gone"); }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+    }
+
+    [Fact]
+    public void NonEngineeringFailures_CarryNoEngineeringError()
+    {
+        var result = WorkerExecution.Execute(() => throw new InvalidOperationException("plain"), () => 0, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+    }
+
+    [Fact]
+    public void EngineeringError_BoundsChainDepthAndMessageLength()
+    {
+        Exception chain = new InvalidOperationException(new string('z', 10_000));
+        for (var depth = 0; depth < 20; depth++) chain = new EngineeringException($"level {depth}", chain);
+
+        var result = WorkerExecution.Execute(() => throw new EngineeringTargetInvocationException("top", chain), () => 0, mutates: true);
+
+        var info = result.EngineeringError!;
+        Assert.Equal(EngineeringErrorInfo.MaxInnerCount, info.Inner.Count);
+        Assert.All(info.Inner, inner => Assert.True(inner.Message.Length <= EngineeringErrorInfo.MaxMessageChars));
+    }
+
+    [Fact]
     public void NonRecoverableFailure_AlwaysMapsToPortalLost()
     {
         var result = WorkerExecution.Execute(() => throw new NonRecoverableException("lost"), () => 0);

@@ -28,13 +28,17 @@ public sealed class WorkerOperationException : Exception
 
     public VciWriteOutcomeInfo? VciWriteOutcome { get; }
 
+    /// <summary>The Siemens exception this wraps, so a call site that catches one can forward it instead of flattening it to text.</summary>
+    public EngineeringErrorInfo? EngineeringError { get; }
+
     public WorkerOperationException(
         string failureCategory,
         string message,
         IReadOnlyList<string>? warnings = null,
         BlockImportOutcomeInfo? blockImportOutcome = null,
         HmiWriteOutcomeInfo? hmiWriteOutcome = null,
-        VciWriteOutcomeInfo? vciWriteOutcome = null)
+        VciWriteOutcomeInfo? vciWriteOutcome = null,
+        EngineeringErrorInfo? engineeringError = null)
         : base(message)
     {
         if (!WorkerFailureCategories.IsKnown(failureCategory))
@@ -49,5 +53,6 @@ public sealed class WorkerOperationException : Exception
         BlockImportOutcome = blockImportOutcome;
         HmiWriteOutcome = hmiWriteOutcome;
         VciWriteOutcome = vciWriteOutcome;
+        EngineeringError = engineeringError;
     }
 }

@@ -127,6 +127,7 @@ var hmiWriteRoundtrip = new TiaMcpServer.FakeWorker.Hmi.HmiWriteRoundtripScenari
 var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
 var plcWriteIncomplete = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), inventoryIncomplete: true);
 var plcWriteLateBlock = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), incompleteAfterWrite: true);
+var plcWriteExportLost = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), exportLostAfterWrite: true);
 var plcWriteContentDrift = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), driftAtImport: true);
 var plcWriteUnverifiable = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), skippedBlock: true);
 
@@ -933,6 +934,9 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "plc-write-late-block":
             Respond(plcWriteLateBlock.Handle(line, scenario));
+            break;
+        case "plc-write-export-lost":
+            Respond(plcWriteExportLost.Handle(line, scenario));
             break;
         case "plc-write-content-drift":
             Respond(plcWriteContentDrift.Handle(line, scenario));

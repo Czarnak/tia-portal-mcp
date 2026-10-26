@@ -551,6 +551,8 @@ observed, message }`:
 
 Names are never interpolated into a check string.
 
+A Siemens `EngineeringTargetInvocationException` that escapes a Network mutation method to the worker's shared catch is reported as the item failure category `engineering_rejected` with the conditional `engineeringError { type, message, inner[] }` member (see the [PLC reference](PLC_OPERATIONS_SUMMARY.md#failures-from-tia-portal)); any other Siemens error keeps `worker_operation_failed`. Many Network services catch `EngineeringException` themselves and still report `worker_operation_failed`, and this was not exercised live for Network. The guard table is unchanged.
+
 ### PROFINET device name
 
 Optional boolean `changes.pnDeviceNameAutoGeneration` writes the node's "Generate PROFINET device

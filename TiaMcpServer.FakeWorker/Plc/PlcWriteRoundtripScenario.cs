@@ -17,12 +17,18 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// of Locked fail, to model unreadable content.
 /// With <c>inventoryIncomplete</c> the inventory reports a PLC whose tag tables could not be read;
 /// <c>incompleteAfterWrite</c> does the same once any write succeeded (late block, failed verification);
+/// <c>exportLostAfterWrite</c> makes block exports fail once any write succeeded (the post-write hash re-export);
 /// <c>driftAtImport</c> edits block content just before an import checks its hash (a TIA UI edit);
 /// <c>skippedBlock</c> makes the tree walker report an unreadable block under PLC_1's program blocks.
+/// Creating the tag <c>RejectedByPortal</c>, or a block, block group or tag table whose name is taken, fails as Portal's own
+/// rejection (<c>engineering_rejected</c> with Siemens evidence): the worker no longer pre-checks those names.
+/// Creating a tag whose name the table already holds returns the live-captured Siemens document verbatim.
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
-    bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false)
+    bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false, bool exportLostAfterWrite = false)
 {
+    private const string RejectedTagName = "RejectedByPortal";
+
     private static readonly StringComparer Names = StringComparer.OrdinalIgnoreCase;
 
     private sealed class Group(string name, bool isSystem = false)
@@ -66,7 +72,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 FinalReadStage = "not_started", ContentRelation = "unknown",
                 TemporarySourceState = request.Format == SourceFormatNames.Source ? "not_created" : "not_applicable",
             };
-            return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message, BlockImportOutcome = notStarted }, WorkerJson.Envelope);
+            return JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = ex.FailureCategory, Error = ex.Message, BlockImportOutcome = notStarted, EngineeringError = ex.EngineeringError }, WorkerJson.Envelope);
         }
     }
 
@@ -198,6 +204,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
     private string Export(WorkerRequest request)
     {
         var (plc, _, block, path) = ResolveBlock(request.BlockPath!);
+        if (exportLostAfterWrite && _wrote) Throw(WorkerFailureCategories.WorkerOperationFailed, "The block could not be exported after the write.");
         if (block == "Locked") Throw(WorkerFailureCategories.WorkerOperationFailed, "The block could not be exported: access denied.");
         if (block == "Empty_DB") return Ok(string.Empty);
         return Ok(Content(plc, path, request.Format ?? SourceFormatNames.Xml));
@@ -244,7 +251,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         switch (request.Method)
         {
             case "create_block":
-                if (group.Blocks.Any(b => Names.Equals(b.Name, address.BlockName))) Throw(WorkerFailureCategories.StateChanged, "The block already exists.");
+                if (group.Blocks.Any(b => Names.Equals(b.Name, address.BlockName))) throw PortalRejection("The block already exists.");
                 (number, obClass) = PickNumber(plc, request);
                 group.Blocks.Add((address.BlockName, request.BlockType!, request.BlockType == "GlobalDB" ? "DB" : request.Language ?? "LAD", number.Value));
                 path = BlocksPath(plc, address.FolderPath, address.BlockName);
@@ -255,7 +262,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 path = blockPath;
                 break;
             case "create_block_group":
-                if (group.Groups.Any(g => Names.Equals(g.Name, address.BlockName))) Throw(WorkerFailureCategories.StateChanged, "The block group already exists.");
+                if (group.Groups.Any(g => Names.Equals(g.Name, address.BlockName))) throw PortalRejection("The block group already exists.");
                 group.Groups.Add(new Group(address.BlockName));
                 path = BlocksPath(plc, address.FolderPath, address.BlockName);
                 break;
@@ -289,6 +296,23 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
     private static IEnumerable<(string Name, string Type, string Language, int Number)> AllBlocks(Group group)
         => group.Blocks.Concat(group.Groups.SelectMany(AllBlocks));
 
+    private static WorkerOperationException PortalRejection(string message)
+        => new(WorkerFailureCategories.EngineeringRejected, "TIA Portal rejected the operation: " + message,
+            engineeringError: new EngineeringErrorInfo
+            {
+                Type = "EngineeringTargetInvocationException",
+                Message = message,
+                Inner = { new EngineeringInnerErrorInfo { Type = "InvalidOperationException", Message = "scripted cause" } },
+            });
+
+    /// <summary>Portal's create_tag collision as captured live (TIA Portal V21, English UI, 2026-10-26).</summary>
+    internal const string LiveTagCollisionMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.SW.Tags.PlcTagComposition'."
+        + "\r\n\r\nAn attempt was made to create an object that already exists.";
+
+    private static WorkerOperationException LiveTagCollision()
+        => new(WorkerFailureCategories.EngineeringRejected, "TIA Portal rejected the operation: " + LiveTagCollisionMessage,
+            engineeringError: new EngineeringErrorInfo { Type = "EngineeringTargetInvocationException", Message = LiveTagCollisionMessage });
+
     private string TagWrite(WorkerRequest request)
     {
         var plc = FindPlc(request.PlcName);
@@ -297,14 +321,16 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         switch (request.Method)
         {
             case "create_tag_table":
-                if (plc.Tables.Any(t => Names.Equals(t.Name, request.TableName))) Throw(WorkerFailureCategories.StateChanged, "The tag table name is taken.");
+                if (plc.Tables.Any(t => Names.Equals(t.Name, request.TableName))) throw PortalRejection("The tag table name is taken.");
                 plc.Tables.Add(table = new TagTableInfo { Name = request.TableName!, FolderPath = folder });
                 break;
             case "delete_tag_table":
                 plc.Tables.Remove(Require(table, "tag table"));
                 break;
             case "create_tag":
-                Require(table, "tag table").Tags.Add(new TagInfo { Name = request.Name!, DataType = request.DataType!, LogicalAddress = request.LogicalAddress ?? string.Empty,
+                if (request.Name == RejectedTagName) throw PortalRejection("scripted rejection");
+                if (Require(table, "tag table").Tags.Any(t => Names.Equals(t.Name, request.Name))) throw LiveTagCollision();
+                table!.Tags.Add(new TagInfo { Name = request.Name!, DataType = request.DataType!, LogicalAddress = request.LogicalAddress ?? string.Empty,
                     ExternalAccessible = true, ExternalVisible = true, ExternalWritable = true });
                 break;
             case "update_tag":

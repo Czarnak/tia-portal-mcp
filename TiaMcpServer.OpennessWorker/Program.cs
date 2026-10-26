@@ -228,7 +228,7 @@ internal static class Program
         }
         catch (WorkerOperationException ex)
         {
-            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome, ex.VciWriteOutcome);
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome, ex.VciWriteOutcome, ex.EngineeringError);
         }
         catch (Exception ex)
         {
@@ -1469,15 +1469,19 @@ internal static class Program
                     $"{capabilityOperation} is unavailable for this project container.");
 
             return body(_sharedSession);
-        });
+        }, MutatesProject(request.Method));
     }
+
+    /// <summary>Only project-mutation methods may report a Portal rejection; the shared policy catalog is the single classification.</summary>
+    private static bool MutatesProject(string method)
+        => OperationPolicyCatalog.GetCapability(method) == OperationCapability.ProjectMutation;
 
     private static bool AllowsMissingExpectedSessionIdentity(string method)
         => !OperationPolicyCatalog.RequiresExpectedSessionIdentity(method);
 
     /// <summary>Single place that maps Openness exceptions to a <see cref="WorkerResponse"/> failure and stamps completed operations with their resolved project path.</summary>
-    private static WorkerResponse Execute(Func<WorkerResponse> body)
-        => WorkerExecution.Execute(() => Stamp(body()), () => _sharedSession.PortalDisposalRevision);
+    private static WorkerResponse Execute(Func<WorkerResponse> body, bool mutates = false)
+        => WorkerExecution.Execute(() => Stamp(body()), () => _sharedSession.PortalDisposalRevision, mutates);
 
     /// <summary>
     /// Records which project the worker actually operated on. Stamped in one place so all
@@ -1542,7 +1546,8 @@ internal static class Program
         IReadOnlyList<string>? warnings = null,
         BlockImportOutcomeInfo? blockImportOutcome = null,
         HmiWriteOutcomeInfo? hmiWriteOutcome = null,
-        TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo? vciWriteOutcome = null)
+        TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo? vciWriteOutcome = null,
+        EngineeringErrorInfo? engineeringError = null)
     {
         return new WorkerResponse
         {
@@ -1550,6 +1555,7 @@ internal static class Program
             Error = error,
             FailureCategory = failureCategory,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
+            EngineeringError = engineeringError,
             HmiWriteOutcome = hmiWriteOutcome,
             VciWriteOutcome = vciWriteOutcome,
             BlockImportOutcome = blockImportOutcome

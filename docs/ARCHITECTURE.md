@@ -417,7 +417,12 @@ domains. An escaping `EngineeringException` also maps to `portal_lost` when the
 session observed unexpected disposal of a current Portal attachment during that
 execution. This uses cached event evidence, without native liveness calls or
 message matching. Deliberate detach, stale callbacks and earlier disposal do not
-qualify; ordinary engineering errors remain `worker_operation_failed`.
+qualify. For a mutation worker method (`ProjectMutation` in `OperationPolicyCatalog`, passed to
+`WorkerExecution.Execute` as `mutates`), an `EngineeringTargetInvocationException` maps to
+`engineering_rejected`; the flag spans the entire method, including connection, identity and target checks before a native write. It does not prove a setter or create was reached. Any other engineering error, and a target-invocation error from a read
+method, remains `worker_operation_failed`. Both carry `WorkerResponse.EngineeringError`
+(`EngineeringErrorInfo`: type, verbatim message, inner chain). `portal_lost` is decided first and
+carries no engineering error.
 Broad Network recovery, XML-bundle export, cached HMI liveness and
 Multiuser inventory catches exclude it through `OpennessExceptions.IsRecoverable`;
 Multiuser final identity checks preserve an original fatal body exception. The
@@ -515,13 +520,18 @@ registered tool is now structured; the three batch tools were removed rather tha
   and tool-level error record. Rejections carry `batch:null` and MCP `isError:true`; a batch that
   ran carries `error:null` and `isError:false`, even when individual items failed or were omitted.
   The shared runner uses the same response composer for exact budget measurement and delivery.
-  Domain contract versions remain HMI `1.1` and PLC/Network/VCI `1.0`.
+  Domain contract versions are HMI read `1.1`, `plc_read` `1.0`, `plc_write` `2.0` and Network/VCI `1.0`.
 - `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs` provides the shared
   item/failure/omission/count/truncation batch model and a read/write execution engine whose
   stop decision covers `protocol_error` alongside ordinary worker failures.
   `StructuredOperationFailure.blockImportOutcome` is a conditional member on every structured
   tool's failure schema; it appears only on a failed `update_block_logic` content-import item.
-- Network and PLC read/write, and HMI writes, use version `1.0`, warnings arrays and explicit nulls.
+- `StructuredOperationFailure.engineeringError` is a conditional member on every structured tool's
+  failure schema. The worker supplies it on `WorkerResponse`; the host copies it into an item failure
+  in `WriteRun.RunItemAsync`, the one shared projection, only for a failed call that carries it, so
+  host-side rejections never have one. See the PLC write seam for which paths produce it.
+- Network read/write, `plc_read` and HMI writes use version `1.0`, warnings arrays and explicit nulls;
+  `plc_write` uses `2.0`.
   `CanonicalWriteSafety`, token preview DTOs, `WriteSafetyService`, `WriteSafetyTooling`,
   `SafetyRead` and the legacy write audit are retired.
 
@@ -1022,22 +1032,41 @@ cleanup and automatic opener replay remain absent.
 
 `PlcWriteDomain` implements the guarded runner with `ConfirmsEveryCall=false` and only `block` and
 `info` guards (`PlcGuardDefinitions`), so no mode and no dry run elicits. Audit confirmation is
-`none` in read-write and `policy` in full. `PlcWritePlanner` plans from public reads only (one tag inventory, one project-tree snapshot per
-involved PLC, one export per content item), applies earlier items to an in-call working state, and
-fires guards:
+`none` in read-write and `policy` in full. The principle is that TIA Portal is the authority on its
+own rejections: the host and worker do not re-implement name collisions, existing blocks, existing
+groups or tables, or the default tag table. `PlcWritePlanner` plans from public reads only, and
+only the reads a kept guard or a target pre-flight needs: the tag inventory for tag, table and
+constant targets, a project-tree snapshot only for `delete_block`, `delete_block_group` and OB
+creates, and one export per content item. It applies earlier items to an in-call working state
+(identity overlay and `DependsOn` marking, no collision evaluation) and fires guards:
 
 | Guard | Severity | Fires when |
 | --- | --- | --- |
-| `plc_state_unverifiable` | block | Evidence relevant to the target is incomplete or unreadable (including an incomplete root inventory, which fires for every item) |
-| `plc_name_collision` | block | A new or renamed object collides with an existing or in-call object in the CPU namespace |
-| `plc_block_exists` | block | `create_block` targets an existing block |
-| `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class whose number an OB already holds, or an earlier item in the call creates |
-| `plc_default_tag_table` | block | `delete_tag_table` targets the default tag table |
-| `plc_attribute_unreadable` | block | A requested external-access flag is unreadable on the current tag |
+| `plc_state_unverifiable` | block | The PLC inventory is incomplete, the update or delete target or what a delete removes is unreadable, the user-constant value an update replaces is unreadable, or the content cannot be exported |
+| `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class whose number an OB already holds, or an earlier item in the call creates (kept: Portal's own rejection was not reachable through the tool) |
 | `plc_deletes_block` | info | `delete_block` removes the block and its content |
 | `plc_deletes_group_contents` | info | `delete_block_group` removes every block and group inside it |
 | `plc_deletes_table_contents` | info | `delete_tag_table` removes its tags and user constants |
 | `plc_address_overlap` | info | The requested logical address is already used by another tag (exact string match) |
+
+Update and delete targets are resolved before the first mutation (`target_not_found` fails the whole
+call); creates are not, so a create into a missing parent group or folder fails at mutation. A
+Siemens rejection inside an item reaches `WorkerExecution` and becomes `engineering_rejected` with
+`engineeringError` (see §6 on the worker mapping and §7a on the member); the item's failure is
+projected by the shared `WriteRun`, the audit keeps the actual statuses, and later items are
+`skipped`. Block creation is an XML import (`PlcBlockComposition.Import`), so a duplicate block is
+Portal's import error. The content importers (`update_block_logic`, `update_type_content`) and the exporters catch Siemens exceptions
+and re-wrap them in `WorkerOperationException` without `EngineeringError`, so those paths still report
+`worker_operation_failed`; `Describe` is available to them. Portal silently ignores an `update_tag`
+rename to a colliding name, so `TagMutationService.UpdateTag` applies the rename first, reads
+`Name` back and throws `postcondition_failed` before any other property changes.
+
+Verification (`PlcWriteVerifier`, contract `2.0`) reads back content only: `contentHash` for a
+content item (one re-export, whose hash cannot be predicted because the export carries a generated
+id), `trusted` for every other completed item, and `superseded` for an item a later item changed
+again or may have changed after an attempted failure; a failed non-content item has no entry and leaves final state unverified, requiring `plc_read`. The conservative supersede rule treats an unresolved
+`PLC/Name` content target as owned by any later same-name block item or any later group delete on
+that PLC.
 
 Content writes require `expectedContentHash`. The planner compares it with a fresh export in the
 write's format: a mismatch fails the call as `state_changed` at plan time, and the worker re-checks
@@ -1047,8 +1076,7 @@ cannot be written. A content preview may include a bounded `contentDiff` (40 exc
 8,192 characters per side, 32,768 characters per call).
 
 Later items may use objects created earlier in the same call; such items carry `DependsOn` and are
-re-planned just before their own mutation. `PlcWriteVerifier` re-reads every attempted item and
-marks an item whose object a later item changed again as `superseded`. `PlcWritePayloadBudget`
+re-planned just before their own mutation; the runner does not re-plan independent items. `PlcWritePayloadBudget`
 applies the configured value and document budgets (60,000/180,000 by default) and omits whole values.
 Worker resolution uses `PlcSoftwareLocator.FindUnique`, which considers every PLC including grouped
 devices and fails `target_ambiguous` on several matches; the shared target resolvers make

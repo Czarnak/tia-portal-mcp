@@ -18,7 +18,6 @@ public static class TagMutationService
         RequireName(tableName, "TableName");
 
         var (plc, group) = ResolveGroup(project, plcName, folderPath);
-        PlcWritePreconditions.RequireTableNameFree(plc, tableName);
 
         var table = group.TagTables.Create(tableName);
         return Result("create_tag_table", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, null);
@@ -31,13 +30,6 @@ public static class TagMutationService
         string? folderPath)
     {
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
-        if (table.IsDefault)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.WorkerOperationFailed,
-                $"Tag table '{tableName}' is the default tag table and cannot be deleted.");
-        }
-
         table.Delete();
         return Result("delete_tag_table", project, plc.Name, tableName, NormalizeFolderPath(folderPath), null, null);
     }
@@ -55,7 +47,6 @@ public static class TagMutationService
         RequireName(dataType, "DataType");
 
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
-        PlcWritePreconditions.RequireCpuNameFree(plc, name, null);
 
         var tag = table.Tags.Create(name, dataType, logicalAddress ?? string.Empty);
         return Result("create_tag", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), tag.Name, null);
@@ -80,17 +71,19 @@ public static class TagMutationService
         var table = resolved.Table;
         var tag = resolved.Tag;
 
-        if (!string.IsNullOrWhiteSpace(newName))
-        {
-            PlcWritePreconditions.RequireCpuNameFree(
-                resolved.Plc, newName!, tag.Name, PlcWritePreconditions.TableContainer(resolved.FolderPath, table.Name));
-        }
-
-        PlcWritePreconditions.RequireReadableFlags(tag, externalAccessible, externalVisible, externalWritable);
-
+        // Rename first and read it back: Portal silently keeps the old name when another object holds
+        // the new one, so a call that did not throw is no proof. Fail before any other property changes.
         if (!string.IsNullOrWhiteSpace(newName))
         {
             tag.Name = newName!;
+            var actualName = tag.Name;
+            if (!string.Equals(actualName, newName, StringComparison.Ordinal))
+            {
+                throw new WorkerOperationException(
+                    WorkerFailureCategories.PostconditionFailed,
+                    $"update_tag: Portal did not rename tag '{name}' to '{newName}'; the tag is still named '{actualName}'. "
+                    + "Another object may already hold that name. No other property was changed.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(dataType))
@@ -151,7 +144,6 @@ public static class TagMutationService
         RequireName(dataType, "DataType");
 
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
-        PlcWritePreconditions.RequireCpuNameFree(plc, name, null);
 
         var constant = table.UserConstants.Create(name);
         constant.DataTypeName = dataType;
@@ -201,7 +193,6 @@ public static class TagMutationService
         var (plc, table) = ResolveTable(project, plcName, tableName, folderPath);
         var constant = table.UserConstants.Find(name) ??
             throw NotFound($"User constant '{name}' was not found in tag table '{tableName}'.");
-        PlcWritePreconditions.RequireReadableValue(constant);
 
         constant.Delete();
         return Result("delete_user_constant", project, plc.Name, table.Name, NormalizeFolderPath(folderPath), null, name);
