@@ -22,8 +22,9 @@ public sealed record PlcWriteVerification(bool Success, IReadOnlyList<PlcOperati
 /// <c>update_block_logic</c>/<c>update_type_content</c> item, whose hash TIA normalizes and so cannot
 /// be predicted. Every other succeeded item is <c>trusted</c>: a non-throwing Openness call already
 /// proved it, so no inventory or tree is re-read. Only the last effective item on an object asserts
-/// the final state; earlier items on it pass as superseded. A failed content item reports its
-/// observed hash; a failed item of any other kind has nothing to verify and is omitted.
+/// the final state; earlier items on it pass as superseded, including after a possible partial
+/// mutation. A failed content item reports its observed hash; other failed items are omitted
+/// and leave the final state unverified.
 /// </summary>
 public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<PlcOperationRequest> items,
     IReadOnlyDictionary<string, PlcWriteEffect> effects)
@@ -40,8 +41,11 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             var failure = outcomes[item.OperationId].Failure;
             if (failure is null && SupersededBy(attempted, outcomes, index) is { } later)
             {
+                var evidence = outcomes[later.OperationId].Failure is not null && later.Operation is not ("update_block_logic" or "update_type_content")
+                    ? "the later operation failed and may have changed the object; its final state is not verified. Inspect it with plc_read before retrying."
+                    : "the final state is verified there.";
                 results.Add(new(item.OperationId, true, "superseded", null, null, null,
-                    $"Operation '{item.OperationId}': superseded by later operation '{later}' on the same object; the final state is verified there."));
+                    $"Operation '{item.OperationId}': superseded by later operation '{later.OperationId}' on the same object; {evidence}"));
             }
             else if (item.Operation is "update_block_logic" or "update_type_content")
             {
@@ -59,14 +63,13 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
     }
 
     /// <summary>The latest later item that may have changed one of this item's objects, or null.</summary>
-    private string? SupersededBy(IReadOnlyList<PlcOperationRequest> attempted,
+    private PlcOperationRequest? SupersededBy(IReadOnlyList<PlcOperationRequest> attempted,
         IReadOnlyDictionary<string, StructuredOperationItem> outcomes, int index)
     {
         var own = Keys(attempted[index], asLater: false);
         return attempted.Skip(index + 1)
             .Where(later => outcomes[later.OperationId].Failure is not { } failure || !WorkerFailureCategories.IsPreconditionRefusal(failure.Category))
-            .LastOrDefault(later => Keys(later, asLater: true).Any(k => own.Any(o => o == k || o.StartsWith(k + "\n", StringComparison.Ordinal))))
-            ?.OperationId;
+            .LastOrDefault(later => Keys(later, asLater: true).Any(k => own.Any(o => o == k || o.StartsWith(k + "\n", StringComparison.Ordinal))));
     }
 
     /// <summary>Hierarchical object keys: a container's key prefixes its members' keys.</summary>

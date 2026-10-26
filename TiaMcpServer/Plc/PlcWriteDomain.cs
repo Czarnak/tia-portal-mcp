@@ -17,7 +17,6 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     private readonly PlcWritePlanner _planner = new(client);
     private readonly Dictionary<string, IReadOnlyList<FiredGuard>> _guards = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PlcWriteEffect> _effects = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ItemPlan<PlcWriteEffect>> _plans = new(StringComparer.Ordinal);
     private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
     private IReadOnlyList<PlcOperationRequest> _items = Array.Empty<PlcOperationRequest>();
 
@@ -43,7 +42,6 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
         {
             _guards[items[i].OperationId] = result.Guards.GetValueOrDefault(items[i].OperationId) ?? Array.Empty<FiredGuard>();
             _effects[items[i].OperationId] = result.Plan.Items[i].Effect!;
-            _plans[items[i].OperationId] = result.Plan.Items[i];
         }
 
         return result.Plan;
@@ -54,8 +52,6 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
 
     public async Task<ItemReplan<PlcWriteEffect>> ReplanAsync(PlcOperationRequest item)
     {
-        // An independent item's pre-flight plan already read real state: nothing to re-read.
-        if (_plans.GetValueOrDefault(item.OperationId) is { DependsOn: null } planned) return ItemReplan<PlcWriteEffect>.Ok(planned);
         var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
         if (!result.Replan.Success) return result.Replan;
         _guards[item.OperationId] = result.Guards;

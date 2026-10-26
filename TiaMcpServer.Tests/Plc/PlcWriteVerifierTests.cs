@@ -174,8 +174,11 @@ public sealed class PlcWriteVerifierTests
         Assert.NotEqual("superseded", response.Verification.Operations[1].Check);
     }
 
-    [Fact]
-    public async Task FailedNonContentItemIsNotVerifiedAndNeverSupersedesOrReadsState()
+    [Theory]
+    [InlineData(WorkerFailureCategories.StateChanged, "trusted")]
+    [InlineData(WorkerFailureCategories.EngineeringRejected, "superseded")]
+    [InlineData(WorkerFailureCategories.PostconditionFailed, "superseded")]
+    public async Task FailedNonContentItemIsOmittedAndPossibleMutationLeavesFinalStateUnverified(string category, string expectedCheck)
     {
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
@@ -188,7 +191,7 @@ public sealed class PlcWriteVerifierTests
         {
             new StructuredOperationItem("create", "create_tag", OperationBatchStatus.Succeeded, null, null, null, null, Array.Empty<string>()),
             new StructuredOperationItem("update", "update_tag", OperationBatchStatus.Failed, null,
-                new StructuredOperationFailure(WorkerFailureCategories.StateChanged, "The tag changed."), null, null, Array.Empty<string>()),
+                new StructuredOperationFailure(category, "The update failed."), null, null, Array.Empty<string>()),
         });
         var before = requests.Methods().Length;
 
@@ -199,7 +202,36 @@ public sealed class PlcWriteVerifierTests
 
         Assert.True(verification.Success);
         var check = Assert.Single(verification.Operations);
-        Assert.Equal(("create", "trusted"), (check.OperationId, check.Check));
+        Assert.Equal(("create", expectedCheck), (check.OperationId, check.Check));
+        if (expectedCheck == "superseded")
+        {
+            Assert.Contains("not verified", check.Message);
+            Assert.Contains("plc_read", check.Message);
+            Assert.DoesNotContain("the final state is verified there", check.Message);
+        }
         Assert.Equal(before, requests.Methods().Length);
+    }
+
+    [Fact]
+    public async Task RejectedDuplicateSupersedesEarlierCreateAndStopsBeforeTheNextItem()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Scenario);
+
+        var response = await fixture.RunAsync(false, Tag("create", "create_tag", "Temp"),
+            Tag("duplicate", "create_tag", "Temp"), Tag("after", "create_tag", "After"));
+
+        Assert.False(response.Success);
+        Assert.Equal(new[] { "succeeded", "failed", "skipped" }, response.Batch!.Operations.Select(o => o.Status));
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, response.Batch.Operations[1].Failure!.Category);
+        var check = Assert.Single(response.Verification!.Operations);
+        Assert.Equal(("create", "superseded"), (check.OperationId, check.Check));
+        Assert.True(check.Success);
+        Assert.Null(check.ContentHash);
+        Assert.Contains("not verified", check.Message);
+        Assert.Contains("plc_read", check.Message);
+        var inventory = await fixture.InventoryAsync();
+        Assert.Contains("Temp", inventory);
+        Assert.DoesNotContain("After", inventory);
     }
 }

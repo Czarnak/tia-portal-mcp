@@ -142,25 +142,6 @@ public class PlcWritePlannerTests
         Assert.Equal(WorkerFailureCategories.TargetNotFound, (await planner.ReplanAsync(delete)).Replan.Error?.Category);
     }
 
-    [Fact]
-    public async Task IndependentItemReplanReadsNothing()
-    {
-        using var directory = new TempAuditDirectory();
-        Directory.CreateDirectory(directory.Path);
-        using var log = new FakeWorkerRequestLog(directory.Path);
-        using var client = await CreateClientAsync(Scenario);
-        var domain = new PlcWriteDomain(client);
-        var item = new PlcOperationRequest { OperationId = "d", Operation = "delete_tag", PlcName = "PLC_2", TableName = "Default tag table", Name = "Start" };
-        var plan = await domain.PlanAsync(new[] { item });
-        var before = log.Methods().Length;
-
-        var replan = await domain.ReplanAsync(item);
-
-        Assert.True(replan.Success);
-        Assert.Equal(plan.Items[0].Effect, replan.Plan!.Effect);
-        Assert.Equal(before, log.Methods().Length);
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("plc_1")]
