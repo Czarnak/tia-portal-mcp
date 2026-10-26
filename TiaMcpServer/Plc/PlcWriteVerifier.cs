@@ -71,15 +71,15 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
     private string? SupersededBy(IReadOnlyList<PlcOperationRequest> attempted,
         IReadOnlyDictionary<string, StructuredOperationItem> outcomes, int index)
     {
-        var own = Keys(attempted[index]);
+        var own = Keys(attempted[index], asLater: false);
         return attempted.Skip(index + 1)
             .Where(later => outcomes[later.OperationId].Failure is not { } failure || !WorkerFailureCategories.IsPreconditionRefusal(failure.Category))
-            .LastOrDefault(later => Keys(later).Any(k => own.Any(o => o == k || o.StartsWith(k + "\n", StringComparison.Ordinal))))
+            .LastOrDefault(later => Keys(later, asLater: true).Any(k => own.Any(o => o == k || o.StartsWith(k + "\n", StringComparison.Ordinal))))
             ?.OperationId;
     }
 
     /// <summary>Hierarchical object keys: a container's key prefixes its members' keys.</summary>
-    private IReadOnlyList<string> Keys(PlcOperationRequest item)
+    private IReadOnlyList<string> Keys(PlcOperationRequest item, bool asLater)
     {
         var target = effects[item.OperationId].Target;
         var scope = $"{target.DeviceName}\n{target.PlcName}\n";
@@ -89,9 +89,26 @@ public sealed class PlcWriteVerifier(OpennessWorkerClient client, IReadOnlyList<
             PlcNameRules.Tag or PlcNameRules.UserConstant => new[] { $"{table}\n{target.Name}", $"{table}\n{item.NewName ?? target.Name}" },
             PlcNameRules.TagTable => new[] { table },
             "Type" => new[] { $"{scope}type\n{target.TypePath}" },
-            _ => new[] { $"{scope}block\n" + (target.BlockPath ?? item.BlockPath ?? "").Replace('/', '\n') },
+            _ => BlockKeys(item, target, scope, asLater),
         };
         return keys.Select(k => k.ToUpperInvariant()).Distinct().ToArray();
+    }
+
+    /// <summary>
+    /// A block's path key. An undetermined <c>PLC/Name</c> content target (never resolved through the
+    /// tree) also owns a name key and a PLC-wide group-delete key, and every later block item offers
+    /// its name and every later group delete offers that key: a later item on the same block name, or
+    /// any later group delete on the PLC (the target's folder is unknown), supersedes it. Canonical
+    /// targets never own those keys, so their matching stays path-exact.
+    /// </summary>
+    private static string[] BlockKeys(PlcOperationRequest item, PlcTargetIdentity target, string scope, bool asLater)
+    {
+        var path = target.BlockPath ?? item.BlockPath ?? "";
+        var keys = new List<string> { $"{scope}block\n" + path.Replace('/', '\n') };
+        var undetermined = target.Kind == PlcNameRules.Block && path.Split('/').Length == 2;
+        if (asLater ? target.Kind == PlcNameRules.Block : undetermined) keys.Add($"{scope}blockname\n{target.Name}");
+        if (asLater ? item.Operation == "delete_block_group" : undetermined) keys.Add($"{scope}groupdelete");
+        return keys.ToArray();
     }
 
     private async Task<(PlcWorkingState? State, string? Error)> ReadStateAsync(

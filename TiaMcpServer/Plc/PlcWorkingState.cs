@@ -117,7 +117,8 @@ internal sealed class PlcWorkingState
         }
         catch (ResolutionException)
         {
-            // An unverifiable target cannot be applied; its block guard stops the call anyway.
+            // An unverifiable target (its block guard stops the call) or a create into a parent the
+            // tree lacks (Portal rejects it at mutation) is not applied; its touches are already recorded.
         }
     }
 

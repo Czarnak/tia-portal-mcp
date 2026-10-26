@@ -297,6 +297,23 @@ public sealed class PlcGuardedWriteDomainTests
     }
 
     [Theory]
+    [InlineData("delete_block", "Station_1/Blocks/Motors/FB_Motor", true)]
+    [InlineData("delete_block_group", "Station_1/Blocks/Motors", true)]
+    [InlineData("delete_block", "Station_1/Blocks/Empty_DB", false)]
+    public async Task ShortPathUpdateThenDeleteInOneCall_SupersededOnlyWhenItMayHitTheBlock(string operation, string path, bool superseded)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var hash = await fixture.ReadHashAsync("Station_1/FB_Motor", "xml");
+
+        var response = await fixture.RunAsync(false, UpdateBlock("update", "Station_1/FB_Motor", hash),
+            new PlcOperationRequest { OperationId = "delete", Operation = operation, BlockPath = path });
+
+        Assert.True(response.Success, JsonSerializer.Serialize(response));
+        Assert.Equal(superseded ? "superseded" : "contentHash", response.Verification!.Operations[0].Check);
+    }
+
+    [Theory]
     [InlineData("xml")]
     [InlineData("source")]
     public async Task PlcReadHashIsAcceptedThenDriftIsRejected(string format)
