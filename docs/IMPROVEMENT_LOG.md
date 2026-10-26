@@ -232,6 +232,7 @@ blocks it. Known limits are also listed in the
   - `Apply` re-runs `Resolve` (double resolution per item); `RequireTable` is called twice in one case.
   - The `"Type"` kind is a string literal instead of a `PlcNameRules` constant.
   - The `StaleContentHash` test's "before any write" assertion can never fail.
+  - `HiddenAt` is over-conservative: a skipped sibling makes a miss in a fully read group unverifiable (block, never a wrong not-found).
   - Effect-presentation omission reason is ambiguous (diff versus whole effect).
   - The `uiOpen` list was not edited for the `plc_write` probes (default branch used).
   - Rename `Start`→`Go` then create `Start` supersedes the rename on the shared key, so `Go` is never verified; verifier and planner supersession keys differ.
@@ -448,10 +449,10 @@ the suite becomes a problem again.
 targets and the default-table delete, and the item fails `engineering_rejected` with a verbatim
 `engineeringError`. Write contract `2.0`; `plc_read` stays `1.0`.
 
-- **Removed** (`534937a..7445c5f`, production files): 492 lines removed, 270 added. Largest:
+- **Removed** (`534937a..7445c5f`, production files): 492 lines removed, 280 added. Largest:
   worker `PlcWritePreconditions.cs` -209/+8, `PlcWriteVerifier.cs` -101/+37, `PlcWorkingState.cs`
-  -74/+64, `PlcNameRules.cs` -34/+2, `PlcWritePlanner.cs` -14/+32. Tests: -260/+546 lines (plus +576 in the
-  regenerated `output-schemas.json` snapshot); FakeWorker -6/+27. Guards `plc_name_collision`,
+  -74/+64, `PlcNameRules.cs` -34/+2, `PlcWritePlanner.cs` -14/+32. Tests: -258/+658 lines (plus +576 in the
+  regenerated `output-schemas.json` snapshot); FakeWorker -7/+38. Guards `plc_name_collision`,
   `plc_block_exists`, `plc_default_tag_table` and `plc_attribute_unreadable` are gone; verification
   keeps only the content-hash re-export.
 - **Timing** (audit `durationMs`, `full` mode, `PLC_1` of a disposable copy with 1 block, 2 tag tables,

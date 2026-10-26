@@ -232,9 +232,9 @@ Each follow-up plan records: its own baseline timing, the guards retired with th
 
 ## Execution record
 
-Line counts for `534937a..HEAD` (`git diff --numstat`), removed / added.
+Line counts for `534937a..7445c5f`, the last code commit (`git diff --numstat`), removed / added. The first version of this record was taken at `828dfa6` and predated the rename read-back and the Task 6 fixtures.
 
-Production files (total 492 removed, 270 added):
+Production files (total 492 removed, 280 added):
 
 | File | Removed | Added |
 | --- | --- | --- |
@@ -243,7 +243,7 @@ Production files (total 492 removed, 270 added):
 | `TiaMcpServer/Plc/PlcWorkingState.cs` | 74 | 64 |
 | `TiaMcpServer.Contracts/Plc/PlcNameRules.cs` | 34 | 2 |
 | `TiaMcpServer/Plc/PlcWritePlanner.cs` | 14 | 32 |
-| `TiaMcpServer.OpennessWorker/Openness/Plc/TagMutationService.cs` | 19 | 0 |
+| `TiaMcpServer.OpennessWorker/Openness/Plc/TagMutationService.cs` | 19 | 10 |
 | `TiaMcpServer.OpennessWorker/Openness/Block/BlockMutationService.cs` | 16 | 1 |
 | `TiaMcpServer/Safety/Pipeline/WriteRun.cs` | 1 | 11 |
 | `TiaMcpServer/Plc/PlcGuardDefinitions.cs` | 9 | 1 |
@@ -261,7 +261,7 @@ Production files (total 492 removed, 270 added):
 | `TiaMcpServer/Plc/PlcWritePayloadBudget.cs` | 1 | 1 |
 | `TiaMcpServer/Plc/PlcWriteTools.cs` | 1 | 1 |
 
-Tests and test support: `TiaMcpServer.Tests` 260 removed / 546 added (plus 576 added in the regenerated `output-schemas.json` snapshot); `TiaMcpServer.FakeWorker` 6 removed / 27 added.
+Tests and test support: `TiaMcpServer.Tests` 258 removed / 658 added (plus 576 added in the regenerated `output-schemas.json` snapshot); `TiaMcpServer.FakeWorker` 7 removed / 38 added.
 
 `RequireReadableValue`: kept for `update_user_constant`, because its planned effect reports the value it replaces and verification needs it; removed for `delete_user_constant`.
 

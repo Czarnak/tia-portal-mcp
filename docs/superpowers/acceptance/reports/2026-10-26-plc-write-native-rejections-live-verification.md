@@ -20,7 +20,7 @@ Measured project size: `PLC_1` (S7-1500) holds 1 block (`Main`, OB1), 2 tag tabl
 
 - Default suite `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`: 7715 passed, 0 failed at `7445c5f`.
 - Stub build: 0 errors, 7 warnings, all present on the base `534937a` (a nullable warning introduced mid-branch was fixed in `bac9121`). The full-solution build against the installed TIA V21 assemblies also ended with 0 errors in Task 5, with the same warnings.
-- Production diff `534937a..HEAD` before Task 7: 492 lines removed, 270 added (largest: worker `PlcWritePreconditions.cs` -209/+8, `PlcWriteVerifier.cs` -101/+37, `PlcWorkingState.cs` -74/+64, `PlcNameRules.cs` -34/+2). Tests: -260/+546 lines plus +576 lines in the regenerated `output-schemas.json` snapshot.
+- Production diff `534937a..7445c5f` (the last code commit): 492 lines removed, 280 added (largest: worker `PlcWritePreconditions.cs` -209/+8, `PlcWriteVerifier.cs` -101/+37, `PlcWorkingState.cs` -74/+64, `PlcNameRules.cs` -34/+2). Tests: -258/+658 lines (FakeWorker -7/+38) plus +576 lines in the regenerated `output-schemas.json` snapshot.
 - Packaging tests were not run: no product `.csproj`, `Directory.Build.props`, `global.json` or `reference-stubs/` file changed.
 - Fourteen CLI startup tests (`RemovedOptionTests`, `WorkerTimeoutStartupTests`) failed once under parallel load and passed on rerun. They have no `[Collection]` and the flakiness predates the branch.
 
