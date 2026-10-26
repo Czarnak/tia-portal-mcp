@@ -229,3 +229,42 @@ Each follow-up plan records: its own baseline timing, the guards retired with th
 - Network, HMI and VCI guard and verification reviews (see the follow-ups section; separate plans).
 - Any change to lifecycle confirmation, elicitation or audit.
 - Changing the `dryRun` preview phase when a block guard fires.
+
+## Execution record
+
+Line counts for `534937a..HEAD` (`git diff --numstat`), removed / added.
+
+Production files (total 492 removed, 270 added):
+
+| File | Removed | Added |
+| --- | --- | --- |
+| `TiaMcpServer.OpennessWorker/Openness/Plc/PlcWritePreconditions.cs` | 209 | 8 |
+| `TiaMcpServer/Plc/PlcWriteVerifier.cs` | 101 | 37 |
+| `TiaMcpServer/Plc/PlcWorkingState.cs` | 74 | 64 |
+| `TiaMcpServer.Contracts/Plc/PlcNameRules.cs` | 34 | 2 |
+| `TiaMcpServer/Plc/PlcWritePlanner.cs` | 14 | 32 |
+| `TiaMcpServer.OpennessWorker/Openness/Plc/TagMutationService.cs` | 19 | 0 |
+| `TiaMcpServer.OpennessWorker/Openness/Block/BlockMutationService.cs` | 16 | 1 |
+| `TiaMcpServer/Safety/Pipeline/WriteRun.cs` | 1 | 11 |
+| `TiaMcpServer/Plc/PlcGuardDefinitions.cs` | 9 | 1 |
+| `TiaMcpServer.OpennessWorker/Program.cs` | 5 | 11 |
+| `TiaMcpServer.OpennessWorker/Worker/WorkerExecution.cs` | 4 | 32 |
+| `TiaMcpServer/Plc/PlcWriteDomain.cs` | 1 | 5 |
+| `TiaMcpServer.Contracts/Worker/EngineeringErrorInfo.cs` (new) | 0 | 32 |
+| `TiaMcpServer.Contracts/Worker/WorkerFailureCategories.cs` | 0 | 8 |
+| `TiaMcpServer/Plc/PlcContractVersion.cs` | 1 | 7 |
+| `TiaMcpServer.OpennessWorker/Worker/WorkerOperationException.cs` | 1 | 6 |
+| `TiaMcpServer.Contracts/Worker/WorkerResponse.cs` | 0 | 4 |
+| `TiaMcpServer/Worker/WorkerCallResult.cs` | 0 | 3 |
+| `TiaMcpServer/OperationBatches/StructuredOperationBatch.cs` | 1 | 3 |
+| `TiaMcpServer/Worker/OpennessWorkerClient.cs` | 0 | 1 |
+| `TiaMcpServer/Plc/PlcWritePayloadBudget.cs` | 1 | 1 |
+| `TiaMcpServer/Plc/PlcWriteTools.cs` | 1 | 1 |
+
+Tests and test support: `TiaMcpServer.Tests` 260 removed / 546 added (plus 576 added in the regenerated `output-schemas.json` snapshot); `TiaMcpServer.FakeWorker` 6 removed / 27 added.
+
+`RequireReadableValue`: kept for `update_user_constant`, because its planned effect reports the value it replaces and verification needs it; removed for `delete_user_constant`.
+
+Final default test count: 7711 passed, 0 failed (`dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`).
+
+Controller rulings (R1-R11) are listed in the SDD ledger and will be carried into the Task 7 report.
