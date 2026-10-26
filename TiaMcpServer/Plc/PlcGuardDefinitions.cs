@@ -14,7 +14,7 @@ public static class PlcGuardDefinitions
 
     public static IReadOnlyList<WriteGuardDefinition> Definitions { get; } = WriteGuardCatalog.NonInteractive(new[]
     {
-        new WriteGuardDefinition(StateUnverifiable, WriteGuardSeverities.Block, "PLC evidence relevant to the target is incomplete or unreadable; unreadable evidence is never treated as empty."),
+        new WriteGuardDefinition(StateUnverifiable, WriteGuardSeverities.Block, "The PLC inventory is incomplete, the update or delete target or what a delete removes is unreadable, the user-constant value an update replaces is unreadable, or the content cannot be exported; unreadable evidence is never treated as empty."),
         new WriteGuardDefinition(ObSingletonExists, WriteGuardSeverities.Block, "create_block targets a singleton OB event class whose number an existing or in-call OB already holds."),
         new WriteGuardDefinition(DeletesBlock, WriteGuardSeverities.Info, "Deleting the block removes it and its content."),
         new WriteGuardDefinition(DeletesGroupContents, WriteGuardSeverities.Info, "Deleting the block group removes every block and group inside it."),
