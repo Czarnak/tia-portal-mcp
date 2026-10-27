@@ -23,10 +23,18 @@ internal static class WorkerExecution
         {
             if (portalDisposalRevision() != before)
                 return PortalLost(ex);
-            var error = Describe(ex);
-            return mutates && ex is EngineeringTargetInvocationException
-                ? Failure(WorkerFailureCategories.EngineeringRejected, $"TIA Portal rejected the operation: {ex.Message}", error)
-                : Failure(WorkerFailureCategories.WorkerOperationFailed, $"TIA Portal operation failed: {ex.Message}", error);
+            var category = Classify(ex, mutates);
+            return Failure(category, FailureMessage(ex, category), Describe(ex));
+        }
+        catch (WorkerOperationException ex) when (ex.EngineeringError is not null)
+        {
+            if (portalDisposalRevision() != before)
+            {
+                var response = PortalLost(ex);
+                response.ConfigureNetworkDeviceOutcome = ex.ConfigureNetworkDeviceOutcome;
+                return response;
+            }
+            throw;
         }
         catch (NonRecoverableException ex)
         {
@@ -41,6 +49,15 @@ internal static class WorkerExecution
             return Failure(WorkerFailureCategories.WorkerOperationFailed, ex.Message);
         }
     }
+
+    internal static string Classify(EngineeringException exception, bool mutates)
+        => mutates && exception is EngineeringTargetInvocationException
+            ? WorkerFailureCategories.EngineeringRejected : WorkerFailureCategories.WorkerOperationFailed;
+
+    internal static string FailureMessage(EngineeringException exception, string category)
+        => category == WorkerFailureCategories.EngineeringRejected
+            ? $"TIA Portal rejected the operation: {exception.Message}"
+            : $"TIA Portal operation failed: {exception.Message}";
 
     /// <summary>
     /// The exception's type and verbatim message plus its inner chain, outermost first, bounded by

@@ -228,7 +228,7 @@ internal static class Program
         }
         catch (WorkerOperationException ex)
         {
-            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome, ex.VciWriteOutcome, ex.EngineeringError);
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome, ex.VciWriteOutcome, ex.EngineeringError, ex.ConfigureNetworkDeviceOutcome);
         }
         catch (Exception ex)
         {
@@ -1547,7 +1547,8 @@ internal static class Program
         BlockImportOutcomeInfo? blockImportOutcome = null,
         HmiWriteOutcomeInfo? hmiWriteOutcome = null,
         TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo? vciWriteOutcome = null,
-        EngineeringErrorInfo? engineeringError = null)
+        EngineeringErrorInfo? engineeringError = null,
+        ConfigureNetworkDeviceResultInfo? configureNetworkDeviceOutcome = null)
     {
         return new WorkerResponse
         {
@@ -1556,6 +1557,7 @@ internal static class Program
             FailureCategory = failureCategory,
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
             EngineeringError = engineeringError,
+            ConfigureNetworkDeviceOutcome = configureNetworkDeviceOutcome,
             HmiWriteOutcome = hmiWriteOutcome,
             VciWriteOutcome = vciWriteOutcome,
             BlockImportOutcome = blockImportOutcome

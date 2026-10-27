@@ -1,4 +1,5 @@
 using Siemens.Engineering;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
 using Xunit;
@@ -7,6 +8,55 @@ namespace TiaMcpServer.Tests.Worker;
 
 public sealed class WorkerExecutionTests
 {
+    [Theory]
+    [InlineData(true, true, WorkerFailureCategories.EngineeringRejected)]
+    [InlineData(true, false, WorkerFailureCategories.WorkerOperationFailed)]
+    [InlineData(false, true, WorkerFailureCategories.WorkerOperationFailed)]
+    public void Classify_UsesExceptionTypeAndMutationFlag(bool targetInvocation, bool mutates, string expected)
+    {
+        EngineeringException exception = targetInvocation
+            ? new EngineeringTargetInvocationException("m") : new EngineeringException("m");
+        Assert.Equal(expected, WorkerExecution.Classify(exception, mutates));
+    }
+
+    [Fact]
+    public void WrappedEngineeringFailure_AfterPortalDisposal_MapsToPortalLostAndKeepsOutcome()
+    {
+        var revision = 0L;
+        var outcome = new ConfigureNetworkDeviceResultInfo
+        {
+            DeviceName = "PLC_1", AppliedSettings = { ["Address"] = "10.0.0.1" }
+        };
+        var exception = new WorkerOperationException(WorkerFailureCategories.EngineeringRejected, "x",
+            engineeringError: new EngineeringErrorInfo { Type = "EngineeringTargetInvocationException", Message = "gone" },
+            configureNetworkDeviceOutcome: outcome);
+        var result = WorkerExecution.Execute(() => { revision++; throw exception; }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+        Assert.Same(outcome, result.ConfigureNetworkDeviceOutcome);
+        Assert.Equal("10.0.0.1", result.ConfigureNetworkDeviceOutcome!.AppliedSettings["Address"]);
+    }
+
+    [Fact]
+    public void WrappedEngineeringFailure_WithoutDisposal_IsRethrown()
+    {
+        var exception = new WorkerOperationException(WorkerFailureCategories.EngineeringRejected, "x",
+            engineeringError: new EngineeringErrorInfo { Type = "EngineeringTargetInvocationException", Message = "gone" });
+        var thrown = Assert.Throws<WorkerOperationException>(() => WorkerExecution.Execute(() => throw exception, () => 0, mutates: true));
+        Assert.Same(exception, thrown);
+    }
+
+    [Fact]
+    public void WrappedFailureWithoutEngineeringError_IsNeverIntercepted()
+    {
+        var revision = 0L;
+        var exception = new WorkerOperationException(WorkerFailureCategories.ValidationError, "v");
+        var thrown = Assert.Throws<WorkerOperationException>(() => WorkerExecution.Execute(
+            () => { revision++; throw exception; }, () => revision, mutates: true));
+        Assert.Same(exception, thrown);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(3)]
@@ -29,6 +79,7 @@ public sealed class WorkerExecutionTests
 
         Assert.False(result.Success);
         Assert.Equal(WorkerFailureCategories.EngineeringRejected, result.FailureCategory);
+        Assert.Equal("TIA Portal rejected the operation: Siemens text", result.Error);
         var info = Assert.IsType<EngineeringErrorInfo>(result.EngineeringError);
         Assert.Equal("EngineeringTargetInvocationException", info.Type);
         Assert.Equal("Siemens text", info.Message);

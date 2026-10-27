@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using Xunit;
 
@@ -9,6 +10,27 @@ namespace TiaMcpServer.Tests.Worker;
 public class WorkerResponseJsonTests
 {
     private static readonly JsonSerializerOptions JsonOptions = WorkerJson.Envelope;
+
+    [Fact]
+    public void ConfigureNetworkDeviceOutcome_RoundTripsOnFailedResponseAndOmittedOtherwise()
+    {
+        var response = new WorkerResponse
+        {
+            Success = false, Error = "rejected", FailureCategory = WorkerFailureCategories.EngineeringRejected,
+            ConfigureNetworkDeviceOutcome = new ConfigureNetworkDeviceResultInfo
+            {
+                DeviceName = "PLC_1", AppliedSettings = { ["Address"] = "10.0.0.1" }
+            }
+        };
+        var json = JsonSerializer.Serialize(response, JsonOptions);
+        var restored = JsonSerializer.Deserialize<WorkerResponse>(json, JsonOptions)!;
+
+        Assert.Equal("PLC_1", restored.ConfigureNetworkDeviceOutcome!.DeviceName);
+        Assert.Equal("10.0.0.1", Assert.Single(restored.ConfigureNetworkDeviceOutcome.AppliedSettings).Value);
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, restored.FailureCategory);
+        Assert.DoesNotContain("configureNetworkDeviceOutcome", JsonSerializer.Serialize(
+            new WorkerResponse { Success = true }, JsonOptions));
+    }
 
     [Fact]
     public void SerializesWarningsWithCamelCaseWireName()

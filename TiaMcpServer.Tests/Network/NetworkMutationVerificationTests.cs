@@ -43,18 +43,6 @@ public class NetworkMutationVerificationTests
     }
 
     [Theory]
-    [InlineData(true, false, false, "Requested subnet was not connected, so IO system attachment was skipped.")]
-    [InlineData(true, false, true, "Requested subnet was not connected, so IO system attachment was skipped.")]
-    [InlineData(false, false, false, "The network interface does not expose an IO connector.")]
-    [InlineData(true, true, false, "The network interface does not expose an IO connector.")]
-    [InlineData(false, false, true, null)]
-    [InlineData(true, true, true, null)]
-    public void Preflight_ExistingIoSkipPrecedence(bool requested, bool connected, bool connector, string? expected)
-    {
-        Assert.Equal(expected, NetworkPostconditionChecks.IoSystemSkipReason(requested, connected, connector));
-    }
-
-    [Theory]
     [InlineData(1, false, "worker_operation_failed")]
     [InlineData(0, false, "worker_operation_failed")]
     [InlineData(1, true, null)]

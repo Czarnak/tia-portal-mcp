@@ -14,11 +14,6 @@ internal static class NetworkPostconditionChecks
     public static string? ClassifyDependencySelection(int matchCount, bool complete)
         => complete && matchCount == 1 ? null : WorkerFailureCategories.WorkerOperationFailed;
 
-    public static string? IoSystemSkipReason(bool subnetRequested, bool subnetConnected, bool connectorAvailable)
-        => subnetRequested && !subnetConnected
-            ? "Requested subnet was not connected, so IO system attachment was skipped."
-            : !connectorAvailable ? "The network interface does not expose an IO connector." : null;
-
     /// <summary>
     /// The created item is the unique exact-name match among the device's top-level items.
     /// Children are never searched: an ET200SP head module's sub-item repeats the head's name.

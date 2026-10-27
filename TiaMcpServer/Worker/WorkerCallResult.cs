@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
@@ -45,6 +46,8 @@ public sealed record WorkerCallResult(
 
     /// <summary>The Siemens exception behind a worker failure; absent for host-side failures.</summary>
     public EngineeringErrorInfo? EngineeringError { get; init; }
+
+    public ConfigureNetworkDeviceResultInfo? ConfigureNetworkDeviceOutcome { get; init; }
 
     public HmiWriteOutcomeInfo? HmiWriteOutcome { get; init; }
 

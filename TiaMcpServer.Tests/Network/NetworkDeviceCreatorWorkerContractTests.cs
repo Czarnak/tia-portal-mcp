@@ -15,7 +15,31 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         Assert.Contains("FindExactlyOneSubnet(project, subnetId!)", preflight);
         Assert.Contains("FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value)", preflight);
         Assert.Contains("networkInterface.IoConnectors", preflight);
-        Assert.Contains("NetworkPostconditionChecks.IoSystemSkipReason(", source);
+        Assert.Contains("WorkerFailureCategories.TargetNotFound", preflight);
+        Assert.DoesNotContain("SkippedSettings", source);
+    }
+
+    [Fact]
+    public void Preflight_NativeDependencyErrorsEscapeAndMissingConnectorFailsBeforeMutation()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
+        var preflight = source[..source.IndexOf("ApplyNodeAttribute(node,", StringComparison.Ordinal)];
+        Assert.DoesNotContain("catch (EngineeringException", preflight);
+        Assert.DoesNotContain("Requested network dependency discovery was unreadable.", preflight);
+        Assert.Contains("if (ioConnector is null)", preflight);
+        Assert.Contains("WorkerFailureCategories.TargetNotFound", preflight);
+        Assert.Contains("the selected network interface exposes no IO connector, so ioSystem cannot be attached. No configuration was attempted.", preflight);
+        Assert.True(preflight.IndexOf("FindExactlyOneIoSystem(", StringComparison.Ordinal)
+            < preflight.IndexOf("networkInterface.IoConnectors", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rejection_StopsAtFirstSiemensExceptionAndCarriesAppliedSubset()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
+        Assert.Contains("WorkerExecution.Classify(", source);
+        Assert.Contains("configureNetworkDeviceOutcome: result", source);
+        Assert.DoesNotContain("IoSystemSkipReason", source);
     }
 
     [Fact]
