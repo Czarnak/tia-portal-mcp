@@ -589,4 +589,17 @@ git commit -m "docs: network write task 8 documentation"
 
 ## Execution record
 
-Filled by Tasks 6 and 7: build warnings, test counts, per-file removed/added line counts, O-class per live case, maintainer rulings.
+### Task 0 partial record — 2026-10-27
+
+The maintainer requested stopping after measured round 2 to shut down the machine. No round-3 case or implementation task was started. **Task 0 remains incomplete.**
+
+- Installed `4.2.0-local.68.g012d967` with real Siemens assemblies and successful package verification. Production source at `012d967` is identical to baseline `8090ded`; their differences are the approved design/plan documents. The requested current branch was preserved.
+- Captured one discarded N1–N5 warm-up round and two complete measured N1–N5 rounds: 15 successful captures, including ten measured calls. All audit-v2 records matched the returned canonical text, fresh timestamps and expected full-mode item counts/statuses.
+- Recorded project size, exact replay payloads, per-run figures and selected raw audit records in the [partial timing input](../acceptance/reports/inputs/2026-10-27-network-write-timing-before.md). Three-run medians are pending.
+- N2 uses a fresh untimed setup subnet because its native ID cannot be targeted before creation; the measured create uses a separate fresh subnet. N4 also restores/sets up that fixture. Raised response budgets retain the 964,930-character hardware document. The input records these adaptations for unchanged replay.
+- After the final round-2 write, closed without saving and reopened the disposable fixture. Final hardware value exactly matched the initial value; the original auto-generation flag was explicitly read back as `true`, and status was open/unmodified. Timing and verification clients were closed.
+- Baseline stub build before timing: seven warnings, zero errors. No production/test source changed; no default-suite rerun was needed for this documentation-only checkpoint.
+
+Remaining: revalidate baseline/fixture provenance and warm-up conditions before completing the third measured round. Finish Task 0 before any implementation. Tasks 1–8 have not started.
+
+Tasks 6 and 7 will later add candidate build warnings, test counts, per-file removed/added line counts, O-class per live case and maintainer rulings.
