@@ -33,7 +33,7 @@ public sealed class PlcWriteVerifierTests
         var effects = items.Select((item, i) => (item.OperationId, Effect: plan.Plan.Items[i].Effect!))
             .ToDictionary(p => p.OperationId, p => p.Effect);
         var before = requests.Methods().Length;
-        var verification = await new PlcWriteVerifier(fixture.Client, items, effects).VerifyAsync(Succeeded(items));
+        var verification = await PlcVerificationPolicy.VerifyAsync(fixture.Client, items, effects, Succeeded(items));
         return (verification, requests.Methods().Skip(before).ToArray());
     }
 
@@ -128,8 +128,7 @@ public sealed class PlcWriteVerifierTests
         var target = new PlcTargetIdentity("Block", "Station_1", null, null, null, "Empty_DB", "Station_1/Empty_DB", null);
         var effect = new PlcWriteEffect("update_block_logic", target, Array.Empty<PlcFieldChange>(), null, null, null, null);
 
-        var verification = await new PlcWriteVerifier(fixture.Client, new[] { item }, new Dictionary<string, PlcWriteEffect> { ["content"] = effect })
-            .VerifyAsync(Succeeded(item));
+        var verification = await PlcVerificationPolicy.VerifyAsync(fixture.Client, new[] { item }, new Dictionary<string, PlcWriteEffect> { ["content"] = effect }, Succeeded(item));
 
         Assert.False(verification.Success);
         var check = Assert.Single(verification.Operations);
@@ -195,10 +194,10 @@ public sealed class PlcWriteVerifierTests
         });
         var before = requests.Methods().Length;
 
-        var verification = await new PlcWriteVerifier(fixture.Client, new[] { create, update }, new Dictionary<string, PlcWriteEffect>
+        var verification = await PlcVerificationPolicy.VerifyAsync(fixture.Client, new[] { create, update }, new Dictionary<string, PlcWriteEffect>
         {
             ["create"] = plan.Plan.Items[0].Effect!, ["update"] = plan.Plan.Items[1].Effect!,
-        }).VerifyAsync(batch);
+        }, batch);
 
         Assert.True(verification.Success);
         var check = Assert.Single(verification.Operations);

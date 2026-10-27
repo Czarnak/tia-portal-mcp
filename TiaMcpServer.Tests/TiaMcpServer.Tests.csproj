@@ -202,7 +202,7 @@
     <Compile Include="..\TiaMcpServer\Plc\PlcWorkingState.cs" Link="Host\Plc\PlcWorkingState.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcWritePlanner.cs" Link="Host\Plc\PlcWritePlanner.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcWriteDomain.cs" Link="Host\Plc\PlcWriteDomain.cs" />
-    <Compile Include="..\TiaMcpServer\Plc\PlcWriteVerifier.cs" Link="Host\Plc\PlcWriteVerifier.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcVerificationPolicy.cs" Link="Host\Plc\PlcVerificationPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcWritePayloadBudget.cs" Link="Host\Plc\PlcWritePayloadBudget.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcWriteTools.cs" Link="Host\Plc\PlcWriteTools.cs" />
     <Compile Include="..\TiaMcpServer\CrossReferences\CrossReferenceBudget.cs" Link="Host\CrossReferences\CrossReferenceBudget.cs" />

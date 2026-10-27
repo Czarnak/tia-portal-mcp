@@ -48,3 +48,21 @@ public sealed record PlcGuardedWriteResponse(string Tool, string ContractVersion
 
 /// <summary>One item resolved against the working state: an effect with its guards, or a call-stopping error.</summary>
 public sealed record PlcResolution(PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards, WriteToolError? Error);
+
+/// <summary>
+/// One post-write check of one attempted item. <see cref="Check"/> is <c>contentHash</c> (a content
+/// item reports its new <see cref="ContentHash"/>), <c>trusted</c> (the Openness call completed
+/// without rejection; nothing was read back) or <c>superseded</c>.
+/// </summary>
+public sealed record PlcOperationVerification(string OperationId, bool Success, string Check,
+    string? Expected, string? Actual, string? ContentHash, string? Message);
+
+public sealed record PlcWriteVerification(bool Success, IReadOnlyList<PlcOperationVerification> Operations,
+    StructuredOperationOmission? Omission)
+{
+    /// <summary>ContentHash = Actual for "contentHash" entries, null otherwise.</summary>
+    public static PlcWriteVerification From(WriteVerification shared)
+        => new(shared.Success, shared.Operations.Select(o => new PlcOperationVerification(
+            o.OperationId, o.Success, o.Check, o.Expected, o.Actual,
+            o.Check == "contentHash" ? o.Actual : null, o.Message)).ToArray(), shared.Omission);
+}
