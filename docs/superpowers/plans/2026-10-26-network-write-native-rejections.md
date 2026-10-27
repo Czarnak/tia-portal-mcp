@@ -70,11 +70,11 @@
 
 Protocol is §6.7 of the spec. Mirror the header, "Build under test", "Project size", "Protocol" and "Median table" sections of `docs/superpowers/acceptance/reports/inputs/2026-10-25-plc-write-timing-before.md`, with the raw audit records appended as in that file.
 
-- [ ] **Step 1: Install the baseline build** from `main` at `8090ded` with `scripts/install-local-tool.ps1`; record the installed version string.
-- [ ] **Step 2: Record project size** from `network_read read_hardware_config`: device count, node count, subnet count, and the `read_hardware_config` document length in characters.
-- [ ] **Step 3: Run the protocol**: `full` mode, bound disposable copy; per actual run: close without saving, reopen, one untimed `read_hardware_config`, then the case; cases N1–N5 in order; one discarded warm-up run, then three measured runs; N4 needs no reopen.
-- [ ] **Step 4: Write the input document** with the median table (root `durationMs`, item sum, remainder per case) and the raw records (fields as the PLC input keeps them).
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Install the baseline build** from `main` at `8090ded` with `scripts/install-local-tool.ps1`; record the installed version string.
+- [x] **Step 2: Record project size** from `network_read read_hardware_config`: device count, node count, subnet count, and the `read_hardware_config` document length in characters.
+- [x] **Step 3: Run the protocol**: `full` mode, bound disposable copy; per actual run: close without saving, reopen, one untimed `read_hardware_config`, then the case; cases N1–N5 in order; one discarded warm-up run, then three measured runs; N4 needs no reopen.
+- [x] **Step 4: Write the input document** with the median table (root `durationMs`, item sum, remainder per case) and the raw records (fields as the PLC input keeps them).
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/acceptance/reports/inputs/
@@ -589,6 +589,8 @@ git commit -m "docs: network write task 8 documentation"
 
 ## Execution record
 
+Historical checkpoint; the completion record below supersedes this status.
+
 ### Task 0 partial record — 2026-10-27
 
 The maintainer requested stopping after measured round 2 to shut down the machine. No round-3 case or implementation task was started. **Task 0 remains incomplete.**
@@ -601,5 +603,18 @@ The maintainer requested stopping after measured round 2 to shut down the machin
 - Baseline stub build before timing: seven warnings, zero errors. No production/test source changed; no default-suite rerun was needed for this documentation-only checkpoint.
 
 Remaining: revalidate baseline/fixture provenance and warm-up conditions before completing the third measured round. Finish Task 0 before any implementation. Tasks 1–8 have not started.
+
+### Task 0 complete record — 2026-10-27
+
+Completed the [baseline timing input](../acceptance/reports/inputs/2026-10-27-network-write-timing-before.md) before implementation. The maintainer's overnight stop after measured round 2 was honored; after explicit resumption, the original captures were retained, the installed baseline and exact fixture were revalidated, a fresh discarded N1–N5 warm-up ran, and only missing measured round 3 was collected.
+
+- Installed `4.2.0-local.68.g012d967` with real Siemens assemblies and successful package verification. Production/test source at the installed `012d967` and resumed `4f0aabd` is identical to baseline `8090ded`. Installed host/worker hashes matched the original local publication; the requested branch was preserved.
+- All 25 captures succeeded: ten discarded warm-ups and fifteen measured calls. Every audit-v2 record matched full canonical response text/hash, fresh completion time within five seconds, full mode and expected item counts/statuses. Original timestamp strings are retained verbatim in the input.
+- The input records project size, exact replay payloads, per-run figures, independently calculated three-run medians and selected raw audits. The machine restart, repeated discarded warm-up and restored client boundary after the successful N4 warm-up preview are explicit evidence limits; no uninterrupted-series claim is made.
+- N2 uses a fresh untimed setup subnet because its native ID cannot be targeted before creation; the measured create uses a separate fresh subnet. N4 also restores/sets up that fixture. The same raised response budgets preserve the 964,930-character hardware document. Task 7 must preserve these payload/setup/read/restoration adaptations.
+- Final close-without-save/reopen restored the full original hardware value, original auto-generation flag/name and unchanged project file hash. Public status was open/unmodified, and the direct client exited after verification. Fresh local artifacts are `resume2-final-*` and `resume2-restoration.json` under ignored `artifacts/network-native`; `resume-final-*` preserve the earlier restored client boundary.
+- Baseline stub build before timing: seven warnings, zero errors. No production/test source changed; validation used capture/audit/payload/table/raw-record/restoration assertions, Markdown JSON/link/redaction checks and Git whitespace checks. No default-suite rerun was needed for this documentation-only completion.
+
+Task 0 is complete. Candidate offline qualification and live acceptance remain Tasks 6–7.
 
 Tasks 6 and 7 will later add candidate build warnings, test counts, per-file removed/added line counts, O-class per live case and maintainer rulings.
