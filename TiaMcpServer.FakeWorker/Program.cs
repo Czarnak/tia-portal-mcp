@@ -784,28 +784,23 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-config-partial":
         case "network-config-all-skipped":
             roundtripNetworkState ??= RoundtripHardwareConfig();
-            Respond(ReadMethod(line) switch
+            if (ReadMethod(line) == "configure_network_device")
             {
-                "read_hardware_config" => Success(ToCamelCaseJson(roundtripNetworkState)),
-                "configure_network_device" => Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
+                var applied = new Dictionary<string, string>();
+                if (scenario == "network-config-partial" && ReadField(line, "ipAddress") is { } address)
                 {
-                    DeviceName = "PLC_1",
-                    AppliedSettings = scenario == "network-config-partial"
-                        ? new Dictionary<string, string> { [NetworkSettingKeys.Address] = "192.168.0.10" }
-                        : new Dictionary<string, string>(),
-                    SkippedSettings = scenario == "network-config-partial"
-                        ? new Dictionary<string, string> { [NetworkSettingKeys.IoSystem] = "No IO connector." }
-                        : new Dictionary<string, string>
-                        {
-                            [NetworkSettingKeys.Address] = "Read only.",
-                            [NetworkSettingKeys.IoSystem] = "No IO connector.",
-                        },
-                    Messages = new List<string> { $"seq:{seq}" },
-                    Verification = FakeConfigurationVerification(line, "PLC_1", scenario == "network-config-partial"
-                        ? new Dictionary<string, string> { [NetworkSettingKeys.Address] = "192.168.0.10" } : new()),
-                })),
-                _ => """{"success":false,"error":"unexpected sparse configuration method"}""",
-            });
+                    GuardedNodes(roundtripNetworkState).Single(n => n.NodeId == "node-1").IpAddress = address;
+                    applied[NetworkSettingKeys.Address] = address;
+                }
+                Respond(ToCamelCaseJson(new { success = false, failureCategory = "engineering_rejected",
+                    error = "TIA Portal rejected the operation: scripted",
+                    engineeringError = new { type = "EngineeringTargetInvocationException", message = "scripted", inner = Array.Empty<object>() },
+                    configureNetworkDeviceOutcome = new ConfigureNetworkDeviceResultInfo
+                    { DeviceName = "PLC_1", AppliedSettings = applied, Messages = new() { $"seq:{seq}" } } }));
+            }
+            else Respond(ReadMethod(line) == "read_hardware_config"
+                ? Success(ToCamelCaseJson(roundtripNetworkState))
+                : """{"success":false,"error":"unexpected sparse configuration method"}""");
             break;
         case "network-roundtrip":
             roundtripNetworkState ??= RoundtripHardwareConfig();
@@ -1449,6 +1444,9 @@ while ((line = Console.In.ReadLine()) is not null)
         // Phase 4: subnet lifecycle fixtures (Task 6)
         // ---------------------------------------------------------------------------
 
+        case "network-guarded-rejected-setting":
+        case "network-guarded-rejected-contradiction":
+        case "network-guarded-no-io-connector":
         case "network-guarded":
         case string traversalScenario when traversalScenario.StartsWith("network-guarded-traversal-", StringComparison.Ordinal):
         case string identityScenario when identityScenario.StartsWith("network-guarded-identity-", StringComparison.Ordinal):
@@ -1524,7 +1522,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 guardedNetworkState.Subnets[0].SubnetId = string.Empty;
                 guardedNetworkState.Subnets[0].SelectorDiagnostics.Add("Subnet selector identity was ambiguous.");
             }
-            if ((scenario is "network-guarded-partial" or "network-guarded-io-move" || scenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal)) && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
+            if ((scenario is "network-guarded-partial" or "network-guarded-io-move" or "network-guarded-no-io-connector" || scenario.StartsWith("network-guarded-late-io-", StringComparison.Ordinal)) && guardedNetworkWrites == 0 && guardedNetworkState.Subnets[0].IoSystems.Count == 0)
                 guardedNetworkState.Subnets[0].IoSystems.Add(SelectableIoSystem("subnet-1", "IO", 1, "PLC_Grouped"));
             if (scenario == "network-guarded-io-move" && guardedNetworkState.Subnets.Count == 1)
             {
@@ -3724,8 +3722,20 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
     {
         var node = GuardedNodes(state).Single(n => n.NodeId == ReadField(request, "nodeId"));
         var applied = new Dictionary<string, string>();
-        var skipped = new Dictionary<string, string>();
+        if (scenario == "network-guarded-no-io-connector" && ReadIntField(request, "ioSystemNumber") is not null)
+            return "{\"success\":false,\"failureCategory\":\"target_not_found\",\"error\":\"The selected interface exposes no IO connector.\"}";
         if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied[NetworkSettingKeys.Address] = address; }
+        if (scenario is "network-guarded-rejected-setting" or "network-guarded-rejected-contradiction"
+            && ReadField(request, "pnDeviceName") is not null)
+        {
+            var outcome = new ConfigureNetworkDeviceResultInfo { DeviceName = ReadField(request, "deviceName")!,
+                AppliedSettings = scenario == "network-guarded-rejected-contradiction"
+                    ? new() { [NetworkSettingKeys.SubnetMask] = "255.0.0.0" } : applied };
+            return ToCamelCaseJson(new { success = false, failureCategory = "engineering_rejected",
+                error = "TIA Portal rejected the operation: scripted",
+                engineeringError = new { type = "EngineeringTargetInvocationException", message = "scripted", inner = Array.Empty<object>() },
+                configureNetworkDeviceOutcome = outcome });
+        }
         if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied[NetworkSettingKeys.SubnetMask] = mask; }
         if (ReadBoolField(request, "pnDeviceNameAutoGeneration") is { } generated)
         { guardedPnAutoGeneration[node.NodeId] = generated; applied[NetworkSettingKeys.PnDeviceNameAutoGeneration] = generated ? "true" : "false"; }
@@ -3746,12 +3756,11 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
                 node.ConnectionEvidence.IoSystemNumber = ioNumber;
                 applied[NetworkSettingKeys.IoSystem] = ioNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
-            else skipped[NetworkSettingKeys.IoSystem] = "No IO connector available";
         }
         if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"outcome unavailable after mutation\"}";
         return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
         {
-            DeviceName = ReadField(request, "deviceName")!, AppliedSettings = applied, SkippedSettings = skipped,
+            DeviceName = ReadField(request, "deviceName")!, AppliedSettings = applied,
             Verification = FakeConfigurationVerification(request, ReadField(request, "deviceName")!, applied)
         }));
     }

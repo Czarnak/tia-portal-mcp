@@ -42,12 +42,12 @@ public class NetworkSparseConfigurationTests
     }
 
     [Fact]
-    public void PartialConfiguration_FailsItemAndRetainsResult()
+    public void PartialConfiguration_SucceedsAndRetainsResult()
     {
         var partial = NetworkPayloadContract.Project(Configure("partial"), WorkerCallResult.Ok(PartialPayload));
 
-        Assert.Equal("failed", partial.Status);
-        Assert.Equal("worker_operation_failed", partial.Failure!.Category);
+        Assert.Equal("succeeded", partial.Status);
+        Assert.Null(partial.Failure);
         Assert.NotNull(partial.Result);
         Assert.Equal("Address", Assert.Single(partial.Result.Value.GetProperty("appliedSettings").EnumerateObject()).Name);
         Assert.Equal("IoSystem", Assert.Single(partial.Result.Value.GetProperty("skippedSettings").EnumerateObject()).Name);
@@ -60,8 +60,8 @@ public class NetworkSparseConfigurationTests
     {
         var item = NetworkPayloadContract.Project(Configure("all-skipped", includeIoSystem), WorkerCallResult.Ok(payload));
 
-        Assert.Equal("failed", item.Status);
-        Assert.Equal("worker_operation_failed", item.Failure!.Category);
+        Assert.Equal("succeeded", item.Status);
+        Assert.Null(item.Failure);
         Assert.NotNull(item.Result);
         var result = JsonSerializer.Deserialize<ConfigureNetworkDeviceResultInfo>(
             item.Result.Value, WorkerJson.PayloadOptionsFor(typeof(ConfigureNetworkDeviceResultInfo)))!;

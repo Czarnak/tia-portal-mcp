@@ -323,8 +323,6 @@ public partial class NetworkPayloadContractTests
         // ValidateSubnetLifecycleResult.
         { "subnet-lifecycle", "subnetId", Blank, "ValidateSubnetLifecycleResult" },
         { "subnet-lifecycle", "name", Blank, "ValidateSubnetLifecycleResult" },
-        { "subnet-lifecycle", "networkDeviceCount", "-1", "ValidateSubnetLifecycleResult" },
-        { "subnet-lifecycle", "networkDeviceCountUnchanged", "false", "ValidateSubnetLifecycleResult" },
 
         // ValidateObjectList: counts and null items.
         { "list", "totalCount", "-1", "ValidateObjectList" },

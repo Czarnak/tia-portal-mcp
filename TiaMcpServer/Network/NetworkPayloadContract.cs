@@ -4,12 +4,13 @@ using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Network;
 
 /// <summary>
-/// The only decoder of Network worker success payloads. Every network operation declares exactly
+/// The only decoder of Network worker result payloads. Every network operation declares exactly
 /// one result contract here; a payload that does not match it is rejected rather than forwarded.
 ///
 /// <para>
@@ -24,77 +25,40 @@ namespace TiaMcpServer.Network;
 public static class NetworkPayloadContract
 {
     /// <summary>Projects one worker outcome into its structured batch item.</summary>
-    public static StructuredOperationItem Project(
-        NetworkOperationRequest operation,
-        WorkerCallResult workerResult)
-        => Project(operation, workerResult, false);
+    public static StructuredOperationItem Project(NetworkOperationRequest operation, WorkerCallResult workerResult)
+        => Project(operation, workerResult, Console.Error.WriteLine);
 
-    public static StructuredOperationItem Project(
-        NetworkOperationRequest operation,
-        WorkerCallResult workerResult,
-        bool requireVerification)
-        => Project(operation, workerResult, Console.Error.WriteLine, requireVerification);
-
-    internal static StructuredOperationItem Project(
-        NetworkOperationRequest operation,
-        WorkerCallResult workerResult,
-        Action<string> writeProtocolDiagnostic,
-        bool requireVerification = false)
+    internal static StructuredOperationItem Project(NetworkOperationRequest operation, WorkerCallResult workerResult,
+        Action<string> writeProtocolDiagnostic)
     {
         ArgumentNullException.ThrowIfNull(writeProtocolDiagnostic);
         var warnings = workerResult.Warnings ?? Array.Empty<string>();
-
-        if (!workerResult.Success)
-        {
-            return StructuredOperationItem.Failed(
-                operation,
+        var outcome = !workerResult.Success && operation.Operation == "configure_network_device"
+            ? workerResult.ConfigureNetworkDeviceOutcome : null;
+        if (!workerResult.Success && outcome is null)
+            return StructuredOperationItem.Failed(operation,
                 workerResult.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
-                workerResult.Error ?? $"Network operation '{operation.Operation}' failed.",
-                warnings);
-        }
+                workerResult.Error ?? $"Network operation '{operation.Operation}' failed.", warnings);
 
         JsonElement result;
         try
         {
-            result = Decode(operation, workerResult.Payload, requireVerification);
+            result = Decode(operation, outcome is null ? workerResult.Payload : WorkerJson.SerializePayload(outcome));
         }
         catch (JsonException exception)
         {
-            StructuredPayloadProjection.TryWriteProtocolDiagnostic(
-                operation.Operation, writeProtocolDiagnostic, () => CreateProtocolDiagnostic(operation.Operation, exception));
-            return StructuredOperationItem.Failed(
-                operation,
-                WorkerFailureCategories.ProtocolError,
-                $"The worker payload for '{operation.Operation}' did not match its declared result "
-                    + "contract and was rejected.",
-                warnings);
+            StructuredPayloadProjection.TryWriteProtocolDiagnostic(operation.Operation, writeProtocolDiagnostic,
+                () => CreateProtocolDiagnostic(operation.Operation, exception));
+            return StructuredOperationItem.Failed(operation, WorkerFailureCategories.ProtocolError,
+                $"The worker {(outcome is null ? "payload" : "outcome")} for '{operation.Operation}' did not match its declared result contract and was rejected.", warnings);
         }
 
-        // A decoded configuration payload describes the completed attempt, including settings
-        // the worker could not apply. Retain that evidence while failing any requested skip.
-        var settingsSkipped = operation.Operation == "configure_network_device"
-            && result.GetProperty("skippedSettings").EnumerateObject().Any();
-        var postconditionFailed = result.ValueKind == JsonValueKind.Object
-            && result.TryGetProperty("verification", out var evidence)
-            && evidence.ValueKind == JsonValueKind.Object
-            && evidence.GetProperty("status").GetString() is NetworkVerificationStatuses.Failed or NetworkVerificationStatuses.Unverified;
-
-        return new StructuredOperationItem(
-            operation.OperationId,
-            operation.Operation,
-            settingsSkipped || postconditionFailed ? OperationBatchStatus.Failed : OperationBatchStatus.Succeeded,
-            result,
-            Failure: settingsSkipped
-                ? new StructuredOperationFailure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    "One or more requested network settings could not be applied.")
-                : postconditionFailed
-                    ? new StructuredOperationFailure(WorkerFailureCategories.PostconditionFailed,
-                        "Immediate network postconditions failed or could not be verified. Inspect current state before retrying.")
-                    : null,
-            Omission: null,
-            SkipReason: null,
-            warnings);
+        return new StructuredOperationItem(operation.OperationId, operation.Operation,
+            workerResult.Success ? OperationBatchStatus.Succeeded : OperationBatchStatus.Failed, result,
+            workerResult.Success ? null : new StructuredOperationFailure(
+                workerResult.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                workerResult.Error ?? $"Network operation '{operation.Operation}' failed."),
+            Omission: null, SkipReason: null, warnings);
     }
 
     /// <summary>Compacts only declared diagnostic members, preserving exact recovery values.</summary>
@@ -149,18 +113,18 @@ public static class NetworkPayloadContract
             payload,
             cfg => ValidateHardwareConfig(cfg, includeIoDetails: null)).Value;
 
-    private static JsonElement Decode(NetworkOperationRequest operation, string payload, bool requireVerification) => operation.Operation switch
+    private static JsonElement Decode(NetworkOperationRequest operation, string payload) => operation.Operation switch
     {
         "read_hardware_config" => Decode<HardwareConfigInfo>(
             payload,
             cfg => ValidateHardwareConfig(cfg, operation.IncludeIoDetails ?? false)),
         "search_equipment_catalog" => Decode<CatalogEntryInfo[]>(payload, ValidateCatalogEntries),
-        "add_network_device" => Decode<AddDeviceResultInfo>(payload, value => ValidateAddedDevice(operation, value, requireVerification)),
-        "configure_network_device" => Decode<ConfigureNetworkDeviceResultInfo>(payload, value => ValidateConfiguration(operation, value, requireVerification)),
+        "add_network_device" => Decode<AddDeviceResultInfo>(payload, ValidateAddedDevice),
+        "configure_network_device" => Decode<ConfigureNetworkDeviceResultInfo>(payload, value => ValidateConfiguration(operation, value)),
         "list_network_objects" => Decode<NetworkObjectListInfo>(payload, ValidateObjectList),
         "inspect_network_object" => Decode<NetworkObjectInspectionInfo>(payload, ValidateObjectInspection),
         "create_subnet" or "update_subnet" or "delete_subnet" =>
-            Decode<SubnetLifecycleResultInfo>(payload, value => ValidateSubnetMutation(operation, value, requireVerification)),
+            Decode<SubnetLifecycleResultInfo>(payload, value => ValidateSubnetMutation(operation, value)),
         _ => throw new JsonException($"No declared result contract for network operation '{operation.Operation}'."),
     };
 
@@ -169,20 +133,16 @@ public static class NetworkPayloadContract
 
     private static string Number(int value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    private static void ValidateAddedDevice(NetworkOperationRequest op, AddDeviceResultInfo value, bool required)
+    private static void ValidateAddedDevice(AddDeviceResultInfo value)
     {
-        if (value.Verification is null && !required) return;
-        var itemName = op.DeviceItemName ?? op.DeviceName;
-        if (value.DeviceName != op.DeviceName || value.RootItemName != itemName || value.TypeIdentifier != op.TypeIdentifier)
-            throw new JsonException("Added device identity contradicts the request.");
-        ValidateVerification(value.Verification, new() { DeviceName = value.DeviceName, DeviceItemName = value.RootItemName },
-            new() { ["deviceName"] = op.DeviceName, ["deviceItemName"] = itemName, ["typeIdentifier"] = op.TypeIdentifier });
+        if (string.IsNullOrWhiteSpace(value.DeviceName) || string.IsNullOrWhiteSpace(value.RootItemName)
+            || string.IsNullOrWhiteSpace(value.TypeIdentifier))
+            throw new JsonException("Added device identity is required.");
     }
 
-    private static void ValidateConfiguration(NetworkOperationRequest op, ConfigureNetworkDeviceResultInfo value, bool required)
+    private static void ValidateConfiguration(NetworkOperationRequest op, ConfigureNetworkDeviceResultInfo value)
     {
-        if (value.Verification is null && !required) return;
-        if (value.DeviceName != op.Target?.DeviceName || string.IsNullOrWhiteSpace(op.Target?.NodeId))
+        if (value.DeviceName != op.Target?.DeviceName)
             throw new JsonException("Configuration identity contradicts the request.");
         var requested = new Dictionary<string, string>(StringComparer.Ordinal);
         var changes = op.Changes;
@@ -198,111 +158,13 @@ public static class NetworkPayloadContract
             if (!requested.TryGetValue(setting.Key, out var expected) || expected != setting.Value || !accounted.Add(setting.Key))
                 throw new JsonException("Applied settings contradict the request.");
         }
-        foreach (var setting in value.SkippedSettings)
-        {
-            if (!requested.ContainsKey(setting.Key) || string.IsNullOrWhiteSpace(setting.Value) || !accounted.Add(setting.Key))
-                throw new JsonException("Skipped settings contradict the request.");
-        }
-        if (!accounted.SetEquals(requested.Keys)) throw new JsonException("Requested settings are unaccounted for.");
-        var checks = value.AppliedSettings.ToDictionary(pair => pair.Key, pair => (string?)pair.Value, StringComparer.Ordinal);
-        // One applied IoSystem setting is verified as two scalar checks: its subnet and number.
-        if (checks.Remove(NetworkSettingKeys.IoSystem))
-        {
-            if (string.IsNullOrWhiteSpace(changes?.IoSystem?.SubnetId)) throw new JsonException("IO system subnet identity is required.");
-            checks[NetworkSettingKeys.IoSystemSubnet] = changes!.IoSystem!.SubnetId;
-            checks[NetworkSettingKeys.IoSystemNumber] = Number(changes.IoSystem.Number!.Value);
-        }
-        // A missing request position becomes -1, which the path validator rejects.
-        var identity = new NetworkMutationIdentityInfo
-        {
-            DeviceName = value.DeviceName, NodeId = op.Target!.NodeId!, InterfaceName = op.Target.InterfaceName,
-            InterfacePath = op.Target.InterfacePath?.Select(x => new NetworkInterfacePathSegmentInfo
-                { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToList()
-                ?? op.Target.ItemPath?.Select(x => new NetworkInterfacePathSegmentInfo
-                { Name = x.Name, PositionNumber = x.PositionNumber ?? -1, TypeIdentifier = x.TypeIdentifier }).ToList(),
-        };
-        ValidateVerification(value.Verification,
-            identity, checks,
-            allowNotRequired: checks.Count == 0);
     }
 
-    private static void ValidateSubnetMutation(NetworkOperationRequest op, SubnetLifecycleResultInfo value, bool required)
+    private static void ValidateSubnetMutation(NetworkOperationRequest op, SubnetLifecycleResultInfo value)
     {
         ValidateSubnetLifecycleResult(value);
-        if (value.Verification is null && !required) return;
         if (op.Operation != "create_subnet" && value.SubnetId != op.Target?.SubnetId)
             throw new JsonException("Subnet identity contradicts the request.");
-        var checks = new Dictionary<string, string?>(StringComparer.Ordinal);
-        if (op.Operation == "delete_subnet")
-        {
-            checks.Add("subnetAbsent", "true");
-            checks.Add("affectedNodesPreserved", "true");
-            checks.Add("affectedConnectionsRemoved", "true");
-        }
-        else
-        {
-            checks.Add("subnetIdentity", value.SubnetId);
-            var name = op.Operation == "create_subnet" ? op.Subnet?.Name : op.SubnetChanges?.Name;
-            if (name is not null) checks.Add("Name", name);
-            if (op.Operation == "create_subnet") checks.Add("TypeIdentifier", SubnetLifecycleContract.TypeIdentifierFor(op.Subnet?.NetworkType)
-                ?? throw new JsonException("Verification contains missing, duplicate, unexpected or contradictory checks."));
-            var address = op.Operation == "create_subnet" ? op.Subnet?.HighestAddress : op.SubnetChanges?.HighestAddress;
-            if (address is { } number) checks.Add("HighestAddress", Number(number));
-            var speed = op.Operation == "create_subnet" ? op.Subnet?.TransmissionSpeed : op.SubnetChanges?.TransmissionSpeed;
-            if (speed is not null) checks.Add("TransmissionSpeed", speed);
-        }
-        var countChecks = value.Verification?.Checks.Where(check => check?.Name == "networkDeviceCountUnchanged").ToList();
-        if (countChecks?.Count != 1) throw new JsonException("Exactly one root count check is required.");
-        var count = countChecks[0];
-        // The pre-mutation root count belongs to the worker observation. Validate its domain,
-        // post-read value and summary, without pretending the host observed the before count.
-        if (count is null || !int.TryParse(count.Expected, System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture, out var before) || before < 0)
-            throw new JsonException("Root device count evidence is required.");
-        if (count.Status != NetworkVerificationStatuses.Unverified && count.Observed != Number(value.NetworkDeviceCount)
-            || value.NetworkDeviceCountUnchanged != (count.Status == NetworkVerificationStatuses.Passed))
-            throw new JsonException("Root device count evidence contradicts the result.");
-        checks.Add("networkDeviceCountUnchanged", count.Expected);
-        ValidateVerification(value.Verification, new() { SubnetId = value.SubnetId }, checks);
-    }
-
-    private static void ValidateVerification(NetworkMutationVerificationInfo? evidence,
-        NetworkMutationIdentityInfo identity, Dictionary<string, string?> expected, bool allowNotRequired = false)
-    {
-        if (evidence is null) throw new JsonException("Immediate mutation verification is required.");
-        if (!SameIdentity(identity, evidence.Identity))
-            throw new JsonException("Verification identity contradicts the result or request.");
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var check in evidence.Checks)
-        {
-            if (check is null || !seen.Add(check.Name) || !expected.TryGetValue(check.Name, out var target) || check.Expected != target)
-                throw new JsonException("Verification contains missing, duplicate, unexpected or contradictory checks.");
-            if (check.Status is not (NetworkVerificationStatuses.Passed or NetworkVerificationStatuses.Failed or NetworkVerificationStatuses.Unverified)) throw new JsonException("Invalid check status.");
-            if (check.Status == NetworkVerificationStatuses.Passed && check.Expected != check.Observed
-                || check.Status == NetworkVerificationStatuses.Failed && check.Expected == check.Observed
-                || check.Status == NetworkVerificationStatuses.Unverified && check.Observed is not null
-                || check.Status != NetworkVerificationStatuses.Passed && string.IsNullOrWhiteSpace(check.Message))
-                throw new JsonException("Verification status contradicts its evidence.");
-        }
-        if (!seen.SetEquals(expected.Keys)) throw new JsonException("Required checks are missing.");
-        var status = evidence.Checks.Any(check => check.Status == NetworkVerificationStatuses.Failed) ? NetworkVerificationStatuses.Failed
-            : evidence.Checks.Any(check => check.Status == NetworkVerificationStatuses.Unverified) ? NetworkVerificationStatuses.Unverified
-            : evidence.Checks.Count == 0 && allowNotRequired ? NetworkVerificationStatuses.NotRequired : NetworkVerificationStatuses.Passed;
-        if (evidence.Status != status || evidence.Checks.Count == 0 && !allowNotRequired)
-            throw new JsonException("Verification summary contradicts its checks.");
-    }
-
-    private static bool SameIdentity(NetworkMutationIdentityInfo expected, NetworkMutationIdentityInfo actual)
-    {
-        var scalars = new[]
-        {
-            (expected.DeviceName, actual.DeviceName), (expected.DeviceItemName, actual.DeviceItemName),
-            (expected.NodeId, actual.NodeId), (expected.InterfaceName, actual.InterfaceName), (expected.SubnetId, actual.SubnetId),
-        };
-        if (scalars.Any(pair => pair.Item1 is not null && string.IsNullOrWhiteSpace(pair.Item1) || pair.Item1 != pair.Item2)) return false;
-        if (expected.InterfacePath is null || actual.InterfacePath is null) return expected.InterfacePath is null && actual.InterfacePath is null;
-        // The canonical encoder validates both paths (nonempty, named, nonnegative positions) and compares them exactly.
-        return NetworkInterfacePathEncoding.Encode(expected.InterfacePath) == NetworkInterfacePathEncoding.Encode(actual.InterfacePath);
     }
 
     // The worker-payload reader rejects a missing member and an explicit null in any member the
@@ -588,16 +450,6 @@ public static class NetworkPayloadContract
         if (string.IsNullOrWhiteSpace(value.Name))
         {
             throw new JsonException("'name' must be a nonblank string.");
-        }
-
-        if (value.NetworkDeviceCount < 0)
-        {
-            throw new JsonException("'networkDeviceCount' must not be negative.");
-        }
-
-        if (!value.NetworkDeviceCountUnchanged && value.Verification is null)
-        {
-            throw new JsonException("'networkDeviceCountUnchanged' must be true.");
         }
     }
 

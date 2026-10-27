@@ -20,42 +20,8 @@ public class NetworkSubnetLifecyclePayloadContractTests
 
     private static StructuredOperationItem Project(string operation, string payload)
         => NetworkPayloadContract.Project(
-            new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
+            new NetworkOperationRequest { OperationId = "op-1", Operation = operation, Target = new() { SubnetId = "subnet-1" } },
             WorkerCallResult.Ok(payload));
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("Unsupported")]
-    public void Project_RejectsNullTypeEvidence_WhenRequestedNetworkTypeIsMissingOrUnsupported(string? networkType)
-    {
-        var operation = new NetworkOperationRequest
-        {
-            OperationId = "create", Operation = "create_subnet",
-            Subnet = new() { Name = "LAN", NetworkType = networkType },
-        };
-        var payload = WorkerJson.SerializePayload(new SubnetLifecycleResultInfo
-        {
-            SubnetId = "subnet-1", Name = "LAN", NetworkDeviceCount = 0, NetworkDeviceCountUnchanged = true,
-            Verification = new()
-            {
-                Identity = new() { SubnetId = "subnet-1" }, Status = "passed",
-                Checks = new()
-                {
-                    new() { Name = "subnetIdentity", Expected = "subnet-1", Observed = "subnet-1", Status = "passed" },
-                    new() { Name = "Name", Expected = "LAN", Observed = "LAN", Status = "passed" },
-                    new() { Name = "TypeIdentifier", Expected = null, Observed = null, Status = "passed" },
-                    new() { Name = "networkDeviceCountUnchanged", Expected = "0", Observed = "0", Status = "passed" },
-                },
-            },
-        });
-
-        var item = NetworkPayloadContract.Project(operation, WorkerCallResult.Ok(payload), requireVerification: true);
-
-        Assert.Equal("failed", item.Status);
-        Assert.Null(item.Result);
-        Assert.Equal("protocol_error", item.Failure!.Category);
-        Assert.Equal("The worker payload for 'create_subnet' did not match its declared result contract and was rejected.", item.Failure.Message);
-    }
 
     /// <summary>
     /// Valid minimal payload for subnet lifecycle operations should decode into a succeeded item.
@@ -190,20 +156,19 @@ public class NetworkSubnetLifecyclePayloadContractTests
     }
 
     /// <summary>
-    /// Negative networkDeviceCount must be rejected during validation.
+    /// Transitional count values are decoded without postcondition semantics until DTO retirement.
     /// </summary>
     [Theory]
     [InlineData("create_subnet")]
     [InlineData("update_subnet")]
     [InlineData("delete_subnet")]
-    public void Project_RejectsPayload_WhenNetworkDeviceCountNegative(string operation)
+    public void Project_AcceptsPayload_WhenLegacyNetworkDeviceCountNegative(string operation)
     {
         var payload = """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":-1,"networkDeviceCountUnchanged":true}""";
         var item = Project(operation, payload);
 
-        Assert.Equal(OperationBatchStatus.Failed, item.Status);
-        Assert.NotNull(item.Failure);
-        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Null(item.Failure);
     }
 
     [Theory]
@@ -241,20 +206,19 @@ public class NetworkSubnetLifecyclePayloadContractTests
     }
 
     /// <summary>
-    /// False networkDeviceCountUnchanged must be rejected during validation.
+    /// Transitional count flags no longer decide whether a successful mutation succeeded.
     /// </summary>
     [Theory]
     [InlineData("create_subnet")]
     [InlineData("update_subnet")]
     [InlineData("delete_subnet")]
-    public void Project_RejectsPayload_WhenNetworkDeviceCountUnchangedFalse(string operation)
+    public void Project_AcceptsPayload_WhenLegacyNetworkDeviceCountUnchangedFalse(string operation)
     {
         var payload = """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":false}""";
         var item = Project(operation, payload);
 
-        Assert.Equal(OperationBatchStatus.Failed, item.Status);
-        Assert.NotNull(item.Failure);
-        Assert.Equal(WorkerFailureCategories.ProtocolError, item.Failure!.Category);
+        Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
+        Assert.Null(item.Failure);
     }
 
     /// <summary>
@@ -336,7 +300,7 @@ public class NetworkSubnetLifecyclePayloadContractTests
     [InlineData("delete_subnet")]
     public void Project_DoesNotEchoPayload_InFailureMessage(string operation)
     {
-        var payload = """{"subnetId":"payload-leak-canary","name":"Ethernet","networkDeviceCount":-1,"networkDeviceCountUnchanged":true}""";
+        var payload = """{"subnetId":"payload-leak-canary","name":"Ethernet","networkDeviceCount":-1,"networkDeviceCountUnchanged":true,"unexpected":true}""";
         var item = Project(operation, payload);
 
         Assert.Equal(OperationBatchStatus.Failed, item.Status);

@@ -39,7 +39,7 @@ public sealed class NetworkGuardedWriteDomainTests
         Assert.Null(guard.Acknowledged);
         Assert.True(response.Success);
         Assert.Equal(2, response.Effects[0].Effect!.AffectedNodes.Count);
-        Assert.Contains(response.Verification!.FinalChecks, c => c.Subject?.DeviceName == "PLC_Ungrouped" && c.Status == "passed");
+        Assert.Equal("trusted", Assert.Single(response.Verification!.Operations).Check);
     }
     [Theory]
     [InlineData(McpAccessMode.ReadWrite)]

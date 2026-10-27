@@ -105,7 +105,9 @@ public partial class NetworkPayloadContractTests
 
     private static StructuredOperationItem Project(string operation, string payload)
         => NetworkPayloadContract.Project(
-            new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
+            new NetworkOperationRequest { OperationId = "op-1", Operation = operation,
+                Target = operation == "configure_network_device" ? new() { DeviceName = "PLC_1", NodeId = "node-1" }
+                    : operation is "update_subnet" or "delete_subnet" ? new() { SubnetId = "subnet-1" } : null },
             WorkerCallResult.Ok(payload));
 
     [Theory]
@@ -1247,6 +1249,7 @@ public partial class NetworkPayloadContractTests
             {
                 OperationId = "op-1",
                 Operation = operation,
+                Target = operation == "configure_network_device" ? new() { DeviceName = "PLC_1", NodeId = "node-1" } : null,
                 IncludeIoDetails = operation == "read_hardware_config" ? true : null,
             },
             WorkerCallResult.Ok(payload));

@@ -12,6 +12,20 @@ namespace TiaMcpServer.Tests.Network;
 [Collection("Mcp protocol serial")]
 public sealed class NetworkGuardedWriteMcpTests
 {
+    [Fact]
+    public async Task RegisteredSchema_NetworkWriteIsContractTwo()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, "network-guarded");
+        var args = Arguments(); args["dryRun"] = true;
+        var reply = await harness.Client.CallToolAsync("network_write", args);
+        Assert.Equal("2.0", Document(reply).GetProperty("contractVersion").GetString());
+        Assert.Equal(JsonValueKind.Null, Document(reply).GetProperty("verification").ValueKind);
+        var tool = Assert.Single(await harness.Client.ListToolsAsync(), t => t.Name == "network_write").ProtocolTool;
+        var properties = tool.OutputSchema!.Value.GetProperty("properties").GetProperty("verification").GetProperty("properties");
+        Assert.Equal(new[] { "omission", "operations", "success" }, properties.EnumerateObject().Select(p => p.Name).Order());
+    }
+
     [Theory]
     [InlineData(256)]
     [InlineData(257)]
@@ -76,7 +90,7 @@ public sealed class NetworkGuardedWriteMcpTests
         Assert.True(validation.IsValid, validation.Error);
         var reply = await harness.Client.CallToolAsync("network_write", new Dictionary<string, object?> { ["operations"] = Array.Empty<object>(), ["dryRun"] = true });
         var publicRoot = Document(reply);
-        Assert.Equal("1.0", publicRoot.GetProperty("contractVersion").GetString());
+        Assert.Equal("2.0", publicRoot.GetProperty("contractVersion").GetString());
     }
 
     [Theory]

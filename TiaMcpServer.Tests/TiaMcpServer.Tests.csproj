@@ -216,7 +216,7 @@
     <Compile Include="..\TiaMcpServer\Network\NetworkWritePlanner.cs" Link="Host\Network\NetworkWritePlanner.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWriteDomain.cs" Link="Host\Network\NetworkWriteDomain.cs" />
     <Compile Include="..\TiaMcpServer\Network\NetworkWritePayloadBudget.cs" Link="Host\Network\NetworkWritePayloadBudget.cs" />
-    <Compile Include="..\TiaMcpServer\Network\NetworkWriteVerifier.cs" Link="Host\Network\NetworkWriteVerifier.cs" />
+    <Compile Include="..\TiaMcpServer\Network\NetworkVerificationPolicy.cs" Link="Host\Network\NetworkVerificationPolicy.cs" />
     <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorState.cs"
       Link="Host\Network\HardwarePageCursorState.cs" />
     <Compile Include="..\TiaMcpServer\Network\HardwarePageCursorCodec.cs"
