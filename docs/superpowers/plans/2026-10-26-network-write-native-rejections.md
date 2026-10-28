@@ -149,7 +149,7 @@ Algorithm of `TrustedWriteVerifier.VerifyAsync`, lifted from today's `PlcWriteVe
 - Superseded message: `Operation '{id}': superseded by later operation '{later}' on the same object; ` followed by `the later operation failed and may have changed the object; its final state is not verified. Inspect it with {policy.ReadTool} before retrying.` when the later item failed and `!policy.HasReadBack(later)`, otherwise `the final state is verified there.`
 - `Success` = all entries' `Success`; `Omission` null.
 
-- [ ] **Step 1: Write the failing shared-verifier tests** in `TiaMcpServer.Tests/Safety/Pipeline/TrustedWriteVerifierTests.cs`, using `FakeWriteItem` from `PipelineFakes.cs` and a test-local `FakePolicy : IWriteVerificationPolicy<FakeWriteItem>` with `Dictionary<string, string[]> Keys`, `HashSet<string> ReadBack`, `List<string> ReadBackCalls`, `ReadTool => "fake_read"`:
+- [x] **Step 1: Write the failing shared-verifier tests** in `TiaMcpServer.Tests/Safety/Pipeline/TrustedWriteVerifierTests.cs`, using `FakeWriteItem` from `PipelineFakes.cs` and a test-local `FakePolicy : IWriteVerificationPolicy<FakeWriteItem>` with `Dictionary<string, string[]> Keys`, `HashSet<string> ReadBack`, `List<string> ReadBackCalls`, `ReadTool => "fake_read"`:
 
 ```csharp
 [Fact] public async Task SucceededItemsOnDistinctObjects_AreTrusted()
@@ -173,30 +173,30 @@ Algorithm of `TrustedWriteVerifier.VerifyAsync`, lifted from today's `PlcWriteVe
 // a read-back entry with Success false → verification.Success false
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~TrustedWriteVerifierTests"`
 Expected: build error, `TrustedWriteVerifier` not defined.
 
-- [ ] **Step 3: Implement `WriteVerification.cs` and `TrustedWriteVerifier.cs`** with the signatures and texts above.
+- [x] **Step 3: Implement `WriteVerification.cs` and `TrustedWriteVerifier.cs`** with the signatures and texts above.
 
-- [ ] **Step 4: Run the shared tests**
+- [x] **Step 4: Run the shared tests**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~TrustedWriteVerifierTests"`
 Expected: 9 passed.
 
-- [ ] **Step 5: Move the PLC records** `PlcOperationVerification` and `PlcWriteVerification` from `PlcWriteVerifier.cs:14-18` to `PlcWriteModels.cs` unchanged, add `PlcWriteVerification.From`.
+- [x] **Step 5: Move the PLC records** `PlcOperationVerification` and `PlcWriteVerification` from `PlcWriteVerifier.cs:14-18` to `PlcWriteModels.cs` unchanged, add `PlcWriteVerification.From`.
 
-- [ ] **Step 6: Create `PlcVerificationPolicy`**: `ReadTool => "plc_read"`; `ObjectKeys` is today's `Keys`/`BlockKeys` (`PlcWriteVerifier.cs:72-104`) verbatim; `HasReadBack(item) => item.Operation is "update_block_logic" or "update_type_content"`; `ReadBackAsync` is today's `VerifyContentAsync` (`:106-121`) returning `new WriteOperationVerification(id, true, "contentHash", null, hash, message)` on success and `new(id, false, "contentHash", null, null, message)` on a failed re-export; static `VerifyAsync` composes `TrustedWriteVerifier` and `From`.
+- [x] **Step 6: Create `PlcVerificationPolicy`**: `ReadTool => "plc_read"`; `ObjectKeys` is today's `Keys`/`BlockKeys` (`PlcWriteVerifier.cs:72-104`) verbatim; `HasReadBack(item) => item.Operation is "update_block_logic" or "update_type_content"`; `ReadBackAsync` is today's `VerifyContentAsync` (`:106-121`) returning `new WriteOperationVerification(id, true, "contentHash", null, hash, message)` on success and `new(id, false, "contentHash", null, null, message)` on a failed re-export; static `VerifyAsync` composes `TrustedWriteVerifier` and `From`.
 
-- [ ] **Step 7: Switch `PlcWriteDomain.VerifyAsync`** to `PlcVerificationPolicy.VerifyAsync(client, _items, _effects, attemptedBatch)`; delete `PlcWriteVerifier.cs`; in `PlcWriteVerifierTests.cs:36` replace `new PlcWriteVerifier(fixture.Client, items, effects).VerifyAsync(Succeeded(items))` with `PlcVerificationPolicy.VerifyAsync(fixture.Client, items, effects, Succeeded(items))`; update the csproj row.
+- [x] **Step 7: Switch `PlcWriteDomain.VerifyAsync`** to `PlcVerificationPolicy.VerifyAsync(client, _items, _effects, attemptedBatch)`; delete `PlcWriteVerifier.cs`; in `PlcWriteVerifierTests.cs:36` replace `new PlcWriteVerifier(fixture.Client, items, effects).VerifyAsync(Succeeded(items))` with `PlcVerificationPolicy.VerifyAsync(fixture.Client, items, effects, Succeeded(items))`; update the csproj row.
 
-- [ ] **Step 8: Prove PLC is unchanged**
+- [x] **Step 8: Prove PLC is unchanged**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~Plc|FullyQualifiedName~McpToolSchemaTests|FullyQualifiedName~ToolOutputContractConformanceTests"`
 Expected: all pass with no edit to any PLC test assertion or to `output-schemas.json`.
 
-- [ ] **Step 9: Full default suite, then commit**
+- [x] **Step 9: Full default suite, then commit**
 
 Run: `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true && dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`
 Expected: 0 errors; all pass.
@@ -232,7 +232,7 @@ internal static string FailureMessage(EngineeringException exception, string cat
 - Produces: `WorkerOperationException(..., ConfigureNetworkDeviceResultInfo? configureNetworkDeviceOutcome = null)` and property `ConfigureNetworkDeviceOutcome`; `WorkerResponse.ConfigureNetworkDeviceOutcome` (`[JsonIgnore(WhenWritingNull)]`); `WorkerCallResult.ConfigureNetworkDeviceOutcome { get; init; }`.
 - Produces, in `NetworkDeviceConfigurator`: the first `EngineeringException` from a setter or connect is rethrown as `new WorkerOperationException(WorkerExecution.Classify(ex, true), WorkerExecution.FailureMessage(ex, category), engineeringError: WorkerExecution.Describe(ex), configureNetworkDeviceOutcome: result)`; a missing IO connector throws `WorkerOperationException(TargetNotFound, "Device '{deviceName}': the selected network interface exposes no IO connector, so ioSystem cannot be attached. No configuration was attempted.")` before the first setter. `SkippedSettings` is no longer written anywhere.
 
-- [ ] **Step 1: Write the failing `WorkerExecutionTests`** (append to the existing class):
+- [x] **Step 1: Write the failing `WorkerExecutionTests`** (append to the existing class):
 
 ```csharp
 [Theory]
@@ -255,33 +255,33 @@ public void Classify_UsesExceptionTypeAndMutationFlag(bool targetInvocation, boo
 // WorkerOperationException(ValidationError, "v") with revision++ → still thrown (not portal_lost)
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~WorkerExecutionTests"`
 Expected: build errors (`Classify`, `ConfigureNetworkDeviceOutcome` missing).
 
-- [ ] **Step 3: Implement the contract members** (`WorkerOperationException`, `WorkerResponse`, `WorkerCallResult`, client `with` blocks, `Program.Failure` and the catch at `Program.cs:229`), link `WorkerOperationException.cs` into the test project, register `"WorkerResponse.ConfigureNetworkDeviceOutcome"` in `ConditionalMemberRegisterTests` with the comment `// network_write: present on a rejected configure_network_device item; carries the settings applied before the rejection.`
+- [x] **Step 3: Implement the contract members** (`WorkerOperationException`, `WorkerResponse`, `WorkerCallResult`, client `with` blocks, `Program.Failure` and the catch at `Program.cs:229`), link `WorkerOperationException.cs` into the test project, register `"WorkerResponse.ConfigureNetworkDeviceOutcome"` in `ConditionalMemberRegisterTests` with the comment `// network_write: present on a rejected configure_network_device item; carries the settings applied before the rejection.`
 
-- [ ] **Step 4: Implement `Classify`, `FailureMessage` and the new catch** in `WorkerExecution.Execute`; the existing `EngineeringException` catch must produce exactly the strings it produces today (the existing tests pin them).
+- [x] **Step 4: Implement `Classify`, `FailureMessage` and the new catch** in `WorkerExecution.Execute`; the existing `EngineeringException` catch must produce exactly the strings it produces today (the existing tests pin them).
 
-- [ ] **Step 5: Run `WorkerExecutionTests` and `ConditionalMemberRegisterTests`**
+- [x] **Step 5: Run `WorkerExecutionTests` and `ConditionalMemberRegisterTests`**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~WorkerExecutionTests|FullyQualifiedName~ConditionalMemberRegisterTests"`
 Expected: all pass, including the pre-existing `MutationTargetInvocationFailure_AfterPortalDisposal_StillMapsToPortalLost`.
 
-- [ ] **Step 6: Rewrite the configurator source contract tests** in `NetworkDeviceCreatorWorkerContractTests`:
+- [x] **Step 6: Rewrite the configurator source contract tests** in `NetworkDeviceCreatorWorkerContractTests`:
   - `Preflight_AllDependencySelectorsPrecedeFirstScalarSetter`: replace `Assert.Contains("NetworkPostconditionChecks.IoSystemSkipReason(", source)` with `Assert.Contains("WorkerFailureCategories.TargetNotFound", preflight)` and `Assert.DoesNotContain("SkippedSettings", source)`.
   - add `Rejection_StopsAtFirstSiemensExceptionAndCarriesAppliedSubset`: `Assert.Contains("WorkerExecution.Classify(", source)`, `Assert.Contains("configureNetworkDeviceOutcome: result", source)`, `Assert.DoesNotContain("IoSystemSkipReason", source)`.
   - delete `NetworkMutationVerificationTests.Preflight_ExistingIoSkipPrecedence`.
 
-- [ ] **Step 7: Run them to verify they fail**, then **rewrite `NetworkDeviceConfigurator`** per the Interfaces block: `ApplyNodeAttribute(Node, string, object, string, ConfigureNetworkDeviceResultInfo)`, `ConnectSubnet` (now `void`) and `ConnectIoSystem` rethrow; the pre-flight block throws `target_not_found` when `ioConnector is null`; remove `subnetConnected` and the skip branch; remove `IoSystemSkipReason` from `NetworkPostconditionChecks`. Keep setter order and the "No network settings were provided." message.
+- [x] **Step 7: Run them to verify they fail**, then **rewrite `NetworkDeviceConfigurator`** per the Interfaces block: `ApplyNodeAttribute(Node, string, object, string, ConfigureNetworkDeviceResultInfo)`, `ConnectSubnet` (now `void`) and `ConnectIoSystem` rethrow; the pre-flight block throws `target_not_found` when `ioConnector is null`; remove `subnetConnected` and the skip branch; remove `IoSystemSkipReason` from `NetworkPostconditionChecks`. Keep setter order and the "No network settings were provided." message.
 
-- [ ] **Step 8: Build with stubs and run the full default suite**
+- [x] **Step 8: Build with stubs and run the full default suite**
 
 Run: `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true && dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`
 Expected: 0 errors; all pass (the host still treats a success payload with an empty `skippedSettings` as success, so FakeWorker-driven tests are unaffected).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add TiaMcpServer.OpennessWorker TiaMcpServer.Contracts TiaMcpServer/Worker TiaMcpServer.Tests
@@ -341,7 +341,7 @@ Budget: follow `PlcWritePayloadBudget` (`TiaMcpServer/Plc/PlcWritePayloadBudget.
 
 FakeWorker: add scenario `network-guarded-rejected-setting` (same state as `network-guarded`; a configure with `pnDeviceName` responds `{"success":false,"failureCategory":"engineering_rejected","error":"TIA Portal rejected the operation: scripted","engineeringError":{"type":"EngineeringTargetInvocationException","message":"scripted","inner":[]},"configureNetworkDeviceOutcome":{"deviceName":"PLC_Grouped","appliedSettings":{"Address":"<requested>"},"skippedSettings":{},"messages":[]}}` after applying the address to its state), `network-guarded-rejected-contradiction` (same, but `appliedSettings` contains `"SubnetMask":"255.0.0.0"` that was never requested) and `network-guarded-no-io-connector` (an `ioSystemNumber` request responds `{"success":false,"failureCategory":"target_not_found","error":"…exposes no IO connector…"}`). The existing guarded configure handler stops writing `skipped`.
 
-- [ ] **Step 1: Write the failing host tests.** In `NetworkMutationVerificationTests.cs` delete every test about `ValidateVerification`, identities, counts and `Complete/Compare` precedence (`Complete_PreservesStatusPrecedence`, `QualifiedImmediateIdentity_*`, `AppliedSubsetOnly_IsVerified`, `UnreadableAppliedValue_IsUnverified`, `WrongIoSystemOnOtherSubnet_Fails`, `IoSystemVerification_RequiresScalarSubnetAndNumberChecks`, `MissingOrContradictoryVerification_IsProtocolError`, `UnknownOrUnaccountedSetting_IsProtocolError`, `PostconditionFailure_FailsItemAndRetainsResult`, `PresentEvidence_IsStrictOnBothOverloads`, `NotRequired_IsOnlyValidForNoAppliedConfiguration`, `Deletion_PreservesAffectedNodesAcrossScopes`, `UninspectableSubnetId_IsNotAbsence`, `MalformedEvidence_IsRejectedWithoutEcho`, `AddedDevice_RequiresExactReturnedIdentitiesAndType`, `Subnet_RequiresRequestedAttributesAndImmediateCount`); keep the selection/classification tests. Add, against `NetworkPayloadContract.Project` with hand-built `WorkerCallResult`s:
+- [x] **Step 1: Write the failing host tests.** In `NetworkMutationVerificationTests.cs` delete every test about `ValidateVerification`, identities, counts and `Complete/Compare` precedence (`Complete_PreservesStatusPrecedence`, `QualifiedImmediateIdentity_*`, `AppliedSubsetOnly_IsVerified`, `UnreadableAppliedValue_IsUnverified`, `WrongIoSystemOnOtherSubnet_Fails`, `IoSystemVerification_RequiresScalarSubnetAndNumberChecks`, `MissingOrContradictoryVerification_IsProtocolError`, `UnknownOrUnaccountedSetting_IsProtocolError`, `PostconditionFailure_FailsItemAndRetainsResult`, `PresentEvidence_IsStrictOnBothOverloads`, `NotRequired_IsOnlyValidForNoAppliedConfiguration`, `Deletion_PreservesAffectedNodesAcrossScopes`, `UninspectableSubnetId_IsNotAbsence`, `MalformedEvidence_IsRejectedWithoutEcho`, `AddedDevice_RequiresExactReturnedIdentitiesAndType`, `Subnet_RequiresRequestedAttributesAndImmediateCount`); keep the selection/classification tests. Add, against `NetworkPayloadContract.Project` with hand-built `WorkerCallResult`s:
 
 ```csharp
 [Fact] public void RejectedConfigure_ProjectsOutcomeAsResultAndTypedFailure()
@@ -384,23 +384,23 @@ FakeWorker: add scenario `network-guarded-rejected-setting` (same state as `netw
 
   In `NetworkGuardedWriteMcpTests.cs` add `RegisteredSchema_NetworkWriteIsContractTwo` asserting `contractVersion == "2.0"` on a preview and that the structured `verification` has exactly the members `omission`, `operations`, `success`.
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~TiaMcpServer.Tests.Network"`
 Expected: build errors against the old types.
 
-- [ ] **Step 3: Implement models, policy, domain, payload contract and budget** per the Interfaces block; delete `NetworkWriteVerifier.cs`; update the csproj rows.
+- [x] **Step 3: Implement models, policy, domain, payload contract and budget** per the Interfaces block; delete `NetworkWriteVerifier.cs`; update the csproj rows.
 
-- [ ] **Step 4: Update the FakeWorker** scenarios per the block above.
+- [x] **Step 4: Update the FakeWorker** scenarios per the block above.
 
-- [ ] **Step 5: Regenerate the `network_write` schema row.** Run `McpToolSchemaTests.OutputSchemasMatchMain` (expected: fails naming only `network_write`); start the production surface in Full mode through `McpProtocolTestHarness`, dump each tool's `ProtocolTool.OutputSchema`, and replace only the `network_write` value in `TiaMcpServer.Tests/Tools/Snapshots/output-schemas.json`. `git diff --stat` on the snapshot must show only that key's lines; the `plc_write` and `network_read` rows are unchanged. Update the two `network_write` probes in `ToolOutputContractConformanceTests` for `"2.0"`.
+- [x] **Step 5: Regenerate the `network_write` schema row.** Run `McpToolSchemaTests.OutputSchemasMatchMain` (expected: fails naming only `network_write`); start the production surface in Full mode through `McpProtocolTestHarness`, dump each tool's `ProtocolTool.OutputSchema`, and replace only the `network_write` value in `TiaMcpServer.Tests/Tools/Snapshots/output-schemas.json`. `git diff --stat` on the snapshot must show only that key's lines; the `plc_write` and `network_read` rows are unchanged. Update the two `network_write` probes in `ToolOutputContractConformanceTests` for `"2.0"`.
 
-- [ ] **Step 6: Run the Network, Tools and pipeline suites**
+- [x] **Step 6: Run the Network, Tools and pipeline suites**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~TiaMcpServer.Tests.Network|FullyQualifiedName~TiaMcpServer.Tests.Tools|FullyQualifiedName~TiaMcpServer.Tests.Safety"`
 Expected: all pass.
 
-- [ ] **Step 7: Build with stubs, full default suite, commit**
+- [x] **Step 7: Build with stubs, full default suite, commit**
 
 Run: `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true && dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`
 Expected: 0 errors; all pass.
@@ -438,7 +438,7 @@ public sealed class NetworkWritePlanner(OpennessWorkerClient client)
   `NetworkWriteDomain.ReplanAsync` → `throw new InvalidOperationException("network_write plans declare no dependencies; ReplanAsync must never be called.")`. `EvaluateGuards`: `Unverifiable` only when `effect.Operation == "delete_subnet" && effect.ConnectionsComplete != true`; `ConnectedDelete` unchanged.
   `NetworkIdentityResolver.ResolveExistingSubnet(operation, state)` loses `validateChanges` and the Ethernet `HighestAddress`/`TransmissionSpeed` refusal; the unsupported-network-type refusal stays.
 
-- [ ] **Step 1: Write the failing tests.** In `NetworkGuardedWriteOrderingTests.cs` delete `EarlierAdd_RefreshesRootCount`, `ReplannedRootCount_DoesNotEraseEarlierPreservationExpectation`, `ConfigurePreview_ReportsUnknownAccessWhenNodeInspectIsUnavailable`, `SubnetRenamePreview_ReportsInspectedAccess`; rewrite:
+- [x] **Step 1: Write the failing tests.** In `NetworkGuardedWriteOrderingTests.cs` delete `EarlierAdd_RefreshesRootCount`, `ReplannedRootCount_DoesNotEraseEarlierPreservationExpectation`, `ConfigurePreview_ReportsUnknownAccessWhenNodeInspectIsUnavailable`, `SubnetRenamePreview_ReportsInspectedAccess`; rewrite:
 
 ```csharp
 [Fact] public async Task ThreeItemCall_ReadsHardwareOnceAndInspectsNothing()           // was ReplanningOccursBetweenDispatches
@@ -460,19 +460,19 @@ public async Task NoLateGuardEvaluation_LaterItemsProceedOnPlanningEvidence(stri
 
   In `NetworkGuardedWriteDomainTests.cs` reduce `RelationshipCases` of `ProducerScopedDegradation_PreservesGuardAndIndependentDiscoveryRefusal` to the `subnet` and `selector` kinds, and add `IncompleteNodeConnections_DoNotBlockConfigure` (scenario `network-guarded-incomplete-node`, `Configure("connect", connect: true)` → no `network_state_unverifiable` guard, phase applied, `configure_network_device` reached the worker) and `MissingRootDeviceCount_DoesNotBlockSubnetWrites` (scenario `network-guarded-incomplete-root`, `Delete()` → no `network_state_unverifiable` guard; the delete is dispatched). In `NetworkIdentityResolverTests.cs` replace the Ethernet-applicability refusal test with `UpdateSubnet_ProfibusAttributesOnEthernet_AreResolvedNotRefused` (resolution succeeds; Portal decides).
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~NetworkGuardedWriteOrderingTests|FullyQualifiedName~NetworkGuardedWriteDomainTests|FullyQualifiedName~NetworkIdentityResolverTests"`
 Expected: the new tests fail (two hardware reads observed, inspection observed, host `validation_error`).
 
-- [ ] **Step 3: Rewrite the planner, effect record, domain replan and resolver** per the Interfaces block. `MeasurePreparedCore` and the policy from Task 3 need no change. In `TiaMcpServer/Network/NetworkWriteTools.cs:14` append one sentence to the `network_write` description: `A PROFINET device name is only settable once changes.pnDeviceNameAutoGeneration is false; pass both in the same item.` (the hint the retired host pre-check used to carry).
+- [x] **Step 3: Rewrite the planner, effect record, domain replan and resolver** per the Interfaces block. `MeasurePreparedCore` and the policy from Task 3 need no change. In `TiaMcpServer/Network/NetworkWriteTools.cs:14` append one sentence to the `network_write` description: `A PROFINET device name is only settable once changes.pnDeviceNameAutoGeneration is false; pass both in the same item.` (the hint the retired host pre-check used to carry).
 
-- [ ] **Step 4: Run the three suites, then the full default suite**
+- [x] **Step 4: Run the three suites, then the full default suite**
 
 Run: `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true && dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`
 Expected: 0 errors; all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add TiaMcpServer/Network TiaMcpServer.FakeWorker TiaMcpServer.Tests
@@ -500,21 +500,21 @@ public sealed class SubnetLifecycleResultInfo { string SubnetId; string Name; }
 ```
 - Produces, worker: `SubnetLifecycleService.Update` opens the transaction, resolves the subnet once (`ResolveExactSubnetOrThrow`), sets `Name`, applies PROFIBUS attributes, reads the name back for the result (`ReadRequiredSubnetNameOrThrow`), commits; no type/applicability check, no device count. `Delete` resolves once, reads the name, deletes, commits; no `CaptureAffectedNodes`. `Create` loses the device count. `Program.AddNetworkDevice`/`ConfigureNetworkDevice` no longer assign `result.Verification`.
 
-- [ ] **Step 1: Write the failing tests.** `NetworkSubnetLifecycleWorkerServiceContractTests` (source-text, same style as `NetworkDeviceCreatorWorkerContractTests`): `Update_ResolvesTheSubnetOnceInsideItsTransaction` (exactly one `ResolveExactSubnetOrThrow(project, subnetId, "update_subnet")` occurrence, after `exclusiveAccess.Transaction(project, "update_subnet")`), `Lifecycle_HasNoDeviceCountOrAffectedNodeCapture` (`DoesNotContain("project.Devices.Count")`, `DoesNotContain("CaptureAffectedNodes")`, `DoesNotContain("NetworkMutationVerifier")`), `Update_DoesNotRejectProfibusAttributesByType` (`DoesNotContain("ProfibusTypeIdentifier, StringComparison.Ordinal))")` in `Update`). Remove the `NetworkMutationVerifier` assertion from `NetworkDeviceCreatorWorkerContractTests.PnDeviceNameAutoGeneration_IsSetBeforePnDeviceName`. Remove the three `.Verification` rows from `ConditionalMemberRegisterTests` and the `NetworkVerificationStatuses` block from `NetworkVocabularyContractTests`. Delete the remaining `Complete`/`Compare` tests in `NetworkMutationVerificationTests`. Update the `network-config-partial` expectation in `NetworkOperationFakeWorkerTests` to a failed item with `engineering_rejected` and `result.appliedSettings`.
+- [x] **Step 1: Write the failing tests.** `NetworkSubnetLifecycleWorkerServiceContractTests` (source-text, same style as `NetworkDeviceCreatorWorkerContractTests`): `Update_ResolvesTheSubnetOnceInsideItsTransaction` (exactly one `ResolveExactSubnetOrThrow(project, subnetId, "update_subnet")` occurrence, after `exclusiveAccess.Transaction(project, "update_subnet")`), `Lifecycle_HasNoDeviceCountOrAffectedNodeCapture` (`DoesNotContain("project.Devices.Count")`, `DoesNotContain("CaptureAffectedNodes")`, `DoesNotContain("NetworkMutationVerifier")`), `Update_DoesNotRejectProfibusAttributesByType` (`DoesNotContain("ProfibusTypeIdentifier, StringComparison.Ordinal))")` in `Update`). Remove the `NetworkMutationVerifier` assertion from `NetworkDeviceCreatorWorkerContractTests.PnDeviceNameAutoGeneration_IsSetBeforePnDeviceName`. Remove the three `.Verification` rows from `ConditionalMemberRegisterTests` and the `NetworkVerificationStatuses` block from `NetworkVocabularyContractTests`. Delete the remaining `Complete`/`Compare` tests in `NetworkMutationVerificationTests`. Update the `network-config-partial` expectation in `NetworkOperationFakeWorkerTests` to a failed item with `engineering_rejected` and `result.appliedSettings`.
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~NetworkSubnetLifecycleWorkerServiceContractTests|FullyQualifiedName~ConditionalMemberRegisterTests|FullyQualifiedName~NetworkVocabularyContractTests"`
 Expected: fail on the current sources/registers.
 
-- [ ] **Step 3: Apply the deletions and rewrites** per the Files and Interfaces blocks. `grep -rn "NetworkMutationVerificationInfo\|NetworkVerificationStatuses\|SkippedSettings\|NetworkDeviceCount" --include=*.cs TiaMcpServer*` must return nothing.
+- [x] **Step 3: Apply the deletions and rewrites** per the Files and Interfaces blocks. `grep -rn "NetworkMutationVerificationInfo\|NetworkVerificationStatuses\|SkippedSettings\|NetworkDeviceCount" --include=*.cs TiaMcpServer*` must return nothing.
 
-- [ ] **Step 4: Build with stubs, full default suite**
+- [x] **Step 4: Build with stubs, full default suite**
 
 Run: `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true && dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`
 Expected: 0 errors; all pass; `WorkerPayloadNullPolicyRegisterTests` unchanged and green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add TiaMcpServer.OpennessWorker TiaMcpServer.Contracts TiaMcpServer.FakeWorker TiaMcpServer.Tests
@@ -528,11 +528,11 @@ git commit -m "refactor: network write task 5 retire worker verification"
 **Files:**
 - Modify: this plan's "Execution record" section.
 
-- [ ] **Step 1: Stub build clean**: `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true` → 0 errors; record the warning count against `main` (`git stash`-free: build `8090ded` in a worktree if needed).
-- [ ] **Step 2: Default suite**: `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"` → record passed/failed/skipped.
-- [ ] **Step 3: Adversarial diff review** of `git diff 8090ded..HEAD -- TiaMcpServer TiaMcpServer.OpennessWorker TiaMcpServer.Contracts`, confirming each line of §2 anti-goals: no Siemens call before the binding gate; a Siemens exception during `read_hardware_config` still maps through read categories (never `engineering_rejected`); `portal_lost` precedence for both the shared catch and the wrapped path; `plc_write`/`network_read` schema rows unchanged (`git diff 8090ded..HEAD -- TiaMcpServer.Tests/Tools/Snapshots/output-schemas.json` touches only the `network_write` key); no new conditional member outside the register; no `[LegacyNullOmission]` change.
-- [ ] **Step 4: Line counts**: `git diff --numstat 8090ded..HEAD` per production file into the execution record, removed/added.
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Stub build clean**: `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true` → 0 errors; record the warning count against `main` (`git stash`-free: build `8090ded` in a worktree if needed).
+- [x] **Step 2: Default suite**: `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"` → record passed/failed/skipped.
+- [x] **Step 3: Adversarial diff review** of `git diff 8090ded..HEAD -- TiaMcpServer TiaMcpServer.OpennessWorker TiaMcpServer.Contracts`, confirming each line of §2 anti-goals: no Siemens call before the binding gate; a Siemens exception during `read_hardware_config` still maps through read categories (never `engineering_rejected`); `portal_lost` precedence for both the shared catch and the wrapped path; `plc_write`/`network_read` schema rows unchanged (`git diff 8090ded..HEAD -- TiaMcpServer.Tests/Tools/Snapshots/output-schemas.json` touches only the `network_write` key); no new conditional member outside the register; no `[LegacyNullOmission]` change.
+- [x] **Step 4: Line counts**: `git diff --numstat 8090ded..HEAD` per production file into the execution record, removed/added.
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-10-26-network-write-native-rejections.md
@@ -618,3 +618,63 @@ Completed the [baseline timing input](../acceptance/reports/inputs/2026-10-27-ne
 Task 0 is complete. Candidate offline qualification and live acceptance remain Tasks 6–7.
 
 Tasks 6 and 7 will later add candidate build warnings, test counts, per-file removed/added line counts, O-class per live case and maintainer rulings.
+
+### Tasks 1–6 complete: final offline qualification — 2026-10-28
+
+Tasks **0–6 are complete and offline qualified** on `refactor/network-write-native-rejections`. Implementation candidate `a353ab818b43facf726900f557ef0a02bc5eabe8`, tree `4224fee9b0a6b77ea29a9dba6c3bce75be0a748b`, includes reviewed Task 1 `1e543b0`, Task 2 `5e21891`, Task 3 `8456ae6`, Task 4 `1c5d7f8` and Task 5 `a353ab8`. **Task 7 live qualification/after timing and Task 8 manual documentation are NOT STARTED.** The candidate is **not installed**; the global tool remains the recorded baseline `4.2.0-local.68.g012d967`. No native call, installation, push or PR was performed during Task 6. Task 0's verified fixture restoration and closed timing-client boundary remain the last native evidence.
+
+Fresh qualification used native elevated execution with `login:false`, serialized builds/tests and unchanged source. Logs, TRX and Cobertura are retained under ignored `TestResults/task6-a353ab8-20261028/`:
+
+- Debug: `dotnet build TiaMcpServer.slnx -m:1 --no-incremental /p:UseTiaPortalReferenceStubs=true` — exit 0, seven warnings, zero errors, 54.20 seconds (`build-debug.log`).
+- Release: `dotnet build TiaMcpServer.slnx -m:1 --configuration Release --no-incremental /p:UseTiaPortalReferenceStubs=true` — exit 0, seven warnings, zero errors, 22.17 seconds (`build-release.log`). The seven warning identities/messages match `artifacts/network-native/baseline-build.log` exactly, ignoring line offsets: two Network selector nullable warnings and five HMI test nullable warnings; no new warning.
+- Default suite and CI coverage in one run: `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build --configuration Release --collect:"XPlat Code Coverage" --settings TiaMcpServer.Tests/coverage.runsettings --results-directory TestResults/task6-a353ab8-20261028/coverage --filter "Category!=Packaging" --logger "trx;LogFileName=task6-default.trx"` — exit 0, **7,656 passed / 0 failed / 0 skipped**, 8m53s (`coverage-full.log`, `coverage/task6-default.trx`). Only this process's `TEMP` and `TMP` pointed to the task-local ignored `temp/` directory. No global configuration changed and no duplicate plain full suite ran.
+- Attached report `coverage/208a89dc-00e1-429b-a0c8-c6d17f35db27/coverage.cobertura.xml`: **95.11% scoped line coverage**, 12,530 covered / 13,174 valid lines. Both generated Cobertura copies have SHA256 `EB790B6253CF9BD33B564D219C1624C113B08D6FD133A8E80BD2FC703F2C12ED`; the attached copy was selected after hash comparison, with no rerun. `scripts/verify-coverage-threshold.ps1 -CoveragePath <attached-report> -MinimumLineRate 0.80` passed (`coverage-threshold.log`). Scope follows CI runsettings: host/contracts, including linked host code; native worker, FakeWorker and test namespaces are excluded. This is not native worker coverage.
+- The independent broad adversarial review of `8090ded` through the exact candidate tree passed specification and quality with no actionable findings. Task 6 independently checked HEAD/tree equality and derived production numstats. Raw Git-blob root slices prove that only `network_write` changes in `output-schemas.json`; all 18 other roots, including `plc_write` and `network_read`, are byte-for-byte unchanged. No `[LegacyNullOmission]` change exists; the new conditional outcome is registered and retired conditionals removed. Source review preserves the binding gate, read exceptions never becoming `engineering_rejected`, direct/wrapped `portal_lost` precedence, catalogs/method set and 8/19/19 surface, lease/access/audit and canonical rendering. These are source/offline findings, not new live discovery.
+
+Implementation rulings retained for maintainer review:
+
+- Configure supersedence uses device plus interface name/position ownership and raw node ID, correcting the literal raw-E1 key collision observed in the real baseline fixture. A raw-key substitution failed the regression and the qualified key passed; optional type evidence is excluded from identity. No native read or guard was added.
+- The ordinary 512-character diagnostic cap remains. The runtime schema correction permits nullable string `currentSettings` only on `network_write`; an actual-null preview regression and all 18 unchanged roots were verified. Runtime tool help was updated with the behavior; Task 8 manual documentation is deferred.
+- Minimal-subnet required-member success tests moved to Task 5 when the DTO/producer fields were retired. Necessary direct callers, raw fixtures, FakeWorker scenarios, constructor/reflection callers and source-contract tests migrated with the removed implementations, preserving applicable selector/read/state assertions. Reflection required the extra explicit null constructor argument.
+- An initial unchanged three-second PowerShell read-generation timeout and a separate lifecycle MCP bootstrap transient were retained in earlier logs; each passed its unchanged targeted retry and subsequent unchanged full suite. No harness, package, protocol or timeout workaround was made. Task 6 required no functional retry.
+
+Production line counts below are freshly derived from `git diff --numstat 8090ded..a353ab8 -- TiaMcpServer TiaMcpServer.OpennessWorker TiaMcpServer.Contracts`. FakeWorker and tests are excluded: **423 added / 1,387 removed, net −964 lines**.
+
+| Production path | Removed | Added |
+| --- | ---: | ---: |
+| `TiaMcpServer.Contracts/Network/AddDeviceResultInfo.cs` | 3 | 0 |
+| `TiaMcpServer.Contracts/Network/ConfigureNetworkDeviceResultInfo.cs` | 5 | 0 |
+| `TiaMcpServer.Contracts/Network/NetworkMutationVerificationInfo.cs` | 33 | 0 |
+| `TiaMcpServer.Contracts/Network/NetworkVerificationStatuses.cs` | 9 | 0 |
+| `TiaMcpServer.Contracts/Network/SubnetLifecycleResultInfo.cs` | 5 | 0 |
+| `TiaMcpServer.Contracts/Worker/WorkerResponse.cs` | 0 | 5 |
+| `TiaMcpServer.OpennessWorker/Openness/Network/NetworkDeviceConfigurator.cs` | 42 | 25 |
+| `TiaMcpServer.OpennessWorker/Openness/Network/NetworkMutationVerifier.cs` | 194 | 0 |
+| `TiaMcpServer.OpennessWorker/Openness/Network/NetworkPostconditionChecks.cs` | 28 | 1 |
+| `TiaMcpServer.OpennessWorker/Openness/Network/SubnetLifecycleService.cs` | 74 | 7 |
+| `TiaMcpServer.OpennessWorker/Program.cs` | 6 | 5 |
+| `TiaMcpServer.OpennessWorker/Worker/WorkerExecution.cs` | 4 | 21 |
+| `TiaMcpServer.OpennessWorker/Worker/WorkerOperationException.cs` | 1 | 6 |
+| `TiaMcpServer/Network/NetworkContractVersion.cs` | 0 | 6 |
+| `TiaMcpServer/Network/NetworkGuardedWriteModels.cs` | 27 | 3 |
+| `TiaMcpServer/Network/NetworkIdentityResolver.cs` | 15 | 3 |
+| `TiaMcpServer/Network/NetworkPayloadContract.cs` | 182 | 34 |
+| `TiaMcpServer/Network/NetworkVerificationPolicy.cs` | 0 | 34 |
+| `TiaMcpServer/Network/NetworkWriteDomain.cs` | 47 | 15 |
+| `TiaMcpServer/Network/NetworkWritePayloadBudget.cs` | 223 | 52 |
+| `TiaMcpServer/Network/NetworkWritePlanner.cs` | 75 | 13 |
+| `TiaMcpServer/Network/NetworkWriteTools.cs` | 1 | 15 |
+| `TiaMcpServer/Network/NetworkWriteVerifier.cs` | 286 | 0 |
+| `TiaMcpServer/Plc/PlcVerificationPolicy.cs` | 0 | 72 |
+| `TiaMcpServer/Plc/PlcWriteDomain.cs` | 1 | 1 |
+| `TiaMcpServer/Plc/PlcWriteModels.cs` | 0 | 18 |
+| `TiaMcpServer/Plc/PlcWriteVerifier.cs` | 125 | 0 |
+| `TiaMcpServer/Safety/Pipeline/TrustedWriteVerifier.cs` | 0 | 52 |
+| `TiaMcpServer/Safety/Pipeline/WriteVerification.cs` | 0 | 25 |
+| `TiaMcpServer/Tools/McpToolRegistration.cs` | 1 | 1 |
+| `TiaMcpServer/Worker/OpennessWorkerClient.cs` | 0 | 6 |
+| `TiaMcpServer/Worker/WorkerCallResult.cs` | 0 | 3 |
+
+Retained limits: same-call connect-then-delete information uses the initial planning snapshot; newly connected identities may be absent from that informational guard. Partial outcome retention is established for the explicit wrapped engineering/disposal case; direct fatal errors after a partial mutation remain unverified. Trusted records native completion without read-back and does not establish that Portal accepted every requested value. The Task 0 timing medians span a machine restart and repeated warm-up; no candidate after-timing or performance claim exists yet. Packaging tests were not run because product project/packaging inputs did not change. Broader native rejection, silent-drop, transaction, concurrency and hardware acceptance remain Task 7 evidence.
+
+Only this existing plan was updated for Task 6; its existing index entry remains sufficient. Git whitespace/scope checks and the prescribed plan-only commit complete the task. Stop after Task 6; Tasks 7–8 remain pending.
