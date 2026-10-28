@@ -581,6 +581,8 @@ All selection failures remain fail-closed. Host preflight reports a device, node
 
 `update_subnet` and `delete_subnet` require ordinal `target.kind: "subnet"` and match `target.subnetId` with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. A preflight miss is `target_not_found`/`target_ambiguous`; late zero or multiple worker matches fail as `postcondition_failed`. Delete resolves, type-checks, and captures a nonblank name from the same transaction-local object before `Delete()`. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
+For a requested subnet rename, `update_subnet` compares the name it already reads inside the transaction with the requested name using ordinal (case-sensitive) equality. A mismatch fails with `postcondition_failed` before `CommitOnDispose()`, leaving the subnet update uncommitted. Portal can silently ignore a colliding rename; the failure includes the requested and actual names and identifies a collision as a possible cause. This check adds no native getter or worker call and does not preflight name collisions.
+
 ### Multi-homed example
 
 A PC station (`PC_1`) with two ports — one PLC-facing (`nodeId: "node-plc"`), one database-facing (`nodeId: "node-db"`) — is reconfigured by targeting only the PLC-facing node:

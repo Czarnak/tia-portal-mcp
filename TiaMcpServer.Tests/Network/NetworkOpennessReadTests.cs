@@ -227,6 +227,7 @@ public sealed class NetworkOpennessReadTests
     {
         public IEngineeringObject? Parent => null;
         public object GetAttribute(string name) => read()!;
+        public void SetAttribute(string name, object value) => throw new NotSupportedException();
     }
 
     private sealed class ThrowsOnToString

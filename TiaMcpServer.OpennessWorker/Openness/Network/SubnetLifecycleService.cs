@@ -67,6 +67,13 @@ internal static class SubnetLifecycleService
 
             ApplyProfibusAttributes(subnet, highestAddress, transmissionSpeed);
             capturedName = ReadRequiredSubnetNameOrThrow(subnet, subnetId);
+            // Portal can silently ignore a colliding rename.
+            if (name is not null && !string.Equals(capturedName, name, StringComparison.Ordinal))
+            {
+                throw PostconditionFailed("update_subnet",
+                    $"Portal did not rename subnet '{subnetId}' to '{name}'; the subnet is still named '{capturedName}'. "
+                    + "Another subnet may already hold that name. No transaction was committed.");
+            }
             transaction.CommitOnDispose();
         }
 

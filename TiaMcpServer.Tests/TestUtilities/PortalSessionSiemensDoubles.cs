@@ -8,6 +8,7 @@ namespace Siemens.Engineering
         public Exception? ServiceFailure { get; set; }
         public T? GetService<T>() where T : class => ServiceFailure is null ? VersionControlInterface as T : throw ServiceFailure;
         public object GetAttribute(string name) => throw new EngineeringException($"Attribute '{name}' is not modeled.");
+        public void SetAttribute(string name, object value) => throw new EngineeringException($"Attribute '{name}' is not modeled.");
         private FileInfo? path;
         private bool isModified;
         public Exception? PathFailure { get; set; }

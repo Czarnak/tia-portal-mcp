@@ -943,7 +943,10 @@ network_write request
   and `Delete` opens exactly one `ExclusiveAccess`/`Transaction`, performs every requested setter,
   and calls `CommitOnDispose()` only after every setter succeeds. Subnet lookup is ordinal, exact-one
   `SubnetId` matching with no fallback to `Name`, index, or connected device. Late zero or multiple
-  worker matches fail as `postcondition_failed`. Delete resolves and type-checks the target inside
+  worker matches fail as `postcondition_failed`. For a requested rename, `Update` compares its
+  already-captured name with the request using ordinal equality before requesting commit. A mismatch
+  fails as `postcondition_failed` without committing the update; this catches an ignored rename
+  without another native getter or worker call. Delete resolves and type-checks the target inside
   its transaction, captures a nonblank name from that same object, and only then calls `Delete()`;
   the mutation cannot use a pre-transaction subnet object. This file is a
   distinct production implementation from `SubnetLifecycleMutationProbeService`, the internal-only

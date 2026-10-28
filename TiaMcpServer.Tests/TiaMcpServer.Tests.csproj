@@ -12,6 +12,7 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\TemporaryDirectoryCleanup.cs" Link="Infrastructure\TemporaryDirectoryCleanup.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerExecution.cs" Link="Worker\WorkerExecution.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\SubnetLifecycleService.cs" Link="Network\SubnetLifecycleService.cs" />
 
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkNodeReadSelectorBuilder.cs" Link="Network\NetworkNodeReadSelectorBuilder.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwareDiscoveryEvidenceCapture.cs"
