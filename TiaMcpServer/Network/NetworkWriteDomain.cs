@@ -46,28 +46,16 @@ public sealed class NetworkWriteDomain(OpennessWorkerClient client) : IWriteDoma
         for (var i = 0; i < items.Count; i++)
         {
             var effect = plans[i].Effect;
-            if (effect?.ConnectionsComplete != true)
-                guards.Add(new(NetworkGuardDefinitions.Unverifiable, items[i].OperationId, "Required Network consequence inventory or root device count is unavailable. Inspect current hardware state."));
-            else if (effect.Operation == "delete_subnet" && effect.AffectedNodes.Count > 0)
+            if (effect?.Operation == "delete_subnet" && effect.ConnectionsComplete != true)
+                guards.Add(new(NetworkGuardDefinitions.Unverifiable, items[i].OperationId, "Required Network consequence inventory is unavailable. Inspect current hardware state."));
+            else if (effect?.Operation == "delete_subnet" && effect.AffectedNodes.Count > 0)
                 guards.Add(new(NetworkGuardDefinitions.ConnectedDelete, items[i].OperationId,
                     $"Deleting the selected subnet removes connections for {effect.AffectedNodes.Count} nodes; devices and nodes remain. Inspect the operation's effect for exact identities."));
         }
         return guards;
     }
-    public async Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(NetworkOperationRequest item)
-    {
-        var replan = await _planner.ReplanAsync(_prepared.GetValueOrDefault(item.OperationId) ?? item).ConfigureAwait(false);
-        if (replan.Success)
-        {
-            var updated = replan.Plan!.Effect!;
-            var reservation = _items.Select(operation => ItemPlan<NetworkWriteEffect>.Resolved(
-                operation.OperationId == item.OperationId ? updated : _effects[operation.OperationId])).ToArray();
-            if (NetworkWritePayloadBudget.MeasurePreparedCore(_items, reservation) > StructuredOperationBatchPayloadBudget.MaxDocumentChars)
-                return ItemReplan<NetworkWriteEffect>.Fail(WorkerFailureCategories.ValidationError, BudgetRefusal);
-            _effects[item.OperationId] = Copy(updated);
-        }
-        return replan;
-    }
+    public Task<ItemReplan<NetworkWriteEffect>> ReplanAsync(NetworkOperationRequest item)
+        => throw new InvalidOperationException("network_write plans declare no dependencies; ReplanAsync must never be called.");
     public Task<WorkerCallResult> MutateAsync(NetworkOperationRequest item)
     { _attempted.Add(item.OperationId); return NetworkWorkerInvoker.InvokeWriteAsync(client, _prepared.GetValueOrDefault(item.OperationId) ?? item); }
     public StructuredOperationItem Project(NetworkOperationRequest item, WorkerCallResult result)

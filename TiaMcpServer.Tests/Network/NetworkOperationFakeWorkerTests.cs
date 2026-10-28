@@ -88,16 +88,23 @@ public class NetworkOperationFakeWorkerTests
     };
 
     [Fact]
-    public async Task PreparedDomainRequest_DetachesCallerOwnerBeforeReplanAndDispatch()
+    public async Task PreparedDomainRequest_DetachesCallerOwnerAndDeclaresNoReplanBeforeDispatch()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
         var operation = QualifiedConfigure("prepare");
         var domain = new NetworkWriteDomain(fixture.Client);
-        Assert.True((await domain.PlanAsync(new[] { operation })).Success);
+        var plan = await domain.PlanAsync(new[] { operation, QualifiedConfigure("other", 33024) });
+        Assert.True(plan.Success);
+        Assert.All(plan.Items, item =>
+        {
+            Assert.Null(item.DependsOn);
+            Assert.Equal("networkDiscoveryComplete", Assert.Single(item.Preconditions).Name);
+        });
         operation.Target!.InterfacePath![1].Name = "PROFINET interface_2";
         operation.Target.InterfacePath[1].PositionNumber = 33024;
-        Assert.True((await domain.ReplanAsync(operation)).Success);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => domain.ReplanAsync(operation));
+        Assert.Equal("network_write plans declare no dependencies; ReplanAsync must never be called.", error.Message);
         var result = await domain.MutateAsync(operation);
         Assert.Equal("succeeded", domain.Project(operation, result).Status);
         var state = (await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client)).State!;

@@ -26,6 +26,42 @@ public sealed class NetworkGuardedWriteMcpTests
         Assert.Equal(new[] { "omission", "operations", "success" }, properties.EnumerateObject().Select(p => p.Name).Order());
     }
 
+    [Fact]
+    public async Task RegisteredSchema_CurrentSettingsAllowsSnapshotStringsAndExplicitNulls()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, "network-guarded");
+        var reply = await harness.Client.CallToolAsync("network_write", new Dictionary<string, object?>
+        {
+            ["dryRun"] = true,
+            ["operations"] = new object[]
+            {
+                new { operationId = "configure", operation = "configure_network_device",
+                    target = new { deviceName = "PLC_Grouped", nodeId = "node-2" },
+                    changes = new { pnDeviceNameAutoGeneration = false } },
+                new { operationId = "update", operation = "update_subnet",
+                    target = new { kind = "subnet", subnetId = "subnet-1" },
+                    subnetChanges = new { name = "Renamed", highestAddress = 31, transmissionSpeed = "Baud187500" } }
+            }
+        });
+        var root = Document(reply);
+        Assert.True(root.GetProperty("success").GetBoolean());
+        Assert.Equal("preview", root.GetProperty("phase").GetString());
+        var effects = root.GetProperty("effects");
+        Assert.Equal(JsonValueKind.Null, effects[0].GetProperty("effect").GetProperty("currentSettings")
+            .GetProperty("PnDeviceNameAutoGeneration").ValueKind);
+        var subnet = effects[1].GetProperty("effect").GetProperty("currentSettings");
+        Assert.Equal("Network", subnet.GetProperty("Name").GetString());
+        Assert.Equal(JsonValueKind.Null, subnet.GetProperty("HighestAddress").ValueKind);
+        Assert.Equal(JsonValueKind.Null, subnet.GetProperty("TransmissionSpeed").ValueKind);
+        var tool = Assert.Single(await harness.Client.ListToolsAsync(), t => t.Name == "network_write").ProtocolTool;
+        var types = tool.OutputSchema!.Value.GetProperty("properties").GetProperty("effects").GetProperty("items")
+            .GetProperty("properties").GetProperty("effect").GetProperty("properties").GetProperty("currentSettings")
+            .GetProperty("additionalProperties").GetProperty("type");
+        Assert.Equal(JsonValueKind.Array, types.ValueKind);
+        Assert.Equal(new[] { "string", "null" }, types.EnumerateArray().Select(type => type.GetString()));
+    }
+
     [Theory]
     [InlineData(256)]
     [InlineData(257)]

@@ -138,7 +138,7 @@ public class NetworkMutationVerificationTests
             [], "X1", null, "E1", null, null, null, null,
             new[] { new NetworkInterfacePathSegmentInfo { Name = "CPU/Owner", PositionNumber = 32768 } });
         NetworkWriteEffect Effect(NetworkWriteTargetEvidence value) => new("configure_network_device", value,
-            new Dictionary<string, string>(), new Dictionary<string, NetworkAttributeInfo>(), [], true, 1);
+            new Dictionary<string, string>(), new Dictionary<string, string?>(), [], true);
         var effects = new Dictionary<string, NetworkWriteEffect> { ["configure"] = Effect(target) };
         var policy = new NetworkVerificationPolicy(effects);
         var key = Assert.Single(policy.ObjectKeys(Configure(), false));

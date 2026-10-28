@@ -128,7 +128,11 @@ public sealed class NetworkQualifiedNodeIdentityTests
         var result = await f.RunAsync(false, reverse ? b : a, reverse ? a : b);
         Assert.True(result.Success);
         Assert.Equal(new[] { "trusted", "trusted" }, result.Verification!.Operations.Select(o => o.Check));
-        Assert.All(result.Effects, e => Assert.NotNull(Assert.Single(e.Effect!.AffectedNodes).InterfacePath));
+        Assert.All(result.Effects, e =>
+        {
+            Assert.Empty(e.Effect!.AffectedNodes);
+            Assert.NotNull(e.Effect.Target.InterfacePath);
+        });
     }
     [Fact]
     public async Task ConnectedDeletion_PreservesBothQualifiedNodes()
@@ -207,19 +211,20 @@ public sealed class NetworkQualifiedNodeIdentityTests
         Assert.Single(log.Methods(), m => m == "configure_network_device");
     }
     [Fact]
-    public async Task QualifiedLateMissingDiscovery_RetainsAppliedAndSkipsWithoutReplay()
+    public async Task QualifiedLateMissingDiscovery_IsNotReReadBetweenDispatches()
     {
         const string scenario = "network-qualified-final-missing-discovery";
         using var audit = new TempAuditDirectory(); using var log = new FakeWorkerRequestLog(audit.Path);
         using var f = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
         var result = await f.RunAsync(false, Configure(32768, "192.168.12.7", "first"), Configure(33024, "192.168.13.8", "second"), Configure(32768, "192.168.12.9", "third"));
-        Assert.Equal("succeeded", result.Batch!.Operations[0].Status); Assert.False(result.Success);
-        Assert.Equal("skipped", result.Batch.Operations[2].Status);
-        Assert.Equal("trusted", Assert.Single(result.Verification!.Operations).Check);
-        Assert.Single(log.Methods(), m => m == "configure_network_device");
+        Assert.True(result.Success);
+        Assert.All(result.Batch!.Operations, item => Assert.Equal("succeeded", item.Status));
+        Assert.Equal(new[] { "superseded", "trusted", "trusted" }, result.Verification!.Operations.Select(item => item.Check));
+        Assert.Equal(3, log.Methods().Count(m => m == "configure_network_device"));
+        Assert.Single(log.Methods(), m => m == "read_hardware_config");
         var final = (await NetworkWritePlanner.ReadCurrentStateAsync(f.Client)).State!;
         var nodes = final.Devices[0].Items[0].Items.SelectMany(i => i.NetworkInterfaces).SelectMany(i => i.Nodes).ToArray();
-        Assert.Equal("192.168.12.7", nodes[0].IpAddress); Assert.Equal("192.168.13.20", nodes[1].IpAddress);
+        Assert.Equal("192.168.12.9", nodes[0].IpAddress); Assert.Equal("192.168.13.8", nodes[1].IpAddress);
     }
     [Theory][InlineData(false)][InlineData(true)]
     public async Task EachGuardedStep_PreservesOtherE1(bool reverse)

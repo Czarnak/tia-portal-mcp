@@ -77,70 +77,40 @@ public sealed class NetworkGuardedWriteOrderingTests
     }
 
     [Fact]
-    public async Task ConnectThenDelete_ReplansLateInfo()
+    public async Task ConnectThenDelete_InfoGuardListsPlanningSnapshotNodesOnly()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-disconnected");
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("connect", connect: true), NetworkGuardedWriteFixture.Delete());
         Assert.True(response.Success);
-        Assert.Single(response.Guards, g => g.Id == "network_delete_connected_subnet");
-        Assert.Single(response.Effects[1].Effect!.AffectedNodes);
-    }
-    [Fact]
-    public async Task EarlierAdd_RefreshesRootCount()
-    {
-        using var audit = new TempAuditDirectory();
-        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
-        var add = new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device", DeviceName = "new", TypeIdentifier = "OrderNumber:TEST" };
-        var response = await fixture.RunAsync(false, add, NetworkGuardedWriteFixture.Delete());
-        Assert.True(response.Success);
-        Assert.Equal(3, response.Effects[1].Effect!.RootDeviceCount);
-    }
-    [Fact]
-    public async Task LateBlock_PreservesEarlierChanges()
-    {
-        using var audit = new TempAuditDirectory();
-        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-late-block");
-        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), NetworkGuardedWriteFixture.Delete(), NetworkGuardedWriteFixture.Configure("last", "10.0.0.3"));
-        Assert.Equal("applied", response.Phase);
-        Assert.False(response.Success);
-        Assert.Null(response.Error);
-        Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
-        Assert.Equal("earlierOperationFailed", response.Batch.Operations[2].SkipReason);
-        Assert.Contains(response.Guards, g => g.Id == "network_state_unverifiable");
-        Assert.Single(response.Verification!.Operations);
-        Assert.Equal("first", response.Verification.Operations[0].OperationId);
+        // The pre-call snapshot has no connected nodes; later connections are not replanned.
+        Assert.DoesNotContain(response.Guards, g => g.Id == "network_delete_connected_subnet");
+        Assert.Empty(response.Effects[1].Effect!.AffectedNodes);
     }
 
     [Theory]
-    [InlineData(McpAccessMode.ReadWrite, false)]
-    [InlineData(McpAccessMode.Full, false)]
-    [InlineData(McpAccessMode.ReadWrite, true)]
-    [InlineData(McpAccessMode.Full, true)]
-    public async Task ProducerScopedLateBlock_RetainsEarlierMutationAndOneAudit(McpAccessMode mode, bool node)
+    [InlineData("network-guarded-late-block")]
+    [InlineData("network-guarded-late-node-block")]
+    public async Task NoLateGuardEvaluation_LaterItemsProceedOnPlanningEvidence(string scenario)
     {
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
-        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit,
-            node ? "network-guarded-late-node-block" : "network-guarded-late-block", mode);
-        var blocked = node ? NetworkGuardedWriteFixture.Configure("connect", connect: true) : NetworkGuardedWriteFixture.Delete();
-        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), blocked,
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var middle = scenario == "network-guarded-late-block" ? NetworkGuardedWriteFixture.Delete()
+            : NetworkGuardedWriteFixture.Configure("connect", connect: true);
+        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), middle,
             NetworkGuardedWriteFixture.Configure("last", "10.0.0.3"));
         Assert.Equal("applied", response.Phase);
-        Assert.False(response.Success);
+        Assert.True(response.Success);
         Assert.Null(response.Error);
-        Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
-        Assert.Equal("failed", response.Batch.Operations[1].Status);
-        Assert.Equal("earlierOperationFailed", response.Batch.Operations[2].SkipReason);
-        Assert.Contains(response.Guards, g => g.Id == "network_state_unverifiable" && g.Severity == "block");
-        Assert.Equal("first", Assert.Single(response.Verification!.Operations).OperationId);
-        Assert.Single(requests.Methods(), method => method == "configure_network_device");
-        Assert.DoesNotContain("delete_subnet", requests.Methods());
-        using var record = System.Text.Json.JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
-        Assert.Equal(mode == McpAccessMode.Full ? "policy" : "none", record.RootElement.GetProperty("confirmation").GetProperty("by").GetString());
-        Assert.All(record.RootElement.GetProperty("guards").EnumerateArray(), guard =>
-            Assert.Equal(System.Text.Json.JsonValueKind.Null, guard.GetProperty("satisfiedBy").ValueKind));
+        Assert.All(response.Batch!.Operations, item => Assert.Equal("succeeded", item.Status));
+        Assert.DoesNotContain(response.Guards, g => g.Id == "network_state_unverifiable");
+        Assert.Equal(3, response.Verification!.Operations.Count);
+        Assert.All(response.Verification.Operations, item => Assert.Contains(item.Check, new[] { "trusted", "superseded" }));
+        Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
     }
+
+
 
     [Fact]
     public async Task RejectedConfiguration_StopsCallWithTypedFailureAndAppliedSubset()
@@ -167,14 +137,36 @@ public sealed class NetworkGuardedWriteOrderingTests
     }
 
     [Fact]
-    public async Task ReplanningOccursBetweenDispatches()
+    public async Task ThreeItemCall_ReadsHardwareOnceAndInspectsNothing()
     {
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
-        await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), NetworkGuardedWriteFixture.Configure("second", "10.0.0.2"));
-        var relevant = requests.Methods().Where(m => m is "read_hardware_config" or "configure_network_device").ToArray();
-        Assert.Equal(new[] { "read_hardware_config", "configure_network_device", "read_hardware_config", "configure_network_device" }, relevant);
+        var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"),
+            NetworkGuardedWriteFixture.Delete(), NetworkGuardedWriteFixture.Configure("last", "10.0.0.3"));
+        Assert.True(response.Success);
+        Assert.Single(requests.Methods(), m => m == "read_hardware_config");
+        Assert.DoesNotContain("inspect_network_object", requests.Methods());
+        Assert.Equal(new[] { "configure_network_device", "delete_subnet", "configure_network_device" },
+            requests.Methods().Where(m => NetworkOperationCatalog.WriteOperationNames.Contains(m)));
+    }
+
+    [Fact]
+    public async Task DryRun_ReadsHardwareOnceAndInspectsNothing()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
+        Assert.True((await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("seed", "10.0.0.8"))).Success);
+        File.WriteAllText(requests.Path, "");
+        var response = await fixture.RunAsync(true, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"),
+            NetworkGuardedWriteFixture.Delete(), NetworkGuardedWriteFixture.Configure("last", "10.0.0.3"));
+        Assert.True(response.Success);
+        Assert.Equal("preview", response.Phase);
+        Assert.Equal("10.0.0.8", response.Effects[0].Effect!.CurrentSettings["Address"]);
+        Assert.Single(requests.Methods(), m => m == "read_hardware_config");
+        Assert.DoesNotContain("inspect_network_object", requests.Methods());
+        Assert.DoesNotContain(requests.Methods(), m => NetworkOperationCatalog.WriteOperationNames.Contains(m));
     }
     [Fact]
     public async Task ReturnedPlanCannotMutateRetainedInventory()
@@ -217,38 +209,26 @@ public sealed class NetworkGuardedWriteOrderingTests
     }
 
     [Fact]
-    public async Task ConfigurePreview_ReportsInspectedNodeAccess()
+    public async Task ConfigurePreview_ReportsSnapshotCurrentValues()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
-        var response = await fixture.RunAsync(true, NetworkGuardedWriteFixture.Configure("address", "10.0.0.9"));
-        var address = response.Effects[0].Effect!.CurrentSettings["Address"];
-        Assert.Equal(("dynamic", "readWrite", "available"), (address.Source, address.Access, address.Availability));
-        Assert.Equal(new[] { "System.String" }, address.SupportedTypes);
+        Assert.True((await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("seed", "10.0.0.8"))).Success);
+        var operation = NetworkGuardedWriteFixture.Configure("address", "10.0.0.9");
+        operation.Changes = new() { IpAddress = "10.0.0.9", PnDeviceNameAutoGeneration = false };
+        var response = await fixture.RunAsync(true, operation);
+        var current = response.Effects[0].Effect!.CurrentSettings;
+        Assert.Equal("10.0.0.8", current["Address"]);
+        Assert.True(current.ContainsKey("PnDeviceNameAutoGeneration"));
+        Assert.Null(current["PnDeviceNameAutoGeneration"]);
     }
-    [Fact]
-    public async Task ConfigurePreview_ReportsUnknownAccessWhenNodeInspectIsUnavailable()
-    {
-        using var audit = new TempAuditDirectory();
-        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-node-inspect-unavailable");
-        var response = await fixture.RunAsync(true, NetworkGuardedWriteFixture.Configure("address", "10.0.0.9"));
-        var address = response.Effects[0].Effect!.CurrentSettings["Address"];
-        Assert.Equal(("modeled", "unknown"), (address.Source, address.Access));
-    }
-    [Fact]
-    public async Task SubnetRenamePreview_ReportsInspectedAccess()
-    {
-        using var audit = new TempAuditDirectory();
-        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded");
-        var rename = new NetworkOperationRequest { OperationId = "rename", Operation = "update_subnet", Target = new() { Kind = "subnet", SubnetId = "subnet-1" }, SubnetChanges = new() { Name = "Renamed" } };
-        var name = (await fixture.RunAsync(true, rename)).Effects[0].Effect!.CurrentSettings["Name"];
-        Assert.Equal(("dynamic", "readWrite"), (name.Source, name.Access));
-    }
+
+
     [Theory]
     [InlineData("network-guarded-pn-autogeneration", true)]
     [InlineData("network-guarded-pn-autogeneration", false)]
     [InlineData("network-guarded-pn-readonly", false)]
-    public async Task PnDeviceNameWithoutWritableName_FailsAtPlanTimeWithoutMutation(string scenario, bool dryRun)
+    public async Task PnDeviceNameWithAutoGenerationOn_IsDispatchedToPortal(string scenario, bool dryRun)
     {
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
@@ -256,10 +236,10 @@ public sealed class NetworkGuardedWriteOrderingTests
         var operation = NetworkGuardedWriteFixture.Configure("rename");
         operation.Changes = new() { IpAddress = "10.0.0.9", PnDeviceName = "plc-renamed" };
         var response = await fixture.RunAsync(dryRun, operation);
-        Assert.False(response.Success);
-        Assert.Equal("validation_error", response.Error!.Category);
-        Assert.Contains("pnDeviceNameAutoGeneration:false", response.Error.Message);
-        Assert.DoesNotContain("configure_network_device", requests.Methods());
+        Assert.Null(response.Error);
+        Assert.True(response.Success);
+        Assert.Equal(dryRun ? "preview" : "applied", response.Phase);
+        Assert.Equal(dryRun ? 0 : 1, requests.Methods().Count(m => m == "configure_network_device"));
     }
     [Fact]
     public async Task PnDeviceNameAutoGenerationOptIn_IsAVisibleRequestedSetting()
@@ -272,7 +252,8 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.True(response.Success);
         var effect = response.Effects[0].Effect!;
         Assert.Equal("false", effect.RequestedSettings["PnDeviceNameAutoGeneration"]);
-        Assert.Equal("boolean", effect.CurrentSettings["PnDeviceNameAutoGeneration"].Value!.Kind);
+        Assert.True(effect.CurrentSettings.ContainsKey("PnDeviceNameAutoGeneration"));
+        Assert.Null(effect.CurrentSettings["PnDeviceNameAutoGeneration"]);
         var applied = response.Batch!.Operations[0].Result!.Value.GetProperty("appliedSettings");
         Assert.Equal("false", applied.GetProperty("PnDeviceNameAutoGeneration").GetString());
     }
@@ -293,16 +274,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         Assert.Equal(new[] { "IoSystemNumber", "IoSystemSubnet" }, effect.CurrentSettings.Keys.Order(StringComparer.Ordinal));
     }
 
-    [Fact]
-    public async Task ReplannedRootCount_DoesNotEraseEarlierPreservationExpectation()
-    {
-        using var audit = new TempAuditDirectory();
-        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-root-drift");
-        var rename = new NetworkOperationRequest { OperationId = "rename", Operation = "update_subnet", Target = new() { Kind = "subnet", SubnetId = "subnet-1" }, SubnetChanges = new() { Name = "Renamed" } };
-        var response = await fixture.RunAsync(false, rename, NetworkGuardedWriteFixture.Delete());
-        Assert.True(response.Success);
-        Assert.Equal(1, response.Effects[1].Effect!.RootDeviceCount);
-    }
+
 
     [Fact]
     public async Task MissingIoConnector_FailsTargetNotFoundWithoutMutation()

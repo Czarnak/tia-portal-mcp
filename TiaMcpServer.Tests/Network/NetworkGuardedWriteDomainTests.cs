@@ -56,7 +56,7 @@ public sealed class NetworkGuardedWriteDomainTests
     {
         foreach (var mode in new[] { McpAccessMode.ReadWrite, McpAccessMode.Full })
         foreach (var dryRun in new[] { false, true })
-        foreach (var kind in new[] { "subnet", "node", "root", "selector" })
+        foreach (var kind in new[] { "subnet", "selector" })
             yield return new object[] { mode, dryRun, kind };
     }
 
@@ -68,7 +68,7 @@ public sealed class NetworkGuardedWriteDomainTests
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario, mode);
-        var operation = kind == "node" ? NetworkGuardedWriteFixture.Configure("connect", connect: true) : NetworkGuardedWriteFixture.Delete();
+        var operation = NetworkGuardedWriteFixture.Delete();
         var response = await fixture.RunAsync(dryRun, operation);
         var missingIdentity = kind == "selector";
         Assert.Equal(missingIdentity ? "error" : dryRun ? "preview" : "blocked", response.Phase);
@@ -87,7 +87,23 @@ public sealed class NetworkGuardedWriteDomainTests
             Assert.Equal(System.Text.Json.JsonValueKind.Null, guard.GetProperty("satisfiedBy").ValueKind));
         var read = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.NotEmpty(read.State!.Subnets[0].ConnectionEvidence!.Messages);
-        Assert.Equal(kind == "root", read.State.Messages.Count != 0);
+        Assert.Empty(read.State.Messages);
+    }
+
+    [Theory]
+    [InlineData("network-guarded-incomplete-node", false)]
+    [InlineData("network-guarded-incomplete-root", true)]
+    public async Task IncompleteOptionalEvidence_DoesNotBlockUnrelatedWrites(string scenario, bool delete)
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = delete ? NetworkGuardedWriteFixture.Delete() : NetworkGuardedWriteFixture.Configure("connect", connect: true);
+        var response = await fixture.RunAsync(false, operation);
+        Assert.DoesNotContain(response.Guards, guard => guard.Id == "network_state_unverifiable");
+        Assert.Equal("applied", response.Phase);
+        Assert.True(response.Success);
+        Assert.Contains(operation.Operation, requests.Methods());
     }
 
     [Fact]

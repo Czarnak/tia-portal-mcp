@@ -1472,7 +1472,7 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-guarded-node-inspect-unavailable":
         case "network-guarded-pn-autogeneration":
         case "network-guarded-pn-readonly":
-            guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario.StartsWith("network-guarded-incomplete", StringComparison.Ordinal));
+            guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario is "network-guarded-incomplete" or "network-guarded-incomplete-selector");
             if (scenario == "network-guarded-identity-device" && guardedNetworkState.Devices.Count == 2)
                 guardedNetworkState.Devices.Add(new() { Name = null });
             if (scenario == "network-guarded-identity-node" && GuardedNodes(guardedNetworkState).All(node => node.NodeId.Length > 0))
@@ -3714,9 +3714,9 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         if (ReadField(request, "subnetTransmissionSpeed") is { } speed) guardedSubnetAttributes[(id, "TransmissionSpeed")] = speed;
         var verification = FakeSubnetVerification(request, id);
         var countCheck = verification.Checks.Single(c => c.Name == "networkDeviceCountUnchanged");
-        countCheck.Expected = countCheck.Observed = state.RootDeviceCount!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        countCheck.Expected = countCheck.Observed = (state.RootDeviceCount ?? state.Devices.Count).ToString(System.Globalization.CultureInfo.InvariantCulture);
         return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
-        { SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount.Value, NetworkDeviceCountUnchanged = true, Verification = verification }));
+        { SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount ?? state.Devices.Count, NetworkDeviceCountUnchanged = true, Verification = verification }));
     }
     if (method == "configure_network_device")
     {
@@ -3796,11 +3796,11 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"delete outcome unavailable\"}";
         return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
         {
-            SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount!.Value, NetworkDeviceCountUnchanged = true,
+            SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount ?? state.Devices.Count, NetworkDeviceCountUnchanged = true,
             Verification = FakePassedVerification(new() { SubnetId = id }, new()
             {
                 ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true",
-                ["networkDeviceCountUnchanged"] = state.RootDeviceCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                ["networkDeviceCountUnchanged"] = (state.RootDeviceCount ?? state.Devices.Count).ToString(System.Globalization.CultureInfo.InvariantCulture)
             })
         }));
     }

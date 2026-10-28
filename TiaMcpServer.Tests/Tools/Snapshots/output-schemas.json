@@ -7391,71 +7391,10 @@
                 "currentSettings": {
                   "type": "object",
                   "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      },
-                      "source": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "access": {
-                        "type": "string"
-                      },
-                      "supportedTypes": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "availability": {
-                        "type": "string"
-                      },
-                      "value": {
-                        "type": [
-                          "object",
-                          "null"
-                        ],
-                        "properties": {
-                          "kind": {
-                            "type": "string"
-                          },
-                          "value": true,
-                          "typeName": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          }
-                        },
-                        "additionalProperties": false
-                      },
-                      "diagnostic": {
-                        "type": [
-                          "object",
-                          "null"
-                        ],
-                        "properties": {
-                          "category": {
-                            "type": "string"
-                          },
-                          "message": {
-                            "type": "string"
-                          },
-                          "clrTypeName": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          }
-                        },
-                        "additionalProperties": false
-                      }
-                    },
-                    "additionalProperties": false
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "affectedNodes": {
@@ -7493,12 +7432,6 @@
                     "boolean",
                     "null"
                   ]
-                },
-                "rootDeviceCount": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
                 }
               },
               "required": [
@@ -7507,8 +7440,7 @@
                 "requestedSettings",
                 "currentSettings",
                 "affectedNodes",
-                "connectionsComplete",
-                "rootDeviceCount"
+                "connectionsComplete"
               ],
               "additionalProperties": false
             },

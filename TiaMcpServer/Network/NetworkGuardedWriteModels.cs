@@ -12,8 +12,8 @@ public sealed record NetworkStateSnapshot(bool Success, HardwareConfigInfo? Stat
 }
 
 public sealed record NetworkWriteEffect(string Operation, NetworkWriteTargetEvidence Target,
-    IReadOnlyDictionary<string, string> RequestedSettings, IReadOnlyDictionary<string, NetworkAttributeInfo> CurrentSettings,
-    IReadOnlyList<NetworkNodeIdentityInfo> AffectedNodes, bool? ConnectionsComplete, int? RootDeviceCount);
+    IReadOnlyDictionary<string, string> RequestedSettings, IReadOnlyDictionary<string, string?> CurrentSettings,
+    IReadOnlyList<NetworkNodeIdentityInfo> AffectedNodes, bool? ConnectionsComplete);
 public sealed record NetworkWriteEffectPresentation(string OperationId, NetworkWriteEffect? Effect, StructuredOperationOmission? Omission);
 public sealed record NetworkGuardedWriteResponse(string Tool, string ContractVersion, string Phase, bool Success,
     WriteToolError? Error, IReadOnlyList<string> Warnings, IReadOnlyList<WriteGuardReport> Guards,

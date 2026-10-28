@@ -462,8 +462,8 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var target = new NetworkWriteTargetEvidence("one", "configure_network_device", value, null,
             Array.Empty<string>(), null, null, "node", null, null, null, null);
         var effect = new NetworkWriteEffect("configure_network_device", target,
-            new Dictionary<string, string> { ["PnDeviceName"] = value }, new Dictionary<string, NetworkAttributeInfo>(),
-            Array.Empty<NetworkNodeIdentityInfo>(), true, 1);
+            new Dictionary<string, string> { ["PnDeviceName"] = value }, new Dictionary<string, string?>(),
+            Array.Empty<NetworkNodeIdentityInfo>(), true);
         return new("applied", true, null, Array.Empty<string>(), Array.Empty<WriteGuardReport>(),
             new[] { new WriteEffect<NetworkWriteEffect>("one", effect) },
             StructuredOperationBatch.FromItems(new[] { new StructuredOperationItem("one", "configure_network_device", "succeeded",
