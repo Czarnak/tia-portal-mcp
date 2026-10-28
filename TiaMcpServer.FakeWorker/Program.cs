@@ -1409,8 +1409,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 guardedNetworkWrites++;
                 qualifiedHardware.Subnets.Clear();
                 foreach (var n in qualifiedNodes) n.ConnectionEvidence = new() { Complete = true };
-                Respond(Success(ToCamelCaseJson(new SubnetLifecycleResultInfo { SubnetId = "subnet-1", Name = "PN/IE", NetworkDeviceCount = 1, NetworkDeviceCountUnchanged = true,
-                    Verification = FakePassedVerification(new() { SubnetId = "subnet-1" }, new() { ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true", ["networkDeviceCountUnchanged"] = "1" }) })));
+                Respond(Success(ToCamelCaseJson(new SubnetLifecycleResultInfo { SubnetId = "subnet-1", Name = "PN/IE" })));
             }
             else Respond("""{"success":false,"error":"unsupported qualified-read fixture operation"}""");
             break;
@@ -1578,7 +1577,7 @@ while ((line = Console.In.ReadLine()) is not null)
                 "read_hardware_config" => Success(ToCamelCaseJson(SubnetLifecycleHardwareConfig(subnetLifecycleState))),
                 "inspect_network_object" => InspectSubnetLifecycle(line, subnetLifecycleState),
                 "create_subnet" or "update_subnet" or "delete_subnet" =>
-                    $$"""{"success":true,"payload":"{\"subnetId\":\"subnet-malformed-1\",\"name\":\"Malformed\",\"networkDeviceCount\":{{SubnetLifecycleDeviceCount}},\"networkDeviceCountUnchanged\":true,\"relationshipSummary\":\"connected to 2 devices\"}"}""",
+                    $$"""{"success":true,"payload":"{\"subnetId\":\"subnet-malformed-1\",\"name\":\"Malformed\",\"relationshipSummary\":\"connected to 2 devices\"}"}""",
                 _ => $$"""{"success":false,"error":"unexpected method '{{ReadMethod(line)}}' for network-subnet-lifecycle-malformed-success"}"""
             });
             break;
@@ -2958,33 +2957,22 @@ string ConfigureQualifiedFixture(string line, HardwareConfigInfo state, string s
         return ToCamelCaseJson(new WorkerResponse { Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed, Error = "Requested dependency was not found; no mutation." });
     if (scenario == "network-qualified-budget-known-observations")
     {
-        // Attempted assignments can leave known old values in failed postconditions.
+        // This scenario reports attempted assignments while retaining the old hardware state.
         guardedNetworkWrites++;
         var attempted = new Dictionary<string, string>
         { [NetworkSettingKeys.Address] = request.IpAddress!, [NetworkSettingKeys.SubnetMask] = request.SubnetMask!, [NetworkSettingKeys.PnDeviceName] = request.PnDeviceName! };
-        var failedEvidence = FakeConfigurationVerification(line, request.DeviceName!, attempted);
-        failedEvidence.Status = NetworkVerificationStatuses.Failed;
-        foreach (var check in failedEvidence.Checks)
-        {
-            check.Observed = check.Name switch { NetworkSettingKeys.Address => node.Item!.IpAddress,
-                NetworkSettingKeys.SubnetMask => node.Item!.SubnetMask, _ => node.Item!.PnDeviceName };
-            check.Status = NetworkVerificationStatuses.Failed; check.Message = "The attempted setting retained its known old value.";
-        }
         return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
-        { DeviceName = request.DeviceName!, AppliedSettings = attempted, Verification = failedEvidence }));
+        { DeviceName = request.DeviceName!, AppliedSettings = attempted }));
     }
     var applied = new Dictionary<string, string>();
-    var skipped = new Dictionary<string, string>();
     guardedNetworkWrites++;
     if (request.IpAddress is not null) { node.Item!.IpAddress = request.IpAddress; applied[NetworkSettingKeys.Address] = request.IpAddress; }
     if (request.SubnetMask is not null)
     {
-        if (scenario == "network-qualified-partial") skipped[NetworkSettingKeys.SubnetMask] = "Read only";
-        else { node.Item!.SubnetMask = request.SubnetMask; applied[NetworkSettingKeys.SubnetMask] = request.SubnetMask; }
+        if (scenario != "network-qualified-partial") { node.Item!.SubnetMask = request.SubnetMask; applied[NetworkSettingKeys.SubnetMask] = request.SubnetMask; }
     }
     if (request.PnDeviceName is not null) { node.Item!.PnDeviceName = request.PnDeviceName; applied[NetworkSettingKeys.PnDeviceName] = request.PnDeviceName; }
-    return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo { DeviceName = request.DeviceName!, AppliedSettings = applied,
-        SkippedSettings = skipped, Verification = FakeConfigurationVerification(line, request.DeviceName!, applied) }));
+    return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo { DeviceName = request.DeviceName!, AppliedSettings = applied }));
 }
 
 HardwareConfigInfo QualifiedHardwareFixture() => new()
@@ -3211,9 +3199,7 @@ string ConfigureMultiHomedNode(string requestLine, MultiHomedNode plc, MultiHome
     {
         DeviceName = "PC_1",
         AppliedSettings = applied,
-        SkippedSettings = new Dictionary<string, string>(),
         Messages = new List<string> { $"configured nodeId '{nodeId}'" },
-        Verification = FakeConfigurationVerification(requestLine, "PC_1", applied),
     };
 
     return Success(ToCamelCaseJson(result));
@@ -3712,11 +3698,8 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         if (ReadField(request, "subnetName") is { } name) subnet.Name = name;
         if (ReadIntField(request, "subnetHighestAddress") is { } address) guardedSubnetAttributes[(id, "HighestAddress")] = address.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (ReadField(request, "subnetTransmissionSpeed") is { } speed) guardedSubnetAttributes[(id, "TransmissionSpeed")] = speed;
-        var verification = FakeSubnetVerification(request, id);
-        var countCheck = verification.Checks.Single(c => c.Name == "networkDeviceCountUnchanged");
-        countCheck.Expected = countCheck.Observed = (state.RootDeviceCount ?? state.Devices.Count).ToString(System.Globalization.CultureInfo.InvariantCulture);
         return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
-        { SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount ?? state.Devices.Count, NetworkDeviceCountUnchanged = true, Verification = verification }));
+        { SubnetId = id, Name = subnet.Name }));
     }
     if (method == "configure_network_device")
     {
@@ -3761,7 +3744,6 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         return Success(ToCamelCaseJson(new ConfigureNetworkDeviceResultInfo
         {
             DeviceName = ReadField(request, "deviceName")!, AppliedSettings = applied,
-            Verification = FakeConfigurationVerification(request, ReadField(request, "deviceName")!, applied)
         }));
     }
     if (method == "add_network_device")
@@ -3781,8 +3763,6 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         return Success(ToCamelCaseJson(new AddDeviceResultInfo
         {
             DeviceName = name, RootItemName = itemName, TypeIdentifier = type,
-            Verification = FakePassedVerification(new() { DeviceName = name, DeviceItemName = itemName }, new()
-            { ["deviceName"] = name, ["deviceItemName"] = itemName, ["typeIdentifier"] = type })
         }));
     }
     if (method == "delete_subnet")
@@ -3796,67 +3776,10 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         if (scenario == "network-guarded-unknown-result") return "{\"success\":false,\"error\":\"delete outcome unavailable\"}";
         return Success(ToCamelCaseJson(new SubnetLifecycleResultInfo
         {
-            SubnetId = id, Name = subnet.Name, NetworkDeviceCount = state.RootDeviceCount ?? state.Devices.Count, NetworkDeviceCountUnchanged = true,
-            Verification = FakePassedVerification(new() { SubnetId = id }, new()
-            {
-                ["subnetAbsent"] = "true", ["affectedNodesPreserved"] = "true", ["affectedConnectionsRemoved"] = "true",
-                ["networkDeviceCountUnchanged"] = (state.RootDeviceCount ?? state.Devices.Count).ToString(System.Globalization.CultureInfo.InvariantCulture)
-            })
+            SubnetId = id, Name = subnet.Name,
         }));
     }
     return "{\"success\":false,\"error\":\"unsupported guarded fixture operation\"}";
-}
-
-NetworkMutationVerificationInfo FakePassedVerification(NetworkMutationIdentityInfo identity, Dictionary<string, string> values) => new()
-{
-    Identity = identity,
-    Status = values.Count == 0 ? NetworkVerificationStatuses.NotRequired : NetworkVerificationStatuses.Passed,
-    Checks = values.Select(pair => new NetworkVerificationCheckInfo
-    {
-        Name = pair.Key, Status = NetworkVerificationStatuses.Passed, Expected = pair.Value, Observed = pair.Value,
-    }).ToList(),
-};
-
-NetworkMutationVerificationInfo FakeConfigurationVerification(string requestLine, string deviceName, Dictionary<string, string> applied)
-{
-    var values = new Dictionary<string, string>(applied);
-    if (values.Remove(NetworkSettingKeys.IoSystem))
-    {
-        values[NetworkSettingKeys.IoSystemSubnet] = ReadField(requestLine, "ioSystemSubnetId") ?? ReadField(requestLine, "subnetId")!;
-        values[NetworkSettingKeys.IoSystemNumber] = ReadIntField(requestLine, "ioSystemNumber")!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-    }
-    var target = JsonSerializer.Deserialize<WorkerRequest>(requestLine, requestJsonOptions)!.NetworkObjectTarget;
-    var identity = new NetworkMutationIdentityInfo
-    {
-        DeviceName = deviceName, NodeId = ReadField(requestLine, "nodeId")!, InterfaceName = target?.InterfaceName,
-        InterfacePath = target?.InterfacePath?.ToList() ?? target?.ItemPath?.Select(x =>
-            new NetworkInterfacePathSegmentInfo { Name = x.Name, PositionNumber = x.PositionNumber, TypeIdentifier = x.TypeIdentifier }).ToList(),
-    };
-    return FakePassedVerification(identity, values);
-}
-
-NetworkMutationVerificationInfo FakeSubnetVerification(string requestLine, string subnetId)
-{
-    var method = ReadMethod(requestLine);
-    var values = new Dictionary<string, string>
-    {
-        ["networkDeviceCountUnchanged"] = SubnetLifecycleDeviceCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
-    };
-    if (method == "delete_subnet")
-    {
-        values.Add("subnetAbsent", "true");
-        values.Add("affectedNodesPreserved", "true");
-        values.Add("affectedConnectionsRemoved", "true");
-    }
-    else
-    {
-        values.Add("subnetIdentity", subnetId);
-        if (ReadField(requestLine, "subnetName") is { } name) values.Add("Name", name);
-        if (method == "create_subnet") values.Add("TypeIdentifier", SubnetLifecycleContract.TypeIdentifierFor(ReadField(requestLine, "subnetNetworkType"))!);
-        if (ReadIntField(requestLine, "subnetHighestAddress") is { } address) values.Add("HighestAddress", address.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        if (ReadField(requestLine, "subnetTransmissionSpeed") is { } speed) values.Add("TransmissionSpeed", speed);
-    }
-    return FakePassedVerification(new() { SubnetId = subnetId }, values);
 }
 
 string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> subnets)
@@ -3882,9 +3805,6 @@ string HandleCreateSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
     {
         SubnetId = subnetId,
         Name = name,
-        NetworkDeviceCount = SubnetLifecycleDeviceCount,
-        NetworkDeviceCountUnchanged = true,
-        Verification = FakeSubnetVerification(requestLine, subnetId),
     }));
 }
 
@@ -3923,9 +3843,6 @@ string HandleUpdateSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
     {
         SubnetId = target.SubnetId,
         Name = target.Name,
-        NetworkDeviceCount = SubnetLifecycleDeviceCount,
-        NetworkDeviceCountUnchanged = true,
-        Verification = FakeSubnetVerification(requestLine, target.SubnetId),
     }));
 }
 
@@ -3949,9 +3866,6 @@ string HandleDeleteSubnet(string requestLine, List<SubnetLifecycleSubnetState> s
     {
         SubnetId = target.SubnetId,
         Name = target.Name,
-        NetworkDeviceCount = SubnetLifecycleDeviceCount,
-        NetworkDeviceCountUnchanged = true,
-        Verification = FakeSubnetVerification(requestLine, target.SubnetId),
     }));
 }
 

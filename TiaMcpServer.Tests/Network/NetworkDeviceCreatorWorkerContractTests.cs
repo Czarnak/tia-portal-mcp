@@ -16,7 +16,6 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         Assert.Contains("FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value)", preflight);
         Assert.Contains("networkInterface.IoConnectors", preflight);
         Assert.Contains("WorkerFailureCategories.TargetNotFound", preflight);
-        Assert.DoesNotContain("SkippedSettings", source);
     }
 
     [Fact]
@@ -49,8 +48,6 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         var autoGeneration = source.IndexOf("NetworkSettingKeys.PnDeviceNameAutoGeneration, generated", StringComparison.Ordinal);
         var name = source.IndexOf("ApplyNodeAttribute(node, NetworkSettingKeys.PnDeviceName, pnDeviceName", StringComparison.Ordinal);
         Assert.True(autoGeneration >= 0 && name > autoGeneration);
-        var verifier = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkMutationVerifier.cs");
-        Assert.Contains("case NetworkSettingKeys.PnDeviceNameAutoGeneration:", verifier);
     }
 
     [Fact]
@@ -82,18 +79,6 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     }
 
     [Fact]
-    public void Dispatch_AttachesImmediateChecksBeforeSerializingBothDeviceMutationResults()
-    {
-        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.cs");
-        foreach (var method in new[] { "VerifyAddedDevice", "VerifyConfiguration" })
-        {
-            var check = source.IndexOf("result.Verification = NetworkMutationVerifier." + method, StringComparison.Ordinal);
-            Assert.True(check >= 0);
-            Assert.True(source.IndexOf("return Success(result);", check, StringComparison.Ordinal) > check);
-        }
-    }
-
-    [Fact]
     public void Create_UsesTypeItemNameThenDeviceNameForCreateWithItem()
     {
         var source = ReadRepositorySource(
@@ -112,13 +97,10 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     }
 
     [Fact]
-    public void CreatorAndImmediateVerifier_SelectCreatedItemAmongTopLevelItemsOnly()
+    public void Creator_SelectsCreatedItemAmongTopLevelItemsOnly()
     {
-        foreach (var file in new[] { "NetworkDeviceCreator.cs", "NetworkMutationVerifier.cs" })
-        {
-            var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", file);
-            Assert.Contains("NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>()", source);
-        }
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceCreator.cs");
+        Assert.Contains("NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>()", source);
     }
 
     [Fact]

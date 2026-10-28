@@ -66,7 +66,7 @@ public partial class NetworkPayloadContractTests
         AssertRejectedWithoutLeak("inspect_network_object", root.ToJsonString());
     }
 
-    private const string CompleteSubnetLifecycleResult = """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""";
+    private const string CompleteSubnetLifecycleResult = """{"subnetId":"subnet-1","name":"Ethernet"}""";
 
     private const string ItemPathSegment = """{"index":0,"name":"CPU","positionNumber":1,"typeIdentifier":"OrderNumber:CPU"}""";
 

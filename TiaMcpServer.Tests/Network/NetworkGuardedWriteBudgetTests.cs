@@ -426,7 +426,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
         Assert.NotNull(response.Effects[0].Effect!.Target.InterfacePath);
         Assert.Equal("192.168.12.7", response.Batch.Operations[0].Result!.Value.GetProperty("appliedSettings").GetProperty("Address").GetString());
-        Assert.True(response.Batch.Operations[0].Result!.Value.GetProperty("skippedSettings").TryGetProperty("SubnetMask", out _));
+        Assert.False(response.Batch.Operations[0].Result!.Value.GetProperty("appliedSettings").TryGetProperty("SubnetMask", out _));
         AssertQualifiedAudit(reply, audit);
     }
 

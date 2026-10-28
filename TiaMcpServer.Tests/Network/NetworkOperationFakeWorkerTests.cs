@@ -144,8 +144,7 @@ public class NetworkOperationFakeWorkerTests
         Assert.True(response.Success); Assert.Null(response.Error);
         var result = response.Batch!.Operations[0].Result!.Value;
         Assert.Equal("Address", Assert.Single(result.GetProperty("appliedSettings").EnumerateObject()).Name);
-        Assert.Equal("SubnetMask", Assert.Single(result.GetProperty("skippedSettings").EnumerateObject()).Name);
-        var path = result.GetProperty("verification").GetProperty("identity").GetProperty("interfacePath");
+        var path = TiaMcpServer.Json.CanonicalJson.ToElement(response.Effects[0].Effect!.Target).GetProperty("interfacePath");
         Assert.Equal(JsonValueKind.Array, path.ValueKind);
         Assert.Equal(32768, path[1].GetProperty("positionNumber").GetInt32());
         Assert.Equal("succeeded", response.Batch.Operations[1].Status);
@@ -205,18 +204,11 @@ public class NetworkOperationFakeWorkerTests
         Assert.True(response.Success);
         using var document = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
         var root = document.RootElement;
-        var identities = new[]
-        {
-            root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("verification").GetProperty("identity"),
-            root.GetProperty("effects")[0].GetProperty("effect").GetProperty("target"),
-        };
-        foreach (var identity in identities)
-        {
-            Assert.Equal("S7-1500/ET200MP station_1", identity.GetProperty("deviceName").GetString());
-            Assert.Equal(JsonValueKind.Array, identity.GetProperty("interfacePath").ValueKind);
-            Assert.Equal(JsonValueKind.Null, identity.GetProperty("subnetId").ValueKind);
-            AssertNoNestedJson(identity);
-        }
+        var identity = root.GetProperty("effects")[0].GetProperty("effect").GetProperty("target");
+        Assert.Equal("S7-1500/ET200MP station_1", identity.GetProperty("deviceName").GetString());
+        Assert.Equal(JsonValueKind.Array, identity.GetProperty("interfacePath").ValueKind);
+        Assert.Equal(JsonValueKind.Null, identity.GetProperty("subnetId").ValueKind);
+        AssertNoNestedJson(identity);
     }
 
     [Fact]
@@ -303,7 +295,6 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal(
             addressApplied ? new[] { "Address" } : Array.Empty<string>(),
             result.GetProperty("appliedSettings").EnumerateObject().Select(property => property.Name));
-        Assert.Empty(result.GetProperty("skippedSettings").EnumerateObject());
         Assert.StartsWith("seq:", result.GetProperty("messages")[0].GetString());
         Assert.Equal("skipped", items[1].GetProperty("status").GetString());
         Assert.Equal("earlierOperationFailed", items[1].GetProperty("skipReason").GetString());
