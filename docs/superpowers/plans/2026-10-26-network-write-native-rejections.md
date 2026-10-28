@@ -549,7 +549,7 @@ git commit -m "docs: network write task 6 offline qualification"
 
 Protocol is §6.8: `full` mode, disposable copy, each case followed by the `network_read` landed check, `compile_check` for accepted collisions, then close-without-save and reopen. Classify every case O1/O2/O3.
 
-- [ ] **Step 1: Install the Task 5 candidate** with `scripts/install-local-tool.ps1`; record the version string and the Portal UI language.
+- [x] **Step 1: Install the Task 5 candidate** with `scripts/install-local-tool.ps1`; record the version string and the Portal UI language.
 - [ ] **Step 2: Run L1–L14** and save every response document, landed check and compile diagnostic in the live-cases input, one section per case with its O-class.
 - [ ] **Step 3: Decide on O3 findings.** For each O3 case with a silently dropped write, record the maintainer's ruling (no change, or a `postcondition_failed` read-back scoped to that write, as PLC R14). Any code change here gets its own commit and offline tests before Step 5.
 - [ ] **Step 4: Re-run Task 0 unchanged** (same project copy, same mode, same reopen and warm-up rule, three runs, median) on the installed candidate; write the timing-after input next to the baseline.
@@ -678,3 +678,13 @@ Production line counts below are freshly derived from `git diff --numstat 8090de
 Retained limits: same-call connect-then-delete information uses the initial planning snapshot; newly connected identities may be absent from that informational guard. Partial outcome retention is established for the explicit wrapped engineering/disposal case; direct fatal errors after a partial mutation remain unverified. Trusted records native completion without read-back and does not establish that Portal accepted every requested value. The Task 0 timing medians span a machine restart and repeated warm-up; no candidate after-timing or performance claim exists yet. Packaging tests were not run because product project/packaging inputs did not change. Broader native rejection, silent-drop, transaction, concurrency and hardware acceptance remain Task 7 evidence.
 
 Only this existing plan was updated for Task 6; its existing index entry remains sufficient. Git whitespace/scope checks and the prescribed plan-only commit complete the task. Stop after Task 6; Tasks 7–8 remain pending.
+
+### Task 7 partial execution — stopped by maintainer, 2026-10-28
+
+The maintainer authorized live testing after reinstalling the branch. Package `4.2.0-local.76.gf1ae806` matched source `f1ae806` and the local Release publish host/worker hashes. Portal UI language English was confirmed by the maintainer. Initial saved-file hash, full hardware equality and clean project status matched Task 0.
+
+[Partial live-cases input](../acceptance/reports/inputs/2026-10-28-network-write-native-rejections-live-cases.md) preserves the captured canonical documents. L1/L2 rejected duplicate creates natively. L3 returned success/trusted while the colliding subnet rename was silently ignored; the mutation result and fresh read both retained the original name. L4 accepted and landed a duplicate IP; software compilation was silent. Public `compile_check` is software-only and provides no hardware-compile acceptance claim. Each L1–L4 case was closed without save, reopened and verified clean.
+
+At the L3 ruling request the maintainer said to stop and return later while monitoring TIA itself. No keep/change ruling was made and no product fix was implemented. L4 was already dispatched while that ruling was pending. L5 had begun when the maintainer closed Portal; it returned `binding_conflict`, so it has no acceptance outcome. Later probes did not run. The client exited; no replay or Portal restart occurred. Post-stop verification found no Portal/owned Task 7 client and the unchanged original AP21 SHA-256 `564a644a3116fe60cba9265e40e5a797fd68b57b0c954dff7e3059c84d702a81`. A final runtime hardware/PN-attribute comparison was not made after Portal closure.
+
+Task 7 remains incomplete: L5–L14, the L13 variant, all candidate timing, live fixtures and the Task 7 default-suite run are pending. No product/FakeWorker/test source changed; no timing was captured, no new build/test suite ran, and nothing was pushed. On resume, revalidate provenance and fixture state, have the maintainer present, and execute one case at a time so a stop takes effect before the next case. Task 8 remains unstarted.
