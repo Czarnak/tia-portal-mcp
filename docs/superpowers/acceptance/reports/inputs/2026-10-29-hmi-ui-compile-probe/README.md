@@ -11,3 +11,5 @@ Leave-open exits after the independent after-snapshot, without saving, closing o
 The attached metadata's `save` string predates this option and still describes default restoration; the case/complete records explicitly identify `restorationSkipped:true` and `projectLeftOpen:true`. Raw case `uiCompile` fields precede the later maintainer results recorded in the report. A complete record or exit zero alone does not prove acceptance: inspect `nativeMutationReturned`, exceptions and the after-snapshot.
 
 See the [checkpoint report](../../2026-10-29-hmi-write-checkpoint-probes.md) for results and UI evidence.
+
+The archived source was edited after the run only to remove the project path, so the recorded executable SHA-256 identifies the pre-redaction build.

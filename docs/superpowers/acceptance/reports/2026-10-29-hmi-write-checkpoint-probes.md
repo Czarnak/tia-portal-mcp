@@ -18,7 +18,7 @@ confirmed that the entire project is disposable, and requested 15-minute probe t
 - Installed server/worker: `4.2.0-local.79.g75c0568`, commit
   `75c0568d4d83b9430a13feb62aea52e2232c2bad`; mode `full`.
 - TIA Portal V21, PID `35872`; observed UI language: English.
-- Project: `C:\Users\LCZ\Desktop\RnD\TIA-Portal\DisposableProjects\MixOfEverything\MixOfEverything.ap21`.
+- Project: `<disposable-copy>`.
 - HMI: `HMI_RT_1` on `HMI_Wash` (MTP1000 Unified Basic).
 - Original inventory: 97 tags, seven tables, zero alarms.
 - Saved qualified fixture baseline: **101 tags, nine tables, four alarms**. The disposable file
@@ -152,8 +152,9 @@ The bound project was open and `isModified:false`.
   cleanup, restoration and validation findings.
 - [Complete native trace, gzip](inputs/2026-10-29-hmi-write-native-probes.jsonl.gz): exact flushed
   JSONL with all snapshots/progress; decompressed SHA-256:
-  `664A47AC170B333473831BA77235647EBB3BE0560532F66AB0A1B30934244A22`.
+  `B1C2AFA55D2ECB17FD8F72EAC9A352E2F59209BEA567AA99547A7138CBEDFD00`.
 - [Archived source/build instructions](inputs/2026-10-29-hmi-native-probe/README.md).
+- The archived source was edited after the run only to remove the project path, so the recorded executable SHA-256 identifies the pre-redaction build. The evidence traces were re-compressed after redacting the project path and name, and every decompressed SHA-256 recorded here was renewed after redaction.
 - [Installed preflight/fixtures](inputs/2026-10-29-hmi-write-baseline-preflight.json).
 - [Installed P7/restoration](inputs/2026-10-29-hmi-write-installed-P7.json).
 - [Final public-tool restoration](inputs/2026-10-29-hmi-write-final-restoration.json).
@@ -204,25 +205,25 @@ Interactive evidence:
 
 - [Leave-open source and instructions](inputs/2026-10-29-hmi-ui-compile-probe/README.md).
 - [P10 native trace, gzip](inputs/2026-10-29-hmi-ui-P10.jsonl.gz), decompressed SHA-256
-  `D1BEF5ACBCD63F6523DAF1A21DA23D9A50632737226E917D4A0B6B6F9F753F45`.
+  `8D881FCF14657D7375F8A3317A63E729F47C21BFC1243DA028A53C171CF6E2A3`.
 - [P10 cancelled-cleanup audit](inputs/2026-10-29-hmi-ui-P10-cleanup-audit.json): exact cancellation
   before mutation, with the delete item skipped.
 - [P12-discrete native trace, gzip](inputs/2026-10-29-hmi-ui-P12-discrete.jsonl.gz), decompressed
-  SHA-256 `AD5ECCCF812A72930FEFCA7135EB3DFA98A7776E8FAAB5556A08A1DC979FB563`.
+  SHA-256 `EDA754693D1D6FA0A011A3DDE68A90EC3607F47654DE5CBD6CEADC35D3980F7C`.
 - [P12-analog native trace, gzip](inputs/2026-10-29-hmi-ui-P12-analog.jsonl.gz), decompressed
-  SHA-256 `6324FF9826CC474B4B65D81C1A138F065D9EF6491BFA5D2AA19C6042B1B0A639`.
+  SHA-256 `80F193E7E9FCB34A4690054E260A7C1FDF1BA103F8EC792AE6A07E793622F1C0`.
 - [P12-table native trace, gzip](inputs/2026-10-29-hmi-ui-P12-table.jsonl.gz), decompressed
-  SHA-256 `BB62A5C7F0EC6A9C95655E35F099B1405561D5914CF23715EBA1E8B948E9C63C`.
+  SHA-256 `853B88132925E23733910A5445535DFF842BD248968CD22D47F9161FC1B45F72`.
 - [P13 native trace, gzip](inputs/2026-10-29-hmi-ui-P13.jsonl.gz), decompressed SHA-256
-  `C832EE08CC6ABB7DFD86226CBCF34C0C9D252E0A487367B433DB1812F74420EA`.
+  `CA605CCAFC2F4A0B450703C012CE545E5D08D29CAB3C7DFD119FDE95C014FE52`.
 - [P19 native trace, gzip](inputs/2026-10-29-hmi-ui-P19.jsonl.gz), decompressed SHA-256
-  `FF64293F85421248FF78B1FDC53E6E1BE60BC222BE284C62BB36F87EF0912E49`.
+  `E5E218B677A8EAA696A863AA79B6478B3ADEF1EDA98CA35194DBF263AAF2DFC0`.
 - [P19 compiler screenshot](inputs/2026-10-29-hmi-ui-P19-compile.png), supplied by the maintainer:
   invalid alarm class, both shared-trigger messages, and total 3 errors/39 warnings.
 - [P20 missing-tag native trace, gzip](inputs/2026-10-29-hmi-ui-P20-missing-tag.jsonl.gz), decompressed
-  SHA-256 `5C1A69233C55E073D2097D85F5352CA1C9C49BC2804D5143CBE7D042B63A0BF8`.
+  SHA-256 `F9A7AA2A90497E8C498A3726166DFF2B07863527CEF525B11AB1768712082E67`.
 - [P20 missing-member native trace, gzip](inputs/2026-10-29-hmi-ui-P20-missing-member.jsonl.gz), decompressed
-  SHA-256 `0E285FEF7648443BF338461585B7527E51A0B1570291514D0D3F50998D6648E3`.
+  SHA-256 `BBCCB36A43F7A4468327262A95D06C5AE87A5D8C4F0656195AA26D1C4CEB215E`.
 - [Final public project status](inputs/2026-10-29-hmi-ui-final-status.json): exact disposable project
   open and modified after the last UI check. No helper Save was performed.
 

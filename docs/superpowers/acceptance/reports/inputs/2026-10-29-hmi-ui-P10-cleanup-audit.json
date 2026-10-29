@@ -4,7 +4,7 @@
     "bindingId": "14392bfa5b264f2c86ff76bfd54cdb3a",
     "invalidatedReason": null,
     "portalProcessId": 35872,
-    "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\TIA-Portal\\DisposableProjects\\MixOfEverything\\MixOfEverything.ap21",
+    "projectPath": "<disposable-copy>",
     "revision": 5,
     "sessionGeneration": 6,
     "state": "verified",
@@ -31,7 +31,7 @@
     }
   ],
   "phase": "error",
-  "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\TIA-Portal\\DisposableProjects\\MixOfEverything\\MixOfEverything.ap21",
+  "projectPath": "<disposable-copy>",
   "recordKind": "write",
   "recordVersion": 2,
   "requestedOperations": [

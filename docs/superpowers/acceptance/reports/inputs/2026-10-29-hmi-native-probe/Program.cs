@@ -125,7 +125,7 @@ internal static class Manifest
 }
 internal sealed class Options
 {
-    internal const string ProjectPath = @"C:\Users\LCZ\Desktop\RnD\TIA-Portal\DisposableProjects\MixOfEverything\MixOfEverything.ap21";
+    internal const string ProjectPath = @"<disposable-copy>";
     internal const int PortalPid = 35872;
     internal string[] Cases;
     internal string OutputPath;

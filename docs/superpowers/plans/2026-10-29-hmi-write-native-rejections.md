@@ -344,3 +344,7 @@ Protocol is §6.7, in `full` mode on the disposable copy. Use a direct JSON-RPC 
 ### Checkpoint record — 2026-10-29 (pre-plan)
 
 The native checkpoint ([report](../acceptance/reports/2026-10-29-hmi-write-checkpoint-probes.md)) and the installed timing baseline ([input](../acceptance/reports/inputs/2026-10-29-hmi-write-timing-before.md)) ran before this plan. Rulings D1–D5 above apply. Baseline medians (root / item sum / remainder, ms): H1 119,492 / 12,775 / 106,717; H2 574,416 / 363,268 / 170,527; H3 160,490 / 16,995 / 143,325; H4 95,049 / 0 / 95,049; H5 142,877 / 16,124 / 126,753.
+
+### Task 0 — project identity redacted
+
+The disposable project path and name were removed from the 2026-10-29 HMI checkpoint evidence, and the re-compressed traces' decompressed SHA-256 values were renewed. Rulings D1–D5 above apply.

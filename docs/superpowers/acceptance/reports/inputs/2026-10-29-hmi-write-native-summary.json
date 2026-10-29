@@ -12,7 +12,7 @@
   "attached": {
     "type": "attached",
     "portalPid": 35872,
-    "project": "C:\\Users\\LCZ\\Desktop\\RnD\\TIA-Portal\\DisposableProjects\\MixOfEverything\\MixOfEverything.ap21",
+    "project": "<disposable-copy>",
     "hmi": "HMI_RT_1",
     "assembly": "Siemens.Engineering.WinCCUnified, Version=21.0.0.0, Culture=neutral, PublicKeyToken=29bfe5fdf4ba5d3b",
     "runtime": "4.0.30319.42000",
@@ -24,7 +24,7 @@
   "complete": {
     "type": "complete",
     "cases": 31,
-    "project": "C:\\Users\\LCZ\\Desktop\\RnD\\TIA-Portal\\DisposableProjects\\MixOfEverything\\MixOfEverything.ap21",
+    "project": "<disposable-copy>",
     "saved": false
   },
   "cases": [

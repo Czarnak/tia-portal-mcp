@@ -1,6 +1,6 @@
 # Disposable HMI checkpoint probe
 
-This standalone .NET Framework 4.8 executable probes the native Siemens V21 HMI calls for P1–P22 (31 variants). It does not alter or install the MCP server. It is scoped to Portal PID 35872, the exact disposable MixOfEverything AP21 path, and HMI_RT_1 on HMI_Wash.
+This standalone .NET Framework 4.8 executable probes the native Siemens V21 HMI calls for P1–P22 (31 variants). It does not alter or install the MCP server. It is scoped to Portal PID 35872, the exact disposable <disposable-project> AP21 path, and HMI_RT_1 on HMI_Wash.
 
 Build:
 
@@ -13,7 +13,7 @@ Offline verification (does not attach):
 
 The root agent alone runs the live command:
 
-    bin\Debug\net48\NativeHmiProbe.exe --all --confirm-disposable --pid 35872 --project "C:\Users\LCZ\Desktop\RnD\TIA-Portal\DisposableProjects\MixOfEverything\MixOfEverything.ap21" --timeout-seconds 900 --output "C:\Users\LCZ\.codex\visualizations\2026\10\29\01a187d0-883d-7d82-b84c-24468920f5cd\native-hmi-probe\native-results.jsonl"
+    bin\Debug\net48\NativeHmiProbe.exe --all --confirm-disposable --pid 35872 --project "<disposable-copy>" --timeout-seconds 900 --output "C:\Users\LCZ\.codex\visualizations\2026\10\29\01a187d0-883d-7d82-b84c-24468920f5cd\native-hmi-probe\native-results.jsonl"
 
 Use --case P1 or --case P2 instead of --all to select one numbered case (including all its variants), or an exact variant such as --case P2-case.
 
@@ -26,3 +26,5 @@ P4/P8/P9 record whether native Create returned an object that equals a pre-exist
 P21's missing group and P22's missing culture are intentionally worker-like refusals, not Siemens rejections. Tables do not support native Validate. Per-case manual UI compilation is pending the maintainer's return; do not classify accepted/Validate-clean requests as final O3 decisions without that check.
 
 No Save() is called. Confirmation events after attachment are recorded and answered No solely to support closing this disposable project without saving; Openness access/security dialogs are never handled.
+
+The archived source was edited after the run only to remove the project path, so the recorded executable SHA-256 identifies the pre-redaction build.
