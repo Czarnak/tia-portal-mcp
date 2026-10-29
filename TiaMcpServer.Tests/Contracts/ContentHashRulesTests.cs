@@ -1,5 +1,4 @@
 using TiaMcpServer.Contracts.Shared;
-using TiaMcpServer.Safety.Pipeline;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Contracts;

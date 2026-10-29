@@ -169,21 +169,21 @@ public sealed class HardwareDiscoveryEvidenceTests
     }
 
     [Fact]
-    public async Task LateTraversalFailure_PreservesEarlierOutcome()
+    public async Task LateTraversalFailure_IsNotReReadBetweenDispatches()
     {
         using var audit = new TempAuditDirectory();
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-late-traversal");
         var response = await fixture.RunAsync(false, NetworkGuardedWriteFixture.Configure("first", "10.0.0.1"), NetworkGuardedWriteFixture.Delete(), NetworkGuardedWriteFixture.Configure("last", "10.0.0.3"));
         Assert.Equal("applied", response.Phase);
-        Assert.False(response.Success);
+        Assert.True(response.Success);
         Assert.Null(response.Error);
         Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
-        Assert.Equal("failed", response.Batch.Operations[1].Status);
-        Assert.Equal("earlierOperationFailed", response.Batch.Operations[2].SkipReason);
-        Assert.Contains(response.Verification!.FinalChecks, check => check.Kind == "write" && check.OperationId is null && check.Subject is null && check.Field == "finalHardwareState" && check.Status == "unverified");
-        Assert.Single(requests.Methods(), method => method == "configure_network_device");
-        Assert.DoesNotContain("delete_subnet", requests.Methods());
+        Assert.All(response.Batch.Operations, item => Assert.Equal("succeeded", item.Status));
+        Assert.Equal(new[] { "superseded", "trusted", "trusted" }, response.Verification!.Operations.Select(item => item.Check));
+        Assert.Equal(2, requests.Methods().Count(method => method == "configure_network_device"));
+        Assert.Single(requests.Methods(), method => method == "delete_subnet");
+        Assert.Single(requests.Methods(), method => method == "read_hardware_config");
     }
 
     private static IEnumerable<int> ThrowAfterFirst()

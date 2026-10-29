@@ -8,7 +8,6 @@ using TiaMcpServer.Hmi;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.ProjectTree;
-using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;

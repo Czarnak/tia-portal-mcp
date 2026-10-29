@@ -1,4 +1,3 @@
-using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Plc;

@@ -8,7 +8,6 @@ using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Network;
 using TiaMcpServer.OpennessWorker.Worker;
 using TiaMcpServer.Safety;
-using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Tests.Worker;

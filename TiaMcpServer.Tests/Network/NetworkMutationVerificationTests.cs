@@ -3,7 +3,6 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using TiaMcpServer.OpennessWorker.Openness.Network;
-using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -12,27 +11,6 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkMutationVerificationTests
 {
     [Theory]
-    [InlineData("passed", "passed")]
-    [InlineData("passed,unverified", "unverified")]
-    [InlineData("unverified,failed", "failed")]
-    [InlineData("failed,unverified", "failed")]
-    [InlineData("", "not_required")]
-    public void Complete_PreservesStatusPrecedence(string statuses, string expected)
-    {
-        var checks = statuses.Length == 0
-            ? new List<NetworkVerificationCheckInfo>()
-            : statuses.Split(',').Select(status => new NetworkVerificationCheckInfo { Status = status }).ToList();
-
-        var verification = NetworkPostconditionChecks.Complete(new NetworkMutationVerificationInfo { Checks = checks });
-
-        Assert.Equal(expected, verification.Status);
-        if (expected is "passed" or "not_required")
-            Assert.Null(verification.Message);
-        else
-            Assert.False(string.IsNullOrEmpty(verification.Message));
-    }
-
-    [Theory]
     [InlineData(0, true, "worker_operation_failed")]
     [InlineData(2, true, "worker_operation_failed")]
     [InlineData(1, false, "worker_operation_failed")]
@@ -40,18 +18,6 @@ public class NetworkMutationVerificationTests
     public void PreflightDependency_UsesPremutationFailureCategory(int count, bool complete, string? expected)
     {
         Assert.Equal(expected, NetworkPostconditionChecks.ClassifyDependencySelection(count, complete));
-    }
-
-    [Theory]
-    [InlineData(true, false, false, "Requested subnet was not connected, so IO system attachment was skipped.")]
-    [InlineData(true, false, true, "Requested subnet was not connected, so IO system attachment was skipped.")]
-    [InlineData(false, false, false, "The network interface does not expose an IO connector.")]
-    [InlineData(true, true, false, "The network interface does not expose an IO connector.")]
-    [InlineData(false, false, true, null)]
-    [InlineData(true, true, true, null)]
-    public void Preflight_ExistingIoSkipPrecedence(bool requested, bool connected, bool connector, string? expected)
-    {
-        Assert.Equal(expected, NetworkPostconditionChecks.IoSystemSkipReason(requested, connected, connector));
     }
 
     [Theory]
@@ -64,32 +30,6 @@ public class NetworkMutationVerificationTests
     {
         Assert.Equal(expected, NetworkPostconditionChecks.ClassifySelection(count, complete));
     }
-
-    private static NetworkOperationRequest Configure(bool io = false) => new()
-    {
-        OperationId = "configure", Operation = "configure_network_device",
-        Target = new() { DeviceName = "PLC_1", NodeId = "node-1" },
-        Changes = io ? new() { IoSystem = new() { SubnetId = "subnet-1", Number = 100 } }
-            : new() { IpAddress = "192.168.0.10" },
-    };
-
-    private static NetworkMutationVerificationInfo Evidence(params NetworkVerificationCheckInfo[] checks) => new()
-    {
-        Identity = new() { DeviceName = "PLC_1", NodeId = "node-1" },
-        Checks = checks.ToList(),
-        Status = checks.Any(x => x.Status == "failed") ? "failed"
-            : checks.Any(x => x.Status == "unverified") ? "unverified"
-            : checks.Length == 0 ? "not_required" : "passed",
-    };
-
-    private static ConfigureNetworkDeviceResultInfo ConfigResult(NetworkMutationVerificationInfo? evidence) => new()
-    {
-        DeviceName = "PLC_1", AppliedSettings = new() { ["Address"] = "192.168.0.10" },
-        Verification = evidence,
-    };
-
-    private static StructuredOperationItem Project(NetworkOperationRequest op, object result, bool required = true)
-        => NetworkPayloadContract.Project(op, WorkerCallResult.Ok(WorkerJson.SerializePayload(result)), required);
 
     [Theory]
     [InlineData("device")]
@@ -115,295 +55,100 @@ public class NetworkMutationVerificationTests
         Assert.Equal("X1", target.InterfaceName);
         Assert.Equal(0, target.NodeIndex);
     }
-
-    [Theory]
-    [InlineData("[{}]")]
-    [InlineData("[{\"name\":\"X1\"}]")]
-    [InlineData("[{\"name\":\"X1\",\"positionNumber\":32768,\"extra\":true}]")]
-    [InlineData("[{\"name\":\"X1\",\"positionNumber\":\"32768\"}]")]
-    [InlineData("[null]")]
-    [InlineData("[]")]
-    [InlineData("\"[{\\\"name\\\":\\\"X1\\\",\\\"positionNumber\\\":32768}]\"")]
-    public void QualifiedImmediateIdentity_IncompleteUntypedOrEncodedPathIsProtocolError(string path)
+    private static NetworkOperationRequest Configure() => new()
     {
-        var op = Configure();
-        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 32768 } };
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
-        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768 } };
-        Assert.Equal("succeeded", Project(op, result).Status);
-        var payload = System.Text.Json.Nodes.JsonNode.Parse(WorkerJson.SerializePayload(result))!;
-        payload["verification"]!["identity"]!["interfacePath"] = System.Text.Json.Nodes.JsonNode.Parse(path);
-        AssertProtocolError(NetworkPayloadContract.Project(op, WorkerCallResult.Ok(payload.ToJsonString()), true));
+        OperationId = "configure", Operation = "configure_network_device",
+        Target = new() { DeviceName = "PLC_1", NodeId = "node-1" },
+        Changes = new() { IpAddress = "192.168.0.10", PnDeviceName = "new-name" }
+    };
+
+    [Fact]
+    public void RejectedConfigure_ProjectsOutcomeAsResultAndTypedFailure()
+    {
+        var outcome = new ConfigureNetworkDeviceResultInfo { DeviceName = "PLC_1",
+            AppliedSettings = new() { ["Address"] = "192.168.0.10" } };
+        var item = NetworkPayloadContract.Project(Configure(), WorkerCallResult.Fail("engineering_rejected", "scripted")
+            with { ConfigureNetworkDeviceOutcome = outcome });
+        Assert.Equal("failed", item.Status);
+        Assert.Equal("engineering_rejected", item.Failure!.Category);
+        Assert.Equal("192.168.0.10", item.Result!.Value.GetProperty("appliedSettings").GetProperty("Address").GetString());
+        Assert.False(item.Result.Value.TryGetProperty("verification", out _));
     }
 
     [Fact]
-    public void QualifiedImmediateIdentity_IsAcceptedAndWrongOwnerRejected()
+    public void RejectedConfigureOutcome_ContradictingRequest_IsProtocolError()
     {
-        var op = Configure();
-        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = 32768 } };
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
-        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768 } };
-        Assert.Equal("succeeded", Project(op, result).Status);
-        result.Verification.Identity.InterfacePath = new() { new() { Name = "X2", PositionNumber = 33024 } };
-        AssertProtocolError(Project(op, result));
-    }
-
-    [Fact]
-    public void QualifiedImmediateIdentity_MissingRequestPositionIsProtocolError()
-    {
-        var op = Configure();
-        op.Target!.InterfacePath = new[] { new NetworkInterfacePathSegment { Name = "X1", PositionNumber = null } };
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
-        result.Verification!.Identity.InterfacePath = new() { new() { Name = "X1", PositionNumber = -1 } };
-        AssertProtocolError(Project(op, result));
-    }
-
-    [Fact]
-    public void AppliedSubsetOnly_IsVerified()
-    {
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
-        var op = Configure();
-        op.Changes = new() { IpAddress = "192.168.0.10", SubnetMask = "255.255.255.0" };
-        result.SkippedSettings["SubnetMask"] = "read only";
-        var item = Project(op, result);
-        Assert.Equal(new[] { "Address" }, result.Verification!.Checks.Select(check => check.Name));
-        Assert.Equal("worker_operation_failed", item.Failure!.Category);
-        Assert.NotNull(item.Result);
-    }
-
-    [Fact]
-    public void UnreadableAppliedValue_IsUnverified()
-    {
-        var unreadable = NetworkPostconditionChecks.Compare("Address", "192.168.0.10", null, false);
-        Assert.Equal("unverified", unreadable.Status);
-        var item = Project(Configure(), ConfigResult(Evidence(unreadable)));
-        Assert.Equal("postcondition_failed", item.Failure!.Category);
-        Assert.NotNull(item.Result);
-    }
-
-    [Fact]
-    public void WrongIoSystemOnOtherSubnet_Fails()
-    {
-        var wrongIoSubnet = NetworkPostconditionChecks.Compare("IoSystemSubnet", "subnet-1", "subnet-2", true);
-        Assert.Equal("failed", wrongIoSubnet.Status);
-        var result = ConfigResult(Evidence(wrongIoSubnet, NetworkPostconditionChecks.Compare("IoSystemNumber", "100", "100", true)));
-        result.AppliedSettings = new() { ["IoSystem"] = "100" };
-        Assert.Equal("postcondition_failed", Project(Configure(true), result).Failure!.Category);
-    }
-
-    [Fact]
-    public void IoSystemVerification_RequiresScalarSubnetAndNumberChecks()
-    {
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("IoSystemSubnet", "subnet-1", "subnet-1", true),
-            NetworkPostconditionChecks.Compare("IoSystemNumber", "100", "100", true)));
-        result.AppliedSettings = new() { ["IoSystem"] = "100" };
-        Assert.Null(Project(Configure(true), result).Failure);
-        var tuple = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("IoSystem", "[\"subnet-1\",100]", "[\"subnet-1\",100]", true)));
-        tuple.AppliedSettings = new() { ["IoSystem"] = "100" };
-        AssertProtocolError(Project(Configure(true), tuple));
-    }
-
-    [Fact]
-    public void MissingOrContradictoryVerification_IsProtocolError()
-    {
-        var missingEvidence = Project(Configure(), ConfigResult(null));
-        Assert.Equal("protocol_error", missingEvidence.Failure!.Category);
-        Assert.Null(missingEvidence.Result);
-        var evidence = Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "other", true));
-        evidence.Status = "passed";
-        AssertProtocolError(Project(Configure(), ConfigResult(evidence)));
-        evidence.Status = "failed";
-        evidence.Identity.NodeId = "wrong-node";
-        AssertProtocolError(Project(Configure(), ConfigResult(evidence)));
-    }
-
-    [Theory]
-    [InlineData("unknown")]
-    [InlineData("unaccounted")]
-    [InlineData("overlap")]
-    [InlineData("unrequested")]
-    [InlineData("wrong-value")]
-    public void UnknownOrUnaccountedSetting_IsProtocolError(string corruption)
-    {
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true)));
-        if (corruption == "unknown") result.AppliedSettings["Unknown"] = "secret-canary";
-        if (corruption == "unaccounted") result.AppliedSettings.Clear();
-        if (corruption == "overlap") result.SkippedSettings["Address"] = "secret-canary";
-        if (corruption == "unrequested") result.AppliedSettings["SubnetMask"] = "255.0.0.0";
-        if (corruption == "wrong-value") result.AppliedSettings["Address"] = "other";
-        AssertProtocolError(Project(Configure(), result));
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void PostconditionFailure_FailsItemAndRetainsResult(bool required)
-    {
-        var result = ConfigResult(Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "wrong", true)));
-        var wrongState = Project(Configure(), result, required);
-        Assert.Equal(OperationBatchStatus.Failed, wrongState.Status);
-        Assert.Equal("postcondition_failed", wrongState.Failure!.Category);
-        Assert.NotNull(wrongState.Result);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void PresentEvidence_IsStrictOnBothOverloads(bool required)
-    {
-        var evidence = Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "wrong", true));
-        evidence.Checks[0].Status = "passed";
-        evidence.Status = "passed";
-        AssertProtocolError(Project(Configure(), ConfigResult(evidence), required));
-    }
-
-    [Fact]
-    public void NotRequired_IsOnlyValidForNoAppliedConfiguration()
-    {
-        var result = ConfigResult(Evidence());
-        AssertProtocolError(Project(Configure(), result));
-        result.AppliedSettings.Clear();
-        result.SkippedSettings["Address"] = "read only";
-        var item = Project(Configure(), result);
-        Assert.Equal("worker_operation_failed", item.Failure!.Category);
-        Assert.NotNull(item.Result);
-    }
-
-    private static (NetworkOperationRequest Op, SubnetLifecycleResultInfo Result) Deletion()
-    {
-        var evidence = new NetworkMutationVerificationInfo
-        {
-            Status = "passed", Identity = new() { SubnetId = "subnet-1" },
-            Checks = new()
-            {
-                NetworkPostconditionChecks.Compare("subnetAbsent", "true", "true", true),
-                NetworkPostconditionChecks.Compare("networkDeviceCountUnchanged", "3", "3", true),
-                NetworkPostconditionChecks.Compare("affectedNodesPreserved", "true", "true", true),
-                NetworkPostconditionChecks.Compare("affectedConnectionsRemoved", "true", "true", true),
-            },
-        };
-        return (new() { OperationId = "delete", Operation = "delete_subnet", Target = new() { Kind = "subnet", SubnetId = "subnet-1" } },
-            new() { SubnetId = "subnet-1", Name = "LAN", NetworkDeviceCount = 3, NetworkDeviceCountUnchanged = true, Verification = evidence });
-    }
-
-    [Fact]
-    public void Deletion_PreservesAffectedNodesAcrossScopes()
-    {
-        var (op, result) = Deletion();
-        Assert.Equal("succeeded", Project(op, result).Status);
-        result.Verification!.Checks[2] = NetworkPostconditionChecks.Compare("affectedNodesPreserved", "true", "false", true);
-        result.Verification.Status = "failed";
-        Assert.Equal("postcondition_failed", Project(op, result).Failure!.Category);
-    }
-
-    [Fact]
-    public void UninspectableSubnetId_IsNotAbsence()
-    {
-        var (op, result) = Deletion();
-        result.Verification!.Checks[0] = NetworkPostconditionChecks.Compare("subnetAbsent", "true", null, false);
-        result.Verification.Status = "unverified";
-        Assert.Equal("postcondition_failed", Project(op, result).Failure!.Category);
-    }
-
-    private static void AssertProtocolError(StructuredOperationItem item)
-    {
+        var item = NetworkPayloadContract.Project(Configure(), WorkerCallResult.Fail("engineering_rejected", "scripted")
+            with { ConfigureNetworkDeviceOutcome = new() { DeviceName = "PLC_1",
+                AppliedSettings = new() { ["SubnetMask"] = "255.0.0.0" } } });
         Assert.Equal("protocol_error", item.Failure!.Category);
         Assert.Null(item.Result);
-        Assert.DoesNotContain("secret-canary", item.Failure.Message);
-    }
-
-    [Theory]
-    [InlineData("duplicate")]
-    [InlineData("missing")]
-    [InlineData("unexpected")]
-    [InlineData("status")]
-    [InlineData("identity")]
-    [InlineData("expected")]
-    [InlineData("failed-equal")]
-    [InlineData("unverified-observed")]
-    [InlineData("unverified-diagnostic")]
-    public void MalformedEvidence_IsRejectedWithoutEcho(string corruption)
-    {
-        var evidence = Evidence(NetworkPostconditionChecks.Compare("Address", "192.168.0.10", "192.168.0.10", true));
-        var check = evidence.Checks[0];
-        switch (corruption)
-        {
-            case "duplicate": evidence.Checks.Add(check); break;
-            case "missing": evidence.Checks.Clear(); break;
-            case "unexpected": check.Name = "secret-canary"; break;
-            case "status": check.Status = "secret-canary"; break;
-            case "identity": evidence.Identity.SubnetId = "secret-canary"; break;
-            case "expected": check.Expected = "secret-canary"; break;
-            case "failed-equal": check.Status = "failed"; check.Message = "mismatch"; break;
-            case "unverified-observed": check.Status = "unverified"; check.Message = "unreadable"; break;
-            case "unverified-diagnostic": check.Status = "unverified"; check.Observed = null; break;
-        }
-        AssertProtocolError(Project(Configure(), ConfigResult(evidence)));
+        Assert.DoesNotContain("255.0.0.0", item.Failure.Message);
+        Assert.Equal("The worker outcome for 'configure_network_device' did not match its declared result contract and was rejected.", item.Failure.Message);
     }
 
     [Fact]
-    public void AddedDevice_RequiresExactReturnedIdentitiesAndType()
+    public void RejectedConfigure_WithoutOutcome_HasNullResult()
     {
-        var op = new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device", DeviceName = "PLC", DeviceItemName = "CPU", TypeIdentifier = "OrderNumber:CPU" };
-        var result = new AddDeviceResultInfo
-        {
-            DeviceName = "PLC", RootItemName = "CPU", TypeIdentifier = "OrderNumber:CPU",
-            Verification = new()
-            {
-                Identity = new() { DeviceName = "PLC", DeviceItemName = "CPU" }, Status = "passed",
-                Checks = new()
-                {
-                    NetworkPostconditionChecks.Compare("deviceName", "PLC", "PLC", true),
-                    NetworkPostconditionChecks.Compare("deviceItemName", "CPU", "CPU", true),
-                    NetworkPostconditionChecks.Compare("typeIdentifier", "OrderNumber:CPU", "OrderNumber:CPU", true),
-                },
-            },
-        };
-        Assert.Equal("succeeded", Project(op, result).Status);
-        result.Verification.Checks[2] = NetworkPostconditionChecks.Compare("typeIdentifier", "OrderNumber:CPU", "wrong", true);
-        result.Verification.Status = "failed";
-        Assert.Equal("postcondition_failed", Project(op, result).Failure!.Category);
-        result.DeviceName = "other";
-        AssertProtocolError(Project(op, result));
+        var item = NetworkPayloadContract.Project(Configure(), WorkerCallResult.Fail("engineering_rejected", "scripted"));
+        Assert.Equal("engineering_rejected", item.Failure!.Category);
+        Assert.Null(item.Result);
     }
 
     [Theory]
-    [InlineData("create_subnet")]
-    [InlineData("update_subnet")]
-    public void Subnet_RequiresRequestedAttributesAndImmediateCount(string operation)
+    [InlineData("PLC_1_1", "succeeded")]
+    [InlineData("", "failed")]
+    public void AddedDevice_AcceptsReportedNonblankIdentity(string name, string status)
     {
-        var op = new NetworkOperationRequest
-        {
-            OperationId = "subnet", Operation = operation, Target = new() { SubnetId = "subnet-1", Kind = "subnet" },
-            Subnet = new() { Name = "Bus", NetworkType = "Profibus", HighestAddress = 126, TransmissionSpeed = "Baud1500000" },
-            SubnetChanges = new() { Name = "Bus", HighestAddress = 126, TransmissionSpeed = "Baud1500000" },
-        };
-        var result = new SubnetLifecycleResultInfo
-        {
-            SubnetId = "subnet-1", Name = "Bus", NetworkDeviceCount = 2, NetworkDeviceCountUnchanged = true,
-            Verification = new()
-            {
-                Identity = new() { SubnetId = "subnet-1" }, Status = "passed",
-                Checks = new()
-                {
-                    NetworkPostconditionChecks.Compare("subnetIdentity", "subnet-1", "subnet-1", true),
-                    NetworkPostconditionChecks.Compare("Name", "Bus", "Bus", true),
-                    NetworkPostconditionChecks.Compare("HighestAddress", "126", "126", true),
-                    NetworkPostconditionChecks.Compare("TransmissionSpeed", "Baud1500000", "Baud1500000", true),
-                    NetworkPostconditionChecks.Compare("networkDeviceCountUnchanged", "2", "2", true),
-                },
-            },
-        };
-        if (operation == "create_subnet") result.Verification.Checks.Add(NetworkPostconditionChecks.Compare("TypeIdentifier", "System:Subnet.Profibus", "System:Subnet.Profibus", true));
-        Assert.Equal("succeeded", Project(op, result).Status);
-        result.Verification.Checks[4] = NetworkPostconditionChecks.Compare("networkDeviceCountUnchanged", "2", "3", true);
-        result.NetworkDeviceCount = 3;
-        result.NetworkDeviceCountUnchanged = false;
-        result.Verification.Status = "failed";
-        var failed = Project(op, result);
-        Assert.Equal("postcondition_failed", failed.Failure!.Category);
-        Assert.NotNull(failed.Result);
-        result.Verification.Checks.Add(result.Verification.Checks[4]);
-        AssertProtocolError(Project(op, result));
+        var request = new NetworkOperationRequest { OperationId = "add", Operation = "add_network_device", DeviceName = "PLC_1", TypeIdentifier = "type" };
+        var item = NetworkPayloadContract.Project(request, WorkerCallResult.Ok(WorkerJson.SerializePayload(
+            new AddDeviceResultInfo { DeviceName = name, RootItemName = "CPU", TypeIdentifier = "type" })));
+        Assert.Equal(status, item.Status);
+        if (status == "succeeded") Assert.Equal(name, item.Result!.Value.GetProperty("deviceName").GetString());
+        else Assert.Equal("protocol_error", item.Failure!.Category);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ConfigureSuccess_WithPartialOrEmptyAppliedSubset_IsSucceeded(bool applied)
+    {
+        var item = NetworkPayloadContract.Project(Configure(), WorkerCallResult.Ok(WorkerJson.SerializePayload(
+            new ConfigureNetworkDeviceResultInfo { DeviceName = "PLC_1", AppliedSettings = applied ? new() { ["Address"] = "192.168.0.10" } : new() })));
+        Assert.Equal("succeeded", item.Status);
+    }
+
+    [Theory]
+    [InlineData("subnet-1", "succeeded")]
+    [InlineData("subnet-2", "failed")]
+    public void SubnetResult_RequiresMatchingResolvedIdentity(string requestedId, string status)
+    {
+        var operation = new NetworkOperationRequest { OperationId = "update", Operation = "update_subnet",
+            Target = new() { SubnetId = requestedId } };
+        var item = NetworkPayloadContract.Project(operation, WorkerCallResult.Ok(WorkerJson.SerializePayload(
+            new SubnetLifecycleResultInfo { SubnetId = "subnet-1", Name = "PN/IE" })));
+        Assert.Equal(status, item.Status);
+        if (status == "failed") Assert.Equal("protocol_error", item.Failure!.Category);
+    }
+    [Fact]
+    public void QualifiedKey_IgnoresOptionalEvidenceButPreservesOrdinalOwnerAndNodeIdentity()
+    {
+        var target = new NetworkWriteTargetEvidence("configure", "configure_network_device", "PLC_1", null,
+            [], "X1", null, "E1", null, null, null, null,
+            new[] { new NetworkInterfacePathSegmentInfo { Name = "CPU/Owner", PositionNumber = 32768 } });
+        NetworkWriteEffect Effect(NetworkWriteTargetEvidence value) => new("configure_network_device", value,
+            new Dictionary<string, string>(), new Dictionary<string, string?>(), [], true);
+        var effects = new Dictionary<string, NetworkWriteEffect> { ["configure"] = Effect(target) };
+        var policy = new NetworkVerificationPolicy(effects);
+        var key = Assert.Single(policy.ObjectKeys(Configure(), false));
+        effects["configure"] = Effect(target with { DeviceName = "plc_1", NetworkInterfaceName = "Other evidence",
+            InterfacePath = new[] { new NetworkInterfacePathSegmentInfo { Name = "CPU/Owner", PositionNumber = 32768, TypeIdentifier = "Optional" } } });
+        Assert.Equal(key, Assert.Single(policy.ObjectKeys(Configure(), true)));
+        effects["configure"] = Effect(target with { NodeId = "e1" });
+        Assert.NotEqual(key, Assert.Single(policy.ObjectKeys(Configure(), true)));
+        effects["configure"] = Effect(target with { InterfacePath = new[] { new NetworkInterfacePathSegmentInfo { Name = "cpu/Owner", PositionNumber = 32768 } } });
+        Assert.NotEqual(key, Assert.Single(policy.ObjectKeys(Configure(), true)));
+        effects["configure"] = Effect(target with { InterfacePath = null });
+        Assert.Throws<InvalidOperationException>(() => policy.ObjectKeys(Configure(), false));
     }
 }

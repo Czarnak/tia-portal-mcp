@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Contracts.Worker;

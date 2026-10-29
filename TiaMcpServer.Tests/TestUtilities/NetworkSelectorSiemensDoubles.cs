@@ -3,7 +3,7 @@ namespace Siemens.Engineering
 {
     public abstract partial class ProjectBase
     {
-        public Composition<HW.Subnet> Subnets { get; } = new();
+        public HW.SubnetComposition Subnets { get; } = new();
     }
 }
 
@@ -11,8 +11,15 @@ namespace Siemens.Engineering.HW
 {
     public enum NetType { Ethernet }
 
+    public sealed class SubnetComposition : Composition<Subnet>
+    {
+        public Subnet Create(string typeIdentifier, string name)
+            => throw new NotSupportedException("Subnet creation is not modeled by this update test double.");
+    }
+
     public sealed class Subnet : NamedObject
     {
+        public Dictionary<string, object> Attributes { get; } = new();
         public object? SubnetId { get; set; } = "subnet-a";
         public Exception? IdentityFailure { get; set; }
         public NetType NetType { get; set; }
@@ -20,7 +27,9 @@ namespace Siemens.Engineering.HW
         public Composition<Features.IoSystem> IoSystems { get; } = new();
         public override object GetAttribute(string name) => name == "SubnetId"
             ? IdentityFailure is null ? SubnetId! : throw IdentityFailure
-            : base.GetAttribute(name);
+            : Attributes.TryGetValue(name, out var value) ? value : base.GetAttribute(name);
+        public override void SetAttribute(string name, object value) => Attributes[name] = value;
+        public void Delete() => throw new NotSupportedException("Subnet deletion is not modeled by this update test double.");
     }
 }
 

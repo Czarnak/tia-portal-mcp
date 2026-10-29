@@ -12,7 +12,6 @@ using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.ProjectTree;
-using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;

@@ -8,18 +8,20 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkToolDescriptionTests
 {
     [Fact]
-    public void NetworkWriteDescription_StatesConnectedSubnetDeletionIsAllowedAndScopesTheDeviceCountClaim()
+    public void NetworkWriteDescription_StatesPlanningSnapshotAndTrustedVerificationLimits()
     {
         var description = MethodDescription(typeof(NetworkWriteTools), "NetworkWrite");
 
         Assert.Contains("Connected subnet deletion removes the listed connections", description);
         Assert.Contains("preserving devices and nodes", description);
 
-        // The claim must be scoped to what networkDeviceCountUnchanged actually checks (the root
-        // device collection), not overstated as leaving every device untouched — nested device
-        // user group members are outside that count.
-        Assert.Contains("networkDeviceCountUnchanged", description);
-        Assert.Contains("root device count", description);
+        Assert.Contains("planning snapshot only", description);
+        Assert.DoesNotContain("networkDeviceCountUnchanged", description);
+        Assert.Contains("engineering_rejected", description);
+        Assert.Contains("appliedSettings", description);
+        Assert.Contains("trusted or superseded", description);
+        Assert.Contains("without read-back", description);
+        Assert.Contains("changes.pnDeviceNameAutoGeneration is false; pass both in the same item.", description);
     }
 
     [Fact]

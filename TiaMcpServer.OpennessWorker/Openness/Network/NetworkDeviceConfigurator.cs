@@ -1,7 +1,6 @@
 using System.Globalization;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
-using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
@@ -11,7 +10,7 @@ namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 /// <summary>Resolves the complete node selector and all requested subnet/IO dependencies before
 /// the first scalar setter. Bare signatures forward to the same exact owner/node resolver.
-/// Completed attempts retain sparse applied and skipped maps for recovery.</summary>
+/// Rejected attempts retain the sparse applied settings for recovery.</summary>
 public static class NetworkDeviceConfigurator
 {
     public static ConfigureNetworkDeviceResultInfo Configure(
@@ -39,29 +38,23 @@ public static class NetworkDeviceConfigurator
         var networkInterface = resolved.OwningInterface!;
         var node = (Node)resolved.Value;
 
-        // Prove dependency selection before the first setter. An invalid IO selector is denied
-        // even if a later subnet connection might have failed and made that IO attach a skip.
+        // Prove dependency selection before the first setter.
         var subnetRequested = !string.IsNullOrWhiteSpace(subnetId);
         Subnet? connectedSubnet = null;
         IoSystem? ioSystem = null;
         IoConnector? ioConnector = null;
-        try
+        if (subnetRequested) connectedSubnet = FindExactlyOneSubnet(project, subnetId!);
+        if (ioSystemNumber.HasValue)
         {
-            if (subnetRequested) connectedSubnet = FindExactlyOneSubnet(project, subnetId!);
-            if (ioSystemNumber.HasValue)
+            var ioSystemSubnet = connectedSubnet ?? FindExactlyOneSubnet(
+                project, RequireIoSystemSubnetId(ioSystemSubnetId, deviceName));
+            ioSystem = FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value);
+            ioConnector = networkInterface.IoConnectors.Cast<IoConnector>().FirstOrDefault();
+            if (ioConnector is null)
             {
-                var ioSystemSubnet = connectedSubnet ?? FindExactlyOneSubnet(
-                    project, RequireIoSystemSubnetId(ioSystemSubnetId, deviceName));
-                ioSystem = FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value);
-                // Preserve selector-before-connector ordering. A normal empty collection is a
-                // supported skip; a failed collection read must not masquerade as that skip.
-                ioConnector = networkInterface.IoConnectors.Cast<IoConnector>().FirstOrDefault();
+                throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                    $"Device '{deviceName}': the selected network interface exposes no IO connector, so ioSystem cannot be attached. No configuration was attempted.");
             }
-        }
-        catch (EngineeringException)
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
-                "Requested network dependency discovery was unreadable. No configuration was attempted.");
         }
 
         ApplyNodeAttribute(node, NetworkSettingKeys.Address, ipAddress, result);
@@ -71,33 +64,21 @@ public static class NetworkDeviceConfigurator
             ApplyNodeAttribute(node, NetworkSettingKeys.PnDeviceNameAutoGeneration, generated, generated ? "true" : "false", result);
         ApplyNodeAttribute(node, NetworkSettingKeys.PnDeviceName, pnDeviceName, result);
 
-        var subnetConnected = false;
         if (subnetRequested)
         {
-            subnetConnected = ConnectSubnet(node, subnetId!, connectedSubnet!, result);
+            ConnectSubnet(node, subnetId!, connectedSubnet!, result);
         }
 
         if (ioSystemNumber.HasValue)
         {
-            var skip = NetworkPostconditionChecks.IoSystemSkipReason(subnetRequested, subnetConnected, ioConnector is not null);
-            if (skip is not null)
-            {
-                result.SkippedSettings[NetworkSettingKeys.IoSystem] = skip;
-            }
-            else
-            {
-                ConnectIoSystem(ioConnector!, ioSystem!, ioSystemNumber.Value, result);
-            }
+            ConnectIoSystem(ioConnector!, ioSystem!, ioSystemNumber.Value, result);
         }
 
-        if (result.AppliedSettings.Count == 0 && result.SkippedSettings.Count == 0)
+        if (result.AppliedSettings.Count == 0)
         {
             result.Messages.Add("No network settings were provided.");
         }
 
-        // Return completed attempts even when every requested setting was skipped. The host
-        // classifies skips as failures while retaining these sparse maps for recovery. Program
-        // attaches immediate applied-setting verification before serializing this result.
         return result;
     }
 
@@ -138,14 +119,14 @@ public static class NetworkDeviceConfigurator
         }
         catch (EngineeringException ex)
         {
-            result.SkippedSettings[attributeName] = ex.Message;
+            var category = WorkerExecution.Classify(ex, true);
+            throw new WorkerOperationException(category, WorkerExecution.FailureMessage(ex, category),
+                engineeringError: WorkerExecution.Describe(ex), configureNetworkDeviceOutcome: result);
         }
     }
 
-    /// <summary>Performs the connect action against an already-resolved subnet. Returns whether the
-    /// action itself succeeded, so a caller can decide whether a dependent IO-system attach is safe
-    /// to attempt.</summary>
-    private static bool ConnectSubnet(
+    /// <summary>Performs the connect action against an already-resolved subnet.</summary>
+    private static void ConnectSubnet(
         Node node,
         string subnetId,
         Subnet subnet,
@@ -155,14 +136,13 @@ public static class NetworkDeviceConfigurator
         {
             node.ConnectToSubnet(subnet);
             result.AppliedSettings[NetworkSettingKeys.Subnet] = subnetId;
-            return true;
         }
         catch (EngineeringException ex)
         {
-            result.SkippedSettings[NetworkSettingKeys.Subnet] = ex.Message;
+            var category = WorkerExecution.Classify(ex, true);
+            throw new WorkerOperationException(category, WorkerExecution.FailureMessage(ex, category),
+                engineeringError: WorkerExecution.Describe(ex), configureNetworkDeviceOutcome: result);
         }
-
-        return false;
     }
 
     /// <summary>
@@ -218,7 +198,9 @@ public static class NetworkDeviceConfigurator
         }
         catch (EngineeringException ex)
         {
-            result.SkippedSettings[NetworkSettingKeys.IoSystem] = ex.Message;
+            var category = WorkerExecution.Classify(ex, true);
+            throw new WorkerOperationException(category, WorkerExecution.FailureMessage(ex, category),
+                engineeringError: WorkerExecution.Describe(ex), configureNetworkDeviceOutcome: result);
         }
     }
 

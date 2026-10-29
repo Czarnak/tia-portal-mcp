@@ -201,28 +201,18 @@ public class NetworkSubnetLifecycleSafetyTests
         Assert.Equal("LINE_1", resolution.Evidence!.SubnetName);
     }
 
-    [Fact]
-    public void Resolve_UpdateSubnet_EthernetWithHighestAddress_RejectedAsValidationError()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UpdateSubnet_ProfibusAttributesOnEthernet_AreResolvedNotRefused(bool address)
     {
         var state = State(Subnet("LINE_1", "S-1", networkType: SubnetLifecycleContract.Ethernet));
-        var operation = UpdateSubnetRequest("op1", "S-1", new NetworkSubnetChanges { HighestAddress = 10 });
-
+        var operation = UpdateSubnetRequest("op1", "S-1", address
+            ? new NetworkSubnetChanges { HighestAddress = 10 }
+            : new NetworkSubnetChanges { TransmissionSpeed = "Baud500000" });
         var resolution = NetworkIdentityResolver.Resolve(operation, state);
-
-        Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.ValidationError, resolution.FailureCategory);
-    }
-
-    [Fact]
-    public void Resolve_UpdateSubnet_EthernetWithTransmissionSpeed_RejectedAsValidationError()
-    {
-        var state = State(Subnet("LINE_1", "S-1", networkType: SubnetLifecycleContract.Ethernet));
-        var operation = UpdateSubnetRequest("op1", "S-1", new NetworkSubnetChanges { TransmissionSpeed = "Baud500000" });
-
-        var resolution = NetworkIdentityResolver.Resolve(operation, state);
-
-        Assert.False(resolution.Success);
-        Assert.Equal(WorkerFailureCategories.ValidationError, resolution.FailureCategory);
+        Assert.True(resolution.Success, resolution.Error);
+        Assert.Equal("S-1", resolution.Evidence!.SubnetId);
     }
 
     [Fact]

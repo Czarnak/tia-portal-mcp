@@ -1,12 +1,28 @@
 # Network Operations Roadmap
 
-Current guarded migration: implemented with focused offline qualification; the 2026-10-05
-live-defect fixes were live accepted on V21 (see the
-[improvement log](../IMPROVEMENT_LOG.md)); final combined gates remain pending. Version `1.0`, warnings/explicit nulls and
-`dryRun` replace Network tokens; **omitting dryRun executes**. Historical Phase4/worker-only
-qualification below applies only to recorded frozen sources. See the
-[guarded Network design](../superpowers/specs/2026-10-03-network-json-guarded-write-design.md) and
-[implementation plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
+Current Network writes: contract `2.0`; `network_read` stays `1.0`. The native-rejections
+migration passed its scoped live matrix on installed source `75c0568`:
+17 expected functional outcomes, followed by five timing warm-ups and 15 measured calls. The
+Task 7 fixture/offline closeout at that stage passed 7,665 tests and 95.11% linked host/contracts
+line coverage. A later host-only follow-up validates raw outcomes and worker-response carriers
+before permissive decoding, without request replay or worker replacement. Twelve previously
+failing malformed-wire cases, sixteen new controls and the focused 517-test set passed. The worker
+is unchanged; this host follow-up has offline evidence only and no new live/timing qualification.
+See the [live verification and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
+and [implementation plan](../superpowers/plans/2026-10-26-network-write-native-rejections.md).
+Warnings/explicit nulls and `dryRun` replace Network tokens; **omitting dryRun executes**.
+Historical Phase4/worker-only qualification below applies only to recorded frozen sources.
+
+Planning uses one initial hardware snapshot without per-item replanning. Successful prefix items
+report `trusted` or `superseded` through the shared `TrustedWriteVerifier` and domain policies;
+failed/skipped items have no verification entry. Configure stops at the first native rejection and
+retains its typed `appliedSettings`. `skippedSettings`, immediate `identity`/`checks`, `finalChecks`
+and `networkDeviceCount` are retired. A failed item can retain applied changes; inspect it with
+`network_read` before retrying. The L3 colliding-rename fix checks the already-read subnet name
+before transaction commit. Same-call connect-then-delete guards still use the initial snapshot.
+Duplicate IP/PROFINET-name writes were accepted with silent public PLC-software compilation;
+separate maintainer hardware-compile observations reported those collisions. The literal invalid
+PN name was accepted/normalized. These are scoped observations, not broader native acceptance.
 
 Status: Phases 1 and 2 are complete. Phase 3 implementation and its separately authorized,
 read-only TIA Portal V21 evidence run are complete, but final stabilization is pending design
@@ -147,7 +163,7 @@ their behavior is suitable.
 
 ### Phase 2: Stabilize the JSON Contract — Complete
 
-Completed: `network_read` and `network_write` both declare an MCP output schema and return one
+Completed: `network_read` (`1.0`) and `network_write` (`2.0`) both declare an MCP output schema and return one
 canonical JSON document identically in `content` and `structuredContent` — no nested JSON string
 anywhere in the response. That historical Network envelope used `preview | apply | error`; the current guarded envelope uses `preview | applied | blocked | error`.
 Configure operations use nested `target: { deviceName, nodeId }` and
@@ -263,7 +279,7 @@ commissioning behavior.
 - Never silently ignore an unknown or non-writable field.
 - Keep read diagnostics and missing-data evidence instead of synthesizing values.
 - Resolve exact requested intent/current state under a pinned verified binding; a dry run reserves no state.
-- Return enough postcondition evidence for an agent to verify what changed.
+- Return typed mutation outcomes and verification status; use explicit reads to inspect a failed item.
 
 ## Implementation Anchors
 

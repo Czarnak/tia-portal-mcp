@@ -2,7 +2,6 @@ using System.Text.Json;
 using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Network;
-using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using Xunit;
 
@@ -10,7 +9,7 @@ namespace TiaMcpServer.Tests.Network;
 
 public class NetworkSparseConfigurationTests
 {
-    private const string PartialPayload = """{"deviceName":"PLC_1","appliedSettings":{"Address":"192.168.0.10"},"skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""";
+    private const string PartialPayload = """{"deviceName":"PLC_1","appliedSettings":{"Address":"192.168.0.10"},"messages":[]}""";
 
     private static NetworkOperationRequest Configure(string id, bool includeIoSystem = true) => new()
     {
@@ -33,44 +32,36 @@ public class NetworkSparseConfigurationTests
         var result = JsonSerializer.Deserialize<ConfigureNetworkDeviceResultInfo>(
             item.Result!.Value, WorkerJson.PayloadOptionsFor(typeof(ConfigureNetworkDeviceResultInfo)))!;
         var applied = result.AppliedSettings;
-        var skipped = result.SkippedSettings;
 
         Assert.Equal(new[] { "Address" }, applied.Keys);
-        Assert.Equal(new[] { "IoSystem" }, skipped.Keys);
         Assert.Equal("192.168.0.10", applied["Address"]);
-        Assert.Equal("No IO connector.", skipped["IoSystem"]);
     }
 
     [Fact]
-    public void PartialConfiguration_FailsItemAndRetainsResult()
+    public void PartialConfiguration_SucceedsAndRetainsResult()
     {
         var partial = NetworkPayloadContract.Project(Configure("partial"), WorkerCallResult.Ok(PartialPayload));
 
-        Assert.Equal("failed", partial.Status);
-        Assert.Equal("worker_operation_failed", partial.Failure!.Category);
+        Assert.Equal("succeeded", partial.Status);
+        Assert.Null(partial.Failure);
         Assert.NotNull(partial.Result);
         Assert.Equal("Address", Assert.Single(partial.Result.Value.GetProperty("appliedSettings").EnumerateObject()).Name);
-        Assert.Equal("IoSystem", Assert.Single(partial.Result.Value.GetProperty("skippedSettings").EnumerateObject()).Name);
     }
 
     [Theory]
-    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{"Address":"Read only.","IoSystem":"No IO connector."},"messages":[]}""", true)]
-    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{"Address":"Read only."},"messages":[]}""", false)]
-    public void AllSkipped_RetainsTypedResult(string payload, bool includeIoSystem)
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"messages":[]}""", true)]
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"messages":[]}""", false)]
+    public void EmptyAppliedSubset_RetainsTypedResult(string payload, bool includeIoSystem)
     {
-        var item = NetworkPayloadContract.Project(Configure("all-skipped", includeIoSystem), WorkerCallResult.Ok(payload));
+        var item = NetworkPayloadContract.Project(Configure("empty-applied", includeIoSystem), WorkerCallResult.Ok(payload));
 
-        Assert.Equal("failed", item.Status);
-        Assert.Equal("worker_operation_failed", item.Failure!.Category);
+        Assert.Equal("succeeded", item.Status);
+        Assert.Null(item.Failure);
         Assert.NotNull(item.Result);
         var result = JsonSerializer.Deserialize<ConfigureNetworkDeviceResultInfo>(
             item.Result.Value, WorkerJson.PayloadOptionsFor(typeof(ConfigureNetworkDeviceResultInfo)))!;
         Assert.Equal("PLC_1", result.DeviceName);
         Assert.Empty(result.AppliedSettings);
-        Assert.Equal("Read only.", result.SkippedSettings["Address"]);
-        Assert.Equal(
-            includeIoSystem ? new[] { "Address", "IoSystem" } : new[] { "Address" },
-            result.SkippedSettings.Keys);
         Assert.Empty(result.Messages);
     }
 }

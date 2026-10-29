@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Contracts.Vci;
@@ -31,6 +32,8 @@ public sealed class WorkerOperationException : Exception
     /// <summary>The Siemens exception this wraps, so a call site that catches one can forward it instead of flattening it to text.</summary>
     public EngineeringErrorInfo? EngineeringError { get; }
 
+    public ConfigureNetworkDeviceResultInfo? ConfigureNetworkDeviceOutcome { get; }
+
     public WorkerOperationException(
         string failureCategory,
         string message,
@@ -38,7 +41,8 @@ public sealed class WorkerOperationException : Exception
         BlockImportOutcomeInfo? blockImportOutcome = null,
         HmiWriteOutcomeInfo? hmiWriteOutcome = null,
         VciWriteOutcomeInfo? vciWriteOutcome = null,
-        EngineeringErrorInfo? engineeringError = null)
+        EngineeringErrorInfo? engineeringError = null,
+        ConfigureNetworkDeviceResultInfo? configureNetworkDeviceOutcome = null)
         : base(message)
     {
         if (!WorkerFailureCategories.IsKnown(failureCategory))
@@ -54,5 +58,6 @@ public sealed class WorkerOperationException : Exception
         HmiWriteOutcome = hmiWriteOutcome;
         VciWriteOutcome = vciWriteOutcome;
         EngineeringError = engineeringError;
+        ConfigureNetworkDeviceOutcome = configureNetworkDeviceOutcome;
     }
 }

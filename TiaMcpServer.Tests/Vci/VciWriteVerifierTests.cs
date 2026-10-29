@@ -1,7 +1,5 @@
-using System.Text.Json;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Vci;
-using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 using static TiaMcpServer.Tests.Vci.VciGuardedWriteMcpTests;

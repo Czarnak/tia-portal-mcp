@@ -1,5 +1,4 @@
 using Siemens.Engineering.SW.ExternalSources;
-using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Block;
 using TiaMcpServer.OpennessWorker.Worker;
 

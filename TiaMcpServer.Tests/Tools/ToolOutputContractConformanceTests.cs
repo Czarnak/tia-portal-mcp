@@ -411,6 +411,8 @@ public sealed class ToolOutputContractConformanceTests
                     Assert.Equal(2, document.GetProperty("result").GetProperty("value").GetProperty("portals").GetArrayLength());
             }
         }
+        if (probe.Tool == "network_write")
+            Assert.Equal("2.0", result.StructuredContent!.Value.GetProperty("contractVersion").GetString());
         if (probe.Tool == "network_read")
         {
             var document = result.StructuredContent!.Value;

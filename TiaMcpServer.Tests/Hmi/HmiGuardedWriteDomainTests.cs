@@ -1,7 +1,6 @@
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
-using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Hmi;
 using TiaMcpServer.Json;
 using TiaMcpServer.Worker;

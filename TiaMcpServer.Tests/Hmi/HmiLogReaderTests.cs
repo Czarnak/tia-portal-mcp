@@ -1,5 +1,4 @@
 using Siemens.Engineering;
-using Siemens.Engineering.HmiUnified;
 using Siemens.Engineering.HmiUnified.HmiLogging;
 using Siemens.Engineering.HmiUnified.HmiLogging.HmiLoggingCommon;
 using TiaMcpServer.Contracts.Worker;

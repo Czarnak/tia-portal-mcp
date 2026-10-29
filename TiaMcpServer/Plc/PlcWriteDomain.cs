@@ -2,7 +2,6 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Safety;
-using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 
@@ -72,7 +71,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
         => PlcPayloadContract.ProjectWrite(item, result);
 
     public async Task<PlcWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
-        => await new PlcWriteVerifier(client, _items, _effects).VerifyAsync(
+        => await PlcVerificationPolicy.VerifyAsync(client, _items, _effects,
             StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
 
     public bool VerificationSucceeded(PlcWriteVerification? verification) => verification?.Success == true;

@@ -5,7 +5,6 @@ using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
-using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Tests.Worker;
@@ -88,16 +87,23 @@ public class NetworkOperationFakeWorkerTests
     };
 
     [Fact]
-    public async Task PreparedDomainRequest_DetachesCallerOwnerBeforeReplanAndDispatch()
+    public async Task PreparedDomainRequest_DetachesCallerOwnerAndDeclaresNoReplanBeforeDispatch()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
         var operation = QualifiedConfigure("prepare");
         var domain = new NetworkWriteDomain(fixture.Client);
-        Assert.True((await domain.PlanAsync(new[] { operation })).Success);
+        var plan = await domain.PlanAsync(new[] { operation, QualifiedConfigure("other", 33024) });
+        Assert.True(plan.Success);
+        Assert.All(plan.Items, item =>
+        {
+            Assert.Null(item.DependsOn);
+            Assert.Equal("networkDiscoveryComplete", Assert.Single(item.Preconditions).Name);
+        });
         operation.Target!.InterfacePath![1].Name = "PROFINET interface_2";
         operation.Target.InterfacePath[1].PositionNumber = 33024;
-        Assert.True((await domain.ReplanAsync(operation)).Success);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => domain.ReplanAsync(operation));
+        Assert.Equal("network_write plans declare no dependencies; ReplanAsync must never be called.", error.Message);
         var result = await domain.MutateAsync(operation);
         Assert.Equal("succeeded", domain.Project(operation, result).Status);
         var state = (await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client)).State!;
@@ -113,7 +119,7 @@ public class NetworkOperationFakeWorkerTests
         var operation = QualifiedConfigure("X1");
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(fixture.Client, operation);
         Assert.True(result.Success, result.Error);
-        Assert.Equal("succeeded", NetworkPayloadContract.Project(operation, result, true).Status);
+        Assert.Equal("succeeded", NetworkPayloadContract.Project(operation, result).Status);
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         Assert.True(snapshot.Success, snapshot.Error);
         var owners = snapshot.State!.Devices[0].Items[0].Items;
@@ -128,26 +134,25 @@ public class NetworkOperationFakeWorkerTests
     }
 
     [Fact]
-    public async Task QualifiedPartialSkip_RetainsAppliedIdentityAndStops()
+    public async Task QualifiedPartialSuccess_RetainsAppliedIdentityAndContinues()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
         var first = QualifiedConfigure("partial"); first.Changes = new() { IpAddress = "192.168.12.99", SubnetMask = "255.255.255.0" };
         var response = await fixture.RunAsync(false, first, QualifiedConfigure("later", 33024));
-        Assert.False(response.Success); Assert.Null(response.Error);
+        Assert.True(response.Success); Assert.Null(response.Error);
         var result = response.Batch!.Operations[0].Result!.Value;
         Assert.Equal("Address", Assert.Single(result.GetProperty("appliedSettings").EnumerateObject()).Name);
-        Assert.Equal("SubnetMask", Assert.Single(result.GetProperty("skippedSettings").EnumerateObject()).Name);
-        var path = result.GetProperty("verification").GetProperty("identity").GetProperty("interfacePath");
+        var path = TiaMcpServer.Json.CanonicalJson.ToElement(response.Effects[0].Effect!.Target).GetProperty("interfacePath");
         Assert.Equal(JsonValueKind.Array, path.ValueKind);
         Assert.Equal(32768, path[1].GetProperty("positionNumber").GetInt32());
-        Assert.Equal("earlierOperationFailed", response.Batch.Operations[1].SkipReason);
+        Assert.Equal("succeeded", response.Batch.Operations[1].Status);
         var snapshot = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
-        Assert.Equal("192.168.13.20", snapshot.State!.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
+        Assert.Equal("192.168.12.99", snapshot.State!.Devices[0].Items[0].Items[1].NetworkInterfaces[0].Nodes[0].IpAddress);
     }
 
     [Fact]
-    public async Task QualifiedPartialSkip_ExecutionFailsWhileVerificationProvesAppliedAndPreservedSettings()
+    public async Task QualifiedPartialSuccess_TrustsCompletionAndRetainsAppliedSubset()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
@@ -156,17 +161,14 @@ public class NetworkOperationFakeWorkerTests
         Assert.NotNull(priorMask);
         var operation = QualifiedConfigure("partial"); operation.Changes = new() { IpAddress = "192.168.12.99", SubnetMask = "255.255.0.0" };
         var response = await fixture.RunAsync(false, operation);
-        // verification.success covers evidence only; execution failure lives in batch and root success.
-        Assert.False(response.Success);
-        Assert.Equal(TiaMcpServer.OperationBatches.OperationBatchStatus.Failed, response.Batch!.Operations[0].Status);
+        // The transitional worker payload retains its sparse maps; completion is trusted.
+        Assert.True(response.Success);
+        Assert.Equal(TiaMcpServer.OperationBatches.OperationBatchStatus.Succeeded, response.Batch!.Operations[0].Status);
         Assert.True(response.Verification!.Success);
-        var preserved = Assert.Single(response.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
-        Assert.Equal(priorMask, preserved.Expected);
-        Assert.Equal("passed", preserved.Status);
     }
 
     [Fact]
-    public async Task QualifiedAllSkipped_FinalCheckProvesSkippedSettingWasPreserved()
+    public async Task QualifiedEmptyAppliedSubset_TrustsCompletion()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
@@ -175,26 +177,21 @@ public class NetworkOperationFakeWorkerTests
         Assert.NotNull(priorMask);
         var operation = QualifiedConfigure("skipped"); operation.Changes = new() { SubnetMask = "255.255.0.0" };
         var response = await fixture.RunAsync(false, operation);
-        Assert.False(response.Success);
-        Assert.Equal("not_required", response.Verification!.Operations[0].Status);
-        var preserved = Assert.Single(response.Verification.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
-        Assert.Equal(priorMask, preserved.Expected);
-        Assert.Equal(priorMask, preserved.Observed);
-        Assert.Equal("passed", preserved.Status);
-        Assert.True(response.Verification.Success);
+        Assert.True(response.Success);
+        Assert.Equal("trusted", Assert.Single(response.Verification!.Operations).Check);
+        Assert.True(response.Verification!.Success);
     }
 
     [Fact]
-    public async Task QualifiedAllSkipped_UnreadablePriorValueLeavesPreservationUnverified()
+    public async Task QualifiedEmptyAppliedSubset_DoesNotReadBackPriorValue()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-partial");
         // The second owner's node has no readable subnet mask before the write.
         var operation = QualifiedConfigure("unreadable", 33024); operation.Changes = new() { SubnetMask = "255.255.0.0" };
         var response = await fixture.RunAsync(false, operation);
-        var preserved = Assert.Single(response.Verification!.FinalChecks, c => c.Kind == "node" && c.Field == "SubnetMask");
-        Assert.Equal("unverified", preserved.Status);
-        Assert.False(response.Verification.Success);
+        Assert.True(response.Success);
+        Assert.Equal("trusted", Assert.Single(response.Verification!.Operations).Check);
     }
 
     [Fact]
@@ -206,45 +203,24 @@ public class NetworkOperationFakeWorkerTests
         Assert.True(response.Success);
         using var document = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
         var root = document.RootElement;
-        var identities = new[]
-        {
-            root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("verification").GetProperty("identity"),
-            root.GetProperty("verification").GetProperty("operations")[0].GetProperty("evidence").GetProperty("identity"),
-        };
-        foreach (var identity in identities)
-        {
-            Assert.Equal("S7-1500/ET200MP station_1", identity.GetProperty("deviceName").GetString());
-            Assert.Equal(JsonValueKind.Array, identity.GetProperty("interfacePath").ValueKind);
-            Assert.Equal(JsonValueKind.Null, identity.GetProperty("subnetId").ValueKind);
-            AssertNoNestedJson(identity);
-        }
+        var identity = root.GetProperty("effects")[0].GetProperty("effect").GetProperty("target");
+        Assert.Equal("S7-1500/ET200MP station_1", identity.GetProperty("deviceName").GetString());
+        Assert.Equal(JsonValueKind.Array, identity.GetProperty("interfacePath").ValueKind);
+        Assert.Equal(JsonValueKind.Null, identity.GetProperty("subnetId").ValueKind);
+        AssertNoNestedJson(identity);
     }
 
     [Fact]
-    public async Task QualifiedConfigure_FinalChecksCarryTypedSubjectWithoutNestedJson()
+    public async Task QualifiedConfigure_SharedVerificationHasNoNativeReadBackEvidence()
     {
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-qualified-read");
         var response = await fixture.RunAsync(false, QualifiedConfigure("typed"));
         Assert.True(response.Success);
-        using var document = JsonDocument.Parse(TiaMcpServer.Json.CanonicalJson.Serialize(response));
-        var root = document.RootElement;
-        var finalChecks = root.GetProperty("verification").GetProperty("finalChecks").EnumerateArray().ToArray();
-        var address = Assert.Single(finalChecks, c => c.GetProperty("field").GetString() == "Address");
-        Assert.Equal("node", address.GetProperty("kind").GetString());
-        Assert.Equal(JsonValueKind.Null, address.GetProperty("operationId").ValueKind);
-        var subject = address.GetProperty("subject");
-        Assert.Equal("S7-1500/ET200MP station_1", subject.GetProperty("deviceName").GetString());
-        Assert.Equal("E1", subject.GetProperty("nodeId").GetString());
-        Assert.Equal("PROFINET interface_1", subject.GetProperty("interfacePath")[1].GetProperty("name").GetString());
-        var exists = Assert.Single(finalChecks, c => c.GetProperty("field").GetString() == "exists");
-        Assert.Equal("node", exists.GetProperty("kind").GetString());
-        Assert.Equal(JsonValueKind.Null, exists.GetProperty("subject").GetProperty("subnetId").ValueKind);
-        foreach (var check in finalChecks)
-        {
-            Assert.False(check.TryGetProperty("name", out _));
-            AssertNoNestedJson(check.GetProperty("subject"));
-        }
+        var operation = Assert.Single(response.Verification!.Operations);
+        Assert.Equal("trusted", operation.Check);
+        Assert.Null(operation.Expected);
+        Assert.Null(operation.Actual);
     }
 
     private static void AssertNoNestedJson(JsonElement element)
@@ -275,7 +251,7 @@ public class NetworkOperationFakeWorkerTests
     [Theory]
     [InlineData("network-config-partial", true)]
     [InlineData("network-config-all-skipped", false)]
-    public async Task NetworkWrite_CompletedSparseConfigurationFailureRetainsResultAndSkipsLaterWrites(
+    public async Task NetworkWrite_RejectedSparseConfigurationRetainsOutcomeAndSkipsLaterWrites(
         string scenario,
         bool addressApplied)
     {
@@ -311,15 +287,13 @@ public class NetworkOperationFakeWorkerTests
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
         var items = root.GetProperty("batch").GetProperty("operations");
         Assert.Equal("failed", items[0].GetProperty("status").GetString());
-        Assert.Equal("worker_operation_failed", items[0].GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal("engineering_rejected", items[0].GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal("EngineeringTargetInvocationException", items[0].GetProperty("failure").GetProperty("engineeringError").GetProperty("type").GetString());
         var result = items[0].GetProperty("result");
         Assert.Equal("PLC_1", result.GetProperty("deviceName").GetString());
         Assert.Equal(
             addressApplied ? new[] { "Address" } : Array.Empty<string>(),
             result.GetProperty("appliedSettings").EnumerateObject().Select(property => property.Name));
-        Assert.Equal(
-            addressApplied ? new[] { "IoSystem" } : new[] { "Address", "IoSystem" },
-            result.GetProperty("skippedSettings").EnumerateObject().Select(property => property.Name));
         Assert.StartsWith("seq:", result.GetProperty("messages")[0].GetString());
         Assert.Equal("skipped", items[1].GetProperty("status").GetString());
         Assert.Equal("earlierOperationFailed", items[1].GetProperty("skipReason").GetString());

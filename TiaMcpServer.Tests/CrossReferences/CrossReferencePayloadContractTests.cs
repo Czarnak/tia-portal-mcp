@@ -3,7 +3,6 @@ using TiaMcpServer.Contracts.CrossReferences;
 using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.CrossReferences;
-using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
 

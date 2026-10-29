@@ -90,10 +90,8 @@ public partial class NetworkPayloadContractTests
     }
 
     [Theory]
-    [InlineData("""{"deviceName":"PLC_1","skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""")]
-    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{"Address":"192.168.0.10"},"messages":[]}""")]
-    [InlineData("""{"deviceName":"PLC_1","appliedSettings":null,"skippedSettings":{"IoSystem":"No IO connector."},"messages":[]}""")]
-    [InlineData("""{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":null,"messages":[]}""")]
+    [InlineData("""{"deviceName":"PLC_1","messages":[]}""")]
+    [InlineData("""{"deviceName":"PLC_1","appliedSettings":null,"messages":[]}""")]
     public void MissingRequiredMap_IsProtocolError(string payload)
     {
         var missingMap = Project("configure_network_device", payload);
@@ -105,7 +103,9 @@ public partial class NetworkPayloadContractTests
 
     private static StructuredOperationItem Project(string operation, string payload)
         => NetworkPayloadContract.Project(
-            new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
+            new NetworkOperationRequest { OperationId = "op-1", Operation = operation,
+                Target = operation == "configure_network_device" ? new() { DeviceName = "PLC_1", NodeId = "node-1" }
+                    : operation is "update_subnet" or "delete_subnet" ? new() { SubnetId = "subnet-1" } : null },
             WorkerCallResult.Ok(payload));
 
     [Theory]
@@ -123,19 +123,19 @@ public partial class NetworkPayloadContractTests
         JsonValueKind.Object)]
     [InlineData(
         "configure_network_device",
-        """{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{},"messages":[]}""",
+        """{"deviceName":"PLC_1","appliedSettings":{},"messages":[]}""",
         JsonValueKind.Object)]
     [InlineData(
         "create_subnet",
-        """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""",
+        """{"subnetId":"subnet-1","name":"Ethernet"}""",
         JsonValueKind.Object)]
     [InlineData(
         "update_subnet",
-        """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""",
+        """{"subnetId":"subnet-1","name":"Ethernet"}""",
         JsonValueKind.Object)]
     [InlineData(
         "delete_subnet",
-        """{"subnetId":"subnet-1","name":"Ethernet","networkDeviceCount":0,"networkDeviceCountUnchanged":true}""",
+        """{"subnetId":"subnet-1","name":"Ethernet"}""",
         JsonValueKind.Object)]
     public void Project_DecodesEveryDeclaredOperationIntoItsResultType(
         string operation,
@@ -812,7 +812,7 @@ public partial class NetworkPayloadContractTests
         { "add_network_device", $$"""{"deviceName":"a","deviceName":"{{LeakToken}}","rootItemName":"r","typeIdentifier":"t","warnings":[]}""" },
 
         // Explicit null dictionary.
-        { "configure_network_device", $$"""{"deviceName":"{{LeakToken}}","appliedSettings":null,"skippedSettings":{},"messages":[]}""" },
+        { "configure_network_device", $$"""{"deviceName":"{{LeakToken}}","appliedSettings":null,"messages":[]}""" },
 
         // Not JSON at all.
         { "configure_network_device", LeakToken },
@@ -1212,7 +1212,7 @@ public partial class NetworkPayloadContractTests
 
     private const string CompleteAddDeviceResult = """{"deviceName":"PLC_1","rootItemName":"PLC_1","typeIdentifier":"OrderNumber:X","warnings":[]}""";
 
-    private const string CompleteConfigureResult = """{"deviceName":"PLC_1","appliedSettings":{},"skippedSettings":{},"messages":[]}""";
+    private const string CompleteConfigureResult = """{"deviceName":"PLC_1","appliedSettings":{},"messages":[]}""";
 
     private static readonly string CompleteObjectList = $$"""{"items":[{"kind":"node","selectable":false,"selector":null,"evidence":{{CompleteEvidence}},"diagnostics":["unavailable"]}],"totalCount":1,"returnedCount":1,"nextCursor":null}""";
 
@@ -1247,6 +1247,7 @@ public partial class NetworkPayloadContractTests
             {
                 OperationId = "op-1",
                 Operation = operation,
+                Target = operation == "configure_network_device" ? new() { DeviceName = "PLC_1", NodeId = "node-1" } : null,
                 IncludeIoDetails = operation == "read_hardware_config" ? true : null,
             },
             WorkerCallResult.Ok(payload));
@@ -1341,7 +1342,6 @@ public partial class NetworkPayloadContractTests
         { "add_network_device", "warnings" },
         { "configure_network_device", "deviceName" },
         { "configure_network_device", "appliedSettings" },
-        { "configure_network_device", "skippedSettings" },
         { "configure_network_device", "messages" },
         { "list_network_objects", "items" },
         { "list_network_objects", "items[0].evidence" },

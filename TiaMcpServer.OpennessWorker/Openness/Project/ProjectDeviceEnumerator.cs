@@ -6,8 +6,6 @@ using Siemens.Engineering.HW;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
-using Project = Siemens.Engineering.Project;
-
 internal static class ProjectDeviceEnumerator
 {
     public static IEnumerable<Device> Enumerate(ProjectBase project)

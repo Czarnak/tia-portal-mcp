@@ -17,10 +17,6 @@ public sealed class ConditionalMemberRegisterTests
 {
     private static readonly IReadOnlyList<string> Expected = new[]
     {
-        // Immediate checks appear on new Network mutation outcomes; historical workers may omit them.
-        "AddDeviceResultInfo.Verification",
-        "ConfigureNetworkDeviceResultInfo.Verification",
-        "SubnetLifecycleResultInfo.Verification",
         "DeviceItemInfo.IoDetails",
         "HardwareConfigInfo.Pagination",
         // New ordinary reads report the root collection count; older/paged reads may omit it.
@@ -41,6 +37,8 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.BlockImportOutcome",
         // hmi_write: present on a worker failure after a mutation attempt.
         "WorkerResponse.HmiWriteOutcome",
+        // network_write: present on a rejected configure_network_device item; carries the settings applied before the rejection.
+        "WorkerResponse.ConfigureNetworkDeviceOutcome",
         // vci_write: present when the worker reports a typed mutation outcome.
         "WorkerResponse.VciWriteOutcome",
         // plc_write: present only on a failed content-import item (update_block_logic).

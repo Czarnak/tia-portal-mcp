@@ -6,20 +6,6 @@ namespace TiaMcpServer.Tests.Network;
 public class NetworkVocabularyContractTests
 {
     [Fact]
-    public void VerificationStatuses_HaveExactWireValues()
-    {
-        Assert.Equal(
-            new[] { "passed", "failed", "unverified", "not_required" },
-            new[]
-            {
-                NetworkVerificationStatuses.Passed,
-                NetworkVerificationStatuses.Failed,
-                NetworkVerificationStatuses.Unverified,
-                NetworkVerificationStatuses.NotRequired,
-            });
-    }
-
-    [Fact]
     public void SettingKeys_HaveExactWireValues()
     {
         Assert.Equal(

@@ -1,7 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
-using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;

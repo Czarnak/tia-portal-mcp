@@ -3,9 +3,7 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.ProjectTree;
-using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
-using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;
 using Xunit;
 

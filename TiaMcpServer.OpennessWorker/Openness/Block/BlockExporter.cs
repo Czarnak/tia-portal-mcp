@@ -9,8 +9,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
-using Project = Siemens.Engineering.Project;
-
 public static partial class BlockExporter
 {
     internal static BlockPostconditionEvidence VerifyPrimaryDocument(

@@ -552,9 +552,9 @@ public class StructuredOperationBatchPayloadBudgetTests
     public void NetworkWriteBudget_MinimalSubnetLifecycleResultSurvivesNormalLimits(string operation)
     {
         var validPayload =
-            """{"subnetId":"subnet-1","name":"PN/IE_1","networkDeviceCount":2,"networkDeviceCountUnchanged":true}""";
+            """{"subnetId":"subnet-1","name":"PN/IE_1"}""";
         var item = NetworkPayloadContract.Project(
-            new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
+            new NetworkOperationRequest { OperationId = "op-1", Operation = operation, Target = new() { SubnetId = "subnet-1" } },
             WorkerCallResult.Ok(validPayload));
         Assert.Equal(OperationBatchStatus.Succeeded, item.Status);
 
@@ -589,10 +589,10 @@ public class StructuredOperationBatchPayloadBudgetTests
         // it must never even see a "value" - the contract fails the item first.
         var oversizedUnexpectedMember = new string('x', StructuredOperationBatchPayloadBudget.MaxItemChars + 1);
         var malformedPayload =
-            $$"""{"subnetId":"subnet-1","name":"PN/IE_1","networkDeviceCount":2,"networkDeviceCountUnchanged":true,"relationshipSummary":"{{oversizedUnexpectedMember}}"}""";
+            $$"""{"subnetId":"subnet-1","name":"PN/IE_1","relationshipSummary":"{{oversizedUnexpectedMember}}"}""";
 
         var item = NetworkPayloadContract.Project(
-            new NetworkOperationRequest { OperationId = "op-1", Operation = operation },
+            new NetworkOperationRequest { OperationId = "op-1", Operation = operation, Target = new() { SubnetId = "subnet-1" } },
             WorkerCallResult.Ok(malformedPayload));
 
         Assert.Equal(OperationBatchStatus.Failed, item.Status);

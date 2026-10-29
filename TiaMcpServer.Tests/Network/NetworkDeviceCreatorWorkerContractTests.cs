@@ -15,7 +15,30 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         Assert.Contains("FindExactlyOneSubnet(project, subnetId!)", preflight);
         Assert.Contains("FindExactlyOneIoSystem(ioSystemSubnet, ioSystemNumber.Value)", preflight);
         Assert.Contains("networkInterface.IoConnectors", preflight);
-        Assert.Contains("NetworkPostconditionChecks.IoSystemSkipReason(", source);
+        Assert.Contains("WorkerFailureCategories.TargetNotFound", preflight);
+    }
+
+    [Fact]
+    public void Preflight_NativeDependencyErrorsEscapeAndMissingConnectorFailsBeforeMutation()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
+        var preflight = source[..source.IndexOf("ApplyNodeAttribute(node,", StringComparison.Ordinal)];
+        Assert.DoesNotContain("catch (EngineeringException", preflight);
+        Assert.DoesNotContain("Requested network dependency discovery was unreadable.", preflight);
+        Assert.Contains("if (ioConnector is null)", preflight);
+        Assert.Contains("WorkerFailureCategories.TargetNotFound", preflight);
+        Assert.Contains("the selected network interface exposes no IO connector, so ioSystem cannot be attached. No configuration was attempted.", preflight);
+        Assert.True(preflight.IndexOf("FindExactlyOneIoSystem(", StringComparison.Ordinal)
+            < preflight.IndexOf("networkInterface.IoConnectors", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rejection_StopsAtFirstSiemensExceptionAndCarriesAppliedSubset()
+    {
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceConfigurator.cs");
+        Assert.Contains("WorkerExecution.Classify(", source);
+        Assert.Contains("configureNetworkDeviceOutcome: result", source);
+        Assert.DoesNotContain("IoSystemSkipReason", source);
     }
 
     [Fact]
@@ -25,8 +48,6 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
         var autoGeneration = source.IndexOf("NetworkSettingKeys.PnDeviceNameAutoGeneration, generated", StringComparison.Ordinal);
         var name = source.IndexOf("ApplyNodeAttribute(node, NetworkSettingKeys.PnDeviceName, pnDeviceName", StringComparison.Ordinal);
         Assert.True(autoGeneration >= 0 && name > autoGeneration);
-        var verifier = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkMutationVerifier.cs");
-        Assert.Contains("case NetworkSettingKeys.PnDeviceNameAutoGeneration:", verifier);
     }
 
     [Fact]
@@ -58,18 +79,6 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     }
 
     [Fact]
-    public void Dispatch_AttachesImmediateChecksBeforeSerializingBothDeviceMutationResults()
-    {
-        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.cs");
-        foreach (var method in new[] { "VerifyAddedDevice", "VerifyConfiguration" })
-        {
-            var check = source.IndexOf("result.Verification = NetworkMutationVerifier." + method, StringComparison.Ordinal);
-            Assert.True(check >= 0);
-            Assert.True(source.IndexOf("return Success(result);", check, StringComparison.Ordinal) > check);
-        }
-    }
-
-    [Fact]
     public void Create_UsesTypeItemNameThenDeviceNameForCreateWithItem()
     {
         var source = ReadRepositorySource(
@@ -88,13 +97,10 @@ public sealed class NetworkDeviceCreatorWorkerContractTests
     }
 
     [Fact]
-    public void CreatorAndImmediateVerifier_SelectCreatedItemAmongTopLevelItemsOnly()
+    public void Creator_SelectsCreatedItemAmongTopLevelItemsOnly()
     {
-        foreach (var file in new[] { "NetworkDeviceCreator.cs", "NetworkMutationVerifier.cs" })
-        {
-            var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", file);
-            Assert.Contains("NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>()", source);
-        }
+        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Openness", "Network", "NetworkDeviceCreator.cs");
+        Assert.Contains("NetworkPostconditionChecks.SelectCreatedItem(device.DeviceItems.Cast<DeviceItem>()", source);
     }
 
     [Fact]

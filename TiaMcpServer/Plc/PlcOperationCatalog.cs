@@ -1,6 +1,4 @@
 using TiaMcpServer.OperationBatches;
-using TiaMcpServer.Safety;
-using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Shared;

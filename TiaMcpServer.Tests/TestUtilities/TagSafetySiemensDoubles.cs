@@ -16,6 +16,8 @@ namespace Siemens.Engineering
         public virtual object GetAttribute(string attributeName) => attributeName == "Name"
             ? Name
             : throw new EngineeringException($"Attribute '{attributeName}' is not modeled.");
+        public virtual void SetAttribute(string attributeName, object value)
+            => throw new EngineeringException($"Attribute '{attributeName}' is not modeled.");
         private string name = string.Empty;
         public Exception? NameFailure { get; set; }
         /// <summary>Models Portal silently keeping the old name (a colliding rename does not throw).</summary>
@@ -108,6 +110,7 @@ namespace Siemens.Engineering
     {
         IEngineeringObject? Parent { get; }
         object GetAttribute(string name);
+        void SetAttribute(string name, object value);
     }
 }
 

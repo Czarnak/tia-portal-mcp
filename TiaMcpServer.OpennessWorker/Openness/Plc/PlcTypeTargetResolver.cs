@@ -8,9 +8,6 @@ using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Resolves a <see cref="PlcTypeAddress"/> to a live type group and (optionally) the type itself.
 /// Deliberately a mirror of <see cref="BlockTargetResolver"/>: same deterministic walk, same fuzzy

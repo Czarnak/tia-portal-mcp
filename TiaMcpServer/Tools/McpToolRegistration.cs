@@ -1,5 +1,4 @@
 using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
 using Microsoft.Extensions.DependencyInjection;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
@@ -53,7 +52,7 @@ public static class McpToolRegistration
                 (_, tool, message) => Standalone<CompileCheckReport>(tool, message), closeNestedSchemas: false),
             [typeof(NetworkWriteTools)] = builder => builder.WithClosedTools(typeof(NetworkWriteTools),
                 (services, _, message) => WriteRejection(new NetworkWriteDomain(Client(services)), message),
-                closeNestedSchemas: true),
+                closeNestedSchemas: true, transformSchemaNode: NetworkWriteToolRegistration.AllowNullCurrentSettings),
             [typeof(PlcWriteTools)] = builder => builder.WithClosedTools(typeof(PlcWriteTools),
                 (services, _, message) => WriteRejection(new PlcWriteDomain(Client(services)), message),
                 closeNestedSchemas: true, transformSchemaNode: PlcWriteToolRegistration.AddObEventClassEnum,

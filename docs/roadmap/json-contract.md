@@ -15,8 +15,15 @@ reported no new read-only TIA dialog, completing Task13 live acceptance. Task14 
 documentation/spec updates are complete. The report bounds the maintainer's worker-lifetime
 conclusion because the worker PID changed between read-write and read-only. Offline qualification at `3bb504b`
 passed 4,946 tests and 93.24% linked host/contracts line coverage; this is not Siemens coverage.
-Phase 4 Network alignment and guarded writes are implemented with focused offline qualification;
-final combined gates and fresh live acceptance remain pending. The batch tools are retired
+Phase 4 Network alignment and guarded writes are implemented; the native-rejections migration
+now uses write contract `2.0` while reads stay `1.0`. Installed source `75c0568` passed 17 expected
+functional outcomes and the timing protocol; the Task 7 fixture/offline closeout at that stage passed
+7,665 tests and 95.11% linked host/contracts line coverage. A later host-only follow-up validates
+raw outcomes and worker-response carriers before permissive decoding, without request replay or
+worker replacement. Twelve previously failing malformed-wire cases, sixteen new controls and the
+focused 517-test set passed. The worker is unchanged; this follow-up has offline evidence only,
+without new live/timing qualification. See the [scoped report, final offline gate and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
+The batch tools are retired
 (`plc_write`, 2026-10-07); project-tree alignment remains future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
 On 2026-09-29 the
 [write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
@@ -39,7 +46,7 @@ it without inventing a second mechanism.
 
 | Tool | Current contract | Plan |
 | --- | --- | --- |
-| `network_read`, `network_write` | Version `1.0`, root warnings/explicit nulls; guarded write effects/batch/verification/omission | Implemented; final combined/live gates pending |
+| `network_read`, `network_write` | Read `1.0`, write `2.0`; root warnings/explicit nulls; guarded write effects/batch/verification/omission | Implemented; scoped live matrix on `75c0568`, later host boundary fixes qualified offline only; see the [report, final offline gate and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md) |
 | `browse_project_tree` | Structured (canonical seam, v3 envelope) | Phase 4: align envelope members |
 | `get_project_status`, `compile_check` | Structured standalone envelope (`1.0`) | Phase 2 implemented; live acceptance pending |
 | `bind_project` | Structured standalone envelope (`1.0`) | Implemented; Task13 live-accepted 2026-10-03 in all three modes, with the separate human read-only dialog observation recorded |
@@ -148,12 +155,12 @@ Per-operation items keep the existing `StructuredOperationItem` shape: `operatio
 | Member | `network_read` | `network_write` | `browse_project_tree` |
 | --- | --- | --- | --- |
 | `tool` | present | present | missing |
-| `contractVersion` | missing | missing | present (`3.0`) |
+| `contractVersion` | present (`1.0`) | present (`2.0`) | present (`3.0`) |
 | `success` | present | present | `status` (`succeeded` / `failed`) instead |
 | `error` | present | present | `failure` instead |
-| `warnings` | missing (per item only) | missing (per item only) | present |
+| `warnings` | present | present | present |
 
-For Network the fix is additive. For the project tree it is a breaking change, so it waits for the
+Network alignment is complete. Project-tree alignment is a breaking change, so it waits for the
 tree's next major contract version.
 
 ## Delivery Phases
@@ -299,7 +306,7 @@ not changed by this documentation task.
 
 ### Phase 4: Align and Retire
 
-- Network alignment delivered with guarded writes: version `1.0`, warnings/explicit nulls, effects and typed immediate/final verification; actual-by-default `dryRun=false`, no server elicitation. legacy/unknown-root/nonboolean rejection before entry returns the canonical `validation_error` document with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
+- Network alignment delivered with guarded writes: read `1.0`, write `2.0`, warnings/explicit nulls, effects and typed mutation outcomes; actual-by-default `dryRun=false`, no server elicitation. Planning uses one initial hardware snapshot; `TrustedWriteVerifier` with domain policies reports `trusted`/`superseded` for successful prefix items, without immediate/final native read-back. Failed/skipped items have no verification entry. Configure stops at the first native rejection and retains `appliedSettings`; `skippedSettings`, immediate `identity`/`checks`, `finalChecks` and `networkDeviceCount` are retired. Legacy/unknown-root/nonboolean rejection before entry returns the canonical `validation_error` document with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. The scoped matrix and timing are qualified in the [live report](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md); HMI/VCI shared-verifier migration remains open. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
 - Lifecycle, Network and generic-batch token paths are retired. The remaining legacy text pieces
   (`StandaloneToolResultFormatter`, `WorkerCallResult.ToText` and `ToEnvelopeText`) were deleted

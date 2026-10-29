@@ -2179,6 +2179,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
+                ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
                 HmiWriteOutcome = result.HmiWriteOutcome,
                 VciWriteOutcome = result.VciWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
@@ -2199,6 +2200,7 @@ public class OpennessWorkerClient : IDisposable
                 {
                     IsPostOperationFailure = true,
                     SessionIdentity = result.SessionIdentity,
+                    ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
                     HmiWriteOutcome = result.HmiWriteOutcome,
                     VciWriteOutcome = result.VciWriteOutcome,
                     BlockImportOutcome = result.BlockImportOutcome,
@@ -2224,6 +2226,7 @@ public class OpennessWorkerClient : IDisposable
             {
                 IsPostOperationFailure = true,
                 SessionIdentity = result.SessionIdentity,
+                ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
                 HmiWriteOutcome = result.HmiWriteOutcome,
                 VciWriteOutcome = result.VciWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
@@ -2237,6 +2240,7 @@ public class OpennessWorkerClient : IDisposable
             result.Warnings) with
         {
             SessionIdentity = result.SessionIdentity,
+            ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
             HmiWriteOutcome = result.HmiWriteOutcome,
             VciWriteOutcome = result.VciWriteOutcome,
             BlockImportOutcome = result.BlockImportOutcome,
@@ -2293,6 +2297,7 @@ public class OpennessWorkerClient : IDisposable
                     ResolvedProjectPath = response.ResolvedProjectPath,
                     SessionIdentity = response.SessionIdentity,
                     PortalProcessId = response.PortalProcessId,
+                    ConfigureNetworkDeviceOutcome = response.ConfigureNetworkDeviceOutcome,
                     HmiWriteOutcome = response.HmiWriteOutcome,
                     VciWriteOutcome = response.VciWriteOutcome,
                     BlockImportOutcome = response.BlockImportOutcome,
@@ -2312,6 +2317,7 @@ public class OpennessWorkerClient : IDisposable
                 SessionIdentity = response.SessionIdentity,
                 PortalProcessId = response.PortalProcessId,
                 EngineeringError = response.EngineeringError,
+                ConfigureNetworkDeviceOutcome = response.ConfigureNetworkDeviceOutcome,
                 HmiWriteOutcome = response.HmiWriteOutcome,
                 VciWriteOutcome = response.VciWriteOutcome,
                 BlockImportOutcome = response.BlockImportOutcome,

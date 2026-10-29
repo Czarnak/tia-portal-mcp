@@ -1,5 +1,4 @@
 using Xunit;
-using Siemens.Engineering;
 using Siemens.Engineering.Multiuser;
 using TiaMcpServer.Contracts.Multiuser;
 using TiaMcpServer.Contracts.Project;

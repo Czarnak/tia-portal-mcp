@@ -9,8 +9,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 
-using Project = Siemens.Engineering.Project;
-
 public sealed class DiscoveredHmiSoftware
 {
     public DiscoveredHmiSoftware(string deviceName, HmiSoftware software)

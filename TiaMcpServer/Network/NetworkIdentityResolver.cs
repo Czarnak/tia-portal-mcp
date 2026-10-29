@@ -47,8 +47,8 @@ public static class NetworkIdentityResolver
             "add_network_device" => ResolveCreation(operation, state),
             "configure_network_device" => ResolveConfiguration(operation, state),
             "create_subnet" => ResolveSubnetCreation(operation, state),
-            "update_subnet" => ResolveExistingSubnet(operation, state, validateChanges: true),
-            "delete_subnet" => ResolveExistingSubnet(operation, state, validateChanges: false),
+            "update_subnet" => ResolveExistingSubnet(operation, state),
+            "delete_subnet" => ResolveExistingSubnet(operation, state),
             _ => NetworkIdentityResolution.Fail(
                 WorkerFailureCategories.ValidationError,
                 $"'{operation.Operation}' is not a resolvable network write operation."),
@@ -120,8 +120,7 @@ public static class NetworkIdentityResolver
     /// </summary>
     private static NetworkIdentityResolution ResolveExistingSubnet(
         NetworkOperationRequest operation,
-        HardwareConfigInfo? state,
-        bool validateChanges)
+        HardwareConfigInfo? state)
     {
         if (state is null)
         {
@@ -164,17 +163,6 @@ public static class NetworkIdentityResolver
                 WorkerFailureCategories.TargetKindUnsupported,
                 $"{prefix}: subnet '{requestedId}' reports a missing or unsupported network type and cannot be "
                     + "resolved as a write target.");
-        }
-
-        if (validateChanges
-            && string.Equals(subnet.NetworkType, SubnetLifecycleContract.Ethernet, StringComparison.Ordinal)
-            && operation.SubnetChanges is { } changes
-            && (changes.HighestAddress is not null || changes.TransmissionSpeed is not null))
-        {
-            return NetworkIdentityResolution.Fail(
-                WorkerFailureCategories.ValidationError,
-                $"{prefix}: 'subnetChanges.highestAddress' and 'subnetChanges.transmissionSpeed' are not "
-                    + $"applicable to subnet '{requestedId}', which is network type '{SubnetLifecycleContract.Ethernet}'.");
         }
 
         return NetworkIdentityResolution.Ok(new NetworkWriteTargetEvidence(

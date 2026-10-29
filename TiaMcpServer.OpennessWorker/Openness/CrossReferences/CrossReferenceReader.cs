@@ -13,8 +13,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.CrossReferences;
 
-using Project = Siemens.Engineering.Project;
-
 public static class CrossReferenceReader
 {
     public static CrossReferenceReport Read(ProjectBase project, CrossReferenceSelectorInfo selector, string filterName, int? maxResults = null)

@@ -1,9 +1,11 @@
 # TIA Portal Network and Topology Operations
 
-Current guarded Network candidate: implemented with focused offline qualification. The
-2026-10-05 live-defect fixes were live accepted on TIA Portal V21 within the bounds recorded under
-"Live acceptance evidence" below; final combined qualification remains pending. Older historical
-live evidence applies only to its recorded source and does not qualify this candidate.
+`network_write` uses contract **2.0**; `network_read` remains **1.0**. The native-rejections
+candidate `75c0568` passed offline qualification and all 17 expected outcomes in the scoped installed
+TIA Portal V21 rerun. See the [2026-10-29 acceptance report](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
+for provenance, timing, restoration and untested limits. The later host-only outcome-validation and
+tool-help follow-up has separate offline evidence; it was not installed or retimed and adds no
+native acceptance. Older dated evidence below applies only to its recorded source and contract.
 
 Phase 3 historical status: snapshot-scoped network-object discovery and typed read-only inspection are
 implemented on the Phase 2 single-layer JSON contract. The separately authorized TIA Portal V21
@@ -12,7 +14,7 @@ only three of eight observed communication connections had complete selectors. I
 provenance, retention decision, and coverage limits are recorded in
 [NETWORK_PHASE3_LIVE_ACCEPTANCE.md](NETWORK_PHASE3_LIVE_ACCEPTANCE.md).
 
-Phase 4 status: Ethernet and PROFIBUS subnet create/update/delete are added to `network_write`
+Historical Phase 4 status: Ethernet and PROFIBUS subnet create/update/delete are added to `network_write`
 without a new MCP tool. The earlier audit found contract gaps; focused static gates verify the
 PR 1 repairs. The 2026-09-23 public run stopped at a TIA safety-permission rejection of connected
 Ethernet deletion. On 2026-09-24, a fresh guarded public run passed all eight lifecycle operations,
@@ -25,7 +27,7 @@ shapes, writable values, targeting, deletion semantics, minimal result, and evid
 See [../roadmap/network-operations.md](../roadmap/network-operations.md) for later-phase scope.
 
 Fatal Portal loss escaping Network discovery, selection, connection/attribute reads
-or mutation verification propagates to the worker's shared `portal_lost` mapping.
+or mutation propagates to the worker's shared `portal_lost` mapping.
 Ordinary unreadable evidence and optional-property failures retain their existing
 behavior. The host invalidates verified binding/cursors without replay; inspect
 any attempted mutation and explicitly bind again before retrying. Existing typed
@@ -128,7 +130,7 @@ size/limit metadata and retry guidance. No unsigned fallback or unusable partial
 a terminal page with `nextCursor:null` needs no cursor and can still succeed. Shorten the project
 path and start again, or narrow the request until its result fits one terminal page.
 
-The public request/result schemas and Network `contractVersion:"1.0"` are unchanged.
+The public read request/result schemas and `network_read` `contractVersion:"1.0"` are unchanged.
 
 The [2026-10-23 scoped installed-candidate smoke](../superpowers/acceptance/reports/2026-10-23-c5-network-object-cursors-live-verification.md)
 passed initial/continued paging, tamper rejection, same-owner reverify and a fresh sequence in
@@ -172,8 +174,8 @@ CLR object is `unrepresentable` and is never published through `ToString()`.
 
 `read_hardware_config` pagination is opt-in. Set `pageSize` (`1..200`) on the first request, or
 continue with an opaque `cursor`. A cursor-only continuation defaults to a page size of 100. A
-request with neither field stays on the unpaged path; envelope version/warnings and additive
-connection/root-count evidence follow the current declared contract.
+request with neither field stays on the unpaged path; read envelope version/warnings and additive
+connection evidence follow the current declared contract.
 
 ```jsonc
 {
@@ -437,7 +439,8 @@ runs. Client permission prompts remain independent. Lifecycle still confirms eve
 read-write call; no tool uses safety tokens.
 
 Writes require one exact already-open verified project binding. One pinned lease covers planning,
-ordered re-planning, mutation, immediate/final verification, response composition and audit.
+ordered mutation, verification, response composition and audit. Planning reads one hardware snapshot;
+Network does not re-plan between items, and its shared verification performs no read-back.
 Reads never bind, switch or open a project. Maximum 50 unique-ID operations, caller order,
 stop at the first failed write; later items are `skipped` with `skipReason:"earlierOperationFailed"`.
 No batch rollback or automatic replay.
@@ -449,13 +452,13 @@ No batch rollback or automatic replay.
 | `blocked` | A non-overridable guard prevented execution; root error and MCP `isError:true`. |
 | `error` | Entered input/binding/planning rejection; root error and MCP `isError:true`. |
 
-All write roots declare `tool`, `contractVersion:"1.0"`, `phase`, `success`, `error`, `warnings`,
+All Network write roots declare `tool`, `contractVersion:"2.0"`, `phase`, `success`, `error`, `warnings`,
 `guards`, `effects`, `batch`, `verification`, `omission`. Arrays stay present and declared nulls
 stay explicit. For example, a dry-run envelope contains the resolved effect values in `effects`:
 
 ```jsonc
 {
-  "tool": "network_write", "contractVersion": "1.0", "phase": "preview",
+  "tool": "network_write", "contractVersion": "2.0", "phase": "preview",
   "success": true, "error": null, "warnings": [], "guards": [],
   "effects": [ /* { operationId, effect: resolved target/current/requested settings, omission:null } */ ],
   "batch": null, "verification": null, "omission": null
@@ -465,22 +468,34 @@ stay explicit. For example, a dry-run envelope contains the resolved effect valu
 Effect hardware identities come from ordinary reads. Creation names are request-derived and
 have no invented device/node/subnet ID. `network_delete_connected_subnet` is `info`: its affected
 exact device/node identities explain removed subnet/IO connections. Devices/nodes remain.
-`network_state_unverifiable` is `block`: an unreadable inventory is unknown, never empty.
-Both guards have null satisfaction; Network has no acknowledge guard.
+`network_state_unverifiable` is `block` only when a delete's connection inventory is incomplete
+or contains unresolved/duplicate identities: unknown is never empty. Incomplete project discovery
+fails planning with `worker_operation_failed`. Both guards have null satisfaction; Network has no
+acknowledge guard. Delete effects describe the initial snapshot. A node connected earlier in the
+same call is absent from that list; split calls and inspect again when that connection must appear
+in the deletion effect.
 
-Effect `currentSettings` come from an exact `inspect_network_object` of the target node or subnet,
-so each value reports its real Openness `source` and `access` (for example `Address` is `dynamic`,
-`readWrite`). A setting that inspection cannot read falls back to the hardware snapshot with
-`source:"modeled"` and `access:"unknown"`; the relationship keys `Subnet`, `IoSystemSubnet` and
-`IoSystemNumber` are always that modeled/unknown snapshot evidence.
+Effect `currentSettings` contains plain strings or explicit nulls from that hardware snapshot,
+without a separate `inspect_network_object` call or `source`/`access` metadata. The snapshot lacks
+`PnDeviceNameAutoGeneration`, `HighestAddress` and `TransmissionSpeed`, so their current values are
+null. Only requested settings appear. Relationship effects split `IoSystem` into scalar
+`IoSystemSubnet` and `IoSystemNumber` keys.
 
-Sparse result maps `appliedSettings`/`skippedSettings` preserve `Address`, `SubnetMask`,
-`PnDeviceNameAutoGeneration`, `PnDeviceName`, `Subnet`, `IoSystem`. The single `IoSystem` key
-stands for the requested relationship; effect `currentSettings`/`requestedSettings` and immediate
-and final checks split it into scalar `IoSystemSubnet` (subnet ID) and `IoSystemNumber` keys. No
-value is a nested JSON string. Unrequested keys are absent. Any requested skip fails the item/call while keeping the typed
-result and applied subset. This illustrative partial item belongs to an `applied` envelope
-with `success:false`, `error:null`; the later item was never dispatched:
+Configure applies settings in this order: `Address`, `SubnetMask`, `PnDeviceNameAutoGeneration`,
+`PnDeviceName`, `Subnet`, `IoSystem`. The first native rejection stops the item and the batch;
+earlier settings may remain applied. A failed configure can retain the same typed result as a
+successful one: `deviceName`, sparse `appliedSettings`, `messages[]`. Applied keys preserve those
+six setting names; `IoSystem` reports its number. The host validates a carried outcome's raw JSON
+before permissive envelope normalization can supply missing members or discard malformed evidence.
+Malformed members and carried keys/values that contradict the request fail `protocol_error` without
+echoing the rejected evidence. An absent or explicit-null outcome leaves the applied state unknown;
+it does not prove that no setting changed. A missing IO connector fails `target_not_found` before
+the first setter. Other failed Network operations have `result:null`.
+
+This excerpt is the captured L11c failure: Address and SubnetMask applied before an incompatible
+subnet connection threw `EngineeringTargetInvocationException`. Its envelope has `phase:"applied"`,
+`success:false`, `error:null`, MCP `isError:false`; the later item was never dispatched. The full
+canonical response, warnings and landed reads are in the [functional rerun input](../superpowers/acceptance/reports/inputs/2026-10-29-network-write-native-rejections-live-rerun.md#l11c-corrected-two-key-partial-write-rejection).
 
 ```json
 {
@@ -488,28 +503,26 @@ with `success:false`, `error:null`; the later item was never dispatched:
   "counts": { "succeeded": 0, "failed": 1, "omitted": 0, "skipped": 1 },
   "operations": [
     {
-      "operationId": "configure", "operation": "configure_network_device", "status": "failed",
+      "operationId": "l11c-partial", "operation": "configure_network_device", "status": "failed",
       "result": {
-        "deviceName": "PC_1",
-        "appliedSettings": { "Address": "192.0.2.99" },
-        "skippedSettings": { "PnDeviceName": "Requested setting unavailable on this node." },
-        "messages": [],
-        "verification": {
-          "status": "passed",
-          "identity": {
-            "deviceName": "PC_1", "deviceItemName": null, "nodeId": "node-plc",
-            "interfacePath": [ { "name": "PROFINET interface_1", "positionNumber": 0 } ],
-            "interfaceName": null, "subnetId": null
-          },
-          "checks": [ { "name": "Address", "status": "passed", "expected": "192.0.2.99", "observed": "192.0.2.99", "message": null } ],
-          "message": null
+        "deviceName": "S7-1500/ET200MP station_2",
+        "appliedSettings": { "Address": "192.168.203.42", "SubnetMask": "255.255.254.0" },
+        "messages": []
+      },
+      "failure": {
+        "category": "engineering_rejected",
+        "message": "TIA Portal rejected the operation: Error when calling method 'ConnectToSubnet' of type 'Siemens.Engineering.HW.Node'.\r\n\r\nAssignment to subnet failed.",
+        "engineeringError": {
+          "type": "EngineeringTargetInvocationException",
+          "message": "Error when calling method 'ConnectToSubnet' of type 'Siemens.Engineering.HW.Node'.\r\n\r\nAssignment to subnet failed.",
+          "inner": []
         }
       },
-      "failure": { "category": "worker_operation_failed", "message": "One or more requested network settings could not be applied." },
-      "omission": null, "skipReason": null, "warnings": []
+      "omission": null, "skipReason": null,
+      "warnings": [ "This call stopped at this operation. This operation and any earlier operation in the same call may already have changed TIA state; no rollback was attempted. Re-read the affected objects before retrying." ]
     },
     {
-      "operationId": "later", "operation": "configure_network_device", "status": "skipped",
+      "operationId": "l11c-after", "operation": "create_subnet", "status": "skipped",
       "result": null, "failure": null, "omission": null,
       "skipReason": "earlierOperationFailed", "warnings": []
     }
@@ -518,52 +531,37 @@ with `success:false`, `error:null`; the later item was never dispatched:
 }
 ```
 
-Immediate checks cover applied settings. Verification retains that evidence before deliberate later
-changes, then inspects the effective attempted prefix. A skipped configure setting gets a final
-preservation check whose `expected` is the pre-write value; an unreadable pre-write value leaves that
-check `unverified`, and an earlier applied expectation for the same field takes precedence.
-Missing/unreadable post-read evidence never passes. Later explicitly applied same-field/relationship
-values and designed deletion consequences supersede earlier final expectations, while earlier
-immediate checks remain. A Subnet-only move does not imply IO detach/attach: an earlier explicit
-`IoSystemSubnet`/`IoSystemNumber` expectation remains, so an API-induced side effect can
-conservatively fail final verification after mutation. Inspect before retry; do not rewrite earlier
-successful item history or replay automatically.
+Root `verification` is `{ success, operations, omission }`. Each operation entry has
+`{ operationId, success, check, expected, actual, message }`. `check:"trusted"` means the Openness
+call completed without rejection; nothing was read back. A successful item changed by a later
+attempted item on the same object is `superseded`, including a later failure that may already have
+mutated it. Precondition refusals do not supersede. Configure identity includes the device,
+interface path names/positions and raw node ID; equal raw IDs on different interfaces stay distinct.
+Failed and skipped Network items have no verification entry. A failed configure's `appliedSettings`
+is recovery evidence, not a verification result. Inspect with `network_read` before retrying.
 
-`verification.success` reports only whether the evidence for the attempted prefix matched; execution
-failure is reported by batch/root `success`. So `verification.success:true` with root
-`success:false` is by design: for example, a skipped setting whose pre-write value was preserved.
+`verification.success` is the conjunction of its entries, so it may be true when root `success`
+is false, including when the only attempted item failed and `operations` is empty. Contract 2.0
+removes `skippedSettings`, immediate worker `verification`, `identity`/`checks`, `finalChecks`,
+`networkDeviceCount` and `networkDeviceCountUnchanged`.
 
-Each item's verification `identity` is a typed object `{ deviceName, deviceItemName, nodeId,
-interfacePath, interfaceName, subnetId }`; identity members that do not apply are explicit nulls and
-`interfacePath` is an array of `{ name, positionNumber, typeIdentifier? }` segments whose
-`typeIdentifier` is present only when readable (omitted, not null, otherwise). A device carries
-`deviceName`/`deviceItemName`, a node `deviceName`/`nodeId` with its owner path, a subnet `subnetId`.
-Each `verification.finalChecks[]` entry is `{ kind, operationId, subject, field, status, expected,
-observed, message }`:
-
-| `kind` | `subject` / `operationId` | Example `field` values |
-| --- | --- | --- |
-| `device` | typed device identity | `deviceName`, `deviceItemName`, `typeIdentifier` |
-| `node` | typed node identity | `exists`, `Address`, `SubnetMask`, `PnDeviceNameAutoGeneration`, `PnDeviceName`, `Subnet`, `IoSystemSubnet`, `IoSystemNumber`, `removedSubnet` (subject `subnetId` names the removed subnet) |
-| `subnet` | `{ subnetId }` | `exists`, `absent`, `TypeIdentifier`, `Name`, `HighestAddress`, `TransmissionSpeed` |
-| `operation` | `subject:null`, `operationId` set | `immediateEvidence`, `affectedInventory` |
-| `write` | both null | `finalHardwareState`, `networkDeviceCountUnchanged` |
-
-Names are never interpolated into a check string.
-
-A Siemens `EngineeringTargetInvocationException` that escapes a Network mutation method to the worker's shared catch is reported as the item failure category `engineering_rejected` with the conditional `engineeringError { type, message, inner[] }` member (see the [PLC reference](PLC_OPERATIONS_SUMMARY.md#failures-from-tia-portal)); any other Siemens error keeps `worker_operation_failed`. Many Network services catch `EngineeringException` themselves and still report `worker_operation_failed`, and this was not exercised live for Network. The guard table is unchanged.
+Classification depends on the Siemens exception type: an `EngineeringTargetInvocationException`
+in a mutation worker method is `engineering_rejected`; another `EngineeringException`, such as
+`EngineeringNotSupportedException`, is `worker_operation_failed`. Both carry conditional
+`engineeringError { type, message, inner[] }`. Configure wrap sites use the shared classification
+and preserve their partial result. `portal_lost` takes precedence and invalidates the binding;
+wrapped engineering failures retain any partial configure outcome. Native messages follow the
+Portal UI language; message/inner-chain bounds remain as described in the
+[PLC reference](PLC_OPERATIONS_SUMMARY.md#failures-from-tia-portal).
 
 ### PROFINET device name
 
 Optional boolean `changes.pnDeviceNameAutoGeneration` writes the node's "Generate PROFINET device
-name automatically" setting before `PnDeviceName`, and appears in requested/applied settings,
-verification and audit. On V21 it is a `readWrite` Boolean (`true` on a PLC by default) and
-`PnDeviceName` reports `readOnly` while it is `true`. When `pnDeviceName` is requested, the node
-generates its name automatically (or `PnDeviceName` is not writable), and
-`pnDeviceNameAutoGeneration:false` is not supplied, the item fails at plan time with
-`validation_error` before any change. Pass `pnDeviceNameAutoGeneration:false` together with
-`pnDeviceName` to set the name explicitly. The check blocks only on read evidence: an unreadable
-flag with a writable or unreadable `PnDeviceName` does not block the request.
+name automatically" setting before `PnDeviceName`, and appears in requested/applied settings and
+audit. Pass `pnDeviceNameAutoGeneration:false` together with `pnDeviceName` to set the name
+explicitly. The former planning pre-check is retired. In the scoped L6 run, a name write while
+automatic naming remained enabled failed natively with `EngineeringNotSupportedException`
+(`worker_operation_failed`); its partial result had no applied settings.
 
 Audit v2 contains exactly one record per entered call under `%LOCALAPPDATA%\TiaMcpServer\audit`.
 Actual read-write confirmation is `none`; actual full is `policy`; previews/pre-execution denials
@@ -577,9 +575,11 @@ document delivered, while audit item statuses describe actual execution. No Netw
 - **Subnet**: matched by the exact `changes.subnet.subnetId` (or `changes.ioSystem.subnetId`).
 - **IO system**: matched by the exact `changes.ioSystem.number`, scoped to the already-resolved subnet.
 
-All selection failures remain fail-closed. Host preflight reports a device, node, subnet or IO-system selector that matches nothing as `target_not_found` and one that matches several as `target_ambiguous`; a resolved subnet with a blank or unsupported `NetworkType` is `target_kind_unsupported`; an unreadable discovery snapshot, or a match whose competing identities are unreadable, is `worker_operation_failed`. `postcondition_failed` is reserved for late worker-side drift (zero or multiple matches at mutation time) and failed or unverified postchecks. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
+All selection failures remain fail-closed. Host preflight reports a device, node, subnet or IO-system selector that matches nothing as `target_not_found` and one that matches several as `target_ambiguous`; a resolved subnet with a blank or unsupported `NetworkType` is `target_kind_unsupported`; an unreadable discovery snapshot, or a match whose competing identities are unreadable, is `worker_operation_failed`. `postcondition_failed` covers late worker selector drift, an ignored subnet rename and an unreadable created subnet ID. There is no first-match, first-node, or name-only fallback anywhere in this path — this is what makes it safe to target one exact port on a device that exposes several network interfaces.
 
-`update_subnet` and `delete_subnet` require ordinal `target.kind: "subnet"` and match `target.subnetId` with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. A preflight miss is `target_not_found`/`target_ambiguous`; late zero or multiple worker matches fail as `postcondition_failed`. Delete resolves, type-checks, and captures a nonblank name from the same transaction-local object before `Delete()`. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+`update_subnet` and `delete_subnet` require ordinal `target.kind: "subnet"` and match `target.subnetId` with ordinal (case-sensitive) equality against `HardwareConfigInfo.Subnets`, with no name, index, or first-match fallback. A preflight miss is `target_not_found`/`target_ambiguous`; late zero or multiple worker matches fail as `postcondition_failed`. Delete resolves once and captures a nonblank name from the same transaction-local object before `Delete()`; supported-type validation uses the host snapshot. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
+
+For a requested subnet rename, `update_subnet` compares the name it already reads inside the transaction with the requested name using ordinal (case-sensitive) equality. A mismatch fails with `postcondition_failed` before `CommitOnDispose()`, leaving the subnet update uncommitted. Portal can silently ignore a colliding rename; the failure includes the requested and actual names and identifies a collision as a possible cause. This check adds no native getter or worker call and does not preflight name collisions.
 
 ### Multi-homed example
 
@@ -601,11 +601,10 @@ A PC station (`PC_1`) with two ports — one PLC-facing (`nodeId: "node-plc"`), 
 
 Use this request with `dryRun:true` to preview, then explicitly use `dryRun:false` for authorized
 execution. Stateful FakeWorker tests exercise selection of one multi-homed port and preservation
-of its sibling; that is offline evidence. The applied response now includes typed immediate and
-final read verification; follow uncertain or incomplete outcomes with fresh filtered `network_read`.
-The 2026-10-05 live V21 run is recorded under "Live acceptance evidence" below. Acceptance requires
-complete ordered operation-ID immediate/final verification coverage; summary booleans and fresh
-final reads cannot replace missing immediate evidence.
+of its sibling; that is offline evidence. Contract 2.0 reports completion through `trusted` or
+`superseded`, without read-back. Follow uncertain or incomplete outcomes with fresh filtered
+`network_read`. The 2026-10-05 run below used the earlier verification contract; current scoped
+evidence is recorded in the [2026-10-29 report](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
 
 ## The typed payload result types
 
@@ -618,8 +617,8 @@ Every direct public network worker result decodes against exactly one declared C
 | `list_network_objects` | `NetworkObjectListInfo` | `items[]`, exact `totalCount`/`returnedCount`, and nullable `nextCursor`; each item preserves selector completeness and discovery diagnostics. |
 | `inspect_network_object` | `NetworkObjectInspectionInfo` | Verified `target`, typed `evidence`, independent per-attribute results, and non-fatal `messages[]`. |
 | `add_network_device` | `AddDeviceResultInfo` | `deviceName`, `rootItemName`, `typeIdentifier`, `warnings[]`. |
-| `configure_network_device` | `ConfigureNetworkDeviceResultInfo` | `deviceName`, sparse `appliedSettings`/`skippedSettings`, `messages[]`, and conditional worker `verification` (required on public guarded writes). |
-| `create_subnet`, `update_subnet`, `delete_subnet` | `SubnetLifecycleResultInfo` | Core members are `subnetId`, `name`, `networkDeviceCount`, `networkDeviceCountUnchanged`; conditional worker `verification` is required on public guarded writes. Typed failed/unverified evidence is retained, rather than reporting it as success. All three subnet lifecycle operations share this one result type. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). |
+| `configure_network_device` | `ConfigureNetworkDeviceResultInfo` | `deviceName`, sparse `appliedSettings`, `messages[]`; the same typed result can accompany a failed configure when the worker carries its partial outcome. |
+| `create_subnet`, `update_subnet`, `delete_subnet` | `SubnetLifecycleResultInfo` | Required `subnetId`, `name`; all three operations share this result type. Failed items have `result:null`. See [NETWORK_PHASE4_SUBNET_LIFECYCLE.md](NETWORK_PHASE4_SUBNET_LIFECYCLE.md). |
 
 `NodeInfo.NodeId` and `SubnetInfo.SubnetId` are empty strings, and `IoSystemInfo.Number` is `null`, when the engineering system could not report that identity — an empty/null identity must never satisfy a write selector (see "Selector resolution is exact and fail-closed" above).
 
@@ -718,7 +717,7 @@ without an independent pre-Apply root baseline. See
 [current-revision live report](../superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md).
 Subnet lifecycle operations do not save the project or compile hardware.
 
-The 2026-10-05 live-defect fixes (build from `3642062`, disposable `SimpleProject_copy`, V21)
+The historical 2026-10-05 live-defect fixes (build from `3642062`, disposable `SimpleProject_copy`, V21)
 were confirmed live: 15/15 `list_network_objects` nodes selectable; a connected `delete_subnet`
 applied with `subnetAbsent`, `affectedNodesPreserved` and `affectedConnectionsRemoved` passed;
 `add_network_device` of an ET200SP IM 155-6 PN ST passed; an unknown device (`NOPE-99`) returned
@@ -727,6 +726,39 @@ system 100 on `PN/IE_1` passed its `IoSystemSubnet`/`IoSystemNumber` checks; an 
 produced a passed `Address` preservation final check; a single-device hardware read returned an
 empty `messages[]`; and `pnDeviceNameAutoGeneration:false` followed by a name write applied and
 verified. The run is recorded in the [improvement log](../IMPROVEMENT_LOG.md).
+
+### Contract 2.0 scoped outcomes
+
+The [2026-10-29 acceptance report](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
+and its frozen functional input record 17 passing expected outcomes against one disposable fixture.
+O1 means a native rejection, O2 an accepted write with public `compile_check` diagnostics, and O3
+an accepted write with silent public software compilation. Controls and MCP postconditions are
+identified separately. A clean `compile_check` is PLC software evidence, not hardware acceptance.
+
+| Case | Probe | Observed outcome | Fresh public software compilation |
+| --- | --- | --- | --- |
+| L1 | Duplicate device create | O1: `engineering_rejected`, `EngineeringTargetInvocationException`. | Existing PLC clean; requested new PLC absent. |
+| L2 | Duplicate subnet create | O1: `engineering_rejected`, `EngineeringTargetInvocationException`. | Clean. |
+| L3 | Colliding subnet rename | Portal ignored the rename; MCP `postcondition_failed` before commit. The initial O3 finding caused this check. | Clean. |
+| L4 | Duplicate IP address | O3 in the public software probe; value landed. | Clean; maintainer separately observed hardware compiler collision diagnostics. |
+| L5 | Duplicate PROFINET name | O3 in the public software probe; value landed. | Clean; maintainer separately observed hardware compiler collision diagnostics. |
+| L6 | PN name with automatic naming enabled | O1: `worker_operation_failed`, `EngineeringNotSupportedException`; no settings applied. | Clean. |
+| L7 | PROFIBUS attribute on Ethernet subnet | O1: `worker_operation_failed`, `EngineeringNotSupportedException`; transaction not committed. | Clean. |
+| L8 | Malformed IP address | O1: `engineering_rejected`, `EngineeringTargetInvocationException`. | Not captured for this rerun case. |
+| L9 | PROFINET node to PROFIBUS subnet | O1: `engineering_rejected`, `EngineeringTargetInvocationException`. | Clean. |
+| L10 | Interface without IO connector | Preflight control: `target_not_found` before setters; later item skipped. | Clean. |
+| L11 | GSD mask rejection after Address | O1: `worker_operation_failed`, `EngineeringNotSupportedException`; Address retained, later PN setter and batch item not reached. | Clean. |
+| L11b | PN input accepted with automatic naming disabled | Accepted control: Address, mask and PN input completed; later subnet created. A prior maintainer observation recorded the converted PN name. | Clean. |
+| L11c | Incompatible connect after Address and mask | O1: `engineering_rejected`, `EngineeringTargetInvocationException`; both applied keys retained; later item skipped. | Clean. |
+| L12 | Five-operation lifecycle path | All five completed; rename `superseded` by delete, four other entries `trusted`. Delete guard listed five initial nodes and omitted the same-call connection. | O2: three missing hardware-ID-symbol errors on one PLC after deletion; two other PLCs clean. |
+| L13 | Rejected third item | O1: two succeeded/trusted, one `engineering_rejected`, two skipped. | Created PLC clean. |
+| L13mini | Rejected second item | O1: one succeeded/trusted, one `engineering_rejected`, one skipped. | Not captured for this rerun case. |
+| L14 | Dry run of L13 | Preview control: five effects, no mutation or verification. | Not run. |
+
+These outcomes do not establish arbitrary-device compatibility or hardware/online acceptance.
+The L3 check has no live mixed-property rollback evidence; direct fatal loss after a partial
+configure remains unexercised. Re-read affected objects and use the appropriate hardware review
+and compilation steps before commissioning.
 
 ## Future roadmap
 
