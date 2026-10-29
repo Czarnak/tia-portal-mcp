@@ -50,6 +50,12 @@ internal static class HmiWriteRun
     }
 
     internal static WorkerOperationException Failure(Exception ex, HmiWriteOutcomeInfo outcome)
-        => new(ex is WorkerOperationException failure ? failure.FailureCategory : WorkerFailureCategories.WorkerOperationFailed,
-            ex.Message, (ex as WorkerOperationException)?.Warnings, hmiWriteOutcome: outcome);
+    {
+        if (ex is WorkerOperationException failure)
+            return new(failure.FailureCategory, ex.Message, failure.Warnings, hmiWriteOutcome: outcome, engineeringError: failure.EngineeringError);
+        var engineering = (EngineeringException)ex;
+        var category = WorkerExecution.Classify(engineering, true);
+        return new(category, WorkerExecution.FailureMessage(engineering, category), hmiWriteOutcome: outcome,
+            engineeringError: WorkerExecution.Describe(engineering));
+    }
 }

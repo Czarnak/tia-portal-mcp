@@ -28,7 +28,7 @@ internal sealed class HmiReadLog
     /// Reads something the whole item depends on (a name or a composition); any Openness failure fails the
     /// item as <c>worker_operation_failed</c> naming <paramref name="what"/>.
     /// </summary>
-    public static T Guard<T>(Func<T> read, string what)
+    public static T Guard<T>(Func<T> read, string what, bool describe = false)
     {
         try
         {
@@ -37,7 +37,8 @@ internal sealed class HmiReadLog
         catch (EngineeringException ex)
         {
             throw new WorkerOperationException(
-                WorkerFailureCategories.WorkerOperationFailed, $"{what} could not be read: {ex.Message}");
+                WorkerFailureCategories.WorkerOperationFailed, $"{what} could not be read: {ex.Message}",
+                engineeringError: describe ? WorkerExecution.Describe(ex) : null);
         }
     }
 

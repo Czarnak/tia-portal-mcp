@@ -9,16 +9,16 @@ namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 internal static class HmiTagLookup
 {
     /// <summary>Exact <c>Tags.Find</c> hit first; otherwise a case-insensitive scan that must match exactly one tag.</summary>
-    internal static HmiTag FindUnique(HmiSoftware software, string tagName)
+    internal static HmiTag FindUnique(HmiSoftware software, string tagName, bool describe = false)
     {
-        var exact = HmiReadLog.Guard(() => software.Tags.Find(tagName), $"Tag '{tagName}'");
+        var exact = HmiReadLog.Guard(() => software.Tags.Find(tagName), $"Tag '{tagName}'", describe);
         if (exact is not null)
         {
             return exact;
         }
 
-        var matches = HmiReadLog.Guard(() => software.Tags.ToList(), "The tags")
-            .Where(t => string.Equals(HmiReadLog.Guard(() => t.Name, "A tag name"), tagName, StringComparison.OrdinalIgnoreCase))
+        var matches = HmiReadLog.Guard(() => software.Tags.ToList(), "The tags", describe)
+            .Where(t => string.Equals(HmiReadLog.Guard(() => t.Name, "A tag name", describe), tagName, StringComparison.OrdinalIgnoreCase))
             .ToList();
         if (matches.Count == 0)
         {

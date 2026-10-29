@@ -68,6 +68,11 @@ internal sealed class HmiWriteRoundtripScenario
                     outcome.CleanupMessage = "malformed evidence must not be echoed";
                     return JsonSerializer.Serialize(new WorkerResponse { Success = false, Error = "Synthetic setter failed after create.", FailureCategory = "worker_operation_failed", HmiWriteOutcome = outcome, Warnings = [new string('x', 61000)] }, WorkerJson.Envelope);
                 }
+                if (w.PlcTag == "PortalLost")
+                {
+                    outcome.AppliedProperties.Clear(); outcome.AppliedProperties.Add("Create");
+                    return JsonSerializer.Serialize(new WorkerResponse { Success = false, Error = "Synthetic portal loss.", FailureCategory = "portal_lost", HmiWriteOutcome = outcome }, WorkerJson.Envelope);
+                }
                 if (w.PlcTag is "Missing" or "CleanupFails")
                 {
                     outcome.FailedProperty = "PlcTag";

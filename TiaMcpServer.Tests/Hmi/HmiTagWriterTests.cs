@@ -66,6 +66,36 @@ public class HmiTagWriterTests
         if (cleanup == "deleted") Assert.Empty(software.Tags.Items);
         if (cleanup is "failed" or "identity") Assert.NotNull(error.HmiWriteOutcome.CleanupMessage);
     }
+    [Fact] public void CreateTag_TargetInvocationRejection_IsEngineeringRejectedWithEvidence()
+    {
+        var software = new HmiSoftware();
+        software.Tags.Created = tag => tag.SetFailures["PlcTag"] = new EngineeringTargetInvocationException("m");
+        var request = Request(); request.Connection = "Link"; request.PlcTag = "Missing";
+        var error = Assert.Throws<WorkerOperationException>(() => HmiTagWriter.Create(software, request));
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, error.FailureCategory);
+        Assert.Equal("TIA Portal rejected the operation: m", error.Message);
+        Assert.Equal("EngineeringTargetInvocationException", error.EngineeringError!.Type);
+        Assert.Equal("PlcTag", error.HmiWriteOutcome!.FailedProperty);
+        Assert.Equal("deleted", error.HmiWriteOutcome.Cleanup);
+    }
+    [Fact] public void WriteLookupFailure_CarriesEngineeringError()
+    {
+        var software = new HmiSoftware();
+        software.Tags.FindOverride = _ => throw new EngineeringException("lookup broke");
+        var error = Assert.Throws<WorkerOperationException>(() => HmiTagWriter.Update(software, Request()));
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, error.FailureCategory);
+        Assert.Equal("Tag 'T' could not be read: lookup broke", error.Message);
+        Assert.Equal("lookup broke", error.EngineeringError!.Message);
+    }
+    [Fact] public void ReadPathGuard_OmitsEngineeringError()
+    {
+        var guard = Assert.Throws<WorkerOperationException>(() => HmiReadLog.Guard<int>(() => throw new EngineeringException("x"), "Thing"));
+        Assert.Null(guard.EngineeringError);
+        var software = new HmiSoftware(); software.Tags.FindOverride = _ => throw new EngineeringException("x");
+        var lookup = Assert.Throws<WorkerOperationException>(() => HmiTagLookup.FindUnique(software, "T"));
+        Assert.Null(lookup.EngineeringError);
+        Assert.Equal("Tag 'T' could not be read: x", lookup.Message);
+    }
     [Fact] public void CreateCollision_DoesNotDeleteExistingTag()
     {
         var software = new HmiSoftware(); var existing = software.Tags.Create("T", "Table");

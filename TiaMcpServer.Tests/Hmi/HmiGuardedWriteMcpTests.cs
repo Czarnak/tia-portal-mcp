@@ -188,6 +188,27 @@ public class HmiGuardedWriteMcpTests
         AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
     }
 
+    [Fact]
+    public async Task PortalLostWithOutcome_KeepsOutcomeAndInvalidatesBinding()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
+        var operations = new object[]
+        {
+            new { operationId = "a", operation = "create_tag", tableName = "Existing", tagName = "A", dataType = "Bool" },
+            new { operationId = "b", operation = "create_tag", tableName = "Existing", tagName = "B", connection = "Connection", plcTag = "PortalLost" },
+            new { operationId = "c", operation = "create_tag", tableName = "Existing", tagName = "C", dataType = "Bool" },
+        };
+        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations }));
+        var items = root.GetProperty("batch").GetProperty("operations");
+        Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
+        Assert.Equal("failed", items[1].GetProperty("status").GetString());
+        Assert.Equal("portal_lost", items[1].GetProperty("failure").GetProperty("category").GetString());
+        Assert.Contains("Create", items[1].GetProperty("result").GetRawText());
+        Assert.Equal("skipped", items[2].GetProperty("status").GetString());
+        Assert.False(harness.WorkerClient.BindingSnapshot.IsVerified);
+    }
+
     private static void AssertAudit(JsonElement root, string line)
     {
         var audit = JsonDocument.Parse(line).RootElement;

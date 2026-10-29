@@ -50,10 +50,10 @@ public static class HmiAlarmWriter
     {
         var matches = write.AlarmKind switch
         {
-            "discrete" => HmiReadLog.Guard(() => software.DiscreteAlarms.ToList(), "The discrete alarms")
-                .Where(a => string.Equals(HmiReadLog.Guard(() => a.Name, "An alarm name"), write.AlarmName, StringComparison.OrdinalIgnoreCase)).Cast<AlarmBase>().ToList(),
-            "analog" => HmiReadLog.Guard(() => software.AnalogAlarms.ToList(), "The analog alarms")
-                .Where(a => string.Equals(HmiReadLog.Guard(() => a.Name, "An alarm name"), write.AlarmName, StringComparison.OrdinalIgnoreCase)).Cast<AlarmBase>().ToList(),
+            "discrete" => HmiReadLog.Guard(() => software.DiscreteAlarms.ToList(), "The discrete alarms", describe: true)
+                .Where(a => string.Equals(HmiReadLog.Guard(() => a.Name, "An alarm name", describe: true), write.AlarmName, StringComparison.OrdinalIgnoreCase)).Cast<AlarmBase>().ToList(),
+            "analog" => HmiReadLog.Guard(() => software.AnalogAlarms.ToList(), "The analog alarms", describe: true)
+                .Where(a => string.Equals(HmiReadLog.Guard(() => a.Name, "An alarm name", describe: true), write.AlarmName, StringComparison.OrdinalIgnoreCase)).Cast<AlarmBase>().ToList(),
             _ => throw InvalidKind(),
         };
         if (matches.Count == 0) throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"The {write.AlarmKind} alarm '{write.AlarmName}' was not found.");

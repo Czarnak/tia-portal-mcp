@@ -48,6 +48,45 @@ public sealed class WorkerExecutionTests
     }
 
     [Fact]
+    public void WrappedHmiFailure_AfterPortalDisposal_MapsToPortalLostAndKeepsOutcome()
+    {
+        var revision = 0L;
+        var outcome = new TiaMcpServer.Contracts.Hmi.HmiWriteOutcomeInfo { ObjectName = "T" };
+        outcome.AppliedProperties.Add("Create");
+        var exception = new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "x", hmiWriteOutcome: outcome);
+        var result = WorkerExecution.Execute(() => { revision++; throw exception; }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+        Assert.Same(outcome, result.HmiWriteOutcome);
+    }
+
+    [Fact]
+    public void WrappedHmiFailure_WithoutDisposal_IsRethrown()
+    {
+        var exception = new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "x",
+            hmiWriteOutcome: new TiaMcpServer.Contracts.Hmi.HmiWriteOutcomeInfo { ObjectName = "T" });
+        var thrown = Assert.Throws<WorkerOperationException>(() => WorkerExecution.Execute(() => throw exception, () => 0, mutates: true));
+        Assert.Same(exception, thrown);
+    }
+
+    [Fact]
+    public void WriteLookupFailure_AfterPortalDisposal_MapsToPortalLost()
+    {
+        var revision = 0L;
+        var software = new Siemens.Engineering.HmiUnified.HmiSoftware();
+        software.Tags.FindOverride = _ => { revision++; throw new EngineeringException("Access to a disposed object is not possible."); };
+        var result = WorkerExecution.Execute(() =>
+        {
+            TiaMcpServer.OpennessWorker.Openness.Hmi.HmiTagWriter.Delete(software, new() { TagName = "T" });
+            return new WorkerResponse { Success = true };
+        }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+    }
+
+    [Fact]
     public void WrappedFailureWithoutEngineeringError_IsNeverIntercepted()
     {
         var revision = 0L;
