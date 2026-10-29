@@ -169,11 +169,18 @@ checkpoint.
   `WriteRun.WithEngineeringError` already copies `engineeringError`. A `portal_lost` item keeps its
   outcome for the caller's inspect step; the builder confirms the host projection accepts it.
 - `portal_lost` wins on every write path, not only at `HmiWriteRun.Failure` (design call). The
-  other sites that turn a Siemens exception into a `WorkerOperationException` during an
-  `hmi_write` — `HmiReadLog.Guard` in the pre-mutation lookups, the group and table walk, and the
-  `HmiTextMapper` culture refusal — attach `Describe(ex)` so the existing disposal re-check applies.
-  Their categories stay as they are (`worker_operation_failed`, `target_not_found`). `hmi_read`'s
-  output is unchanged: the write path opts in, the read path does not.
+  disposal re-check in `WorkerExecution.Execute` runs only for a raw `EngineeringException` or a
+  `WorkerOperationException` that carries `EngineeringError`. Checked at `0b2640a`, every HMI
+  write site routes Siemens exceptions through `Failure` (creates, setters, cleanup, the table
+  writer's `Run` including its group walk, text writes) except one: `HmiReadLog.Guard`, used by the
+  target lookups of `update_tag`/`delete_tag` (`HmiTagLookup.FindUnique`) and
+  `update_alarm`/`delete_alarm` (`HmiAlarmWriter.Find`). It replaces the Siemens exception with a
+  `worker_operation_failed` message and drops it. The write lookups get their own opt-in that
+  attaches `Describe(ex)`; the category stays `worker_operation_failed`. `HmiReadLog.Guard` and
+  `HmiTagLookup` are shared with `hmi_read` (tag reads, `validate`), whose output stays unchanged:
+  the read path does not opt in. The same gap on the `hmi_read` path is recorded as an
+  improvement-log follow-up, not fixed here. The worker's own refusals (missing group, table or
+  culture: `target_not_found`) wrap no Siemens exception and are unchanged.
 - Unchanged: non-Siemens exceptions from `Enum.Parse` and checked casts (host shape validation keeps
   them unreachable).
 
