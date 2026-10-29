@@ -7,8 +7,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
 
-using Project = Siemens.Engineering.Project;
-
 public static class TagTableReader
 {
     /// <summary>

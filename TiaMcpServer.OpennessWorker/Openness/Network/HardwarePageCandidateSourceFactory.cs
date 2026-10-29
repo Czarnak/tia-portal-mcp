@@ -7,9 +7,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Builds the Siemens-backed source used by the pure hardware-page candidate coordinator.
 /// Descriptor traversal stays complete and lightweight; deep public materialization remains

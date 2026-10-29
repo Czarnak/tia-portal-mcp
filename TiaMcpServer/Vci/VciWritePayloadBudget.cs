@@ -1,4 +1,3 @@
-using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using static TiaMcpServer.Safety.Pipeline.GuardedWriteResponseBudget;

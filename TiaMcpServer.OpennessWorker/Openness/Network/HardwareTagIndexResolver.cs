@@ -3,9 +3,6 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.OpennessWorker.Openness.Plc;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Resolves the single PLC whose tag tables are matched, deterministically and without a
 /// first-match fallback: an exact (ordinal) <c>plcName</c> match against the PLC software name

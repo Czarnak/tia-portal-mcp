@@ -5,7 +5,6 @@ using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;
-using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Tests.Worker;

@@ -3,7 +3,6 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
 using TiaMcpServer.OpennessWorker.Openness.Network;
-using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using Xunit;
 

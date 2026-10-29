@@ -8,7 +8,6 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Cursors;
 using TiaMcpServer.Network;
-using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.ProjectTree;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;

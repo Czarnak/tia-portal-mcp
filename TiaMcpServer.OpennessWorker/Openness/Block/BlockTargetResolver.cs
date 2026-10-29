@@ -9,9 +9,6 @@ using TiaMcpServer.OpennessWorker.Openness.Plc;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Resolves a <see cref="BlockAddress"/> to a live block group and (optionally) the block itself.
 ///

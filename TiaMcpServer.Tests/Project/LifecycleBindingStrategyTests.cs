@@ -4,7 +4,6 @@ using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
-using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Worker;

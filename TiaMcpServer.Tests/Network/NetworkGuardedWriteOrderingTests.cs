@@ -1,4 +1,3 @@
-using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Network;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Tests.TestSupport;

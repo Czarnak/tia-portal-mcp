@@ -1,4 +1,3 @@
-using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
 

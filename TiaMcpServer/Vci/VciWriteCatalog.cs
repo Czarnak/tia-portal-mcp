@@ -3,7 +3,6 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Vci;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
-using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Vci;
 

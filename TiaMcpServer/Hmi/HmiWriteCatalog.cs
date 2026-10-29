@@ -5,7 +5,6 @@ using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
-using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Hmi;
 

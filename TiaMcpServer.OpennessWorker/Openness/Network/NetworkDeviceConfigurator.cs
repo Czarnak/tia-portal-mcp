@@ -1,7 +1,6 @@
 using System.Globalization;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
-using Siemens.Engineering.HW.Features;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Infrastructure;

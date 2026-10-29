@@ -8,8 +8,6 @@ using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
-using Project = Siemens.Engineering.Project;
-
 public static class HardwareConfigReader
 {
     /// <summary>

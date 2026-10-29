@@ -8,9 +8,6 @@ using TiaMcpServer.OpennessWorker.Openness.Project;
 using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Reads a compact, selector-bearing index of the requested network object kinds. This reader
 /// deliberately does not read attribute values: the follow-up inspection operation owns that work.

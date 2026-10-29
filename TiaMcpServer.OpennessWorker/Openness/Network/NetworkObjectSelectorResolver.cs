@@ -9,9 +9,6 @@ using TiaMcpServer.OpennessWorker.Openness.Project;
 using static TiaMcpServer.OpennessWorker.Openness.Network.NetworkOpennessRead;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Network;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>Resolves snapshot-scoped selectors without name-search fallback after path selection.</summary>
 public static class NetworkObjectSelectorResolver
 {

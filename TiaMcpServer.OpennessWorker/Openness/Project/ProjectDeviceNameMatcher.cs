@@ -3,8 +3,6 @@ using Siemens.Engineering.HW;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Project;
 
-using Project = Siemens.Engineering.Project;
-
 internal static class ProjectDeviceNameMatcher
 {
     internal static IReadOnlyList<(Device Device, string Name)> FindMatches(

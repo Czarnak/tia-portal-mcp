@@ -1,5 +1,4 @@
 using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
 using Microsoft.Extensions.DependencyInjection;
 using TiaMcpServer.Json;
 using TiaMcpServer.Network;

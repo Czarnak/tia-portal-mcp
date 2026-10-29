@@ -8,9 +8,6 @@ using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Plc;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Exports one PlcType as either Siemens external-source text (.udt) or Simatic ML.
 ///

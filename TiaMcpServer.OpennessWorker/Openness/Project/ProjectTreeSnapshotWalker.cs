@@ -9,9 +9,6 @@ using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.OpennessWorker.Openness.Plc;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Project;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// Materializes a typed tree snapshot without legacy presentation paths. A node that cannot be read
 /// is left out of the tree and recorded in <see cref="ProjectTreeSelectionResult.Skipped"/> so write

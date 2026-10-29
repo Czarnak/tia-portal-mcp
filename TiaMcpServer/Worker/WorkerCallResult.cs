@@ -1,7 +1,6 @@
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Block;
-using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Contracts.Vci;
 

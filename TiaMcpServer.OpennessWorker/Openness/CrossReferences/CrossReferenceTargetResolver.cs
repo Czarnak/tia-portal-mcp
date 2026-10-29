@@ -16,9 +16,6 @@ using TiaMcpServer.OpennessWorker.Openness.Project;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.CrossReferences;
-
-using Project = Siemens.Engineering.Project;
-
 /// <summary>
 /// A resolved cross-reference target: either a leaf owner's service (one query) or a container
 /// whose owners the reader fans out over. Exactly one of <see cref="LeafService"/> and
