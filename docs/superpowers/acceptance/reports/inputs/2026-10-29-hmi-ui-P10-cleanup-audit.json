@@ -1,0 +1,69 @@
+{
+  "accessMode": "full",
+  "binding": {
+    "bindingId": "14392bfa5b264f2c86ff76bfd54cdb3a",
+    "invalidatedReason": null,
+    "portalProcessId": 35872,
+    "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\TIA-Portal\\DisposableProjects\\MixOfEverything\\MixOfEverything.ap21",
+    "revision": 5,
+    "sessionGeneration": 6,
+    "state": "verified",
+    "workerSessionId": "4dceebe49a1f461ea437a32b15ec0d7c"
+  },
+  "confirmation": {
+    "by": "policy",
+    "outcome": "not_requested"
+  },
+  "contractVersion": "1.0",
+  "durationMs": 442656,
+  "guards": [],
+  "items": [
+    {
+      "durationMs": null,
+      "failureCategory": null,
+      "failureMessage": null,
+      "operation": "delete_alarm",
+      "operationId": "ui-P10-cleanup",
+      "preconditions": [],
+      "status": "skipped",
+      "target": "{\"changes\":[],\"dependsOn\":null,\"operation\":\"delete_alarm\",\"removes\":{\"references\":[],\"tags\":[]},\"target\":{\"alarmKind\":\"analog\",\"groupPath\":null,\"hmiName\":\"HMI_RT_1\",\"kind\":\"Alarm\",\"name\":\"CP1029_DiscreteA\",\"tableName\":null}}",
+      "warnings": []
+    }
+  ],
+  "phase": "error",
+  "projectPath": "C:\\Users\\LCZ\\Desktop\\RnD\\TIA-Portal\\DisposableProjects\\MixOfEverything\\MixOfEverything.ap21",
+  "recordKind": "write",
+  "recordVersion": 2,
+  "requestedOperations": [
+    {
+      "acquisitionCycle": null,
+      "alarmClass": null,
+      "alarmKind": "analog",
+      "alarmName": "CP1029_DiscreteA",
+      "bitNumber": null,
+      "comment": null,
+      "condition": null,
+      "conditionValue": null,
+      "connection": null,
+      "dataType": null,
+      "displayName": null,
+      "eventText": null,
+      "groupPath": null,
+      "hmiName": "HMI_RT_1",
+      "infoText": null,
+      "newName": null,
+      "operation": "delete_alarm",
+      "operationId": "ui-P10-cleanup",
+      "plcTag": null,
+      "priority": null,
+      "tableName": null,
+      "tagName": null,
+      "triggerMode": null,
+      "triggerTag": null
+    }
+  ],
+  "responseHash": "sha256:e242e2c1114ce20b0c959b84152fc559d5107375ce4dfb1b9a059e3eaecd9842",
+  "responseText": "{\"batch\":null,\"effects\":[{\"effect\":{\"changes\":[],\"dependsOn\":null,\"operation\":\"delete_alarm\",\"removes\":{\"references\":[],\"tags\":[]},\"target\":{\"alarmKind\":\"analog\",\"groupPath\":null,\"hmiName\":\"HMI_RT_1\",\"kind\":\"Alarm\",\"name\":\"CP1029_DiscreteA\",\"tableName\":null}},\"operationId\":\"ui-P10-cleanup\"}],\"error\":{\"category\":\"access_denied\",\"message\":\"The caller cancelled the write call.\"},\"guards\":[],\"phase\":\"error\",\"success\":false,\"verification\":null,\"warnings\":[]}",
+  "timestamp": "2026-10-29T19:17:36.8412019+00:00",
+  "tool": "hmi_write"
+}

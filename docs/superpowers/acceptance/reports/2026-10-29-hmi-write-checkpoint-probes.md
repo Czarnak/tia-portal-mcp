@@ -5,9 +5,10 @@ accepted variants**, **two worker-equivalent refusals**. All 31 restorations mat
 baseline. No silent dropped write or wrong-object mutation was observed.
 
 Five expected-success controls had the expected read-back and clean validation of their validatable
-objects. Three accepted invalid-reference variants had
-specific native validation errors. Their TIA UI compile checks remain for the maintainer's
-return. No implementation plan or product refactor was started.
+objects. Three accepted invalid-reference variants had specific native validation errors.
+Interactive UI follow-up on 2026-10-29 confirmed P10's two alarms and the lowercase names for
+P12-discrete/P12-analog, with no compile errors reported for those three variants. Further UI
+checks are in progress below. No implementation plan or product refactor was started.
 
 ## Scope and provenance
 
@@ -25,7 +26,8 @@ confirmed that the entire project is disposable, and requested 15-minute probe t
   retains `CP1029_*` fixtures; restoration refers to this baseline.
 
 The maintainer compiled the qualified baseline in TIA and reported **“Clean compilation, no
-errors.”** A separate warning count was not supplied. No post-case UI compile is claimed.
+errors.”** A separate warning count was not supplied. The initial unattended run had no
+post-case UI compilation; the subsequent interactive checks are recorded below.
 
 The separate probe used real installed V21 Base/WinCCUnified assemblies in a 64-bit,
 .NET Framework 4.8 MTA process. It followed worker native calls/setter order, without transactions
@@ -120,7 +122,7 @@ and the native sequence succeeded, although the public P13 batch was not execute
 blocked by current host group/culture checks, so installed P22 never reached Create/cleanup.
 These findings do not authorize implementing the proposed guard removals.
 
-## Execution and final state
+## Initial execution and restored state
 
 The successful case run was **15:52:16–16:08:42 Europe/Warsaw** on 2026-10-29
 (14:52:16–15:08:42 UTC). Process exit: **0**, with all 31 completion records.
@@ -166,13 +168,53 @@ Automatic approval review rejected the first P15 attempt on original `AI_CL_M101
 installed check used temporary bound tag `CP1029_Bound`; the original attempt was not repeated.
 The maintainer subsequently confirmed that the whole project was disposable.
 
-## Remaining maintainer checks
+## Interactive UI follow-up — 2026-10-29
 
-Review **P10, P12's three variants, P13, P19 and P20's two variants** together. Reproduce their
-post-write states for UI compilation, since this runner restored immediately. Five controls were
-Validate-clean; P19/P20 had the diagnostics above.
+The maintainer returned and requested the remaining UI compile checks one at a time, then
+explicitly requested leaving completed cases in place instead of cleanup between checks.
+Later full compiles therefore include earlier cases; attribute diagnostics by object name.
+The initial run's five controls had clean validation of their validatable objects; P19/P20
+had the diagnostics above.
 
-Only the baseline received maintainer UI compilation; no post-P7/per-case compile was performed.
+| Variant | Reproduction and validation | Maintainer UI result | Post-check state |
+| --- | --- | --- | --- |
+| P10 | Native leave-open helper succeeded; both alarms validate clean; original discrete unchanged | **“Clean compile; both alarms visible”**; visible Compile panel: **0 errors, 39 warnings** | Retained; cancelled cleanup never dispatched native deletion |
+| P12-discrete | Native rename returned; exact `cp1029_discreteb`, original settings and clean Validate | Lowercase name confirmed in Discrete alarms; no compilation error, everything looks fine | Retained with P10; warning count not supplied |
+| P12-analog | Native rename returned; exact `cp1029_analogb`, original settings and clean Validate | **“Lowercase name confirmed, compilation clean, everything is fine”** | Retained with earlier cases; warning count not supplied |
+| P12-table | Native rename returned; exact `cp1029_tableb` contains `CP1029_TagB`; its tag-table read-back matches and tag Validate is clean | Lowercase name and existing tag confirmed; compilation clean, everything is fine | Retained with earlier cases; warning count not supplied |
+| P13 | Pending | Pending | Pending |
+| P19 | Pending | Pending | Pending |
+| P20-missing-tag | Pending | Pending | Pending |
+| P20-missing-member | Pending | Pending | Pending |
+
+P10's 39 warnings were observed directly in TIA's Compile panel after the maintainer response;
+the baseline warning count was not recorded, so no warning delta is claimed. Only the baseline
+received UI compilation during the initial run; no post-P7/per-case compile was performed then.
+
+The installed P10 create attempt stopped at argument validation: this bridge advertised
+`conditionValue` as a string, whereas the installed server requires a finite JSON number. The
+supplied string `"30"` was rejected and no mutation occurred. The dedicated native helper reproduced
+the intended Int32 setter call instead; its read-back was Double 30, matching the initial run.
+
+The already-sent installed P10 cleanup hit the client's 300-second timeout without a canonical
+response. Its later audit recorded cancellation before mutation: `ui-P10-cleanup`, `access_denied`,
+item `skipped`, no item duration or batch. The analog alarm was independently still present in
+P12-discrete's before-snapshot. Cleanup was not retried. The exact slow planning read was not identified.
+
+Interactive evidence:
+
+- [Leave-open source and instructions](inputs/2026-10-29-hmi-ui-compile-probe/README.md).
+- [P10 native trace, gzip](inputs/2026-10-29-hmi-ui-P10.jsonl.gz), decompressed SHA-256
+  `D1BEF5ACBCD63F6523DAF1A21DA23D9A50632737226E917D4A0B6B6F9F753F45`.
+- [P10 cancelled-cleanup audit](inputs/2026-10-29-hmi-ui-P10-cleanup-audit.json): exact cancellation
+  before mutation, with the delete item skipped.
+- [P12-discrete native trace, gzip](inputs/2026-10-29-hmi-ui-P12-discrete.jsonl.gz), decompressed
+  SHA-256 `AD5ECCCF812A72930FEFCA7135EB3DFA98A7776E8FAAB5556A08A1DC979FB563`.
+- [P12-analog native trace, gzip](inputs/2026-10-29-hmi-ui-P12-analog.jsonl.gz), decompressed
+  SHA-256 `6324FF9826CC474B4B65D81C1A138F065D9EF6491BFA5D2AA19C6042B1B0A639`.
+- [P12-table native trace, gzip](inputs/2026-10-29-hmi-ui-P12-table.jsonl.gz), decompressed
+  SHA-256 `BB62A5C7F0EC6A9C95655E35F099B1405561D5914CF23715EBA1E8B948E9C63C`.
+
 No final O3 ruling, refactor acceptance, product error-projection test, timing comparison,
-local-session regression, cleanup-failure induction or Portal-loss test is claimed. Work stopped
-after the checkpoint; implementation awaits a later decision.
+local-session regression, cleanup-failure induction or Portal-loss test is claimed. Product
+implementation remains stopped after the checkpoint while interactive verification continues.
