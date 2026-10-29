@@ -105,7 +105,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
                 var effect = resolution.Effect!;
                 plans.Add(ItemPlan<HmiWriteEffect>.Resolved(effect) with { DependsOn = effect.DependsOn });
                 guards[item.OperationId] = resolution.Guards;
-                if (!resolution.Guards.Any(g => g.Id is HmiGuardDefinitions.NameCollision or HmiGuardDefinitions.StateUnverifiable))
+                if (!resolution.Guards.Any(g => g.Id is HmiGuardDefinitions.StateUnverifiable))
                 {
                     context.History.Add((item, provisional));
                     TrackOrigins(context, item, effect);

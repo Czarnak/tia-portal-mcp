@@ -70,9 +70,23 @@ public class HmiGuardedWriteMcpTests
         Assert.Equal("PlcTag", result.GetProperty("failedProperty").GetString());
         Assert.Equal(new[] { "Name", "Connection" }, result.GetProperty("appliedProperties").EnumerateArray().Select(p => p.GetString()));
         Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean(), root.GetRawText());
-        var collision = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { Sequence()[0] } }));
-        Assert.Equal("blocked", collision.GetProperty("phase").GetString());
+        // The repeated create is no longer blocked by a host guard; Task 4 pins its typed rejection.
+        var repeat = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { Sequence()[0] } }));
+        Assert.NotEqual("blocked", repeat.GetProperty("phase").GetString());
         Assert.Equal(2, NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Length);
+    }
+
+    [Fact]
+    public async Task NameCollision_ReachesWorker()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var twice = new object[] { Sequence()[0], new { operationId = "again", operation = "create_tag_table", tableName = "NewTable" } };
+        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = twice }));
+        Assert.Equal(2, requests.Methods().Count(m => m == "hmi_create_tag_table"));
+        Assert.DoesNotContain(root.GetProperty("guards").EnumerateArray(), g => g.GetProperty("id").GetString() == "hmi_name_collision");
     }
 
     [Theory]
@@ -164,7 +178,6 @@ public class HmiGuardedWriteMcpTests
         AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
         var after = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations, ["dryRun"] = true }));
         Assert.Equal("preview", after.GetProperty("phase").GetString());
-        Assert.Contains(after.GetProperty("guards").EnumerateArray(), g => g.GetProperty("id").GetString() == "hmi_name_collision");
     }
 
     [Fact]

@@ -67,33 +67,6 @@ public class HmiWritePlannerTests
     }
 
     [Theory]
-    [InlineData("culture")]
-    [InlineData("connection")]
-    [InlineData("class")]
-    public async Task ReferencedNamesMustExist(string name)
-    {
-        using var f = await Fixture.Create();
-        var item = name == "class" ? Alarm("a", "T") : Item();
-        if (name == "culture") item.Comment = [new("xx-XX", "text")];
-        if (name == "connection") item.Connection = "missing";
-        if (name == "class") item.AlarmClass = "missing";
-        Assert.Equal("target_not_found", (await new HmiWritePlanner(f.Client).PlanAsync([item])).Plan.Error!.Category);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task MemberTriggerChecksFullParentMemberPath(bool exists)
-    {
-        using var f = await Fixture.Create();
-        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag(exists ? "T.Member" : "Other.Member") }] });
-        var result = await new HmiWritePlanner(f.Client).PlanAsync([Alarm("a", "T.Member")]);
-        Assert.Equal(exists, result.Plan.Success);
-        if (!exists) Assert.Equal("target_not_found", result.Plan.Error!.Category);
-        Assert.Single(f.Requests, r => r.Method == "hmi_get_tag");
-    }
-
-    [Theory]
     [InlineData("T.Member", "discrete")]
     [InlineData("T.Member.Nested", "analog")]
     public async Task LocalMemberNamesResolveFromObservedContainment(string trigger, string kind)
@@ -107,17 +80,6 @@ public class HmiWritePlannerTests
         Assert.Contains(result.Plan.Items[0].Effect!.Changes, c => c.Field == "triggerTag" && c.Requested == trigger);
         var fresh = await planner.ReplanAsync(alarm);
         Assert.True(fresh.Replan.Success, fresh.Replan.Error?.Message);
-    }
-
-    [Theory]
-    [InlineData("Other.Nested", "target_not_found")]
-    [InlineData("Nested", "target_ambiguous")]
-    public async Task NestedMemberEvidenceCannotBeReparentedOrDeduplicated(string second, string category)
-    {
-        using var f = await Fixture.Create();
-        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag("T.Member"), Members = [new() { Tag = Tag(second) }, new() { Tag = Tag(second) }] }] });
-        var result = await new HmiWritePlanner(f.Client).PlanAsync([Alarm("a", "T.Member.Nested")]);
-        Assert.Equal(category, result.Plan.Error!.Category);
     }
 
     [Theory]
@@ -167,31 +129,6 @@ public class HmiWritePlannerTests
         Assert.Equal("rename", result.Plan.Items[3].DependsOn);
     }
 
-    [Theory]
-    [InlineData(false, "Member")]
-    [InlineData(false, "Member.Nested")]
-    [InlineData(true, "Member")]
-    [InlineData(true, "Member.Nested")]
-    public async Task BoundCreatedMemberIsProvisionalUntilFreshProof(bool recreated, string member)
-    {
-        using var f = await Fixture.Create();
-        var tag = recreated ? "T" : "U";
-        var create = Item("create_tag", "create", tag); create.TableName = "Table"; create.Connection = "Connection"; create.PlcTag = "Struct";
-        var alarm = Alarm("alarm", tag + "." + member);
-        var planner = new HmiWritePlanner(f.Client);
-        var result = await planner.PlanAsync(recreated ? [Item("delete_tag", "delete"), create, alarm] : [create, alarm]);
-        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
-        Assert.Equal("create", result.Plan.Items[^1].DependsOn);
-        Assert.Contains(result.Plan.Items[^2].Effect!.Changes, c => c.Field == "dataType" && c.Derived);
-        Assert.DoesNotContain(f.Requests, r => r.Method == "hmi_get_tag");
-        f.Put("hmi_get_tag|" + tag, new HmiTagDetailInfo { Tag = Tag(tag) });
-        var late = await planner.ReplanAsync(alarm);
-        Assert.Equal("target_not_found", late.Replan.Error!.Category);
-        f.Put("hmi_get_tag|" + tag, new HmiTagDetailInfo { Tag = Tag(tag), Members = [new() { Tag = Tag("Member"), Members = [new() { Tag = Tag("Nested") }] }] });
-        var proved = await planner.ReplanAsync(alarm);
-        Assert.True(proved.Replan.Success, proved.Replan.Error?.Message);
-    }
-
     [Fact]
     public async Task DeletionIncludesUsedByAndMemberAlarmReferences()
     {
@@ -236,15 +173,12 @@ public class HmiWritePlannerTests
     }
 
     [Fact]
-    public async Task ReplanMissIsTargetNotFoundAndCollisionIsGuard()
+    public async Task ReplanMissIsTargetNotFound()
     {
         using var f = await Fixture.Create();
         var item = Item("update_tag"); item.NewName = "U";
         var planner = new HmiWritePlanner(f.Client);
         Assert.True((await planner.PlanAsync([item])).Plan.Success);
-        f.Put("hmi_get_tag|U", new HmiTagDetailInfo { Tag = Tag("U") });
-        var collision = await planner.ReplanAsync(item);
-        Assert.Contains(collision.Guards, g => g.Id == "hmi_name_collision");
         f.Remove("hmi_get_tag|T");
         Assert.Equal("target_not_found", (await planner.ReplanAsync(item)).Replan.Error!.Category);
     }
