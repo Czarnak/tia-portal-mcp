@@ -1,0 +1,241 @@
+{
+  "contractVersion": "1.0",
+  "error": null,
+  "result": {
+    "failure": null,
+    "omission": null,
+    "status": "succeeded",
+    "value": {
+      "author": "ivan",
+      "creationTime": "2021-04-22T06:39:01.3661499Z",
+      "isModified": true,
+      "isOpen": true,
+      "lastModified": "2026-10-29T13:53:53.3716445Z",
+      "lastModifiedBy": "LCZ",
+      "metadata": {
+        "comment": {
+          "translations": [
+            {
+              "culture": "es-ES",
+              "text": ""
+            },
+            {
+              "culture": "fr-FR",
+              "text": ""
+            },
+            {
+              "culture": "en-GB",
+              "text": ""
+            },
+            {
+              "culture": "pl-PL",
+              "text": ""
+            }
+          ]
+        },
+        "compilationSettings": {
+          "isSimulationDuringBlockCompilationEnabled": false,
+          "isVirtualPlcDuringBlockCompilationEnabled": false
+        },
+        "copyright": "",
+        "family": "",
+        "historyEntries": [
+          {
+            "dateTime": "2021-04-22T06:39:17.6458156Z",
+            "text": "Created by user in product version V16 Update 3"
+          },
+          {
+            "dateTime": "2021-09-09T15:50:24.763764Z",
+            "text": "Project saved. V16 Update 4"
+          },
+          {
+            "dateTime": "2022-05-18T08:38:31.2942792Z",
+            "text": "Project saved. V16 Update 5"
+          },
+          {
+            "dateTime": "2023-02-27T09:21:42.9756108Z",
+            "text": "Project saved. V16 Update 6"
+          },
+          {
+            "dateTime": "2025-09-30T05:46:03.201759Z",
+            "text": "Project saved. V16 Update 8"
+          },
+          {
+            "dateTime": "2026-03-03T14:22:10.2038176Z",
+            "text": "Mass data import"
+          },
+          {
+            "dateTime": "2026-08-06T11:29:48.5002022Z",
+            "text": "Upgraded from product version V16 to V21"
+          },
+          {
+            "dateTime": "2026-08-06T11:29:48.5196631Z",
+            "text": "Project saved. V21 Update 2 Hotfix 1"
+          },
+          {
+            "dateTime": "2026-10-14T22:57:21.9867541Z",
+            "text": "Project saved. V21 Update 3"
+          }
+        ],
+        "historyTruncated": false,
+        "languageSettings": {
+          "activeLanguages": [
+            "es-ES",
+            "fr-FR",
+            "en-GB",
+            "pl-PL"
+          ],
+          "editingLanguage": "en-GB",
+          "languages": [
+            "af-ZA",
+            "az-Cyrl-AZ",
+            "az-Latn-AZ",
+            "be-BY",
+            "bg-BG",
+            "ca-ES",
+            "cs-CZ",
+            "da-DK",
+            "de-AT",
+            "de-CH",
+            "de-DE",
+            "de-LI",
+            "de-LU",
+            "el-GR",
+            "en-AU",
+            "en-BZ",
+            "en-CA",
+            "en-029",
+            "en-GB",
+            "en-IE",
+            "en-JM",
+            "en-NZ",
+            "en-PH",
+            "en-TT",
+            "en-US",
+            "en-ZA",
+            "en-ZW",
+            "es-AR",
+            "es-BO",
+            "es-CL",
+            "es-CO",
+            "es-CR",
+            "es-DO",
+            "es-EC",
+            "es-ES",
+            "es-GT",
+            "es-HN",
+            "es-MX",
+            "es-NI",
+            "es-PA",
+            "es-PE",
+            "es-PR",
+            "es-PY",
+            "es-SV",
+            "es-UY",
+            "es-VE",
+            "et-EE",
+            "eu-ES",
+            "fi-FI",
+            "fo-FO",
+            "fr-BE",
+            "fr-CA",
+            "fr-CH",
+            "fr-FR",
+            "fr-LU",
+            "fr-MC",
+            "gl-ES",
+            "hi-IN",
+            "hr-HR",
+            "hu-HU",
+            "hy-AM",
+            "id-ID",
+            "is-IS",
+            "it-CH",
+            "it-IT",
+            "ja-JP",
+            "ka-GE",
+            "kk-KZ",
+            "kok-IN",
+            "ko-KR",
+            "ky-KG",
+            "lt-LT",
+            "lv-LV",
+            "mk-MK",
+            "mn-MN",
+            "mr-IN",
+            "ms-BN",
+            "ms-MY",
+            "nb-NO",
+            "nl-BE",
+            "nl-NL",
+            "nn-NO",
+            "pl-PL",
+            "pt-BR",
+            "pt-PT",
+            "ro-RO",
+            "ru-RU",
+            "sa-IN",
+            "sk-SK",
+            "sl-SI",
+            "sq-AL",
+            "sr-Cyrl-CS",
+            "sr-Latn-CS",
+            "sv-FI",
+            "sv-SE",
+            "sw-KE",
+            "th-TH",
+            "tr-TR",
+            "tt-RU",
+            "uk-UA",
+            "uz-Cyrl-UZ",
+            "uz-Latn-UZ",
+            "vi-VN",
+            "zh-CN",
+            "zh-HK",
+            "zh-MO",
+            "zh-SG",
+            "zh-TW"
+          ],
+          "referenceLanguage": "en-GB"
+        },
+        "usedProducts": [
+          {
+            "name": "Totally Integrated Automation Portal",
+            "version": "V21"
+          },
+          {
+            "name": "STEP 7 Professional",
+            "version": "V21"
+          },
+          {
+            "name": "WinCC Basic/Comfort/Advanced",
+            "version": "V21 Update 1"
+          },
+          {
+            "name": "STEP 7 Safety",
+            "version": "V21"
+          },
+          {
+            "name": "Tech WebApplication",
+            "version": "V21"
+          },
+          {
+            "name": "SINAMICS Startdrive Advanced",
+            "version": "V21 HF2"
+          },
+          {
+            "name": "WinCC Unified",
+            "version": "V21 Update 1"
+          }
+        ]
+      },
+      "name": "MixOfEverything",
+      "path": "C:\\Users\\LCZ\\Desktop\\RnD\\TIA-Portal\\DisposableProjects\\MixOfEverything\\MixOfEverything.ap21",
+      "size": 223773,
+      "version": ""
+    }
+  },
+  "success": true,
+  "tool": "get_project_status",
+  "warnings": []
+}

@@ -4,11 +4,10 @@
 accepted variants**, **two worker-equivalent refusals**. All 31 restorations matched the saved
 baseline. No silent dropped write or wrong-object mutation was observed.
 
-Five expected-success controls had the expected read-back and clean validation of their validatable
-objects. Three accepted invalid-reference variants had specific native validation errors.
-Interactive UI follow-up on 2026-10-29 confirmed P10's two alarms and the lowercase names for
-P12-discrete/P12-analog, with no compile errors reported for those three variants. Further UI
-checks are in progress below. No implementation plan or product refactor was started.
+**Interactive UI follow-up is also complete for all eight accepted variants.** Five expected-success
+controls had the expected read-back, clean validation of their validatable objects and successful
+maintainer UI compilation. The three accepted invalid-reference variants were diagnosed by both
+native validation and the HMI compiler. No implementation plan or product refactor was started.
 
 ## Scope and provenance
 
@@ -170,11 +169,11 @@ The maintainer subsequently confirmed that the whole project was disposable.
 
 ## Interactive UI follow-up — 2026-10-29
 
-The maintainer returned and requested the remaining UI compile checks one at a time, then
-explicitly requested leaving completed cases in place instead of cleanup between checks.
-Later full compiles therefore include earlier cases; attribute diagnostics by object name.
-The initial run's five controls had clean validation of their validatable objects; P19/P20
-had the diagnostics above.
+The maintainer returned and completed the eight remaining UI compile checks one at a time.
+They asked the agent to leave completed cases in place. The five success-control changes remained
+present through the final probe. The maintainer subsequently confirmed manually deleting P19 and
+P20-missing-tag after their compile checks, matching their absence before the next probe. Those
+errors must not be added to later compile totals. No automatic Portal removal is inferred.
 
 | Variant | Reproduction and validation | Maintainer UI result | Post-check state |
 | --- | --- | --- | --- |
@@ -182,10 +181,10 @@ had the diagnostics above.
 | P12-discrete | Native rename returned; exact `cp1029_discreteb`, original settings and clean Validate | Lowercase name confirmed in Discrete alarms; no compilation error, everything looks fine | Retained with P10; warning count not supplied |
 | P12-analog | Native rename returned; exact `cp1029_analogb`, original settings and clean Validate | **“Lowercase name confirmed, compilation clean, everything is fine”** | Retained with earlier cases; warning count not supplied |
 | P12-table | Native rename returned; exact `cp1029_tableb` contains `CP1029_TagB`; its tag-table read-back matches and tag Validate is clean | Lowercase name and existing tag confirmed; compilation clean, everything is fine | Retained with earlier cases; warning count not supplied |
-| P13 | Pending | Pending | Pending |
-| P19 | Pending | Pending | Pending |
-| P20-missing-tag | Pending | Pending | Pending |
-| P20-missing-member | Pending | Pending | Pending |
+| P13 | Delete/Create/DataType returned; only `cp1029_reuse`, Int in `CP1029_TableA`; total tags 101 and Validate clean | **“Tag correctly replaced, compilation clean, everything is fine”** | Retained with earlier cases; warning count not supplied |
+| P19 | Native create returned; missing `CP1029_NoSuchClass` retained; Validate reports AlarmClass missing and shared tag/bit | Alarm created; compiler reports invalid class on `CP1029_P19` and shared trigger on it and `CP1029_DiscreteA`; screenshot: **3 errors, 39 warnings** | Manually deleted by maintainer after compilation; absent before P20 |
+| P20-missing-tag | Native create returned; `CP1029_NoSuchTag` retained; Validate explicitly reports RaisedStateTag missing | Alarm created; compiler: `Trigger tag: The object "CP1029_NoSuchTag" does not exist. Please update or delete the reference.` | Manually deleted by maintainer after compilation; supplied excerpt identifies one error, not a complete compile total |
+| P20-missing-member | Native create returned; existing struct root confirmed; Validate explicitly reports the requested member missing | Alarm created; compiler: `Trigger tag: The object "Communication_DB_MOT01.CP1029_NoSuchMember" does not exist. Please update or delete the reference.` | Helper left result open; supplied excerpt identifies one error, not a complete compile total |
 
 P10's 39 warnings were observed directly in TIA's Compile panel after the maintainer response;
 the baseline warning count was not recorded, so no warning delta is claimed. Only the baseline
@@ -214,7 +213,23 @@ Interactive evidence:
   SHA-256 `6324FF9826CC474B4B65D81C1A138F065D9EF6491BFA5D2AA19C6042B1B0A639`.
 - [P12-table native trace, gzip](inputs/2026-10-29-hmi-ui-P12-table.jsonl.gz), decompressed
   SHA-256 `BB62A5C7F0EC6A9C95655E35F099B1405561D5914CF23715EBA1E8B948E9C63C`.
+- [P13 native trace, gzip](inputs/2026-10-29-hmi-ui-P13.jsonl.gz), decompressed SHA-256
+  `C832EE08CC6ABB7DFD86226CBCF34C0C9D252E0A487367B433DB1812F74420EA`.
+- [P19 native trace, gzip](inputs/2026-10-29-hmi-ui-P19.jsonl.gz), decompressed SHA-256
+  `FF64293F85421248FF78B1FDC53E6E1BE60BC222BE284C62BB36F87EF0912E49`.
+- [P19 compiler screenshot](inputs/2026-10-29-hmi-ui-P19-compile.png), supplied by the maintainer:
+  invalid alarm class, both shared-trigger messages, and total 3 errors/39 warnings.
+- [P20 missing-tag native trace, gzip](inputs/2026-10-29-hmi-ui-P20-missing-tag.jsonl.gz), decompressed
+  SHA-256 `5C1A69233C55E073D2097D85F5352CA1C9C49BC2804D5143CBE7D042B63A0BF8`.
+- [P20 missing-member native trace, gzip](inputs/2026-10-29-hmi-ui-P20-missing-member.jsonl.gz), decompressed
+  SHA-256 `0E285FEF7648443BF338461585B7527E51A0B1570291514D0D3F50998D6648E3`.
+- [Final public project status](inputs/2026-10-29-hmi-ui-final-status.json): exact disposable project
+  open and modified after the last UI check. No helper Save was performed.
 
-No final O3 ruling, refactor acceptance, product error-projection test, timing comparison,
-local-session regression, cleanup-failure induction or Portal-loss test is claimed. Product
-implementation remains stopped after the checkpoint while interactive verification continues.
+**Checkpoint complete.** The tested matrix contains 21 native rejections (O1), three accepted
+invalid-reference variants diagnosed by Validate and UI compilation (O2), five successful controls,
+and two worker-equivalent refusals. No O3 finding was observed within this matrix.
+
+Refactor acceptance, product error-projection tests, timing comparisons, local-session regression,
+cleanup-failure induction and Portal-loss tests remain outside this checkpoint. Product implementation
+remains stopped; no further mutation was issued after the final requested case.
