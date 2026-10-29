@@ -243,19 +243,21 @@ blocks it. Known limits are also listed in the
 Left open by the [native rejections plan](superpowers/plans/2026-10-25-plc-write-native-rejections.md)
 and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
 
-- **Network, HMI and VCI adopt the same error contract.** Separate plans, after this branch merges,
+- **HMI and VCI adopt the same error contract.** Separate plans,
   reusing the `engineering_rejected` / `engineeringError` contract and the timing protocol of
-  `docs/superpowers/acceptance/reports/inputs/2026-10-25-plc-write-timing-before.md`. Order from the
-  plan: HMI (its `hmi_name_collision` guard is the closest match), then Network (the win is
-  verification, not guards), then VCI. `hmi_write` and `vci_write` wrap Siemens exceptions in
+  `docs/superpowers/acceptance/reports/inputs/2026-10-25-plc-write-timing-before.md`. HMI's
+  `hmi_name_collision` guard is the closest match. `hmi_write` and `vci_write` wrap Siemens exceptions in
   `WorkerOperationException` before the shared catch, so neither produces `engineeringError` today;
-  `network_write` services often catch `EngineeringException` themselves. Each plan records its own
+  Network's migration is [complete within its recorded scope](#completed-network_write-native-rejections-2026-10-29). Each plan records its own
   baseline, the guards retired with the live case that proved the native rejection, and its contract
   version bump.
+- **HMI and VCI onto the shared verifier.** PLC and Network now use `TrustedWriteVerifier` with
+  `IWriteVerificationPolicy` and their domain policies. Migrate HMI and VCI separately, retaining
+  their domain-specific mutation outcomes, verification needs and qualification gates.
 - **Content importers still flatten Siemens errors.** `update_block_logic` and `update_type_content`
   import failures, and the exporters, are re-wrapped as `worker_operation_failed` with no
-  `engineeringError`. `WorkerOperationException.EngineeringError` exists but has no producer; the
-  wrap sites would call `WorkerExecution.Describe(ex)`, and the category choice there needs the same
+  `engineeringError`. These wrap sites do not populate `WorkerOperationException.EngineeringError`;
+  they would call `WorkerExecution.Describe(ex)`, and the category choice there needs the same
   type-based rule.
 - **`engineeringError` bounds are silent.** `WorkerExecution.Describe` cuts a message at 4,000
   characters and the inner chain at 8 entries without a marker, which contradicts "verbatim". Drop the
@@ -473,3 +475,53 @@ cases, four additional namespace directions and default-table delete failed `eng
   rejection unreachable through the tool (L6); an `update_tag` unsupported-flag failure can follow an
   applied rename or type change; a create into a missing parent group or folder now fails at mutation;
   14 CLI startup tests are flaky under parallel load (pre-existing).
+
+## Completed: network_write native rejections (2026-10-29)
+
+[Plan](superpowers/plans/2026-10-26-network-write-native-rejections.md),
+[live verification](superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
+`network_write` is contract `2.0`; `network_read` stays `1.0`. Planning reads one initial hardware
+snapshot. Per-item replanning and immediate/final native read-back verification are removed;
+successful prefix items use `TrustedWriteVerifier`, shared with PLC through separate domain policies,
+and report `trusted` or `superseded`. Failed/skipped items have no verification entry. Configure stops
+at its first native rejection and retains typed `appliedSettings`; native exception type determines
+`engineering_rejected` or `worker_operation_failed`, with bounded `engineeringError`.
+
+- **Removed** (Task 6, `8090ded..a353ab8`, production files only): 1,387 lines removed, 423 added,
+  net −964. Largest removals: `NetworkWriteVerifier.cs` -286, `NetworkWritePayloadBudget.cs`
+  -223/+52, `NetworkMutationVerifier.cs` -194, `NetworkPayloadContract.cs` -182/+34 and
+  `PlcWriteVerifier.cs` -125. Shared `TrustedWriteVerifier`, `IWriteVerificationPolicy` and the two
+  domain policies replace duplicated verifier logic. The later scoped L3 rename fix adds seven
+  production lines: final `8090ded..75c0568` is 1,387 removed / 430 added, net −957. L3 compares
+  the already-read subnet name before transaction commit and fails `postcondition_failed` when a
+  colliding rename was ignored; it adds no getter or RPC.
+- **Qualification:** installed `4.2.0-local.79.g75c0568` passed all 17 expected functional outcomes.
+  The final Task 7 fixture/offline closeout changed only FakeWorker and tests; its full Release
+  non-packaging suite passed 7,665 tests with no failures or skips. Linked host/contracts coverage
+  was 12,530/13,174 lines (95.11%, above the 80% gate); this aggregate excludes worker code.
+- **Timing** (audit `durationMs`, `full` mode, disposable fixture; medians in ms): five discarded
+  warm-ups and three measured rounds of N1–N5 used the same installed candidate. The
+  [before input](superpowers/acceptance/reports/inputs/2026-10-27-network-write-timing-before.md)
+  and [after input](superpowers/acceptance/reports/inputs/2026-10-29-network-write-timing-after.md)
+  retain the frozen requests, project inventory and collection protocol.
+
+  | Case | Root before | Root after | Item sum before | Item sum after | Remainder before | Remainder after |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | N1 | 113,088 | 72,668 | 968 | 681 | 112,120 | 71,987 |
+  | N2 | 627,273 | 81,174 | 516,709 | 11,385 | 114,207 | 69,790 |
+  | N3 | 115,959 | 75,940 | 6,945 | 1,319 | 109,932 | 74,267 |
+  | N4 `dryRun` | 57,230 | 70,591 | 0 | 0 | 57,230 | 70,591 |
+  | N5 | 113,739 | 74,545 | 4,383 | 5,638 | 109,356 | 68,907 |
+
+  Each column's median is independent; remainder is root duration minus item-duration sum for
+  each sample, not a direct planning measurement. N2 root time fell 87.1%, while N4 root time
+  rose 23.3% and N5 item time rose 28.6%. Cache and machine/session state were uncontrolled
+  between collection windows, so these observations do not establish universal or causal gains.
+- **Retained limits:** a same-call connect then delete uses the initial snapshot for the delete
+  guard; it does not include the new connection. Fresh duplicate-IP/PROFINET-name writes were
+  accepted and public `compile_check` was silent; that tool compiles PLC software only. The
+  maintainer separately observed hardware-compile collision diagnostics. The literal
+  `Invalid PN Name!` was accepted/normalized, with a prior maintainer clean-compile observation.
+  These accepted/compile-silent observations remain evidence, not new native-rule emulation.
+  Native acceptance outside the recorded matrix and HMI/VCI migration remain open; inspect failed
+  items with `network_read` before retrying because applied properties can remain.

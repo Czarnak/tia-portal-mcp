@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let TIA Portal be the only checker of `network_write`: one hardware read per call, no replan or post-write reads, every Portal rejection typed as `engineering_rejected` with its verbatim `engineeringError`, and a trusted/superseded verifier shared by `plc_write` and `network_write` in `Safety/Pipeline`.
+**Status:** Tasks 0–8 complete, 2026-10-29. Final executed scope and retained limits are in the [acceptance record](../acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md). Historical design assumptions below are superseded by the dated execution rulings, including the scoped L3 comparison and genuine L11c fixture.
+
+**Goal:** Use native Portal rejections for `network_write`: one planning hardware read, no replan or general post-write reads, `EngineeringTargetInvocationException` mapped to `engineering_rejected` and other Siemens engineering exceptions to `worker_operation_failed`, with bounded `engineeringError`; Portal loss retains priority. Share trusted/superseded verification with `plc_write` in `Safety/Pipeline`; retain the live-required L3 comparison of the name already read before commit.
 
 **Architecture:** The guarded single-call pipeline is unchanged. A new `TrustedWriteVerifier<TItem>` plus a per-domain `IWriteVerificationPolicy<TItem>` replace `PlcWriteVerifier`, `NetworkWriteVerifier` and the worker's `NetworkMutationVerifier`. The Network planner shrinks to one `read_hardware_config` and selector resolution; `configure_network_device` stops at the first Siemens rejection and carries the applied subset on the failure; `WorkerExecution` keeps `portal_lost` precedence for wrapped Siemens errors. `network_write` moves to write contract `2.0`.
 
@@ -574,11 +576,11 @@ git commit -m "test: network write task 7 live fixtures"
 - Create: `docs/superpowers/acceptance/reports/<date>-network-write-native-rejections-live-verification.md`
 - Modify: this plan's status line and execution record; `docs/superpowers/specs/2026-10-26-network-write-native-rejections-design.md` status line.
 
-- [ ] **Step 1: Network reference**: rewrite the envelope section for 2.0 (phases unchanged; guards; stop-at-first inside configure; `appliedSettings` on the failure; `engineering_rejected` with one captured L11 example; `trusted`/`superseded`; the §6.8 three-outcome table filled with what each L case showed; remove `skippedSettings`, `finalChecks`, immediate `identity`/`checks`, `networkDeviceCount`). Update the subnet lifecycle document's result and verification text.
-- [ ] **Step 2: AGENTS.md and ARCHITECTURE.md** per the files list; the architecture paragraph names `TrustedWriteVerifier`, `IWriteVerificationPolicy`, the two policies and the HMI/VCI follow-up.
-- [ ] **Step 3: Improvement log**: completed entry with the production line counts from Task 6, the before/after timing table (root, item sum, remainder per N case) and retained limits (same-call connect-then-delete guard, O3 findings); update the open follow-ups.
-- [ ] **Step 4: Acceptance report and index rows**: report with the L matrix and O-classes, the timing comparison and project size, rulings, retained limits; `docs/README.md` rows; roadmap notes; plan and design status lines.
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Network reference**: rewrite the envelope section for 2.0 (phases unchanged; guards; stop-at-first inside configure; `appliedSettings` on the failure; `engineering_rejected` with the captured L11c example; `trusted`/`superseded`; the §6.8 three-outcome table filled with what each L case showed; remove `skippedSettings`, `finalChecks`, immediate `identity`/`checks`, `networkDeviceCount`). Update the subnet lifecycle document's result and verification text.
+- [x] **Step 2: AGENTS.md and ARCHITECTURE.md** per the files list; the architecture paragraph names `TrustedWriteVerifier`, `IWriteVerificationPolicy`, the two policies and the HMI/VCI follow-up.
+- [x] **Step 3: Improvement log**: completed entry with the production line counts from Task 6, the before/after timing table (root, item sum, remainder per N case) and retained limits (same-call connect-then-delete guard, O3 findings); update the open follow-ups.
+- [x] **Step 4: Acceptance report and index rows**: report with the L matrix and O-classes, the timing comparison and project size, rulings, retained limits; `docs/README.md` rows; roadmap notes; plan and design status lines.
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs AGENTS.md
@@ -756,3 +758,11 @@ Fresh root qualification used process-local `TEMP`/`TMP` under ignored `TestResu
 - Attached `coverage/1b6412e1-36e9-4a53-85a8-564c0d2de9f7/coverage.cobertura.xml` and its duplicate have identical SHA256 `83f933165665cc4aeea24440d94812a61fd3942d23682ba5181aad3593d6d7f3`: **12,530 / 13,174 covered lines, 95.11%** in the CI host/contracts scope. The 80% threshold script passed. Native worker coverage is excluded by the existing runsettings; the prior L3 method-specific evidence remains separate.
 
 Logs, RED/GREEN/full-suite TRX and coverage are retained under that ignored task directory. Packaging tests were not run because no packaging inputs changed. Git whitespace/scope checks passed; only the five fixture/test files and this execution record are included in the Task 7 checkpoint. **Task 7 is complete.** Task 8 documentation follows without repeating the suite for documentation-only edits.
+
+### Task 8 documentation closeout — 2026-10-29
+
+Task 7 was committed as `1acd599d96b55225e651c58cae4d18ae296d0db6`. Current Network and subnet references, AGENTS, architecture, improvement log, Network/JSON roadmaps and index now describe write 2.0/read 1.0, one planning snapshot with separate worker target resolution, typed partial failures, shared policies and qualified verification identities. The scoped L3 comparison and configure `EngineeringError` producers are explicit; the remaining importer and HMI/VCI follow-ups stay open. Dated historical reports and all frozen input captures are unchanged.
+
+The new indexed [acceptance record](../acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md) records all 17 cases/O-classes and controls, maintainer rulings, Task 7's offline gate, exact candidate provenance, before/after root/item/remainder medians, project size, restoration and retained limits. It distinguishes fresh software compile evidence from the earlier maintainer hardware observations, labels the valid PN-name control, records the truthful L11c fixture replacement, and preserves the slower N4/N5-item results and uncontrolled-cache limitation. The final production count is +430/−1,387 (net −957), separately from Task 6's historical +423/−1,387.
+
+Independent documentation review approved the four contract/reference files after correcting stale snapshot/selector claims and the L11b attribution. Root validated all changed relative links, local heading anchors, JSON/JSONC examples, the 17-case matrix and all 30 timing cells against frozen inputs. Whitespace and source-scope checks passed. Task 8 changes documentation only; the 7,665-test/95.11% coverage gate remains valid and no suite was repeated. No native call, install, timing or remote write ran during closeout. **Tasks 0–8 are complete within the recorded qualification scope.**

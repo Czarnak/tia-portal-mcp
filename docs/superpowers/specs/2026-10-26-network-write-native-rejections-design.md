@@ -1,7 +1,9 @@
 # network_write native rejections and shared trusted verification — design
 
-**Status:** draft for maintainer approval, 2026-10-26. Branch `refactor/network-write-native-rejections`,
+**Status:** approved 2026-10-26; implemented and scoped-live qualified 2026-10-29. Branch `refactor/network-write-native-rejections`,
 cut from `main` at `8090ded` (merge of the PLC native-rejections PR 201).
+
+The [acceptance record](../acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md) is the final execution outcome. It supersedes the design's assumptions that a non-throwing call always lands and that the proposed PN-name input would be rejected: L3 retains a scoped already-read-name comparison, L11b accepts the converted name, and L11c supplies the genuine partial-rejection fixture. Qualified verification keys, initial-snapshot delete consequences and performance limits are recorded there and in the completed plan.
 
 **Predecessor:** the [PLC write native rejections plan](../plans/2026-10-25-plc-write-native-rejections.md)
 and its [live verification](../acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
