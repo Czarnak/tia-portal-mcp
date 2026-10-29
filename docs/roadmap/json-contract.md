@@ -17,8 +17,12 @@ conclusion because the worker PID changed between read-write and read-only. Offl
 passed 4,946 tests and 93.24% linked host/contracts line coverage; this is not Siemens coverage.
 Phase 4 Network alignment and guarded writes are implemented; the native-rejections migration
 now uses write contract `2.0` while reads stay `1.0`. Installed source `75c0568` passed 17 expected
-functional outcomes and the timing protocol; the final fixture/offline closeout passed 7,665 tests
-and 95.11% linked host/contracts line coverage. See the [scoped live report and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
+functional outcomes and the timing protocol; the Task 7 fixture/offline closeout at that stage passed
+7,665 tests and 95.11% linked host/contracts line coverage. A later host-only follow-up validates
+raw outcomes and worker-response carriers before permissive decoding, without request replay or
+worker replacement. Twelve previously failing malformed-wire cases, sixteen new controls and the
+focused 517-test set passed. The worker is unchanged; this follow-up has offline evidence only,
+without new live/timing qualification. See the [scoped report, final offline gate and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
 The batch tools are retired
 (`plc_write`, 2026-10-07); project-tree alignment remains future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
 On 2026-09-29 the
@@ -42,7 +46,7 @@ it without inventing a second mechanism.
 
 | Tool | Current contract | Plan |
 | --- | --- | --- |
-| `network_read`, `network_write` | Read `1.0`, write `2.0`; root warnings/explicit nulls; guarded write effects/batch/verification/omission | Implemented; scoped native-rejections live matrix and final offline gate passed 2026-10-29; see the [report and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md) |
+| `network_read`, `network_write` | Read `1.0`, write `2.0`; root warnings/explicit nulls; guarded write effects/batch/verification/omission | Implemented; scoped live matrix on `75c0568`, later host boundary fixes qualified offline only; see the [report, final offline gate and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md) |
 | `browse_project_tree` | Structured (canonical seam, v3 envelope) | Phase 4: align envelope members |
 | `get_project_status`, `compile_check` | Structured standalone envelope (`1.0`) | Phase 2 implemented; live acceptance pending |
 | `bind_project` | Structured standalone envelope (`1.0`) | Implemented; Task13 live-accepted 2026-10-03 in all three modes, with the separate human read-only dialog observation recorded |

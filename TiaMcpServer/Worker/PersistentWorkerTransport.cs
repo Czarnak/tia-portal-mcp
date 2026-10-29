@@ -132,6 +132,19 @@ public sealed class PersistentWorkerTransport : IDisposable
                     Error = "The worker VCI outcome did not match its declared contract. Inspect current state before retrying."
                 };
             }
+            try
+            {
+                Network.NetworkPayloadContract.ValidateEnvelopeOutcome(document.RootElement);
+            }
+            catch (JsonException)
+            {
+                return new WorkerResponse
+                {
+                    Success = false,
+                    FailureCategory = WorkerFailureCategories.ProtocolError,
+                    Error = "The worker configure outcome did not match its declared contract. Inspect current state before retrying."
+                };
+            }
             response = JsonSerializer.Deserialize<WorkerResponse>(responseLine, WorkerJson.Envelope);
         }
         catch (JsonException)

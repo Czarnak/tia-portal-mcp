@@ -1,10 +1,11 @@
 # TIA Portal Network and Topology Operations
 
 `network_write` uses contract **2.0**; `network_read` remains **1.0**. The native-rejections
-refactor is offline qualified, with all 17 expected outcomes passing the scoped installed-candidate
+candidate `75c0568` passed offline qualification and all 17 expected outcomes in the scoped installed
 TIA Portal V21 rerun. See the [2026-10-29 acceptance report](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
-for source provenance, timing, restoration and untested limits. Older dated evidence below applies
-only to its recorded source and contract.
+for provenance, timing, restoration and untested limits. The later host-only outcome-validation and
+tool-help follow-up has separate offline evidence; it was not installed or retimed and adds no
+native acceptance. Older dated evidence below applies only to its recorded source and contract.
 
 Phase 3 historical status: snapshot-scoped network-object discovery and typed read-only inspection are
 implemented on the Phase 2 single-layer JSON contract. The separately authorized TIA Portal V21
@@ -484,8 +485,11 @@ Configure applies settings in this order: `Address`, `SubnetMask`, `PnDeviceName
 `PnDeviceName`, `Subnet`, `IoSystem`. The first native rejection stops the item and the batch;
 earlier settings may remain applied. A failed configure can retain the same typed result as a
 successful one: `deviceName`, sparse `appliedSettings`, `messages[]`. Applied keys preserve those
-six setting names; `IoSystem` reports its number. The host rejects carried keys or values that
-contradict the request as `protocol_error`. A missing IO connector fails `target_not_found` before
+six setting names; `IoSystem` reports its number. The host validates a carried outcome's raw JSON
+before permissive envelope normalization can supply missing members or discard malformed evidence.
+Malformed members and carried keys/values that contradict the request fail `protocol_error` without
+echoing the rejected evidence. An absent or explicit-null outcome leaves the applied state unknown;
+it does not prove that no setting changed. A missing IO connector fails `target_not_found` before
 the first setter. Other failed Network operations have `result:null`.
 
 This excerpt is the captured L11c failure: Address and SubnetMask applied before an incompatible

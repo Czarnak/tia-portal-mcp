@@ -11,9 +11,10 @@ Branch: `refactor/network-write-native-rejections`. [Plan](../../plans/2026-10-2
 | Task 0 baseline | `4.2.0-local.68.g012d967`; production-equivalent to branch base `8090ded` | [Before timing input](inputs/2026-10-27-network-write-timing-before.md) |
 | Initial functional observations | `4.2.0-local.76.gf1ae806` | [Frozen October 28 input](inputs/2026-10-28-network-write-native-rejections-live-cases.md); findings subsequently reviewed with the maintainer |
 | L3 fix, full rerun and candidate timing | `4.2.0-local.79.g75c0568`; production source `75c0568d4d83b9430a13feb62aea52e2232c2bad` | [October 29 functional input](inputs/2026-10-29-network-write-native-rejections-live-rerun.md), [after timing input](inputs/2026-10-29-network-write-timing-after.md) |
-| Final Task 7 fixtures/offline gate | `1acd599d96b55225e651c58cae4d18ae296d0db6` | FakeWorker/test changes only; production source remains identical to the installed live-qualified candidate |
+| Final Task 7 fixtures/offline gate | `1acd599d96b55225e651c58cae4d18ae296d0db6` | FakeWorker/test changes only; production source at this gate equals the installed live-qualified candidate |
+| Final-review host follow-up | Host correction after `e0302e1`; native worker and contracts unchanged from `75c0568` | Raw carried-outcome validation and corrected tool-description categories; offline evidence only, with no new installation/live run/timing |
 
-The installed host and worker matched the local Release publish before the full rerun: host SHA256 `a8be3d6e4f2fc7fec4b280ccf9be8e21539ddae3b31f17afc19575c796dc67a9`, worker SHA256 `6eb1db5801f61e3eb83cdf80b217efaf3a12fdeb042dfd6146036ecf01234d59`. Later fixture and documentation commits do not represent an additional installation or live run.
+The installed host and worker matched the local Release publish before the full rerun: host SHA256 `a8be3d6e4f2fc7fec4b280ccf9be8e21539ddae3b31f17afc19575c796dc67a9`, worker SHA256 `6eb1db5801f61e3eb83cdf80b217efaf3a12fdeb042dfd6146036ecf01234d59`. Later fixture, documentation and host follow-up changes do not represent an additional installation or live run. Live and timing observations belong to the installed `75c0568` candidate; the later host boundary changes are qualified offline separately below.
 
 The exact already-open disposable project was explicitly bound. Portal UI language was English, confirmed by the maintainer. Functional and timing calls used `full` mode with both item and document limits raised to 1,000,000 characters. The fixture contained **95 devices, 14 root devices, 108 nodes and four subnets**; its complete hardware document was 964,930 characters. The private project path stays in local provenance.
 
@@ -65,7 +66,7 @@ The final fixtures add `LiveL11c_RejectedSubnetConnection_StopsItemWithAppliedSu
 
 The three existing Audit/Budget/Ordering consumers were migrated to the same incompatible subnet trigger; their assertions were preserved. This removes the synthetic PN rejection instead of adding a compatibility branch. The focused suites passed **106 tests**. Independent review found no actionable issue in the exact five-file fixture/test diff.
 
-Fresh final qualification, serialized with process-local `TEMP`/`TMP` under ignored `TestResults/task7-fixtures-20261029/temp`:
+Task 7 qualification, serialized with process-local `TEMP`/`TMP` under ignored `TestResults/task7-fixtures-20261029/temp`:
 
 | Check | Result |
 | --- | --- |
@@ -75,6 +76,16 @@ Fresh final qualification, serialized with process-local `TEMP`/`TMP` under igno
 | TRX, coverage copies, source and frozen-input checks | Counters parsed independently; coverage copies identical; production source unchanged from `75c0568`; frozen inputs unchanged |
 
 Exact build/test commands are in the [Task 7 execution record](../../plans/2026-10-26-network-write-native-rejections.md#task-7-captured-fixtures-and-final-offline-gate--2026-10-29). Selected coverage attachment: `TestResults/task7-fixtures-20261029/coverage/1b6412e1-36e9-4a53-85a8-564c0d2de9f7/coverage.cobertura.xml`, SHA256 `83f933165665cc4aeea24440d94812a61fd3942d23682ba5181aad3593d6d7f3`. Coverage excludes the native worker under existing runsettings; the method-specific L3 evidence is separate. Packaging tests were not run because packaging inputs did not change. No expensive suite was repeated for documentation-only edits.
+
+### Final-review host corrections (offline)
+
+The whole-branch review found two P2 issues: carried configure outcomes were normalized by permissive envelope deserialization before strict decoding, and the advertised tool description incorrectly classified every native configuration rejection as `engineering_rejected`. The host now validates the raw optional outcome before envelope deserialization, including member names, duplicates and required members, following the existing VCI boundary pattern. Request-dependent checks remain in the Network projection. Invalid recovery evidence becomes `protocol_error` without payload echo, request replay or worker restart; absent and explicit-null conditional outcomes remain allowed.
+
+All 12 malformed-wire regressions first failed with the old behavior. The fix passed **517 focused tests**, including 16 new raw-transport cases: 12 malformed shapes, absent/null controls and valid captured L11c/L13mini outcome controls. The description now states the exception-type distinction and `portal_lost` precedence. Only three host files and the transport test file changed; no native worker/contract or TIA mutation logic changed.
+
+The final Release stub build passed with zero errors and seven existing warnings in 26.41 s. The renewed full Release default suite passed **7,681 tests, zero failures/skips**, exit 0, in 8m32s. CI host/contracts coverage is **12,547 / 13,191 = 95.11%**, with the 80% threshold passed. Both coverage copies have SHA256 `d9fa7e3ba8c68aceb62d936a7c24622d79f80f49989c7f1095e04a6194fbe1a2`; selected attachment is `TestResults/network-final-fix-20261029/coverage/4f56ea04-81bf-4e3c-95d7-4f1fb1c53524/coverage.cobertura.xml`. Root independently parsed the TRX counters and coverage copies.
+
+Logs and RED/GREEN/full-suite TRX are under ignored `TestResults/network-final-fix-20261029/`. Scoped re-review resolved both P2 findings with no material residual issue. The final reviewer and root judged that further native qualification is not required for this host boundary/text correction: native worker and contracts are unchanged, malformed-wire behavior is tested directly, and captured valid outcomes pass. This follow-up is offline-qualified only; no installation, native rerun or timing of the changed host is claimed.
 
 ## Timing comparison
 
@@ -108,4 +119,4 @@ These are observations at the final live boundary. No TIA calls, fixture restora
 - The explicit wrapped engineering/disposal outcome path has offline coverage. Direct fatal failure after partial mutation, broader fault/mode/container combinations and arbitrary hardware models remain unverified here.
 - No PLC download/run/stop, online execution, save or plant acceptance occurred. No remote write was made during closeout.
 
-Task 6's production delta against `8090ded` was **423 added / 1,387 removed, net −964**. The seven-line L3 guard makes the final production delta **430 added / 1,387 removed, net −957**; FakeWorker, tests and documentation are excluded. Remaining HMI/VCI verifier migration and narrower error-flattening follow-ups stay in the [improvement log](../../../IMPROVEMENT_LOG.md).
+Task 6's production delta against `8090ded` was **423 added / 1,387 removed, net −964**. The seven-line L3 guard makes the live-candidate delta **430 added / 1,387 removed, net −957**. The final host boundary adds 25 lines, giving **455 added / 1,387 removed, net −932**; the corrected description replaces a line already changed against the baseline. FakeWorker, tests and documentation are excluded. Remaining HMI/VCI verifier migration and narrower error-flattening follow-ups stay in the [improvement log](../../../IMPROVEMENT_LOG.md).

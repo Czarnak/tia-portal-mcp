@@ -492,15 +492,25 @@ at its first native rejection and retains typed `appliedSettings`; native except
   -223/+52, `NetworkMutationVerifier.cs` -194, `NetworkPayloadContract.cs` -182/+34 and
   `PlcWriteVerifier.cs` -125. Shared `TrustedWriteVerifier`, `IWriteVerificationPolicy` and the two
   domain policies replace duplicated verifier logic. The later scoped L3 rename fix adds seven
-  production lines: final `8090ded..75c0568` is 1,387 removed / 430 added, net −957. L3 compares
+  production lines: the live-qualified stage `8090ded..75c0568` is 1,387 removed / 430 added,
+  net −957. The later host-only boundary fixes bring the current aggregate to 1,387 removed /
+  455 added, net −932. L3 compares
   the already-read subnet name before transaction commit and fails `postcondition_failed` when a
   colliding rename was ignored; it adds no getter or RPC.
 - **Qualification:** installed `4.2.0-local.79.g75c0568` passed all 17 expected functional outcomes.
-  The final Task 7 fixture/offline closeout changed only FakeWorker and tests; its full Release
+  The Task 7 fixture/offline closeout before the host follow-up changed only FakeWorker and tests; its full Release
   non-packaging suite passed 7,665 tests with no failures or skips. Linked host/contracts coverage
   was 12,530/13,174 lines (95.11%, above the 80% gate); this aggregate excludes worker code.
+- **Host-only review follow-up:** raw Network outcomes and worker-response carriers are checked
+  before permissive decoding. Malformed responses fail without request replay or worker replacement.
+  Twelve malformed-wire regression cases were observed failing before the fixes; sixteen new
+  controls and the focused 517-test set then passed. Worker/contracts source remains the live-tested
+  `75c0568` version. These host changes have offline evidence only; they were not installed,
+  live-tested or timed again. The [report](superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
+  records their final full-suite/coverage gate separately.
 - **Timing** (audit `durationMs`, `full` mode, disposable fixture; medians in ms): five discarded
-  warm-ups and three measured rounds of N1–N5 used the same installed candidate. The
+  warm-ups and three measured rounds of N1–N5 used installed source `75c0568`, before the host
+  follow-up. The
   [before input](superpowers/acceptance/reports/inputs/2026-10-27-network-write-timing-before.md)
   and [after input](superpowers/acceptance/reports/inputs/2026-10-29-network-write-timing-after.md)
   retain the frozen requests, project inventory and collection protocol.

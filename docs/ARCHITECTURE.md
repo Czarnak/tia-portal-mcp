@@ -404,6 +404,14 @@ collection payload follows its element type. The marked set, and the reason each
 type has not switched yet, is pinned by `WorkerPayloadNullPolicyRegisterTests`
 (see [the JSON contract roadmap](roadmap/json-contract.md)).
 
+Before the permissive envelope decode, `PersistentWorkerTransport` calls
+`NetworkPayloadContract.ValidateEnvelopeOutcome` on raw `configureNetworkDeviceOutcome` JSON.
+The conditional root name must have exact casing and appear at most once; a non-null value goes
+through the required-member worker-payload reader. Missing, unknown, wrongly cased, duplicate or
+malformed outcome members fail `protocol_error` without publishing the rejected evidence, before
+legacy normalization can fill or discard them. An absent or explicit-null outcome is allowed and
+leaves applied state unknown. Request/subset equality is checked later during typed projection.
+
 `OpennessWorkerClient` is the typed host facade. It constructs `WorkerRequest`
 objects, performs host authorization, invokes the transport, normalizes failure
 categories, caps warning output, and applies project-binding transitions.
@@ -735,7 +743,8 @@ retains the failed frozen verdict and repaired-candidate evidence.
 ### Typed Network payload registry
 
 `TiaMcpServer/Network/NetworkPayloadContract.cs` is the decoder of direct public Network worker
-success payloads. It maps each of the nine network operations to exactly one declared CLR result type
+success payloads and carried failed-configure outcomes. The transport validates a raw carried
+outcome before legacy envelope decoding (§6). The registry maps each of the nine network operations to exactly one declared CLR result type
 (`HardwareConfigInfo`, `CatalogEntryInfo[]`, `AddDeviceResultInfo`,
 `ConfigureNetworkDeviceResultInfo`, `NetworkObjectListInfo`, `NetworkObjectInspectionInfo`, and
 `SubnetLifecycleResultInfo` — the last shared by `create_subnet`, `update_subnet`, and
@@ -974,9 +983,11 @@ network_write request
 The connected-subnet delete path is implemented through this seam without deleting devices;
 the host captures initial affected identities/consequences for guards. The service never calls
 `Project.Save()` or triggers compilation. The [2026-10-29 scoped report](superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
-records current contract 2.0 offline qualification and 17 passing expected live outcomes, including
+records installed candidate `75c0568` contract 2.0 offline qualification and 17 passing expected live outcomes, including
 the L3 ignored rename. Its mixed-property rollback and native write-interruption limits remain
-unverified. Public `compile_check` compiles PLC software and does not qualify hardware configuration.
+unverified. The later host-only raw-outcome validation/tool-help follow-up is verified separately
+offline and adds no installation, native execution or timing evidence. Public `compile_check`
+compiles PLC software and does not qualify hardware configuration.
 A historical Phase 4 run applies only to its recorded older commit. The
 first current-revision live attempt on 2026-09-23 stopped at a TIA safety-permission rejection of
 connected Ethernet deletion. The fresh 2026-09-24 guarded public rerun passed all eight lifecycle

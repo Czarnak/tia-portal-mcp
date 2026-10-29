@@ -1,9 +1,13 @@
 # Network Operations Roadmap
 
 Current Network writes: contract `2.0`; `network_read` stays `1.0`. The native-rejections
-migration is offline qualified and passed its scoped live matrix on installed source `75c0568`:
+migration passed its scoped live matrix on installed source `75c0568`:
 17 expected functional outcomes, followed by five timing warm-ups and 15 measured calls. The
-final fixture/offline closeout passed 7,665 tests and 95.11% linked host/contracts line coverage.
+Task 7 fixture/offline closeout at that stage passed 7,665 tests and 95.11% linked host/contracts
+line coverage. A later host-only follow-up validates raw outcomes and worker-response carriers
+before permissive decoding, without request replay or worker replacement. Twelve previously
+failing malformed-wire cases, sixteen new controls and the focused 517-test set passed. The worker
+is unchanged; this host follow-up has offline evidence only and no new live/timing qualification.
 See the [live verification and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
 and [implementation plan](../superpowers/plans/2026-10-26-network-write-native-rejections.md).
 Warnings/explicit nulls and `dryRun` replace Network tokens; **omitting dryRun executes**.

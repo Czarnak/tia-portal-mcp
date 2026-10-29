@@ -24,6 +24,18 @@ namespace TiaMcpServer.Network;
 /// </summary>
 public static class NetworkPayloadContract
 {
+    internal static void ValidateEnvelopeOutcome(JsonElement envelope)
+    {
+        if (envelope.ValueKind != JsonValueKind.Object) return;
+        var members = envelope.EnumerateObject()
+            .Where(p => string.Equals(p.Name, "configureNetworkDeviceOutcome", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (members.Length == 0) return;
+        // The legacy envelope reader must not normalize malformed recovery evidence before validation.
+        if (members.Length != 1 || members[0].Name != "configureNetworkDeviceOutcome") throw new JsonException();
+        if (members[0].Value.ValueKind != JsonValueKind.Null)
+            CanonicalJson.DeserializeWorkerPayload<ConfigureNetworkDeviceResultInfo>(members[0].Value.GetRawText());
+    }
+
     /// <summary>Projects one worker outcome into its structured batch item.</summary>
     public static StructuredOperationItem Project(NetworkOperationRequest operation, WorkerCallResult workerResult)
         => Project(operation, workerResult, Console.Error.WriteLine);
