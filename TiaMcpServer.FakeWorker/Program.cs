@@ -19,6 +19,11 @@ using TiaMcpServer.OpennessWorker.Worker;
 // Mirrors the real worker's request loop: one JSON line in, one JSON line out, until
 // stdin closes. Scenarios use projectPath file names; UI-open and Portal-inventory environment
 // fixtures declare source state independently, so ordinary reads cannot select or open a project.
+// Captured in 2026-10-29-network-write-native-rejections-live-rerun.md, L11c/L13mini (English UI).
+const string LiveConfigureRejectionMessage = "Error when calling method 'ConnectToSubnet' of type 'Siemens.Engineering.HW.Node'."
+    + "\r\n\r\nAssignment to subnet failed.";
+const string LiveAddressRejectionMessage = "Error when calling method 'set_Address' of type 'Siemens.Engineering.HW.Node'."
+    + "\r\n\r\nnot-an-ip is not a valid IP address";
 var launchLog = Environment.GetEnvironmentVariable("TIA_MCP_FAKE_WORKER_LAUNCH_LOG");
 if (!string.IsNullOrWhiteSpace(launchLog))
     AppendLogLine(launchLog, JsonSerializer.Serialize(new { processId = Environment.ProcessId, args }));
@@ -1472,6 +1477,14 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-guarded-pn-autogeneration":
         case "network-guarded-pn-readonly":
             guardedNetworkState ??= ConnectionEvidenceHardwareConfig(scenario is "network-guarded-incomplete" or "network-guarded-incomplete-selector");
+            if (scenario is "network-guarded-rejected-setting" or "network-guarded-rejected-contradiction"
+                && guardedNetworkState.Subnets.All(subnet => subnet.SubnetId != "590-3"))
+            {
+                var profibus = SelectableSubnet("PROFIBUS_1", "590-3", SubnetLifecycleContract.Profibus,
+                    SubnetLifecycleContract.ProfibusTypeIdentifier, Array.Empty<IoSystemInfo>(), Array.Empty<string>());
+                profibus.ConnectionEvidence = new() { Complete = true };
+                guardedNetworkState.Subnets.Add(profibus);
+            }
             if (scenario == "network-guarded-identity-device" && guardedNetworkState.Devices.Count == 2)
                 guardedNetworkState.Devices.Add(new() { Name = null });
             if (scenario == "network-guarded-identity-node" && GuardedNodes(guardedNetworkState).All(node => node.NodeId.Length > 0))
@@ -3707,19 +3720,26 @@ string HandleGuardedNetwork(string request, HardwareConfigInfo state, string sce
         var applied = new Dictionary<string, string>();
         if (scenario == "network-guarded-no-io-connector" && ReadIntField(request, "ioSystemNumber") is not null)
             return "{\"success\":false,\"failureCategory\":\"target_not_found\",\"error\":\"The selected interface exposes no IO connector.\"}";
-        if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied[NetworkSettingKeys.Address] = address; }
-        if (scenario is "network-guarded-rejected-setting" or "network-guarded-rejected-contradiction"
-            && ReadField(request, "pnDeviceName") is not null)
+        var rejectedSettingScenario = scenario is "network-guarded-rejected-setting" or "network-guarded-rejected-contradiction";
+        var rejectionMessage = rejectedSettingScenario && ReadField(request, "ipAddress") == "not-an-ip"
+            ? LiveAddressRejectionMessage : null;
+        if (rejectionMessage is null)
+        {
+            if (ReadField(request, "ipAddress") is { } address) { node.IpAddress = address; applied[NetworkSettingKeys.Address] = address; }
+            if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied[NetworkSettingKeys.SubnetMask] = mask; }
+            if (rejectedSettingScenario && ReadField(request, "subnetId") == "590-3")
+                rejectionMessage = LiveConfigureRejectionMessage;
+        }
+        if (rejectionMessage is not null)
         {
             var outcome = new ConfigureNetworkDeviceResultInfo { DeviceName = ReadField(request, "deviceName")!,
                 AppliedSettings = scenario == "network-guarded-rejected-contradiction"
                     ? new() { [NetworkSettingKeys.SubnetMask] = "255.0.0.0" } : applied };
             return ToCamelCaseJson(new { success = false, failureCategory = "engineering_rejected",
-                error = "TIA Portal rejected the operation: scripted",
-                engineeringError = new { type = "EngineeringTargetInvocationException", message = "scripted", inner = Array.Empty<object>() },
+                error = "TIA Portal rejected the operation: " + rejectionMessage,
+                engineeringError = new { type = "EngineeringTargetInvocationException", message = rejectionMessage, inner = Array.Empty<object>() },
                 configureNetworkDeviceOutcome = outcome });
         }
-        if (ReadField(request, "subnetMask") is { } mask) { node.SubnetMask = mask; applied[NetworkSettingKeys.SubnetMask] = mask; }
         if (ReadBoolField(request, "pnDeviceNameAutoGeneration") is { } generated)
         { guardedPnAutoGeneration[node.NodeId] = generated; applied[NetworkSettingKeys.PnDeviceNameAutoGeneration] = generated ? "true" : "false"; }
         if (ReadField(request, "pnDeviceName") is { } pn) { node.PnDeviceName = pn; applied[NetworkSettingKeys.PnDeviceName] = pn; }

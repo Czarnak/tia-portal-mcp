@@ -39,7 +39,7 @@ public sealed class NetworkGuardedWriteAuditTests
         if (scenario == "network-guarded-rejected-setting")
         {
             var partial = NetworkGuardedWriteFixture.Configure("partial");
-            partial.Changes = new() { IpAddress = "10.0.0.5", PnDeviceName = "rejected" };
+            partial.Changes = new() { IpAddress = "10.0.0.5", Subnet = new() { SubnetId = "590-3" } };
             args["operations"] = new[] { partial, NetworkGuardedWriteFixture.Delete() };
         }
         var reply = await harness.Client.CallToolAsync("network_write", args);

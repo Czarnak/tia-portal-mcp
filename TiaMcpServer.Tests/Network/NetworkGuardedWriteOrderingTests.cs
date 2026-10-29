@@ -118,7 +118,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         using var audit = new TempAuditDirectory();
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-rejected-setting");
         var partial = NetworkGuardedWriteFixture.Configure("partial", "10.0.0.5");
-        partial.Changes = new() { IpAddress = "10.0.0.5", PnDeviceName = "rejected-name" };
+        partial.Changes = new() { IpAddress = "10.0.0.5", Subnet = new() { SubnetId = "590-3" } };
         var response = await fixture.RunAsync(false, partial, NetworkGuardedWriteFixture.Delete());
         Assert.False(response.Success);
         Assert.Null(response.Error);
@@ -319,7 +319,7 @@ public sealed class NetworkGuardedWriteOrderingTests
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-rejected-contradiction");
         var before = await NetworkWritePlanner.ReadCurrentStateAsync(fixture.Client);
         var operation = NetworkGuardedWriteFixture.Configure("reject");
-        operation.Changes = new() { IpAddress = "10.0.0.5", PnDeviceName = "rejected" };
+        operation.Changes = new() { IpAddress = "10.0.0.5", Subnet = new() { SubnetId = "590-3" } };
         var response = await fixture.RunAsync(false, operation, NetworkGuardedWriteFixture.Delete());
         Assert.False(response.Success);
         var failed = response.Batch!.Operations[0];

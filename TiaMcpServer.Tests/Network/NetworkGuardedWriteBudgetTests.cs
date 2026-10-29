@@ -397,7 +397,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, "network-guarded-rejected-setting");
         var operation = NetworkGuardedWriteFixture.Configure("first", "10.0.0.5");
-        operation.Changes = new() { IpAddress = "10.0.0.5", PnDeviceName = "rejected" };
+        operation.Changes = new() { IpAddress = "10.0.0.5", Subnet = new() { SubnetId = "590-3" } };
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
             new WriteCall<NetworkOperationRequest>(new[] { operation, NetworkGuardedWriteFixture.Delete("second") }, false));
         var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
