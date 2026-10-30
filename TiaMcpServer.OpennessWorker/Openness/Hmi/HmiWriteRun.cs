@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Siemens.Engineering;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Worker;
@@ -53,7 +54,11 @@ internal static class HmiWriteRun
     {
         if (ex is WorkerOperationException failure)
             return new(failure.FailureCategory, ex.Message, failure.Warnings, hmiWriteOutcome: outcome, engineeringError: failure.EngineeringError);
-        var engineering = (EngineeringException)ex;
+        if (ex is not EngineeringException engineering)
+        {
+            ExceptionDispatchInfo.Capture(ex).Throw();
+            throw ex; // unreachable
+        }
         var category = WorkerExecution.Classify(engineering, true);
         return new(category, WorkerExecution.FailureMessage(engineering, category), hmiWriteOutcome: outcome,
             engineeringError: WorkerExecution.Describe(engineering));

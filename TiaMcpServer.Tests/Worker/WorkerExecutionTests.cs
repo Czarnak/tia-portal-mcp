@@ -87,6 +87,15 @@ public sealed class WorkerExecutionTests
     }
 
     [Fact]
+    public void HmiWriteRunFailure_NonEngineeringException_IsRethrownUnchanged()
+    {
+        var exception = new InvalidOperationException("other");
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            TiaMcpServer.OpennessWorker.Openness.Hmi.HmiWriteRun.Failure(exception, new() { ObjectName = "T" }));
+        Assert.Same(exception, thrown);
+    }
+
+    [Fact]
     public void WrappedFailureWithoutEngineeringError_IsNeverIntercepted()
     {
         var revision = 0L;
