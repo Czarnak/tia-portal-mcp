@@ -350,7 +350,7 @@ public class HmiGuardedWriteMcpTests
     [Theory]
     [InlineData("50.0", "50.5")]
     [InlineData("50.5", "50.0")]
-    public async Task AnalogCreateAndUpdateRoundtripBothNumericRepresentations(string created, string updated)
+    public async Task AnalogCreateAndUpdateRoundtrip_IsTrusted(string created, string updated)
     {
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);

@@ -264,7 +264,7 @@ Scope is this branch's 2026-10-29 HMI evidence only; older reports on `main` sta
     - `DanglingReferenceCreate_IsTrusted` (Task 2's deferred inputs).
   - `ToolOutputContractConformanceTests`: assert `hmi_write` `contractVersion == "2.0"` and `hmi_read` still `"1.1"`.
 - [ ] **Step 2:** Run: `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~HmiVerificationPolicyTests|FullyQualifiedName~HmiGuardedWrite|FullyQualifiedName~ToolOutputContractConformanceTests"`. Expected: build errors, then failures.
-- [ ] **Step 3:** Implement per Interfaces. Reshape `FailedCreateReadbackDistinguishesCleanupOutcome`: cleanup state is asserted on the item result, and `verification.success` is true in both cases. In `AnalogCreateAndUpdateRoundtripBothNumericRepresentations`, checks become `trusted`. In `HmiWriteBudgetTests`, `"1.0"` becomes the constant, and the late-guard shape goes if Task 3 removed it. Finish `FailedCreateCarriesCleanup…`'s second call as a typed duplicate rejection.
+- [ ] **Step 3:** Implement per Interfaces. Reshape `FailedCreateReadbackDistinguishesCleanupOutcome`: cleanup state is asserted on the item result, and `verification.success` is true in both cases. In `AnalogCreateAndUpdateRoundtrip_IsTrusted`, checks become `trusted`. In `HmiWriteBudgetTests`, `"1.0"` becomes the constant, and the late-guard shape goes if Task 3 removed it. Finish `FailedCreateCarriesCleanup…`'s second call as a typed duplicate rejection.
 - [ ] **Step 4:** Run `McpToolSchemaTests.OutputSchemasMatchMain`. Expected: pass unchanged; the shared verification schema already equals Network's. If it fails, replace only the `hmi_write` key with the dumped schema, following the Network Task 3 precedent, and re-run.
 - [ ] **Step 5:** Build with stubs and run the full default suite. Expected: 0 errors; all pass.
 - [ ] **Step 6:** Commit: `refactor: hmi write task 4 shared verifier contract 2.0`.
@@ -351,18 +351,19 @@ The disposable project path and name were removed from the 2026-10-29 HMI checkp
 
 ### Task 5 — offline qualification
 
-Candidate `c2a20f8` against merge base `0b2640a`; no code changed.
+Candidate `c2a20f8` against merge base `main` (`0b2640a`); no code changed.
 
-- **Build:** Release stub build, 0 errors, 7 warnings on the branch and 7 on `0b2640a` (same set, none in changed files).
+- **Build:** Release stub build, 0 errors, 7 warnings on the branch and 7 on `main` (`0b2640a`) (same set, none in changed files).
 - **Tests:** default suite in Release with the CI coverage command: 7,630 passed, 0 failed, 0 skipped (7 m 47 s).
 - **Coverage:** CI `coverage.runsettings` plus `scripts/verify-coverage-threshold.ps1`: line rate 0.9504 (12,303 / 12,944), threshold 0.80 met.
 - **Checks:**
-  - No Siemens call before the binding gate: pass; `WriteRun.cs:121` gates before `Validate` (184) and `PlanAsync` (213), and the diff adds no worker call ahead of it.
+  - No Siemens call before the binding gate: pass; `TiaMcpServer/Safety/Pipeline/WriteRun.cs:121` gates before `Validate` (184) and `PlanAsync` (213), and the diff adds no worker call ahead of it.
   - Planning read failure never `engineering_rejected`: pass; `HmiWritePlanner.Read` forwards the read result's category, read methods classify with `mutates=false`, so only `worker_operation_failed`.
   - `portal_lost` wins on the `Failure`, lookup and shared paths: pass; `WorkerExecution.Execute` checks the disposal revision in the `EngineeringException` and `WorkerOperationException` catches, now including `HmiWriteOutcome` (outcome copied onto the response).
+  - Deviation found by the final review: the wrapped catch filter in `TiaMcpServer.OpennessWorker/Worker/WorkerExecution.cs` was widened to `EngineeringError is not null || HmiWriteOutcome is not null` (the plan only asked to copy `HmiWriteOutcome` inside the existing `EngineeringError` catch). Effect: a worker refusal carrying an HMI outcome also becomes `portal_lost` when Portal disposal was observed during that execution, consistent with "portal_lost wins on every write path"; only HMI sets that outcome. Task 7 docs (AGENTS.md / ARCHITECTURE.md) must describe the filter accordingly.
   - `hmi_read` messages unchanged: pass; `HmiReadLog.Guard` and `HmiTagLookup.FindUnique` take `describe=false` by default and only write paths pass `true`.
   - `output-schemas.json`: unchanged (not in the diff), so no change outside the `hmi_write` key; `OutputSchemasMatchMain` passed.
   - No new conditional member outside the register: pass; only a comment edit in `ConditionalMemberRegisterTests`, no new member.
   - No `[LegacyNullOmission]` change: pass; none in the diff.
-- **Numstat, production (`TiaMcpServer`, `.OpennessWorker`, `.Contracts`, `.FakeWorker`):** +215 / -564. Largest: `HmiWriteVerifier.cs` 0/277 (deleted), `HmiWritePlanner.cs` 66/185, `HmiWorkingState.cs` 39/42, `HmiVerificationPolicy.cs` 40/0 (new), `HmiWriteRoundtripScenario.cs` 30/6, `HmiWriteDomain.cs` 9/18, `HmiWriteModels.cs` 3/11, `HmiWriteRun.cs` 8/2; the other nine files change 1-4 lines each. Whole branch incl. tests and docs: +7,367 / -1,386 over 71 files.
+- **Numstat, production (`TiaMcpServer`, `.OpennessWorker`, `.Contracts`, `.FakeWorker`):** +215 / -564. Largest: `HmiWriteVerifier.cs` 0/277 (deleted), `HmiWritePlanner.cs` 66/185, `HmiWorkingState.cs` 39/42, `HmiVerificationPolicy.cs` 40/0 (new), `HmiWriteRoundtripScenario.cs` 30/6, `HmiWriteDomain.cs` 9/18, `HmiWriteModels.cs` 3/11, `HmiWriteRun.cs` 8/2; the remaining files change at most 8 lines each (`HmiAlarmWriter.cs` 4/4 and `HmiTagLookup.cs` 4/4, 8 total each; `HmiWritePayloadBudget.cs` 2/3, 5 total). Whole branch incl. tests and docs: +7,367 / -1,386 over 71 files.
 - **Findings:** none.
