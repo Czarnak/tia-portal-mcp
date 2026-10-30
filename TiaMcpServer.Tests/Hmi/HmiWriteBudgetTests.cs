@@ -122,20 +122,34 @@ public class HmiWriteBudgetTests
     {
         var requests = Enumerable.Range(0, 50).Select(i => HmiGuardedWriteDomainTests.Item(new string('x', 253) + i.ToString("D3"))).ToArray();
         var omission = new StructuredOperationOmission(StructuredOperationBatchPayloadBudget.DocumentLimitReason, 180000, 999999, "hmi_read", "Inspect current state with hmi_read; use smaller hmi_write calls to see every effect. Do not replay the write.");
-        var guards = requests.SelectMany(i => new[]
-        {
-            new WriteGuardReport("hmi_state_unverifiable", "block", i.OperationId, "Incomplete evidence", null),
-            new WriteGuardReport("hmi_state_unverifiable", "block", i.OperationId, "Uncertain references", null),
-            new WriteGuardReport("hmi_deletes_table_contents", "info", i.OperationId, "Table diagnostic", null),
-            new WriteGuardReport("hmi_deletes_referenced_tag", "info", i.OperationId, "Reference diagnostic", null),
-        }).Append(new WriteGuardReport("partial_write", "info", requests[^1].OperationId, "Earlier writes remain", null)).ToArray();
+        var effects = requests.Select(r => new HmiWriteEffectPresentation(r.OperationId, null, omission)).ToArray();
+        WriteGuardReport[] Infos(HmiWriteOperationRequest i) =>
+        [
+            new("hmi_deletes_table_contents", "info", i.OperationId, "Table diagnostic", null),
+            new("hmi_deletes_referenced_tag", "info", i.OperationId, "Reference diagnostic", null),
+        ];
+
+        // A blocked plan never runs: every item may carry two blockers and two info guards (4N).
+        var blockedGuards = requests.SelectMany(i => Infos(i).Prepend(new("hmi_state_unverifiable", "block", i.OperationId, "Uncertain references", null))
+            .Prepend(new("hmi_state_unverifiable", "block", i.OperationId, "Incomplete evidence", null))).ToArray();
+        var blocked = new HmiGuardedWriteResponse("hmi_write", HmiWriteContractVersion.Current, "blocked", false,
+            new("guard_blocked", "Blocked by hmi_state_unverifiable."), blockedGuards.Where(g => g.Severity == "info").Select(g => g.Message).Distinct().ToArray(),
+            blockedGuards, effects, null, null, omission);
+        Assert.Equal(200, blocked.Guards.Count);
+        Assert.True(CanonicalJson.Serialize(blocked).Length <= HmiWritePayloadBudget.MeasureProtectedCore(requests));
+        var boundedBlocked = HmiWritePayloadBudget.Apply(blocked);
+        Assert.True(CanonicalJson.Serialize(boundedBlocked).Length <= 180000);
+        Assert.Equal(requests.Select(r => r.OperationId), boundedBlocked.Effects.Select(e => e.OperationId));
+
+        // An applied call had no blocker: two info guards per item plus one partial-write guard (2N+1).
+        var guards = requests.SelectMany(Infos)
+            .Append(new WriteGuardReport("partial_write", "info", requests[^1].OperationId, "Earlier writes remain", null)).ToArray();
         var items = requests.Select((r, i) => new StructuredOperationItem(r.OperationId, r.Operation, i == 49 ? "failed" : "succeeded", null,
             i == 49 ? new("engineering_rejected", "TIA Portal rejected the operation") : null, omission, null, [])).ToArray();
-        var response = new HmiGuardedWriteResponse("hmi_write", HmiWriteContractVersion.Current, "applied", false, null, [], guards,
-            requests.Select(r => new HmiWriteEffectPresentation(r.OperationId, null, omission)).ToArray(),
+        var response = new HmiGuardedWriteResponse("hmi_write", HmiWriteContractVersion.Current, "applied", false, null, [], guards, effects,
             StructuredOperationBatch.FromItems(items, new(true, 999999, 180000, 50, 1, requests.Select(r => r.OperationId).ToArray())),
             new(false, [], omission), omission);
-        Assert.Equal(201, response.Guards.Count);
+        Assert.Equal(101, response.Guards.Count);
         Assert.True(CanonicalJson.Serialize(response).Length <= HmiWritePayloadBudget.MeasureProtectedCore(requests));
         var bounded = HmiWritePayloadBudget.Apply(response);
         Assert.True(CanonicalJson.Serialize(bounded).Length <= 180000);
