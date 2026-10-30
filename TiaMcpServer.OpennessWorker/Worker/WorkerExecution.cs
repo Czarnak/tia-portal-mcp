@@ -26,7 +26,8 @@ internal static class WorkerExecution
             var category = Classify(ex, mutates);
             return Failure(category, FailureMessage(ex, category), Describe(ex));
         }
-        // Only HmiWriteRun.Failure sets HmiWriteOutcome: admitting it makes portal_lost win on every wrapped HMI write failure.
+        // Wrapped Siemens failures (EngineeringError: Network/PLC/HMI paths) and HMI write outcomes are re-checked for current-execution
+        // Portal disposal so portal_lost wins; only HmiWriteRun.Failure sets HmiWriteOutcome.
         catch (WorkerOperationException ex) when (ex.EngineeringError is not null || ex.HmiWriteOutcome is not null)
         {
             if (portalDisposalRevision() != before)
