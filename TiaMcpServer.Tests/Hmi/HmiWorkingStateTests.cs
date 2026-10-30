@@ -293,11 +293,13 @@ public class HmiWorkingStateTests
         var later = state.Resolve(Update("later", taken, null));
         Assert.Null(later.Error); Assert.Empty(later.Guards);
         Assert.Equal(taken, later.Effect!.Target.Name, StringComparer.OrdinalIgnoreCase);
+        Assert.Null(later.Effect.DependsOn); // the skipped rename never touched the name's holder
         Assert.Null(state.Resolve(Update("original", first, null)).Error);
 
         state = HmiWorkingState.Create(evidence);
         state.Apply(Update("case", first, first.ToUpperInvariant()));
         var renamed = state.Resolve(Update("after", first.ToUpperInvariant(), null));
         Assert.Null(renamed.Error); Assert.Equal(first.ToUpperInvariant(), renamed.Effect!.Target.Name);
+        Assert.Equal("case", renamed.Effect.DependsOn);
     }
 }

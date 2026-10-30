@@ -167,6 +167,7 @@ internal sealed class HmiWorkingState
         var resolved = Resolve(r);
         if (resolved.Error is not null || resolved.Guards.Any(g => g.Id is StateUnverifiable)) return;
         var target = resolved.Effect!.Target;
+        var renamed = false;
         switch (r.Operation)
         {
             case "create_tag_table": if (FindTable(r.TableName!) is null) _tables.Add(new(r.TableName!, r.GroupPath)); break;
@@ -174,7 +175,7 @@ internal sealed class HmiWorkingState
                 var table = Table(r.TableName!);
                 // Portal judges a rename into a taken name; the simulation keeps both objects distinct.
                 if (r.NewName is null || _tables.Any(t => !ReferenceEquals(t, table) && Names.Equals(t.Name, r.NewName))) break;
-                _tables[_tables.IndexOf(table)] = table with { Name = r.NewName };
+                _tables[_tables.IndexOf(table)] = table with { Name = r.NewName }; renamed = true;
                 if (_tableOrigins.Remove(table.Name, out var tableOrigin)) _tableOrigins[r.NewName] = tableOrigin;
                 foreach (var member in _tags.Where(t => Names.Equals(t.Table, table.Name)))
                 { member.Table = r.NewName; Touch(Identity("Tag", member.Name), r.OperationId); }
@@ -193,7 +194,7 @@ internal sealed class HmiWorkingState
                 var tag = Tag(r.TagName!); ApplyTag(tag, r);
                 if (r.NewName is not null && !_tags.Any(t => !ReferenceEquals(t, tag) && Names.Equals(t.Name, r.NewName)))
                 {
-                    var old = tag.Name; TouchReferencingAlarms(old, r.OperationId); tag.Name = r.NewName;
+                    var old = tag.Name; TouchReferencingAlarms(old, r.OperationId); tag.Name = r.NewName; renamed = true;
                     foreach (var references in new[] { _references, _uncertainReferences })
                         for (var i = 0; i < references.Count; i++) references[i] = references[i] with { Tag = RenameReference(references[i].Tag, old, r.NewName) };
                     foreach (var a in _alarms.Where(a => RefersTo(a.TriggerTag, old)))
@@ -221,7 +222,7 @@ internal sealed class HmiWorkingState
                     foreach (var references in new[] { _references, _uncertainReferences })
                         for (var i = 0; i < references.Count; i++)
                             if (IsAlarmReference(references[i], alarm)) references[i] = references[i] with { Name = r.NewName };
-                    alarm.Name = r.NewName;
+                    alarm.Name = r.NewName; renamed = true;
                 }
                 TouchAlarmReferences(alarm, r.OperationId); break;
             case "delete_alarm":
@@ -232,7 +233,7 @@ internal sealed class HmiWorkingState
         }
         if (target.Kind == "Tag" && target.TableName is not null) Touch(Identity("TagTable", target.TableName), r.OperationId);
         Touch(target, r.OperationId);
-        if (r.NewName is not null) Touch(target with { Name = r.NewName }, r.OperationId);
+        if (renamed) Touch(target with { Name = r.NewName! }, r.OperationId); // a skipped rename leaves the name's holder alone
     }
     private void TouchAlarmReferences(HmiAlarmRowInfo alarm, string id)
     {
