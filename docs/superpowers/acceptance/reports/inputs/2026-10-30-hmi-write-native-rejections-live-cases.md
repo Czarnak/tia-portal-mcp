@@ -24,7 +24,7 @@ describes preserved canonical documents, projections, source hashes and offline 
 | Item / document budgets | 1,000,000 / 1,000,000 characters |
 | Worker timeout / JSON-RPC deadline | 15 minutes / 900 seconds |
 | Saved baseline | 101 tags, 9 tables, 4 alarms: 2 discrete and 2 analog |
-| Language evidence | Native messages are English; persisted setting is `en-US`; direct UI-language observation pending |
+| Language evidence | Native messages are English; persisted setting is `en-US`; the later build-113 P10 checkpoint directly confirms English UI |
 
 The controller supplied the installed identity; the exporter does not inspect binaries.
 The bundle contains 35 case records and 238 trace captures. All 35 writes have one matched
@@ -159,12 +159,15 @@ status. The focused capture preserves exact canonical write/read/validation resp
 source hashes with a minimal restoration/audit projection. It does not rerun the 35-case
 matrix or establish candidate UI compile evidence.
 
-Candidate UI compiles for state-changing variants, direct UI-language observation, L5 on
-a local-session root, and timing-after are pending. Earlier checkpoint UI observations
-belong to the checkpoint and do not substitute for these candidate checks. The timings
-inside trace records are capture metadata, not the prescribed timing-after benchmark.
+The subsequent build-113 [UI compile bundle](2026-10-30-hmi-write-native-rejections-ui-compiles/README.md)
+records five fresh standalone compiles and accepted R3 scope: six repeated P-case compiles reuse
+earlier checkpoint UI evidence plus fresh public reads/Validate, without claiming fresh candidate
+compiles for those cases. The separate [L5 bundle](2026-10-30-hmi-write-native-rejections-local-session/README.md)
+records local-session creation, reads, validation, clean maintainer compile and exact inventory
+restoration. The [timing-after input](2026-10-30-hmi-write-timing-after.md) records the prescribed
+20-call replay; timings inside this matrix's trace remain capture metadata.
 
 The evidence does not prove global absence of O3, race behavior, every native fault site,
 or cleanup behavior under induced cleanup/transport failures. No such faults were induced
-by this matrix. Task 6 must remain incomplete until its remaining evidence and checks are
-recorded.
+by this matrix. The [final scoped report](../2026-10-30-hmi-write-native-rejections-live-verification.md)
+combines these separate evidence sets and retains the version boundaries and accepted scope limits.
