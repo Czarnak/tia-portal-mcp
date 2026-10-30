@@ -1,0 +1,531 @@
+{
+  "scope": "Post-matrix validation of the unchanged restored table children; public reads have no table validator.",
+  "cases": {
+    "P1": [
+      "CP1029_Bound",
+      "CP1029_Reuse",
+      "CP1029_TagA"
+    ],
+    "P2-cross-group": [
+      "CP1029_Bound",
+      "CP1029_Reuse",
+      "CP1029_TagA"
+    ],
+    "P2-case": [
+      "CP1029_Bound",
+      "CP1029_Reuse",
+      "CP1029_TagA"
+    ],
+    "P14": [
+      "Clock_05Hz",
+      "MachineStates_DB_Mode_Active",
+      "MachineStates_DB_Mode_ModeChangeRequested",
+      "MachineStates_DB_State_Alarm",
+      "MachineStates_DB_State_EmergencyStop",
+      "MachineStates_DB_State_Heating",
+      "MachineStates_DB_State_InactiveSafety",
+      "MachineStates_DB_State_Process",
+      "MachineStates_DB_State_Ready",
+      "MachineStates_DB_State_Service",
+      "MachineStates_DB_State_Standby",
+      "MachineStates_DB_State_StartUp"
+    ]
+  },
+  "request": {
+    "name": "hmi_read",
+    "arguments": {
+      "operations": [
+        {
+          "operationId": "validate:CP1029_Bound",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "CP1029_Bound"
+        },
+        {
+          "operationId": "validate:CP1029_Reuse",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "CP1029_Reuse"
+        },
+        {
+          "operationId": "validate:CP1029_TagA",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "CP1029_TagA"
+        },
+        {
+          "operationId": "validate:Clock_05Hz",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "Clock_05Hz"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_Mode_Active",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_Mode_Active"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_Mode_ModeChangeRequested",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_Mode_ModeChangeRequested"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_Alarm",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_Alarm"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_EmergencyStop",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_EmergencyStop"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_Heating",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_Heating"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_InactiveSafety",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_InactiveSafety"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_Process",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_Process"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_Ready",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_Ready"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_Service",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_Service"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_Standby",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_Standby"
+        },
+        {
+          "operationId": "validate:MachineStates_DB_State_StartUp",
+          "operation": "validate",
+          "hmiName": "HMI_RT_1",
+          "category": "tags",
+          "name": "MachineStates_DB_State_StartUp"
+        }
+      ]
+    }
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"batch\":{\"counts\":{\"failed\":0,\"omitted\":0,\"skipped\":0,\"succeeded\":15},\"operationCount\":15,\"operations\":[{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:CP1029_Bound\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:CP1029_Reuse\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:CP1029_TagA\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:Clock_05Hz\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_Mode_Active\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_Mode_ModeChangeRequested\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_Alarm\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_EmergencyStop\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_Heating\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_InactiveSafety\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_Process\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_Ready\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_Service\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_Standby\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate:MachineStates_DB_State_StartUp\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"1.1\",\"error\":null,\"success\":true,\"tool\":\"hmi_read\",\"warnings\":[]}"
+      }
+    ],
+    "structuredContent": {
+      "batch": {
+        "counts": {
+          "failed": 0,
+          "omitted": 0,
+          "skipped": 0,
+          "succeeded": 15
+        },
+        "operationCount": 15,
+        "operations": [
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:CP1029_Bound",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:CP1029_Reuse",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:CP1029_TagA",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:Clock_05Hz",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_Mode_Active",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_Mode_ModeChangeRequested",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_Alarm",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_EmergencyStop",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_Heating",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_InactiveSafety",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_Process",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_Ready",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_Service",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_Standby",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "validate",
+            "operationId": "validate:MachineStates_DB_State_StartUp",
+            "result": {
+              "clean": 1,
+              "findings": [],
+              "isComplete": true,
+              "messages": [],
+              "notValidatable": [],
+              "page": {
+                "limit": 100,
+                "nextOffset": null,
+                "offset": 0,
+                "total": 1
+              },
+              "scanned": 1
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "1.1",
+      "error": null,
+      "success": true,
+      "tool": "hmi_read",
+      "warnings": []
+    },
+    "isError": false
+  },
+  "state": {
+    "openBeforeAndAfter": true,
+    "modifiedBeforeAndAfter": false,
+    "savedFileHashUnchanged": true,
+    "savedFileSha256": "564a644a3116fe60cba9265e40e5a797fd68b57b0c954dff7e3059c84d702a81"
+  },
+  "provenance": {
+    "installedVersion": "4.2.0-local.112.g96a28b7",
+    "sourceCommit": "96a28b7",
+    "sourceTraceSha256": "168276d5c9aa58b754b97be9817df6376135026d0ad78ff44b0879e6b7e96377",
+    "canonicalResponseSha256": "783029130e63633568b25ef1d13f89c8e58e6ed97c377c3d83c5767f223d905a"
+  }
+}

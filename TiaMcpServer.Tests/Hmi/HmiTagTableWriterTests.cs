@@ -23,6 +23,7 @@ public class HmiTagTableWriterTests
         table.DeleteAction = () => throw new EngineeringException("Hmi tag table could not be deleted");
         var error = Assert.Throws<WorkerOperationException>(() => HmiTagTableWriter.Delete(software, new() { TableName = "Default" }));
         Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, error.FailureCategory);
-        Assert.Equal("Hmi tag table could not be deleted", error.Message); Assert.Equal("Delete", error.HmiWriteOutcome!.FailedProperty);
+        Assert.Equal("TIA Portal operation failed: Hmi tag table could not be deleted", error.Message);
+        Assert.NotNull(error.EngineeringError); Assert.Equal("Delete", error.HmiWriteOutcome!.FailedProperty);
     }
 }

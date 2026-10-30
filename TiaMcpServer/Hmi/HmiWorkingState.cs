@@ -15,8 +15,10 @@ internal sealed class HmiWorkingState
     private readonly List<HmiTableEvidence> _tables;
     private readonly List<HmiTagRowInfo> _tags;
     private readonly List<HmiAlarmRowInfo> _alarms;
-    private readonly List<string> _members;
     private readonly List<HmiReference> _references;
+    // Planning names of observed objects; rows created in the call have none.
+    private readonly Dictionary<HmiTagRowInfo, string> _tagOrigins = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<string, string> _tableOrigins = new(Names);
     private readonly List<HmiReference> _uncertainReferences = new();
     private readonly Dictionary<(string Kind, string Name, string? AlarmKind), (int Sequence, string Id)> _touches = new();
     private int _sequence;
@@ -28,15 +30,17 @@ internal sealed class HmiWorkingState
         // Read DTOs are mutable; planned updates must not mutate the planner's original observations.
         _evidence = JsonSerializer.Deserialize<HmiEvidence>(JsonSerializer.Serialize(evidence))!;
         _tables = _evidence.Tables.ToList(); _tags = _evidence.Tags.ToList(); _alarms = _evidence.Alarms.ToList();
-        _members = _evidence.MemberPaths.ToList(); _references = _evidence.References.ToList();
+        _references = _evidence.References.ToList();
+        foreach (var tag in _tags) _tagOrigins[tag] = tag.Name;
+        foreach (var table in _tables) _tableOrigins.TryAdd(table.Name, table.Name);
     }
     public static HmiWorkingState Create(HmiEvidence evidence) => new(evidence);
 
-    // Only the planner may seed a newly created bound tag; dependent replans require observed members.
-    internal void AddProvisionalMemberPath(string path)
-    {
-        if (!_members.Contains(path, Names)) _members.Add(path);
-    }
+    /// <summary>The planning name of the tag now called <paramref name="name"/>; null when absent or created in the call.</summary>
+    internal string? OriginalTagName(string name)
+        => _tags.FirstOrDefault(t => Names.Equals(t.Name, name)) is { } tag ? _tagOrigins.GetValueOrDefault(tag) : null;
+    /// <summary>The planning name of the table now called <paramref name="name"/>; null when absent or created in the call.</summary>
+    internal string? OriginalTableName(string name) => _tableOrigins.GetValueOrDefault(name);
 
     public HmiResolution Resolve(HmiWriteOperationRequest item)
     {
@@ -68,6 +72,7 @@ internal sealed class HmiWorkingState
         return matches[0];
     }
     private HmiTableEvidence Table(string name) => Require(_tables, t => Names.Equals(t.Name, name), $"table '{name}'");
+    private HmiTableEvidence? FindTable(string name) => _tables.FirstOrDefault(t => Names.Equals(t.Name, name));
     private HmiTagRowInfo Tag(string name) => Require(_tags, t => Names.Equals(t.Name, name), $"tag '{name}'");
     private HmiAlarmRowInfo Alarm(string name, string? kind) => Require(_alarms, a => a.Kind == kind && Names.Equals(a.Name, name), $"{kind} alarm '{name}'");
     private static bool RefersTo(string? reference, string tag) => reference is not null && (Names.Equals(reference, tag) || reference.StartsWith(tag + ".", StringComparison.OrdinalIgnoreCase));
@@ -92,34 +97,21 @@ internal sealed class HmiWorkingState
             foreach (var text in requested ?? new())
                 changes.Add(new($"{field}[{text.Culture}]", current?.FirstOrDefault(t => Names.Equals(t.Culture, text.Culture))?.Text, text.Text, false));
         }
-        void Reference(IEnumerable<string> names, string name, string kind) => Require(names, n => Names.Equals(n, name), $"{kind} '{name}'");
-        void Collision(bool collides)
-        {
-            if (collides) guards.Add(Fire(NameCollision, r, $"The requested name '{r.NewName ?? target.Name}' already exists in its HMI scope."));
-        }
         if (target.Kind == "TagTable")
         {
             var table = create ? null : Table(r.TableName!);
             target = Identity("TagTable", table?.Name ?? r.TableName!, table: table?.Name ?? r.TableName, group: table?.GroupPath ?? r.GroupPath);
-            if (create && r.GroupPath is not null) Reference(_evidence.Groups, r.GroupPath, "group");
-            if (create || r.NewName is not null) Collision(_tables.Any(t => !ReferenceEquals(t, table) && Names.Equals(t.Name, r.NewName ?? r.TableName)));
         }
         else if (target.Kind == "Tag")
         {
             tag = create ? null : Tag(r.TagName!);
-            var table = create ? Table(r.TableName!) : tag!.Table is { } tableName ? Table(tableName) : null;
-            target = Identity("Tag", tag?.Name ?? r.TagName!, table: table?.Name, group: table?.GroupPath);
-            if (table is not null) dependencies.Add(Identity("TagTable", table.Name));
-            if (create || r.NewName is not null) Collision(_tags.Any(t => !ReferenceEquals(t, tag) && Names.Equals(t.Name, r.NewName ?? r.TagName)));
-            if (r.Connection is not null) Reference(_evidence.Connections, r.Connection, "connection");
+            // Portal rejects a missing table; an unknown one only leaves the group unresolved here.
+            var tableName = create ? r.TableName : tag!.Table;
+            var table = tableName is null ? null : FindTable(tableName);
+            target = Identity("Tag", tag?.Name ?? r.TagName!, table: table?.Name ?? tableName, group: table?.GroupPath);
+            if (tableName is not null) dependencies.Add(Identity("TagTable", table?.Name ?? tableName));
             var connection = r.Connection ?? tag?.Connection;
             var bound = connection is not null && !Names.Equals(connection, "<Internal tag>") && connection.Length > 0;
-            if (!create && (r.PlcTag is not null || r.DataType is not null) && connection is null)
-                guards.Add(Fire(StateUnverifiable, r, "The tag connection is unreadable."));
-            else if (r.PlcTag is not null && !bound)
-                throw new ResolutionException(WorkerFailureCategories.ValidationError, "plcTag requires a bound tag or an explicit connection.");
-            if (r.DataType is not null && bound)
-                throw new ResolutionException(WorkerFailureCategories.ValidationError, "dataType can only be written for an internal tag.");
             Change("connection", tag?.Connection, r.Connection); Change("plcTag", tag?.PlcTag, HmiWriteCatalog.NormalizePlcTag(r.PlcTag));
             Change("dataType", tag?.DataType, r.DataType, !delete && bound); Change("plcName", tag?.PlcName, null, !delete && bound);
             Change("acquisitionCycle", tag?.AcquisitionCycle, r.AcquisitionCycle);
@@ -129,13 +121,10 @@ internal sealed class HmiWorkingState
         {
             alarm = create ? null : Alarm(r.AlarmName!, r.AlarmKind);
             target = Identity("Alarm", alarm?.Name ?? r.AlarmName!, r.AlarmKind);
-            if (create || r.NewName is not null) Collision(_alarms.Any(a => !ReferenceEquals(a, alarm) && a.Kind == r.AlarmKind && Names.Equals(a.Name, r.NewName ?? r.AlarmName)));
-            if (r.AlarmClass is not null) Reference(_evidence.AlarmClasses, r.AlarmClass, "alarm class");
             if (r.TriggerTag is not null)
             {
-                var parent = r.TriggerTag.Split('.')[0]; var trigger = Tag(parent);
-                if (!Names.Equals(r.TriggerTag, parent)) Reference(_members, r.TriggerTag, "tag member");
-                dependencies.Add(Identity("Tag", trigger.Name));
+                var parent = r.TriggerTag.Split('.')[0];
+                if (_tags.FirstOrDefault(t => Names.Equals(t.Name, parent)) is { } trigger) dependencies.Add(Identity("Tag", trigger.Name));
             }
             Change("triggerTag", alarm?.TriggerTag, r.TriggerTag); Change("bitNumber", alarm?.TriggerBit, r.BitNumber);
             Change("triggerMode", alarm?.TriggerMode, r.TriggerMode); Change("condition", alarm?.Condition, r.Condition);
@@ -144,8 +133,6 @@ internal sealed class HmiWorkingState
             TextChanges("eventText", alarm?.EventText, HmiWriteCatalog.ToWorkerRequest(r, _evidence.HmiName).EventText); TextChanges("infoText", alarm?.InfoText, r.InfoText);
             if (!delete) Change(r.AlarmKind == "discrete" ? "triggerBitAddress" : "triggerAddress", r.AlarmKind == "discrete" ? alarm?.TriggerBitAddress : alarm?.TriggerAddress, null, true);
         }
-        foreach (var text in new[] { r.Comment, r.DisplayName, r.EventText, r.InfoText }.Where(t => t is not null).SelectMany(t => t!))
-            Reference(_evidence.Cultures, text.Culture, "project culture");
         Change("name", create ? null : target.Name, r.NewName ?? (create ? target.Name : null));
         dependencies.Add(target);
         if (r.NewName is not null) dependencies.Add(target with { Name = r.NewName });
@@ -178,29 +165,36 @@ internal sealed class HmiWorkingState
     public void Apply(HmiWriteOperationRequest r)
     {
         var resolved = Resolve(r);
-        if (resolved.Error is not null || resolved.Guards.Any(g => g.Id is NameCollision or StateUnverifiable)) return;
+        if (resolved.Error is not null || resolved.Guards.Any(g => g.Id is StateUnverifiable)) return;
         var target = resolved.Effect!.Target;
+        var renamed = false;
         switch (r.Operation)
         {
-            case "create_tag_table": _tables.Add(new(r.TableName!, r.GroupPath)); break;
+            case "create_tag_table": if (FindTable(r.TableName!) is null) _tables.Add(new(r.TableName!, r.GroupPath)); break;
             case "update_tag_table":
-                var table = Table(r.TableName!); _tables[_tables.IndexOf(table)] = table with { Name = r.NewName! };
+                var table = Table(r.TableName!);
+                // Portal judges a rename into a taken name; the simulation keeps both objects distinct.
+                if (r.NewName is null || _tables.Any(t => !ReferenceEquals(t, table) && Names.Equals(t.Name, r.NewName))) break;
+                _tables[_tables.IndexOf(table)] = table with { Name = r.NewName }; renamed = true;
+                if (_tableOrigins.Remove(table.Name, out var tableOrigin)) _tableOrigins[r.NewName] = tableOrigin;
                 foreach (var member in _tags.Where(t => Names.Equals(t.Table, table.Name)))
                 { member.Table = r.NewName; Touch(Identity("Tag", member.Name), r.OperationId); }
                 break;
             case "delete_tag_table":
-                _tables.Remove(Table(r.TableName!));
+                _tables.Remove(Table(r.TableName!)); _tableOrigins.Remove(r.TableName!);
                 foreach (var removed in resolved.Effect.Removes!.Tags) RemoveTag(removed, r.OperationId);
                 break;
             case "create_tag":
-                var created = new HmiTagRowInfo { Name = r.TagName!, Table = Table(r.TableName!).Name, Connection = "<Internal tag>" };
+                if (_tags.Any(t => Names.Equals(t.Name, r.TagName))) break; // Portal rejects the duplicate create
+                var known = FindTable(r.TableName!);
+                if (known is null) _tables.Add(known = new(r.TableName!, null));
+                var created = new HmiTagRowInfo { Name = r.TagName!, Table = known.Name, Connection = "<Internal tag>" };
                 ApplyTag(created, r); _tags.Add(created); break;
             case "update_tag":
                 var tag = Tag(r.TagName!); ApplyTag(tag, r);
-                if (r.NewName is not null)
+                if (r.NewName is not null && !_tags.Any(t => !ReferenceEquals(t, tag) && Names.Equals(t.Name, r.NewName)))
                 {
-                    var old = tag.Name; TouchReferencingAlarms(old, r.OperationId); tag.Name = r.NewName;
-                    for (var i = 0; i < _members.Count; i++) _members[i] = RenameReference(_members[i], old, r.NewName);
+                    var old = tag.Name; TouchReferencingAlarms(old, r.OperationId); tag.Name = r.NewName; renamed = true;
                     foreach (var references in new[] { _references, _uncertainReferences })
                         for (var i = 0; i < references.Count; i++) references[i] = references[i] with { Tag = RenameReference(references[i].Tag, old, r.NewName) };
                     foreach (var a in _alarms.Where(a => RefersTo(a.TriggerTag, old)))
@@ -209,6 +203,7 @@ internal sealed class HmiWorkingState
                 break;
             case "delete_tag": RemoveTag(target.Name, r.OperationId); break;
             case "create_alarm":
+                if (_alarms.Any(a => a.Kind == r.AlarmKind && Names.Equals(a.Name, r.AlarmName))) break;
                 var createdAlarm = new HmiAlarmRowInfo { Name = r.AlarmName!, Kind = r.AlarmKind! }; ApplyAlarm(createdAlarm, r); _alarms.Add(createdAlarm); TouchAlarmReferences(createdAlarm, r.OperationId); break;
             case "update_alarm":
                 var alarm = Alarm(r.AlarmName!, r.AlarmKind);
@@ -222,11 +217,14 @@ internal sealed class HmiWorkingState
                     foreach (var reference in uncertain) _references.Remove(reference);
                 }
                 ApplyAlarm(alarm, r);
-                if (r.NewName is not null)
+                if (r.NewName is not null && !_alarms.Any(a => !ReferenceEquals(a, alarm) && a.Kind == alarm.Kind && Names.Equals(a.Name, r.NewName)))
+                {
                     foreach (var references in new[] { _references, _uncertainReferences })
                         for (var i = 0; i < references.Count; i++)
                             if (IsAlarmReference(references[i], alarm)) references[i] = references[i] with { Name = r.NewName };
-                alarm.Name = r.NewName ?? alarm.Name; TouchAlarmReferences(alarm, r.OperationId); break;
+                    alarm.Name = r.NewName; renamed = true;
+                }
+                TouchAlarmReferences(alarm, r.OperationId); break;
             case "delete_alarm":
                 var removedAlarm = Alarm(r.AlarmName!, r.AlarmKind);
                 TouchAlarmReferences(removedAlarm, r.OperationId);
@@ -235,7 +233,7 @@ internal sealed class HmiWorkingState
         }
         if (target.Kind == "Tag" && target.TableName is not null) Touch(Identity("TagTable", target.TableName), r.OperationId);
         Touch(target, r.OperationId);
-        if (r.NewName is not null) Touch(target with { Name = r.NewName }, r.OperationId);
+        if (renamed) Touch(target with { Name = r.NewName! }, r.OperationId); // a skipped rename leaves the name's holder alone
     }
     private void TouchAlarmReferences(HmiAlarmRowInfo alarm, string id)
     {
@@ -254,7 +252,7 @@ internal sealed class HmiWorkingState
     private void RemoveTag(string name, string id)
     {
         TouchReferencingAlarms(name, id);
-        _tags.RemoveAll(t => Names.Equals(t.Name, name)); _members.RemoveAll(m => RefersTo(m, name));
+        _tags.RemoveAll(t => Names.Equals(t.Name, name));
         _references.RemoveAll(r => RefersTo(r.Tag, name)); Touch(Identity("Tag", name), id);
     }
     private static List<HmiText>? MergeTexts(List<HmiText>? current, List<HmiText>? requested)

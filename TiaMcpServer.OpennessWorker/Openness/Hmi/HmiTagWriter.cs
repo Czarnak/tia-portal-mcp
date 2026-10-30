@@ -14,7 +14,7 @@ public static class HmiTagWriter
             (tag, outcome) => Apply(tag, write, outcome));
     public static HmiWriteOutcomeInfo Update(HmiSoftware software, HmiWriteRequestInfo write)
     {
-        var tag = HmiTagLookup.FindUnique(software, write.TagName!);
+        var tag = HmiTagLookup.FindUnique(software, write.TagName!, describe: true);
         var outcome = new HmiWriteOutcomeInfo { ObjectName = write.NewName ?? write.TagName! };
         try
         {
@@ -27,7 +27,7 @@ public static class HmiTagWriter
     public static HmiWriteOutcomeInfo Delete(HmiSoftware software, HmiWriteRequestInfo write)
     {
         var outcome = new HmiWriteOutcomeInfo { ObjectName = write.TagName! };
-        var tag = HmiTagLookup.FindUnique(software, write.TagName!);
+        var tag = HmiTagLookup.FindUnique(software, write.TagName!, describe: true);
         try { Set(outcome, "Delete", tag.Delete); return outcome; }
         catch (Exception ex) when (ex is EngineeringException or WorkerOperationException) { throw Failure(ex, outcome); }
     }

@@ -1,0 +1,262 @@
+{
+  "schema": "hmi-installed-timing-baseline/v1",
+  "status": "complete",
+  "date": "2026-10-29",
+  "specifiedBaselineCommit": "0b2640a",
+  "installedVersion": "4.2.0-local.79.g75c0568",
+  "installedCommit": "75c0568d4d83b9430a13feb62aea52e2232c2bad",
+  "sourceEquivalenceClaimed": false,
+  "limitation": "Requested installed-version baseline; exact specified commit0b2640a and candidate timing were not measured.",
+  "runtime": {
+    "serverInfo": {
+      "name": "TiaMcpServer",
+      "version": "4.2.0.0"
+    },
+    "mode": "full",
+    "maxItemChars": 1000000,
+    "maxDocumentChars": 1000000,
+    "workerTimeoutMinutes": 15,
+    "requestTimeoutSeconds": 900,
+    "serverPid": 39756
+  },
+  "installedArtifactSha256": {
+    "host": "a8be3d6e4f2fc7fec4b280ccf9be8e21539ddae3b31f17afc19575c796dc67a9",
+    "worker": "6eb1db5801f61e3eb83cdf80b217efaf3a12fdeb042dfd6146036ecf01234d59"
+  },
+  "installedArtifactHashObservation": "Primary agent independently checked installed host/worker hashes before and after collection; both unchanged.",
+  "projectIdentityRedacted": true,
+  "projectFileSha256": "564a644a3116fe60cba9265e40e5a797fd68b57b0c954dff7e3059c84d702a81",
+  "projectFileHashUnchanged": true,
+  "hmiName": "HMI_RT_1",
+  "projectSize": {
+    "tags": 101,
+    "tables": 9,
+    "alarms": 4
+  },
+  "schedule": "run0 H1-H5, then run1 H1-H5, run2 H1-H5, run3 H1-H5; serialized",
+  "validatedCaptures": 20,
+  "discardedStartupReads": 1,
+  "discardedWarmups": 5,
+  "measuredCaptures": 15,
+  "completeReadCaptures": 22,
+  "allClientToolCallsSucceeded": true,
+  "clientToolCallCount": 107,
+  "requestTimeouts": 0,
+  "helperExitCode": 0,
+  "finalState": {
+    "projectMatchesConfigured": true,
+    "isOpen": true,
+    "isModified": false,
+    "independentStatusVerified": true
+  },
+  "metrics": "audit v2 root durationMs; sum(items.durationMs or0); root minus item sum; each column median independently over runs1-3",
+  "mediansMs": {
+    "H1": {
+      "rootMs": 119492,
+      "itemSumMs": 12775,
+      "remainderMs": 106717
+    },
+    "H2": {
+      "rootMs": 574416,
+      "itemSumMs": 363268,
+      "remainderMs": 170527
+    },
+    "H3": {
+      "rootMs": 160490,
+      "itemSumMs": 16995,
+      "remainderMs": 143325
+    },
+    "H4": {
+      "rootMs": 95049,
+      "itemSumMs": 0,
+      "remainderMs": 95049
+    },
+    "H5": {
+      "rootMs": 142877,
+      "itemSumMs": 16124,
+      "remainderMs": 126753
+    }
+  },
+  "rows": [
+    {
+      "label": "H1-run0",
+      "case": "H1",
+      "run": 0,
+      "discarded": true,
+      "rootMs": 57497,
+      "itemSumMs": 6407,
+      "remainderMs": 51090
+    },
+    {
+      "label": "H2-run0",
+      "case": "H2",
+      "run": 0,
+      "discarded": true,
+      "rootMs": 360872,
+      "itemSumMs": 227515,
+      "remainderMs": 133357
+    },
+    {
+      "label": "H3-run0",
+      "case": "H3",
+      "run": 0,
+      "discarded": true,
+      "rootMs": 84320,
+      "itemSumMs": 12080,
+      "remainderMs": 72240
+    },
+    {
+      "label": "H4-run0",
+      "case": "H4",
+      "run": 0,
+      "discarded": true,
+      "rootMs": 39107,
+      "itemSumMs": 0,
+      "remainderMs": 39107
+    },
+    {
+      "label": "H5-run0",
+      "case": "H5",
+      "run": 0,
+      "discarded": true,
+      "rootMs": 67864,
+      "itemSumMs": 6592,
+      "remainderMs": 61272
+    },
+    {
+      "label": "H1-run1",
+      "case": "H1",
+      "run": 1,
+      "discarded": false,
+      "rootMs": 57277,
+      "itemSumMs": 6307,
+      "remainderMs": 50970
+    },
+    {
+      "label": "H2-run1",
+      "case": "H2",
+      "run": 1,
+      "discarded": false,
+      "rootMs": 385779,
+      "itemSumMs": 259514,
+      "remainderMs": 126265
+    },
+    {
+      "label": "H3-run1",
+      "case": "H3",
+      "run": 1,
+      "discarded": false,
+      "rootMs": 165367,
+      "itemSumMs": 16995,
+      "remainderMs": 148372
+    },
+    {
+      "label": "H4-run1",
+      "case": "H4",
+      "run": 1,
+      "discarded": false,
+      "rootMs": 67873,
+      "itemSumMs": 0,
+      "remainderMs": 67873
+    },
+    {
+      "label": "H5-run1",
+      "case": "H5",
+      "run": 1,
+      "discarded": false,
+      "rootMs": 144657,
+      "itemSumMs": 16399,
+      "remainderMs": 128258
+    },
+    {
+      "label": "H1-run2",
+      "case": "H1",
+      "run": 2,
+      "discarded": false,
+      "rootMs": 119492,
+      "itemSumMs": 12775,
+      "remainderMs": 106717
+    },
+    {
+      "label": "H2-run2",
+      "case": "H2",
+      "run": 2,
+      "discarded": false,
+      "rootMs": 574416,
+      "itemSumMs": 403889,
+      "remainderMs": 170527
+    },
+    {
+      "label": "H3-run2",
+      "case": "H3",
+      "run": 2,
+      "discarded": false,
+      "rootMs": 108076,
+      "itemSumMs": 9449,
+      "remainderMs": 98627
+    },
+    {
+      "label": "H4-run2",
+      "case": "H4",
+      "run": 2,
+      "discarded": false,
+      "rootMs": 95049,
+      "itemSumMs": 0,
+      "remainderMs": 95049
+    },
+    {
+      "label": "H5-run2",
+      "case": "H5",
+      "run": 2,
+      "discarded": false,
+      "rootMs": 142877,
+      "itemSumMs": 16124,
+      "remainderMs": 126753
+    },
+    {
+      "label": "H1-run3",
+      "case": "H1",
+      "run": 3,
+      "discarded": false,
+      "rootMs": 134147,
+      "itemSumMs": 15307,
+      "remainderMs": 118840
+    },
+    {
+      "label": "H2-run3",
+      "case": "H2",
+      "run": 3,
+      "discarded": false,
+      "rootMs": 586490,
+      "itemSumMs": 363268,
+      "remainderMs": 223222
+    },
+    {
+      "label": "H3-run3",
+      "case": "H3",
+      "run": 3,
+      "discarded": false,
+      "rootMs": 160490,
+      "itemSumMs": 17165,
+      "remainderMs": 143325
+    },
+    {
+      "label": "H4-run3",
+      "case": "H4",
+      "run": 3,
+      "discarded": false,
+      "rootMs": 98926,
+      "itemSumMs": 0,
+      "remainderMs": 98926
+    },
+    {
+      "label": "H5-run3",
+      "case": "H5",
+      "run": 3,
+      "discarded": false,
+      "rootMs": 89771,
+      "itemSumMs": 11365,
+      "remainderMs": 78406
+    }
+  ]
+}

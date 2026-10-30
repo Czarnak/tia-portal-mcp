@@ -1,0 +1,1016 @@
+{
+  "schema": "redacted-lifecycle-status-projections/v1",
+  "canonicalDocuments": false,
+  "description": "Derived projections omit all project names and paths. Original canonical response hashes are references, not hashes of these projections.",
+  "captures": [
+    {
+      "label": "startup-bind",
+      "tool": "bind_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>",
+        "portalProcessId": 35872
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "d224334efbcbbb6197886ac79cb87477d73a5cf3e868fa97bb7cb109404ff461",
+      "sourceResponseSha256": "15573b3196eeafff62fa931c2ee8cc19a9fce143269c8b3e413b6ab2a6274cce",
+      "clientElapsedSeconds": 1.784,
+      "requestStartedUtc": "2026-10-29T20:10:26.014763+00:00"
+    },
+    {
+      "label": "H1-run0-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "607f4661c115e690a2ff3ae29aba842809ddb12aa894d971a7b5490e40e1f28f",
+      "sourceResponseSha256": "2fcd9d9a72fb007c287e284ac625fd2607682427c7fc1da7a72da1d39f9d070b",
+      "clientElapsedSeconds": 3.13,
+      "requestStartedUtc": "2026-10-29T20:11:23.946249+00:00"
+    },
+    {
+      "label": "H1-run0-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "43986e25f547aec6955c3dd50c0fb9e7ec144d374ed2cf049c0e2058a3368b2f",
+      "sourceResponseSha256": "03317687fe99858ecee47155b19c6d908b237803946e5a205c103a766d420b14",
+      "clientElapsedSeconds": 5.555,
+      "requestStartedUtc": "2026-10-29T20:11:27.078309+00:00"
+    },
+    {
+      "label": "H1-run0-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "00d871a9d5d0b1f899bedc31c928b7e6b95a872b06ba2ac6cc63232920c0ad82",
+      "sourceResponseSha256": "d5e11d3890bdcb09a1a5307204be9b1b3ba8793ef75767ea94ca235145670e4b",
+      "clientElapsedSeconds": 0.278,
+      "requestStartedUtc": "2026-10-29T20:11:32.637909+00:00"
+    },
+    {
+      "label": "H2-run0-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "4b90a8572425878bb24f08073c7f608908a4588be1d1ba0e42926985c792919f",
+      "sourceResponseSha256": "ae759861027536b9ed5a850fb1c82ef53acb887a0520210042d10c3be7bf4b6b",
+      "clientElapsedSeconds": 1.876,
+      "requestStartedUtc": "2026-10-29T20:13:15.358959+00:00"
+    },
+    {
+      "label": "H2-run0-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "3fe1a8a30f1baf157a90835cbafc83b697b4b844bb198e3dcf7ad4e5176dabd2",
+      "sourceResponseSha256": "5197e792327d7764938ac6c45f290101066f5fc510805e5a68b6e02dd491d4aa",
+      "clientElapsedSeconds": 4.386,
+      "requestStartedUtc": "2026-10-29T20:13:17.236895+00:00"
+    },
+    {
+      "label": "H2-run0-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "44eff6c571e87b341f5eac5c6216b0c185880b5826f0ed3bea5426603bf4f570",
+      "sourceResponseSha256": "946f652de6a885f19e17ddc6726ff9d59f45c2113485375d1981acfe937a6d13",
+      "clientElapsedSeconds": 0.217,
+      "requestStartedUtc": "2026-10-29T20:13:21.625544+00:00"
+    },
+    {
+      "label": "H3-run0-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "a14f6d6acfae8423abf1839b9f6f3f070003814f5fe50aaa466e84099396b0ae",
+      "sourceResponseSha256": "603a6663b268a4b50aa577f5fb2856f716fd44ecb0620edc7ee2566935129538",
+      "clientElapsedSeconds": 2.718,
+      "requestStartedUtc": "2026-10-29T20:19:56.929048+00:00"
+    },
+    {
+      "label": "H3-run0-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "6f0bf1d9615038774bd39c249787018e7f91d555c7b4df44777c28d02816dff2",
+      "sourceResponseSha256": "7ab6915eeacb67d4a4b82fb247d7213268ad29c2538a89198bc5301a319532c2",
+      "clientElapsedSeconds": 3.866,
+      "requestStartedUtc": "2026-10-29T20:19:59.650642+00:00"
+    },
+    {
+      "label": "H3-run0-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "109a2ba5cd6a0a396decf15232d4154e05faee68b7649607df10b317e00ac32d",
+      "sourceResponseSha256": "ac6d66f62edffc809ded73b18ac01cb5d8c56ee0ce661392ae6df3c8b1e40163",
+      "clientElapsedSeconds": 0.252,
+      "requestStartedUtc": "2026-10-29T20:20:03.519276+00:00"
+    },
+    {
+      "label": "H4-run0-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "3becf316363adcdc849e2e9bd7940e2d0f78526f7f92840bda11d4a739bc5b66",
+      "sourceResponseSha256": "ab09e85ae5e62a994f032df8111823495e9292a9985a81c59a551c36e789d4bf",
+      "clientElapsedSeconds": 2.196,
+      "requestStartedUtc": "2026-10-29T20:21:58.221160+00:00"
+    },
+    {
+      "label": "H4-run0-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "c80f54799b1f07ea647f8d95d048b430f0c33eb0d624d81b23dd57f0331f9006",
+      "sourceResponseSha256": "cc901996c671faa691818b9071d9bab3b74b018762bf9441ddb3acf029a78c0b",
+      "clientElapsedSeconds": 5.174,
+      "requestStartedUtc": "2026-10-29T20:22:00.420203+00:00"
+    },
+    {
+      "label": "H4-run0-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "763128622797bef454ae201f6019454bb5cf24f9c55755f17d01f4c14901856c",
+      "sourceResponseSha256": "1a9ea64b5e0ace154d5d35d32404ea1d2b4166166b15462334db530d2b120d10",
+      "clientElapsedSeconds": 0.303,
+      "requestStartedUtc": "2026-10-29T20:22:05.598514+00:00"
+    },
+    {
+      "label": "H5-run0-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "7abe5ab7ce7ea0846789311c7953f42038b93658e917975a28fd1658e336b88d",
+      "sourceResponseSha256": "c40af2be5d644f04ef39a881626cc81c8c59a631cbb3b5bb6dcbe0ecb5664177",
+      "clientElapsedSeconds": 2.164,
+      "requestStartedUtc": "2026-10-29T20:24:01.846363+00:00"
+    },
+    {
+      "label": "H5-run0-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "9c15f9fae1ba76c94d212a04c6d3a8e664462ba40c0ebb183d77b9fc58aa2e35",
+      "sourceResponseSha256": "3e8c37b2b63700d99c28801fec9de11b5cb6009072d4fb716b5c280c13130fb0",
+      "clientElapsedSeconds": 3.98,
+      "requestStartedUtc": "2026-10-29T20:24:04.013134+00:00"
+    },
+    {
+      "label": "H5-run0-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "b528880d97bacd902488d3205e2a5e857831caeb4ebd7475cd0d9fc924708f29",
+      "sourceResponseSha256": "c68f4d249b7395221f9ff994fee8deec5631289111fdab5aa187980296b0f1d5",
+      "clientElapsedSeconds": 0.317,
+      "requestStartedUtc": "2026-10-29T20:24:07.997017+00:00"
+    },
+    {
+      "label": "H1-run1-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "691467cfafd4f972e8da8db420b5c5903a70302ebf36c4e271ec0a6ce1c7d2cf",
+      "sourceResponseSha256": "c08b85fcd7f60e9f6d9c6088ffc1f7b943957e22a8684b387f1b9a296209d1b9",
+      "clientElapsedSeconds": 1.955,
+      "requestStartedUtc": "2026-10-29T20:25:54.722637+00:00"
+    },
+    {
+      "label": "H1-run1-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "c37d6fedde2fbfb7ac92ec2bd09dc96b23be8ee0d9105b6198a96b0d0c97d2ef",
+      "sourceResponseSha256": "5bae465a7fd9f91f5f6ed72899fe1f81501f76e60ef12bfa2e6adde11d89d3a2",
+      "clientElapsedSeconds": 3.59,
+      "requestStartedUtc": "2026-10-29T20:25:56.681010+00:00"
+    },
+    {
+      "label": "H1-run1-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "6e7a7079671e77c89e583c6feff1af0c1913f31b1ad23268cf6a733fbeb0a0c4",
+      "sourceResponseSha256": "26f9a3468876db1e03335b472785c08cdb4cb49d436342561e525ae939cbb2e1",
+      "clientElapsedSeconds": 0.257,
+      "requestStartedUtc": "2026-10-29T20:26:00.274015+00:00"
+    },
+    {
+      "label": "H2-run1-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "1c8c8e5998bc9aa765feaea8928496fc0ab65bc43229f957512eab063558df75",
+      "sourceResponseSha256": "2a7e73043b4c83c97d79e99fbf4031515439e01d9800541b8af20609e04e1527",
+      "clientElapsedSeconds": 1.712,
+      "requestStartedUtc": "2026-10-29T20:27:43.781996+00:00"
+    },
+    {
+      "label": "H2-run1-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "da8f07c891759e2a42e78b53c268e57a05f03b241ec7aaef5e65be2ab00db548",
+      "sourceResponseSha256": "b64edc38fccff1e3f3222c7bda048975fe3e5f45f9a2dd2f43c4bcb7065edf3d",
+      "clientElapsedSeconds": 3.392,
+      "requestStartedUtc": "2026-10-29T20:27:45.497603+00:00"
+    },
+    {
+      "label": "H2-run1-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "df572411bd44806bc1eacc52bebf86a3d6a73746ed946fea7ade0fc6a49412f4",
+      "sourceResponseSha256": "4219ffb585ccec7e3ed999261bec97b7fd590f6c6dda1a2b5aa030154e2d033c",
+      "clientElapsedSeconds": 0.267,
+      "requestStartedUtc": "2026-10-29T20:27:48.891920+00:00"
+    },
+    {
+      "label": "H3-run1-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "429ca11ea161f5dde1478292578da756ae19555da67288555b8e39e172ac862e",
+      "sourceResponseSha256": "668b840ffe469429afde71b237adb58599a9c74c7258669b88bc35590cfd188a",
+      "clientElapsedSeconds": 2.12,
+      "requestStartedUtc": "2026-10-29T20:34:52.932948+00:00"
+    },
+    {
+      "label": "H3-run1-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "0adcd5f2ac28cc0762656d77c008440b278252bea17b9d56f36d4483b885a141",
+      "sourceResponseSha256": "0d4c21cdd48ae3bf85f0d0eb40b658c44dfed7f8c5536e603a596f763c5cc63d",
+      "clientElapsedSeconds": 5.872,
+      "requestStartedUtc": "2026-10-29T20:34:55.055608+00:00"
+    },
+    {
+      "label": "H3-run1-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "0a8ea1d5f6759ed2afdea123a835b8eeb611ccdc06b3ed5f6dbe88fb7babfe8c",
+      "sourceResponseSha256": "dce95969d4e5fd45de488d2d82293881979a562ab6efea32a77d03484446a9bf",
+      "clientElapsedSeconds": 0.358,
+      "requestStartedUtc": "2026-10-29T20:35:00.931205+00:00"
+    },
+    {
+      "label": "H4-run1-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "20e921e5fefbd0e9a71e27b06b1429990e593f2adc5dbbbf260649a5a451ef7c",
+      "sourceResponseSha256": "9b53e8c76353b45b89b67eb7bd0c5766d9f5850158bdf358912b3aaae9bb5c6c",
+      "clientElapsedSeconds": 2.351,
+      "requestStartedUtc": "2026-10-29T20:38:41.076268+00:00"
+    },
+    {
+      "label": "H4-run1-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "15015aae649b07362cf1c4ddfa95af2506a904adb6f4811775e9689dbdc4bf9a",
+      "sourceResponseSha256": "6ebdedb457a143d48a2af3ea73e55bbc959848491436a84fbf51e06a4739281a",
+      "clientElapsedSeconds": 4.032,
+      "requestStartedUtc": "2026-10-29T20:38:43.430073+00:00"
+    },
+    {
+      "label": "H4-run1-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "c4756b17466f57394348cae7c2853ff93916bc82f69337c30f928e82ea514faf",
+      "sourceResponseSha256": "72738ca9afe7cea2512cfca30a0bd06956a531aa1b71c30d469e504bb075dcb2",
+      "clientElapsedSeconds": 0.348,
+      "requestStartedUtc": "2026-10-29T20:38:47.465497+00:00"
+    },
+    {
+      "label": "H5-run1-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "dc35409bb54abe6e7ea1fdbfa8c68ae8ab8043643cacdee6c852626a13bb8f68",
+      "sourceResponseSha256": "66cb38a76a6635e5efb81a2c6f6dd6d3613ecfa0aaaed283733d52f919b30be0",
+      "clientElapsedSeconds": 2.099,
+      "requestStartedUtc": "2026-10-29T20:40:49.241242+00:00"
+    },
+    {
+      "label": "H5-run1-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "a4cd2d46dc07dcf2a03827a6dd26a9ea8e5fd4d9697dcf759edf9556f2665e4a",
+      "sourceResponseSha256": "c1416907085fa3873fa547ec858b09ca46db91fb107dd07d5050b43e0c681cd2",
+      "clientElapsedSeconds": 4.385,
+      "requestStartedUtc": "2026-10-29T20:40:51.343276+00:00"
+    },
+    {
+      "label": "H5-run1-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "8fdd8eac7e3928faaf2553e2ec6dfbea0b07ec93d11a398c986a7873078b6d66",
+      "sourceResponseSha256": "4b2599e88303620b435bd94526bbb432fec4fc274dc402c4914098c7440b3f75",
+      "clientElapsedSeconds": 0.294,
+      "requestStartedUtc": "2026-10-29T20:40:55.731667+00:00"
+    },
+    {
+      "label": "H1-run2-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "598b21f9d59107e7bc0b5a05d51d82957159f0c973eeae40bef949ce8ba7589c",
+      "sourceResponseSha256": "6a05ec5d568147ce7aa4f3d16e03e61af21b8fc0fcd9519f34bf186894310d05",
+      "clientElapsedSeconds": 2.004,
+      "requestStartedUtc": "2026-10-29T20:44:12.767436+00:00"
+    },
+    {
+      "label": "H1-run2-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "09f0bea1f77c587168015dcd7c21d801962448fd69cc5bd760f0b0ba66e41ed8",
+      "sourceResponseSha256": "811449dabf35ee63ffc215b6d5271e532f96a78830918da112240b8bafc782ff",
+      "clientElapsedSeconds": 4.923,
+      "requestStartedUtc": "2026-10-29T20:44:14.774007+00:00"
+    },
+    {
+      "label": "H1-run2-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "20343668cbd1fc1966e2701ba53da6d8eb060849a80d34ab7e76a8968f885e88",
+      "sourceResponseSha256": "aa31fb19adb7dfd6152c9f0fddd92f27be85af0e3b6e805e64098b09dcb9eb73",
+      "clientElapsedSeconds": 0.329,
+      "requestStartedUtc": "2026-10-29T20:44:19.699900+00:00"
+    },
+    {
+      "label": "H2-run2-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "2e8bae2ddfa53e098b88d5bd8a5f08260622ef297d7789ca053194fe495990c0",
+      "sourceResponseSha256": "4e12d583d06c689510655ff8f86705711a6b0218fdac9124fcd23343e5541bfc",
+      "clientElapsedSeconds": 2.125,
+      "requestStartedUtc": "2026-10-29T20:47:28.383273+00:00"
+    },
+    {
+      "label": "H2-run2-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "e74ec98db6fd9104c63dfd1c2ca02c2ec87c45e8c4574a9dc7cf8603b0296fac",
+      "sourceResponseSha256": "dda4a282311416b15be8f01a0c51bd1c983b49928dbcc404c6a20bfe150e67c5",
+      "clientElapsedSeconds": 4.262,
+      "requestStartedUtc": "2026-10-29T20:47:30.510193+00:00"
+    },
+    {
+      "label": "H2-run2-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "11c425dfde48384ec5f450b3cf1cc7324d1baefe906f67e7fb75e737b5d42cd8",
+      "sourceResponseSha256": "052ea5f243e3a381f3115ce33d3e3f644b665a0c96088accfbd069c3609840b7",
+      "clientElapsedSeconds": 0.358,
+      "requestStartedUtc": "2026-10-29T20:47:34.776253+00:00"
+    },
+    {
+      "label": "H3-run2-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "c90966149052a74b9d80312b3f3542393b291550a378581562f6aa1acacf1141",
+      "sourceResponseSha256": "acc7afe048959e9482a28754ccf858f87bbfbf80b040f82f09bbf82ceeb9dabf",
+      "clientElapsedSeconds": 2.26,
+      "requestStartedUtc": "2026-10-29T20:57:46.941454+00:00"
+    },
+    {
+      "label": "H3-run2-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "a8298e49560e562db250b4297f877657fc2483e73b54cc80478b99b4e38528cf",
+      "sourceResponseSha256": "8a76bf14690eb35d23433e20fd5970ced08bc83661bfe03570170c02d1c35c5d",
+      "clientElapsedSeconds": 4.983,
+      "requestStartedUtc": "2026-10-29T20:57:49.203684+00:00"
+    },
+    {
+      "label": "H3-run2-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "ca85086445f30e50561dcca417ea556e095bf10bc92bf631c67282723e668375",
+      "sourceResponseSha256": "33ff9eda79d950849e8aeea8790e310eb21cfc747875cabed0efefc7589689d8",
+      "clientElapsedSeconds": 0.313,
+      "requestStartedUtc": "2026-10-29T20:57:54.190891+00:00"
+    },
+    {
+      "label": "H4-run2-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "0b57b81c5da1088c5013bec2ba429cdea346e854541a887e0a93c1e5c1cdccbd",
+      "sourceResponseSha256": "c8cba7e3eaf5389694a42cf5064f53679d685b8ad580e923acc151c27b5d29a8",
+      "clientElapsedSeconds": 1.908,
+      "requestStartedUtc": "2026-10-29T21:00:30.300109+00:00"
+    },
+    {
+      "label": "H4-run2-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "1a52923fece825093696303592b7d9a5f433430a1bf652f1df0fb5ef88b1c11f",
+      "sourceResponseSha256": "33d0b17a2f5dc5dfd34fed0910774c406a574f80ccd3612c6706420ce06ae51c",
+      "clientElapsedSeconds": 4.335,
+      "requestStartedUtc": "2026-10-29T21:00:32.209927+00:00"
+    },
+    {
+      "label": "H4-run2-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "eadd687985e65183586980a6b63db8c0adceb9d40c9352dc271dd0ade3cf0ec2",
+      "sourceResponseSha256": "995cece5454306187b3c2c9619f522986d24021422ad1c7e8ee91291ddd02aff",
+      "clientElapsedSeconds": 0.286,
+      "requestStartedUtc": "2026-10-29T21:00:36.547272+00:00"
+    },
+    {
+      "label": "H5-run2-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "abb2d985cad9e78a7e907ccad8c77f936b4df5391972520902e14dd479295d9b",
+      "sourceResponseSha256": "ed5573692b4e66ee965dc24132605005b006af5402c46377ab35399441b4dc26",
+      "clientElapsedSeconds": 1.923,
+      "requestStartedUtc": "2026-10-29T21:02:57.412172+00:00"
+    },
+    {
+      "label": "H5-run2-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "a738f5c31e94786c578b02dba3b50936bb4bf22efcef76917c5f9c7c07601193",
+      "sourceResponseSha256": "937188b44376f65b9960cac23334ceceb7f9b43fbce40281f653531110d00047",
+      "clientElapsedSeconds": 4.307,
+      "requestStartedUtc": "2026-10-29T21:02:59.337984+00:00"
+    },
+    {
+      "label": "H5-run2-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "c7bb9637f1b62a551cefa4600fc666b7cff8e9316cfa6a7eaac0bef41d11ca95",
+      "sourceResponseSha256": "c45c7fb90a8dc6e56de87bc92d48b3be385e9e24caffb411590b22ee24b02bad",
+      "clientElapsedSeconds": 0.334,
+      "requestStartedUtc": "2026-10-29T21:03:03.648189+00:00"
+    },
+    {
+      "label": "H1-run3-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "bd9499adfe6082d890ee444d93411a26bd2f20814c7cfeb8aa4ae6aa460d875f",
+      "sourceResponseSha256": "029b4885de66e8e0545a3fd9e169d9d5ab2afd86d3b115329df051a256178a20",
+      "clientElapsedSeconds": 2.107,
+      "requestStartedUtc": "2026-10-29T21:06:20.750046+00:00"
+    },
+    {
+      "label": "H1-run3-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "67c53fa86d61c2b08730823fab9c1d8a0c04d9554c1270c3820976f0b0fc97b1",
+      "sourceResponseSha256": "256a58ef14c397972410a56a0deaed42873080925976d9ee262b699b71dbae8a",
+      "clientElapsedSeconds": 5.17,
+      "requestStartedUtc": "2026-10-29T21:06:22.859573+00:00"
+    },
+    {
+      "label": "H1-run3-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "f13c6249fc9384ae9882a1022a6b997353dd75769f86c8470a4fcc2b4b090d65",
+      "sourceResponseSha256": "c38349768e1ef582f77696aed161080e5cfd2a48569808e2dbbb937fcbbe120c",
+      "clientElapsedSeconds": 0.376,
+      "requestStartedUtc": "2026-10-29T21:06:28.033212+00:00"
+    },
+    {
+      "label": "H2-run3-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "df3215944a7ed9d72ed21a58cf9a67c2c00456e108a27fdb363fe636dc115087",
+      "sourceResponseSha256": "b7f0723a5209a2618cbbc71c6384e639794bd7d3207de3cd6c235b403cde342d",
+      "clientElapsedSeconds": 1.967,
+      "requestStartedUtc": "2026-10-29T21:09:55.304514+00:00"
+    },
+    {
+      "label": "H2-run3-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "0b16528b3ccec389a87f03d825d4f35d18e9f703523297a40a289bb964655b88",
+      "sourceResponseSha256": "9614ae9af23583404f8d5410129647266f5b991672d1c7b947f2c4295c3317f4",
+      "clientElapsedSeconds": 4.22,
+      "requestStartedUtc": "2026-10-29T21:09:57.274304+00:00"
+    },
+    {
+      "label": "H2-run3-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "cc8fe7aeedd2be7a236ba0cc6148884aeee12f8c44d5698c92eeb06e6fa94f1a",
+      "sourceResponseSha256": "913a2c0e48334ed42533683564949a097ffd9d398c657acfef2a8cf1f38093c5",
+      "clientElapsedSeconds": 0.315,
+      "requestStartedUtc": "2026-10-29T21:10:01.497224+00:00"
+    },
+    {
+      "label": "H3-run3-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "8818d72d3b05b624c42478ab95ffc3897537fe1727b31320ae4c786b539ee0b9",
+      "sourceResponseSha256": "1c6236845e04600b25e5af1c53d7ca3194ae55e64adac1a396a90871d08c3119",
+      "clientElapsedSeconds": 2.485,
+      "requestStartedUtc": "2026-10-29T21:20:41.680482+00:00"
+    },
+    {
+      "label": "H3-run3-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "945ff5f60a6378b2c9b5734c60815b73bced8be218590c8eb29a34ef7beaec10",
+      "sourceResponseSha256": "04dc2aa16bb514c27e5609c6fb32ecafed0e9bfbc39bdbdc04638abc03978019",
+      "clientElapsedSeconds": 5.013,
+      "requestStartedUtc": "2026-10-29T21:20:44.168098+00:00"
+    },
+    {
+      "label": "H3-run3-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "00763a7e85246f0462ffd001e50b4e67a0bf24ba1d479bfe8415e359578f5fce",
+      "sourceResponseSha256": "df2976dfe2cda4f4bb1640240a42c4ecf3bc6783a4740eb6d83c2bbbc8e71f4a",
+      "clientElapsedSeconds": 0.323,
+      "requestStartedUtc": "2026-10-29T21:20:49.184168+00:00"
+    },
+    {
+      "label": "H4-run3-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "a1020dedde68cf05ca8c5728b162248b9118079fc43affc62ba8ca04527983fc",
+      "sourceResponseSha256": "e5ff1e129b1c38e015ba49a7aa5727552b1141147fecb5be49e00b18f9afb05d",
+      "clientElapsedSeconds": 1.818,
+      "requestStartedUtc": "2026-10-29T21:24:24.335911+00:00"
+    },
+    {
+      "label": "H4-run3-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "8e18ce10f29f1d295c58057f6e82e36e456726cf9b3fc4e5b93bdf52a31b0f06",
+      "sourceResponseSha256": "53819e9bdb5d5cf2d97edf4d5f988901eff437f26ed75ae6d9b5c821d197d38b",
+      "clientElapsedSeconds": 4.478,
+      "requestStartedUtc": "2026-10-29T21:24:26.155124+00:00"
+    },
+    {
+      "label": "H4-run3-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "a8612b8d95c978b99929bffd8871a5000ac7f750765dd9b814f6339d60699735",
+      "sourceResponseSha256": "1615c282d732e4df9cf6acef2579c922bde007f178762fede8f114f0f6123c1c",
+      "clientElapsedSeconds": 0.324,
+      "requestStartedUtc": "2026-10-29T21:24:30.636877+00:00"
+    },
+    {
+      "label": "H5-run3-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "365555fc180a9a2b975c15977faea5d4f65b9f3e530b5923e04f9527fac107a4",
+      "sourceResponseSha256": "10b56dda3420cfaf7176c69dd3c496d633eb7c32f7f3d3b2387ac8a1e3ba70b5",
+      "clientElapsedSeconds": 2.137,
+      "requestStartedUtc": "2026-10-29T21:27:03.495016+00:00"
+    },
+    {
+      "label": "H5-run3-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "41ed82d4c54ef73189b5c77fdd5a2defaab89c5526893b402ede3e99ab92389f",
+      "sourceResponseSha256": "fc5fd5f1c885a2c4663440ff0d54d0c605653e07ca069e6d00c21de5016b1269",
+      "clientElapsedSeconds": 4.787,
+      "requestStartedUtc": "2026-10-29T21:27:05.634819+00:00"
+    },
+    {
+      "label": "H5-run3-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "7fd890248bd61cd32b58fdf55f925f20e1fec5148cc4b5f1da2bb17a48235b3e",
+      "sourceResponseSha256": "7eb0c63fdcd7db2bcc4076fc333bae3e048d617ae039da6e9c9b4455c8e43473",
+      "clientElapsedSeconds": 0.336,
+      "requestStartedUtc": "2026-10-29T21:27:10.424902+00:00"
+    },
+    {
+      "label": "timing-final-restore-close",
+      "tool": "close_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "saveBeforeClose": false
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": false,
+      "isModified": null,
+      "canonicalResponseSha256": "76372253867f23ea8f93d7525ba1d683fc6e4bd2989bd3e9234ab35d0807e0a0",
+      "sourceResponseSha256": "6b207c42152fc808bccc9e26080814551862a44b6d682999c3c36ae2f3e41b73",
+      "clientElapsedSeconds": 1.885,
+      "requestStartedUtc": "2026-10-29T21:29:24.451169+00:00"
+    },
+    {
+      "label": "timing-final-restore-open",
+      "tool": "open_project",
+      "identityRedacted": true,
+      "requestArguments": {
+        "projectPath": "<disposable-copy>"
+      },
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "3a2a483c8f3a6c486442fe2d4612bd722df827cbeb4e741381338b3c28825d6f",
+      "sourceResponseSha256": "d945f4814d562f75c4d8f2cd1980ef9d56ae4eb5463da65f9be46a83e451ec4b",
+      "clientElapsedSeconds": 4.944,
+      "requestStartedUtc": "2026-10-29T21:29:26.338773+00:00"
+    },
+    {
+      "label": "timing-final-restore-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "c8e9e2ad6f561ef4361d8215c28a0797928b011b6ae2c7cb757c299da7dd2d4c",
+      "sourceResponseSha256": "d6e22f188d87b7d189653088d28d78d06a0a39d4ee4553e01248e6e261ebafb6",
+      "clientElapsedSeconds": 0.331,
+      "requestStartedUtc": "2026-10-29T21:29:31.285465+00:00"
+    },
+    {
+      "label": "timing-final-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "7fd890248bd61cd32b58fdf55f925f20e1fec5148cc4b5f1da2bb17a48235b3e",
+      "sourceResponseSha256": "7eb0c63fdcd7db2bcc4076fc333bae3e048d617ae039da6e9c9b4455c8e43473",
+      "clientElapsedSeconds": 0.283,
+      "requestStartedUtc": "2026-10-29T21:30:30.483969+00:00"
+    },
+    {
+      "label": "independent-final-status",
+      "tool": "get_project_status",
+      "identityRedacted": true,
+      "requestArguments": {},
+      "success": true,
+      "projectMatchesConfigured": true,
+      "isOpen": true,
+      "isModified": false,
+      "canonicalResponseSha256": "7fd890248bd61cd32b58fdf55f925f20e1fec5148cc4b5f1da2bb17a48235b3e",
+      "sourceResponseSha256": "678669e29898aec4b44bf27f5e8e742a7ee6832619531186a9f52a297883f515"
+    }
+  ]
+}

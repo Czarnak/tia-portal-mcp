@@ -48,6 +48,75 @@ public sealed class WorkerExecutionTests
     }
 
     [Fact]
+    public void WrappedHmiFailure_AfterPortalDisposal_MapsToPortalLostAndKeepsOutcome()
+    {
+        var revision = 0L;
+        var outcome = new TiaMcpServer.Contracts.Hmi.HmiWriteOutcomeInfo { ObjectName = "T" };
+        outcome.AppliedProperties.Add("Create");
+        var exception = new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "x", hmiWriteOutcome: outcome);
+        var result = WorkerExecution.Execute(() => { revision++; throw exception; }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+        Assert.Same(outcome, result.HmiWriteOutcome);
+    }
+
+    [Fact]
+    public void WrappedHmiFailure_WithoutDisposal_IsRethrown()
+    {
+        var exception = new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "x",
+            hmiWriteOutcome: new TiaMcpServer.Contracts.Hmi.HmiWriteOutcomeInfo { ObjectName = "T" });
+        var thrown = Assert.Throws<WorkerOperationException>(() => WorkerExecution.Execute(() => throw exception, () => 0, mutates: true));
+        Assert.Same(exception, thrown);
+    }
+
+    [Fact]
+    public void WriteLookupFailure_AfterPortalDisposal_MapsToPortalLost()
+    {
+        var revision = 0L;
+        var software = new Siemens.Engineering.HmiUnified.HmiSoftware();
+        software.Tags.FindOverride = _ => { revision++; throw new EngineeringException("Access to a disposed object is not possible."); };
+        var result = WorkerExecution.Execute(() =>
+        {
+            TiaMcpServer.OpennessWorker.Openness.Hmi.HmiTagWriter.Delete(software, new() { TagName = "T" });
+            return new WorkerResponse { Success = true };
+        }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+    }
+
+    [Theory]
+    [InlineData("discrete")]
+    [InlineData("analog")]
+    public void AlarmWriteLookupFailure_AfterPortalDisposal_MapsToPortalLost(string kind)
+    {
+        var revision = 0L;
+        var software = new Siemens.Engineering.HmiUnified.HmiSoftware();
+        var disposed = new EngineeringException("Access to a disposed object is not possible.");
+        software.DiscreteAlarms.EnumerationFailure = disposed;
+        software.AnalogAlarms.EnumerationFailure = disposed;
+        var result = WorkerExecution.Execute(() =>
+        {
+            revision++;
+            TiaMcpServer.OpennessWorker.Openness.Hmi.HmiAlarmWriter.Delete(software, new() { AlarmName = "A", AlarmKind = kind });
+            return new WorkerResponse { Success = true };
+        }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+    }
+
+    [Fact]
+    public void HmiWriteRunFailure_NonEngineeringException_IsRethrownUnchanged()
+    {
+        var exception = new InvalidOperationException("other");
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            TiaMcpServer.OpennessWorker.Openness.Hmi.HmiWriteRun.Failure(exception, new() { ObjectName = "T" }));
+        Assert.Same(exception, thrown);
+    }
+
+    [Fact]
     public void WrappedFailureWithoutEngineeringError_IsNeverIntercepted()
     {
         var revision = 0L;

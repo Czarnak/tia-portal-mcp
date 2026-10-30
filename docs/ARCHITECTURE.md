@@ -430,12 +430,17 @@ qualify. For a mutation worker method (`ProjectMutation` in `OperationPolicyCata
 `engineering_rejected`; the flag spans the entire method, including connection, identity and target checks before a native write. It does not prove a setter or create was reached. Any other engineering error, and a target-invocation error from a read
 method, remains `worker_operation_failed`. Both carry `WorkerResponse.EngineeringError`
 (`EngineeringErrorInfo`: type, message bounded at 4,000 characters, inner chain bounded at eight).
-`WorkerExecution.Classify` and `Describe` are shared by this catch and Network configure wrap sites.
+`WorkerExecution.Classify` and `Describe` are shared by this catch, Network configure wrap sites
+and `HmiWriteRun.Failure`. HMI wraps preserve both `EngineeringError` and the separate
+`HmiWriteOutcome` carrier through `WorkerOperationException`, `WorkerResponse` and `WorkerCallResult`.
+An HMI `WorkerOperationException` can carry a partial outcome without an engineering error; its
+original category is preserved, including a refusal raised after earlier setters completed.
 Configure stops at the first rejection and carries `ConfigureNetworkDeviceOutcome` through
 `WorkerOperationException`, `WorkerResponse` and `WorkerCallResult`; the host projects its typed
-`appliedSettings` onto the failed item. A wrapped engineering failure also passes the
-current-execution disposal check. `portal_lost` is decided first, carries no engineering error,
-and preserves any wrapped partial configure outcome. Direct fatal loss after a partial configure
+`appliedSettings` onto the failed item. A wrapped failure with either `EngineeringError` or
+`HmiWriteOutcome` also passes the current-execution disposal check. `portal_lost` is decided first,
+carries no engineering error, and preserves any carried partial configure or HMI outcome.
+Direct fatal loss after a partial configure
 has not been exercised live.
 Broad Network recovery, XML-bundle export, cached HMI liveness and
 Multiuser inventory catches exclude it through `OpennessExceptions.IsRecoverable`;
@@ -526,7 +531,8 @@ registered tool is now structured; the three batch tools were removed rather tha
   null-element checks alongside their semantic rules.
 - A member the worker legitimately omits is conditional, marked `WhenWritingNull` and described
   in `ConditionalMemberRegisterTests`. This includes optional I/O/pagination and Network connection
-  evidence, and the carried partial `ConfigureNetworkDeviceOutcome`; the register is the authority.
+  evidence, and the carried partial `ConfigureNetworkDeviceOutcome` and `HmiWriteOutcome`;
+  the register is the authority.
 - `TiaMcpServer/Tools/StructuredToolResult.cs` renders one canonical JSON document and returns it
   as both the `content` text block and a detached `structuredContent` `JsonElement`, from a single
   `CanonicalJson.Serialize` call, so the two representations cannot drift apart.
@@ -534,8 +540,8 @@ registered tool is now structured; the three batch tools were removed rather tha
   and tool-level error record. Rejections carry `batch:null` and MCP `isError:true`; a batch that
   ran carries `error:null` and `isError:false`, even when individual items failed or were omitted.
   The shared runner uses the same response composer for exact budget measurement and delivery.
-  Domain contract versions are HMI read `1.1`, PLC/Network reads `1.0`, PLC/Network writes `2.0`,
-  and HMI writes/VCI `1.0`.
+  Domain contract versions are HMI read `1.1`, PLC/Network reads `1.0`, PLC/Network/HMI writes `2.0`,
+  and VCI `1.0`.
 - `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs` provides the shared
   item/failure/omission/count/truncation batch model and a read/write execution engine whose
   stop decision covers `protocol_error` alongside ordinary worker failures.
@@ -544,10 +550,14 @@ registered tool is now structured; the three batch tools were removed rather tha
 - `StructuredOperationFailure.engineeringError` is a conditional member on every structured tool's
   failure schema. The worker supplies it on `WorkerResponse`; the host copies it into an item failure
   in `WriteRun.RunItemAsync`, the one shared projection, only for a failed call that carries it, so
-  host-side rejections never have one. The worker exception mapping and PLC/Network write seams
+  host-side rejections never have one. The worker exception mapping and PLC/Network/HMI write seams
   describe which paths produce it.
-- Network/PLC reads and HMI writes use version `1.0`, warnings arrays and explicit nulls;
-  Network/PLC writes use `2.0`.
+- `HmiWritePayloadContract` validates a carried `HmiWriteOutcome` and places it in a failed item's
+  typed `result`, including non-engineering categorized failures. This is separate from the
+  conditional `failure.engineeringError`; an outcome without that error still describes possible
+  mutation. Missing outcome evidence is not an empty applied-properties list.
+- Network/PLC reads use version `1.0`, HMI reads use `1.1`, and Network/PLC/HMI writes use `2.0`,
+  with warnings arrays and explicit nulls.
   `CanonicalWriteSafety`, token preview DTOs, `WriteSafetyService`, `WriteSafetyTooling`,
   `SafetyRead` and the legacy write audit are retired.
 
@@ -676,28 +686,58 @@ from `reference-stubs/Siemens.Engineering.WinCCUnified/` and verified with the o
 
 `HmiWriteTools` registers nine typed create/update/delete operations for Unified tag tables, tags and
 discrete/analog alarms in writable modes. `HmiWriteCatalog` validates operation fields;
-`HmiWritePlanner` builds complete public-read evidence and `HmiWorkingState` applies caller-order
-effects. Dependent items re-plan before mutation. The initial delete-evidence cap is 200
-cross-reference queries for pre-existing removed tags, not a total-dispatch limit; dependent
-consequence rechecks are separate. Existing-tag rebinding that introduces new members cannot supply
-a later alarm in the same call: update, read tag/members, then make the alarm call separately.
+`HmiWritePlanner` builds one initial public-read evidence set per HMI, including delete
+consequences, before the first mutation. `HmiWorkingState` simulates caller-order effects so later
+items can use earlier creates, renames and deletions. Plans declare no `DependsOn`; there is no
+per-item re-planning or consequence refresh during mutation. The delete-evidence cap is 200
+cross-reference queries for pre-existing removed tags, not a total-dispatch limit.
+
+The three guards are `hmi_state_unverifiable` (block: incomplete device/table, update/delete target
+or delete-consequence evidence), `hmi_deletes_table_contents` (info) and
+`hmi_deletes_referenced_tag` (info). Collision and reference-existence refusals are delegated to
+Portal; update/delete targets still resolve before mutation. The catalog retains `'connection'
+requires 'plcTag'`, and a create requires `plcTag` or `dataType`. It does not reject their combination
+or a `plcTag` supplied without a connection.
+Portal can accept a dangling reference, so mutation success does not establish a valid HMI.
 
 `HmiWriteDomain` uses `WriteExecution` under the pinned binding lease, with no server
-elicitation, stop at first failure and no batch rollback. `HmiWriteVerifier` uses public readback and
-name-scoped Validate; it retains partial-update evidence, checks cleanup/deletion absence, follows
-rename effects and marks superseded items. Typed worker outcomes retain applied properties, the
-failed property and identity-checked create-cleanup status. Failed cleanup can leave an object.
+elicitation, stop at first failure and no batch rollback. It uses `TrustedWriteVerifier` with
+`HmiVerificationPolicy`, with no post-write public reads or native verification read-back. Completed items are
+`trusted` or `superseded`; failed/skipped items have no verification entry. Flat keys come from the
+planned effects and include the case-insensitive HMI name, object kind and name, plus alarm kind.
+A rename owns its old and new names; a later table delete also offers the captured removed-tag
+keys. No other keys cross object kinds (D4).
+
+Typed worker outcomes retain completed `appliedProperties`, the failed property and
+identity-checked create-cleanup status. A setter can mutate before throwing, so the failed property
+may be absent from `appliedProperties`; an empty list does not prove no mutation. Failed cleanup
+can leave an object. Native engineering rejections carry `failure.engineeringError`; categorized
+worker refusals can also carry an outcome, including cleanup after a create. Callers must inspect
+affected objects with `hmi_read`, run `validate`, and compile the HMI in the Portal UI after writes.
 Direct case-only tag rename exposes Siemens' setter failure; there is no hidden temporary rename.
 
 Worker requests use `WorkerRequest.HmiWrite`. The nine `hmi_*` mutation methods are ProjectMutation
 operations and map to `hmi_write` through `ProjectCapabilityCatalog.OperationFor`; reads map to
 `hmi_read`. Every handler uses `WithEngineeringRoot`, supporting standalone and local-session
-`ProjectBase` roots. Connections must already exist; no compile, save, server refresh or check-in is
-implicit. Mutations invalidate that HMI's read snapshots. Tag rows gain `displayName`/`plcName`, and
+`ProjectBase` roots. No operation creates a connection; no compile, save, server refresh or check-in
+is implicit. Mutations invalidate that HMI's read snapshots. Tag rows gain `displayName`/`plcName`, and
 alarm rows gain kind-specific `triggerBitAddress`/`triggerAddress`, with explicit nulls and unchanged
-read version `1.1`. The write contract is `1.0`, using shared canonical serialization, typed payload
+read version `1.1`. The write contract is `2.0`, using shared canonical serialization, typed payload
 decoding, budgets and exact-delivery audit v2 records; attempted failures keep typed state with
 root `error:null` and MCP `isError:false`.
+
+The [2026-10-30 scoped report](superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md)
+separates the 35 functional cases on installed `4.2.0-local.112.g96a28b7` from the focused R1
+partial-failure/supersedence check and manual UI, L5 and timing qualification on
+`4.2.0-local.113.g31d1a44`. Offline qualification passed
+7,644 default tests and 95.05% linked host/contracts line coverage. The maintainer accepted the
+manual compile queue as complete with six recorded R3 waivers: P10, P12-discrete, L1, L2 and L5
+compiled clean; L4 produced the expected two tag-reference errors and zero warnings. L5 local-session
+create/read/Validate/cleanup restored the complete inventory of seven tables, 72 tags and 78 alarms.
+No save or check-in was performed; `isModified` changed from `false` to `true`. The maintainer
+subsequently reported manual cleanup and the correct standalone project open. The timing archive
+and final restoration/hash checks passed. The recorded R1/R2/R3 qualification is complete with
+these waivers; it does not establish broader native fault or cleanup-failure coverage.
 
 `HmiSoftwareLocator` retains entries keyed by engineering root and explicit HMI name, but every
 locator call, including a cache hit, freshly resolves current project membership and selector
@@ -1134,11 +1174,13 @@ can make root `success` false while execution statuses and verification truth re
 `IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
 evaluation, the mutation, verification, and the response shape.
 
-`TrustedWriteVerifier<TItem>` shares the completion/supersedence algorithm for PLC and Network.
+`TrustedWriteVerifier<TItem>` shares the completion/supersedence algorithm for PLC, Network and HMI.
 `IWriteVerificationPolicy<TItem>` supplies object keys, the read tool and any domain read-back.
 A successful item is `superseded` by a later attempted item's equal key or container key unless
-that later failure was a precondition refusal. A later `engineering_rejected` may have partially
-mutated the object and can supersede; the diagnostic says that final state is unverified. Otherwise,
+that later failure was a precondition refusal with no result. A non-null failed-item result keeps
+the possibility of mutation even for a normally precondition-only category such as `target_not_found`
+(the HMI R1 case). Such a failure, or a later `engineering_rejected`, can supersede an earlier item;
+the diagnostic says that final state is unverified. Otherwise,
 a policy read-back runs for succeeded or failed items that have one; successful items without one
 are `trusted`, and failed items without one have no entry. Skipped items have no entry.
 `WriteVerification` contains `{success,operations,omission}` with per-entry
@@ -1149,7 +1191,8 @@ read-back. `PlcWriteDomain` maps shared `contentHash` entries back to its unchan
 hash members. `NetworkVerificationPolicy` has no read-back. Its configure key includes the
 case-normalized device name, interface path names/positions and ordinal raw node ID; optional type
 evidence does not change identity. Update/delete share the ordinal subnet key; a create has no
-pre-call subnet key. HMI and VCI retain their existing verifiers; migration is an open follow-up.
+pre-call subnet key. `HmiVerificationPolicy` also has no read-back and uses flat effect keys as
+described in §7a. VCI retains its existing verifier; its migration remains an open follow-up.
 
 Pipeline stages, in order:
 
@@ -1171,7 +1214,8 @@ Pipeline stages, in order:
    full uses policy without server elicitation. After an accepted prompt, re-plan and re-evaluate
    under the same binding lease before dispatch: the TIA UI can edit while the prompt is visible.
 6. **Mutate** sequentially. The first item that does not succeed stops the call; later items are
-   `skipped`. A dependent item is re-planned just before its own mutation.
+   `skipped`. A domain that declares `DependsOn` re-plans that item just before its own mutation;
+   HMI plans declare no dependencies and use their initial caller-order simulation.
 7. **Verify, compose, audit.** `VerifyAsync`, then `Compose`, then one audit record; the tool result
    carries the same canonical text that was audited. `isError` is true only for `error` and
    `blocked`; a write that ran and failed reports `success: false` under `applied`.
@@ -1199,6 +1243,7 @@ In read-write a newly discovered acknowledge-severity guard not covered by initi
 acceptance also stops the item; full satisfies that severity by policy. Lifecycle calls are
 single-item; `plc_write` uses this mechanism for items that depend on objects created earlier in
 the call. A re-planned guard identical to one already reported for the item is reported once.
+HMI simulates in-call dependencies during initial planning and does not enter this re-plan path.
 
 #### Partial writes
 

@@ -75,6 +75,20 @@ public sealed class TrustedWriteVerifierTests
     }
 
     [Fact]
+    public async Task LaterCategorizedFailureWithOutcome_SupersedesWithUncertainty()
+    {
+        var later = Outcome("b", "failed", new("target_not_found", "missing text culture")) with
+        {
+            Result = System.Text.Json.JsonSerializer.SerializeToElement(new { appliedProperties = new[] { "Name" } })
+        };
+        var result = await Verify(Policy("x", "x"), Outcome("a"), later);
+        var entry = Assert.Single(result.Operations);
+        Assert.Equal("superseded", entry.Check);
+        Assert.Contains("the later operation failed and may have changed the object", entry.Message);
+        Assert.Equal("target_not_found", later.Failure!.Category);
+    }
+
+    [Fact]
     public async Task LaterEngineeringRejected_SupersedesWithUncertaintyMessage()
     {
         var result = await Verify(Policy("x", "x"), Outcome("a"), Outcome("b", "failed", new("engineering_rejected", "rejected")));

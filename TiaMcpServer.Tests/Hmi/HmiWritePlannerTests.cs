@@ -22,15 +22,21 @@ public class HmiWritePlannerTests
         using var f = await Fixture.Create();
         f.Put("hmi_list_tags", new HmiTagListInfo { Tags = [Tag("T")], Page = new(0, 2000, 2, 1) { SnapshotId = "tags" } });
         f.Put("hmi_list_tags|1", new HmiTagListInfo { Tags = [Tag("U")], Page = new(1, 2000, 2, null) });
-        var second = Item(id: "b", tag: "U"); second.HmiName = "Device";
+        f.Put("hmi_list_alarms", new HmiAlarmListInfo { Page = new(0, 2000, 2, 1) { SnapshotId = "alarms" }, Alarms = [new() { Name = "A", Kind = "discrete" }] });
+        f.Put("hmi_list_alarms|1", new HmiAlarmListInfo { Page = new(1, 2000, 2, null), Alarms = [new() { Name = "B", Kind = "analog" }] });
+        var second = new HmiWriteOperationRequest { OperationId = "b", Operation = "delete_tag_table", HmiName = "Device", TableName = "Table" };
         var planner = new HmiWritePlanner(f.Client);
         var result = await planner.PlanAsync([Item(), second]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
         Assert.Equal("H", planner.ResolvedHmiName("b"));
         Assert.Equal(1, f.Requests.Count(r => r.Method == "hmi_list_tag_tables"));
-        var pages = f.Requests.Where(r => r.Method == "hmi_list_tags").ToArray();
-        Assert.Equal(2, pages.Length); Assert.All(pages, p => Assert.Equal(2000, p.HmiQuery!.Limit));
-        Assert.Equal("tags", pages[1].HmiQuery!.SnapshotId);
+        Assert.Equal(new[] { "T", "U" }, result.Plan.Items[1].Effect!.Removes!.Tags);
+        foreach (var (method, snapshot) in new[] { ("hmi_list_tags", "tags"), ("hmi_list_alarms", "alarms") })
+        {
+            var pages = f.Requests.Where(r => r.Method == method).ToArray();
+            Assert.Equal(2, pages.Length); Assert.All(pages, p => Assert.Equal(2000, p.HmiQuery!.Limit));
+            Assert.Equal(snapshot, pages[1].HmiQuery!.SnapshotId);
+        }
     }
 
     [Theory]
@@ -61,98 +67,54 @@ public class HmiWritePlannerTests
         using var f = await Fixture.Create();
         if (fault == "missing") f.PutRaw("hmi_list_tags", "{}");
         else f.Put("hmi_list_tags", new HmiTagListInfo { IsComplete = fault != "incomplete", Tags = [Tag("T")], Page = fault == "cursor" ? new(0, 2000, 2, 1) : new(0, 2000, 1, null) });
-        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item()]);
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([TableDelete()]);
         if (fault == "missing") Assert.Equal("protocol_error", result.Plan.Error!.Category);
-        else Assert.Contains(result.Guards["a"], g => g.Id == "hmi_state_unverifiable");
+        else Assert.Contains(result.Guards["delete"], g => g.Id == "hmi_state_unverifiable");
     }
 
     [Theory]
-    [InlineData("culture")]
-    [InlineData("connection")]
-    [InlineData("class")]
-    public async Task ReferencedNamesMustExist(string name)
+    [InlineData("get_tag")]
+    [InlineData("get_alarm")]
+    public async Task IncompleteTargetReadBlocks(string read)
     {
         using var f = await Fixture.Create();
-        var item = name == "class" ? Alarm("a", "T") : Item();
-        if (name == "culture") item.Comment = [new("xx-XX", "text")];
-        if (name == "connection") item.Connection = "missing";
-        if (name == "class") item.AlarmClass = "missing";
-        Assert.Equal("target_not_found", (await new HmiWritePlanner(f.Client).PlanAsync([item])).Plan.Error!.Category);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task MemberTriggerChecksFullParentMemberPath(bool exists)
-    {
-        using var f = await Fixture.Create();
-        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag(exists ? "T.Member" : "Other.Member") }] });
-        var result = await new HmiWritePlanner(f.Client).PlanAsync([Alarm("a", "T.Member")]);
-        Assert.Equal(exists, result.Plan.Success);
-        if (!exists) Assert.Equal("target_not_found", result.Plan.Error!.Category);
-        Assert.Single(f.Requests, r => r.Method == "hmi_get_tag");
-    }
-
-    [Theory]
-    [InlineData("T.Member", "discrete")]
-    [InlineData("T.Member.Nested", "analog")]
-    public async Task LocalMemberNamesResolveFromObservedContainment(string trigger, string kind)
-    {
-        using var f = await Fixture.Create();
-        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag("Member"), Members = [new() { Tag = Tag("Nested") }] }] });
-        var alarm = Alarm("a", trigger); alarm.AlarmKind = kind;
-        var planner = new HmiWritePlanner(f.Client);
-        var result = await planner.PlanAsync([alarm]);
-        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
-        Assert.Contains(result.Plan.Items[0].Effect!.Changes, c => c.Field == "triggerTag" && c.Requested == trigger);
-        var fresh = await planner.ReplanAsync(alarm);
-        Assert.True(fresh.Replan.Success, fresh.Replan.Error?.Message);
-    }
-
-    [Theory]
-    [InlineData("Other.Nested", "target_not_found")]
-    [InlineData("Nested", "target_ambiguous")]
-    public async Task NestedMemberEvidenceCannotBeReparentedOrDeduplicated(string second, string category)
-    {
-        using var f = await Fixture.Create();
-        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag("T.Member"), Members = [new() { Tag = Tag(second) }, new() { Tag = Tag(second) }] }] });
-        var result = await new HmiWritePlanner(f.Client).PlanAsync([Alarm("a", "T.Member.Nested")]);
-        Assert.Equal(category, result.Plan.Error!.Category);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, true)]
-    public async Task IncompleteOrTruncatedMembersStillBlockInitialAndFreshPlans(bool complete, bool truncated)
-    {
-        using var f = await Fixture.Create();
-        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), IsComplete = complete, MembersTruncated = truncated, Members = [new() { Tag = Tag("Member") }] });
-        var alarm = Alarm("a", "T.Member");
-        var planner = new HmiWritePlanner(f.Client);
-        var result = await planner.PlanAsync([alarm]);
+        if (read == "get_tag") f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), IsComplete = false });
+        else f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "discrete" }, IsComplete = false });
+        var item = read == "get_tag" ? Item() : new HmiWriteOperationRequest { OperationId = "a", Operation = "update_alarm", HmiName = "H", AlarmName = "A", AlarmKind = "discrete", Priority = 1 };
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([item]);
         Assert.Contains(result.Guards["a"], g => g.Id == "hmi_state_unverifiable");
-        var fresh = await planner.ReplanAsync(alarm);
-        Assert.Contains(fresh.Guards, g => g.Id == "hmi_state_unverifiable");
     }
 
     [Fact]
-    public async Task RenamedExistingTagQueriesOriginalThenCurrentAtReplan()
+    public async Task IncompleteEvidenceWithAbsentDeleteTargetBlocks()
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_list_tag_tables", new HmiTagTableTreeInfo { Tables = [new() { Name = "Table", TagCount = 1 }], IsComplete = false });
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item("delete_tag", "a", "Missing")]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Contains(result.Guards["a"], g => g.Id == "hmi_state_unverifiable");
+        Assert.DoesNotContain(f.Requests, r => r.Method == "read_cross_references");
+    }
+
+    [Fact]
+    public async Task UnresolvableTarget_FailsBeforeAnyConsequenceRead()
+    {
+        using var f = await Fixture.Create();
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item("update_tag", "a", "Missing"), Item("delete_tag", "delete")]);
+        Assert.False(result.Plan.Success);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, result.Plan.Error!.Category);
+        Assert.DoesNotContain(f.Requests, r => r.Method is "read_cross_references" or "hmi_list_alarms");
+    }
+
+    [Fact]
+    public async Task RenamedExistingTagQueriesOriginalName()
     {
         using var f = await Fixture.Create();
         var rename = Item("update_tag", "rename"); rename.NewName = "U";
-        var delete = Item("delete_tag", "delete", "U");
-        var planner = new HmiWritePlanner(f.Client);
-        var plan = await planner.PlanAsync([rename, delete]);
+        var plan = await new HmiWritePlanner(f.Client).PlanAsync([rename, Item("delete_tag", "delete", "U")]);
         Assert.True(plan.Plan.Success, plan.Plan.Error?.Message);
-        Assert.Equal("rename", plan.Plan.Items[1].DependsOn);
+        Assert.Equal("rename", plan.Plan.Items[1].Effect!.DependsOn);
         Assert.Equal("T", Assert.Single(f.Requests, r => r.Method == "read_cross_references").CrossReferenceSelector!.Hmi!.TagName);
-        f.Put("hmi_get_tag|U", new HmiTagDetailInfo { Tag = Tag("U") });
-        var start = f.Requests.Length;
-        var replan = await planner.ReplanAsync(delete);
-        Assert.True(replan.Replan.Success, replan.Replan.Error?.Message);
-        var reads = f.Requests.Skip(start).ToArray();
-        Assert.DoesNotContain(reads, r => r.Method == "hmi_list_tags");
-        Assert.Equal("U", Assert.Single(reads, r => r.Method == "read_cross_references").CrossReferenceSelector!.Hmi!.TagName);
     }
 
     [Fact]
@@ -164,32 +126,7 @@ public class HmiWritePlannerTests
         var result = await new HmiWritePlanner(f.Client).PlanAsync([Item("delete_tag", "old"), create, rename, Item("delete_tag", "new", "U")]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
         Assert.Single(f.Requests, r => r.Method == "read_cross_references");
-        Assert.Equal("rename", result.Plan.Items[3].DependsOn);
-    }
-
-    [Theory]
-    [InlineData(false, "Member")]
-    [InlineData(false, "Member.Nested")]
-    [InlineData(true, "Member")]
-    [InlineData(true, "Member.Nested")]
-    public async Task BoundCreatedMemberIsProvisionalUntilFreshProof(bool recreated, string member)
-    {
-        using var f = await Fixture.Create();
-        var tag = recreated ? "T" : "U";
-        var create = Item("create_tag", "create", tag); create.TableName = "Table"; create.Connection = "Connection"; create.PlcTag = "Struct";
-        var alarm = Alarm("alarm", tag + "." + member);
-        var planner = new HmiWritePlanner(f.Client);
-        var result = await planner.PlanAsync(recreated ? [Item("delete_tag", "delete"), create, alarm] : [create, alarm]);
-        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
-        Assert.Equal("create", result.Plan.Items[^1].DependsOn);
-        Assert.Contains(result.Plan.Items[^2].Effect!.Changes, c => c.Field == "dataType" && c.Derived);
-        Assert.DoesNotContain(f.Requests, r => r.Method == "hmi_get_tag");
-        f.Put("hmi_get_tag|" + tag, new HmiTagDetailInfo { Tag = Tag(tag) });
-        var late = await planner.ReplanAsync(alarm);
-        Assert.Equal("target_not_found", late.Replan.Error!.Category);
-        f.Put("hmi_get_tag|" + tag, new HmiTagDetailInfo { Tag = Tag(tag), Members = [new() { Tag = Tag("Member"), Members = [new() { Tag = Tag("Nested") }] }] });
-        var proved = await planner.ReplanAsync(alarm);
-        Assert.True(proved.Replan.Success, proved.Replan.Error?.Message);
+        Assert.Equal("rename", result.Plan.Items[3].Effect!.DependsOn);
     }
 
     [Fact]
@@ -216,37 +153,32 @@ public class HmiWritePlannerTests
     }
 
     [Fact]
-    public async Task ReplanTableDeletePagesOnlyItsOwnTagsAndRejectsUncoveredTags()
+    public async Task TableDeletePagesOnlyItsOwnTags()
     {
         using var f = await Fixture.Create();
-        var delete = new HmiWriteOperationRequest { OperationId = "delete", Operation = "delete_tag_table", HmiName = "H", TableName = "Table" };
-        var planner = new HmiWritePlanner(f.Client);
-        var initial = await planner.PlanAsync([Item(), delete]);
-        Assert.True(initial.Plan.Success, initial.Plan.Error?.Message);
         f.Put("hmi_list_tags", new HmiTagListInfo { Tags = [Tag("T")], Page = new(0, 2000, 2, 1) { SnapshotId = "scoped" } });
-        f.Put("hmi_list_tags|1", new HmiTagListInfo { Tags = [Tag("Unexpected")], Page = new(1, 2000, 2, null) });
-        var start = f.Requests.Length;
-        var result = await planner.ReplanAsync(delete);
-        Assert.Contains(result.Guards, g => g.Id == "hmi_state_unverifiable");
-        var scoped = f.Requests.Skip(start).Where(r => r.Method == "hmi_list_tags").ToArray();
+        f.Put("hmi_list_tags|1", new HmiTagListInfo { Tags = [Tag("V")], Page = new(1, 2000, 2, null) });
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item(), TableDelete()]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        var scoped = f.Requests.Where(r => r.Method == "hmi_list_tags").ToArray();
         Assert.Equal(2, scoped.Length);
         Assert.All(scoped, r => { Assert.Equal("Table", r.HmiQuery!.TableName); Assert.Equal(2000, r.HmiQuery.Limit); });
         Assert.Equal("scoped", scoped[1].HmiQuery!.SnapshotId);
-        Assert.DoesNotContain(f.Requests.Skip(start), r => r.Method == "read_cross_references");
+        Assert.Equal(new[] { "T", "V" }, f.Requests.Where(r => r.Method == "read_cross_references").Select(r => r.CrossReferenceSelector!.Hmi!.TagName));
     }
 
-    [Fact]
-    public async Task ReplanMissIsTargetNotFoundAndCollisionIsGuard()
+    [Theory]
+    [InlineData("update_tag")]
+    [InlineData("delete_tag")]
+    [InlineData("update_alarm")]
+    public async Task AbsentTargetFailsAtPlan(string operation)
     {
         using var f = await Fixture.Create();
-        var item = Item("update_tag"); item.NewName = "U";
-        var planner = new HmiWritePlanner(f.Client);
-        Assert.True((await planner.PlanAsync([item])).Plan.Success);
-        f.Put("hmi_get_tag|U", new HmiTagDetailInfo { Tag = Tag("U") });
-        var collision = await planner.ReplanAsync(item);
-        Assert.Contains(collision.Guards, g => g.Id == "hmi_name_collision");
         f.Remove("hmi_get_tag|T");
-        Assert.Equal("target_not_found", (await planner.ReplanAsync(item)).Replan.Error!.Category);
+        var item = operation == "update_alarm"
+            ? new HmiWriteOperationRequest { OperationId = "a", Operation = operation, HmiName = "H", AlarmName = "Missing", AlarmKind = "discrete", Priority = 1 }
+            : Item(operation);
+        Assert.Equal("target_not_found", (await new HmiWritePlanner(f.Client).PlanAsync([item])).Plan.Error!.Category);
     }
 
     [Fact]
@@ -266,6 +198,7 @@ public class HmiWritePlannerTests
         using var f = await Fixture.Create();
         f.Put("hmi_list_tags", new HmiTagListInfo { Tags = [Tag("T"), Tag("U")], Page = new(0, 2000, 2, null) });
         f.Put("hmi_list_alarms", new HmiAlarmListInfo { Alarms = [new() { Name = "Existing", Kind = "discrete", TriggerTag = "T" }], Page = new(0, 2000, 1, null) });
+        f.Put("hmi_get_alarm|Existing", new HmiAlarmDetailInfo { Alarm = new() { Name = "Existing", Kind = "discrete", TriggerTag = "T" } });
         f.Put("read_cross_references", References("T", "Existing", "HmiDiscreteAlarm"));
         var alarm = Alarm("retarget", "U"); alarm.Operation = "update_alarm"; alarm.AlarmName = "Existing";
         var result = await new HmiWritePlanner(f.Client).PlanAsync([alarm, Item("delete_tag", "delete")]);
@@ -285,7 +218,7 @@ public class HmiWritePlannerTests
         if (fault == "nullRow") payload["tags"]![0] = null;
         if (fault == "nullPage") payload["page"] = null;
         f.PutRaw("hmi_list_tags", payload.ToJsonString());
-        Assert.Equal("protocol_error", (await new HmiWritePlanner(f.Client).PlanAsync([Item()])).Plan.Error!.Category);
+        Assert.Equal("protocol_error", (await new HmiWritePlanner(f.Client).PlanAsync([TableDelete()])).Plan.Error!.Category);
     }
 
     [Fact]
@@ -293,64 +226,38 @@ public class HmiWritePlannerTests
     {
         using var f = await Fixture.Create();
         f.Put("hmi_list_alarms", new HmiAlarmListInfo { Alarms = [new() { Name = "Existing", Kind = "discrete", TriggerTag = "Elsewhere" }], Page = new(0, 2000, 1, null) });
+        f.Put("hmi_get_alarm|Existing", new HmiAlarmDetailInfo { Alarm = new() { Name = "Existing", Kind = "discrete", TriggerTag = "Elsewhere" } });
         f.Put("read_cross_references", References("T", "Existing", "HmiDiscreteAlarm"));
         var rename = Item("update_tag", "rename"); rename.NewName = "U";
         var alarm = new HmiWriteOperationRequest { OperationId = "alarm", Operation = "update_alarm", HmiName = "H", AlarmName = "Existing", AlarmKind = "discrete", Priority = 7 };
         var result = await new HmiWritePlanner(f.Client).PlanAsync([rename, alarm, Item("delete_tag", "delete", "U")]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
-        Assert.Equal("rename", result.Plan.Items[1].DependsOn);
+        Assert.Equal("rename", result.Plan.Items[1].Effect!.DependsOn);
     }
 
     [Fact]
-    public async Task FreshDeleteReplanPagesMemberTriggerAlarmsOfBothKinds()
-    {
-        using var f = await Fixture.Create();
-        var delete = Item("delete_tag", "delete");
-        var planner = new HmiWritePlanner(f.Client);
-        Assert.True((await planner.PlanAsync([Item(), delete])).Plan.Success);
-        f.Put("hmi_list_alarms", new HmiAlarmListInfo { Page = new(0, 2000, 2, 1) { SnapshotId = "alarms" }, Alarms = [new() { Name = "Discrete", Kind = "discrete", TriggerTag = "T.Member" }] });
-        f.Put("hmi_list_alarms|1", new HmiAlarmListInfo { Page = new(1, 2000, 2, null), Alarms = [new() { Name = "Analog", Kind = "analog", TriggerTag = "T.Member.Nested" }] });
-        var start = f.Requests.Length;
-        var result = await planner.ReplanAsync(delete);
-        Assert.True(result.Replan.Success, result.Replan.Error?.Message);
-        Assert.Equal(2, result.Replan.Plan!.Effect!.Removes!.References.Count);
-        Assert.Contains(result.Guards, g => g.Id == "hmi_deletes_referenced_tag");
-        var pages = f.Requests.Skip(start).Where(r => r.Method == "hmi_list_alarms").ToArray();
-        Assert.Equal(2, pages.Length);
-        Assert.All(pages, p => { Assert.Equal("H", p.HmiQuery!.HmiName); Assert.Equal(2000, p.HmiQuery.Limit); });
-        Assert.Equal("alarms", pages[1].HmiQuery!.SnapshotId);
-    }
-
-    [Fact]
-    public async Task Exactly200PlanQueriesRemainCoveredDuringDependentReplan()
+    public async Task Exactly200PlanQueriesRemainCovered()
     {
         using var f = await Fixture.Create();
         f.Put("hmi_list_tags", new HmiTagListInfo { Page = new(0, 2000, 200, null), Tags = Enumerable.Range(0, 200).Select(i => Tag("T" + i)).ToList() });
-        var delete = new HmiWriteOperationRequest { OperationId = "delete", Operation = "delete_tag_table", HmiName = "H", TableName = "Table" };
-        var planner = new HmiWritePlanner(f.Client);
-        var result = await planner.PlanAsync([Item(tag: "T0"), delete]);
+        f.Put("hmi_get_tag|T0", new HmiTagDetailInfo { Tag = Tag("T0") });
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item(tag: "T0"), TableDelete()]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
         Assert.DoesNotContain(result.Guards["delete"], g => g.Id == "hmi_state_unverifiable");
         Assert.Equal(200, f.Requests.Count(r => r.Method == "read_cross_references"));
-        var late = await planner.ReplanAsync(delete);
-        Assert.True(late.Replan.Success, late.Replan.Error?.Message);
-        Assert.DoesNotContain(late.Guards, g => g.Id == "hmi_state_unverifiable");
-        Assert.Equal(400, f.Requests.Count(r => r.Method == "read_cross_references"));
     }
 
     [Fact]
-    public async Task RenamedParentAndTableKeepOriginalMemberProofAndDependencies()
+    public async Task RenamedParentAndTableKeepDependencies()
     {
         using var f = await Fixture.Create();
-        f.Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T"), Members = [new() { Tag = Tag("T.Member"), Members = [new() { Tag = Tag("T.Member.Nested") }] }] });
         var table = new HmiWriteOperationRequest { OperationId = "table", Operation = "update_tag_table", HmiName = "H", TableName = "Table", NewName = "RenamedTable" };
         var rename = Item("update_tag", "rename"); rename.NewName = "U";
         var result = await new HmiWritePlanner(f.Client).PlanAsync([table, rename, Alarm("alarm", "U.Member.Nested")]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
-        Assert.Equal("table", result.Plan.Items[1].DependsOn);
+        Assert.Equal("table", result.Plan.Items[1].Effect!.DependsOn);
         Assert.Equal("RenamedTable", result.Plan.Items[1].Effect!.Target.TableName);
-        Assert.Equal("rename", result.Plan.Items[2].DependsOn);
-        Assert.Equal("T", Assert.Single(f.Requests, r => r.Method == "hmi_get_tag").HmiQuery!.TagName);
+        Assert.Equal("rename", result.Plan.Items[2].Effect!.DependsOn);
         Assert.Contains(result.Plan.Items[2].Effect!.Changes, c => c.Field == "triggerBitAddress" && c.Derived);
     }
 
@@ -364,6 +271,121 @@ public class HmiWritePlannerTests
         Assert.Contains(result.Guards["a"], g => g.Id == "hmi_state_unverifiable");
     }
 
+    [Fact]
+    public async Task CreateOnlyCall_ReadsDevicesOnly()
+    {
+        using var f = await Fixture.Create();
+        var table = new HmiWriteOperationRequest { OperationId = "table", Operation = "create_tag_table", HmiName = "H", TableName = "NewTable" };
+        var tag = Item("create_tag", "tag", "New"); tag.TableName = "NewTable"; tag.DataType = "Bool"; tag.AcquisitionCycle = null;
+        var analog = Alarm("analog", "T.Member.Nested"); analog.AlarmKind = "analog"; analog.AlarmName = "Analog"; analog.BitNumber = null;
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([table, tag, Alarm("discrete", "T.Member"), analog]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(["hmi_list_hmi_devices"], Methods(f));
+    }
+
+    [Fact]
+    public async Task UpdateCall_ReadsTablesOnceAndEachTargetOnly()
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_get_alarm|A", new HmiAlarmDetailInfo { Alarm = new() { Name = "A", Kind = "discrete", TriggerTag = "T" } });
+        var table = new HmiWriteOperationRequest { OperationId = "table", Operation = "update_tag_table", HmiName = "H", TableName = "Table", NewName = "Renamed" };
+        var alarm = new HmiWriteOperationRequest { OperationId = "alarm", Operation = "update_alarm", HmiName = "H", AlarmName = "A", AlarmKind = "discrete", Priority = 3 };
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([table, Item(), Item(id: "b"), alarm]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(["hmi_list_hmi_devices", "hmi_list_tag_tables", "hmi_get_tag", "hmi_get_alarm"], Methods(f));
+    }
+
+    [Fact]
+    public async Task TwoHmiCall_ReadsEveryTargetBeforeAnyConsequence()
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_list_hmi_devices", new HmiDeviceListInfo { Devices = [new() { DeviceName = "Device", SoftwareName = "H", Kind = "unified" }, new() { DeviceName = "Device2", SoftwareName = "H2", Kind = "unified" }] });
+        var other = Item("delete_tag", "delete"); other.HmiName = "H2";
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item(), other]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(["hmi_list_hmi_devices", "hmi_list_tag_tables", "hmi_get_tag", "hmi_list_tag_tables", "hmi_get_tag", "hmi_list_alarms", "read_cross_references"], Methods(f));
+    }
+
+    [Fact]
+    public async Task CallWithoutDelete_NeverReadsAlarms()
+    {
+        using var f = await Fixture.Create();
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item(), Alarm("alarm", "T")]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.DoesNotContain("hmi_list_alarms", Methods(f));
+    }
+
+    [Fact]
+    public async Task DeleteTagCall_PagesAlarmsOnceAndQueriesOriginalName()
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_list_alarms", new HmiAlarmListInfo { Page = new(0, 2000, 2, 1) { SnapshotId = "alarms" }, Alarms = [new() { Name = "Discrete", Kind = "discrete", TriggerTag = "T.Member" }] });
+        f.Put("hmi_list_alarms|1", new HmiAlarmListInfo { Page = new(1, 2000, 2, null), Alarms = [new() { Name = "Analog", Kind = "analog", TriggerTag = "T" }] });
+        var rename = Item("update_tag", "rename"); rename.NewName = "U";
+        var create = Item("create_tag", "create", "V"); create.TableName = "Table"; create.DataType = "Bool";
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([rename, Item("delete_tag", "delete", "U"), create, Item("delete_tag", "deleteNew", "V")]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        var pages = f.Requests.Where(r => r.Method == "hmi_list_alarms").ToArray();
+        Assert.Equal(2, pages.Length);
+        Assert.All(pages, p => { Assert.Equal("H", p.HmiQuery!.HmiName); Assert.Equal(2000, p.HmiQuery.Limit); });
+        Assert.Equal("alarms", pages[1].HmiQuery!.SnapshotId);
+        Assert.Equal("T", Assert.Single(f.Requests, r => r.Method == "read_cross_references").CrossReferenceSelector!.Hmi!.TagName);
+        Assert.Equal(new[] { "Analog", "Discrete" }, result.Plan.Items[1].Effect!.Removes!.References.Select(r => r.Name).Order());
+    }
+
+    [Fact]
+    public async Task CreateIntoUnreadTableThenUpdate_ResolvesFromSimulation()
+    {
+        using var f = await Fixture.Create();
+        var create = Item("create_tag", "create", "New"); create.TableName = "Unread"; create.DataType = "Bool";
+        var update = Item("update_tag", "update", "New");
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([create, update]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal("Unread", result.Plan.Items[1].Effect!.Target.TableName);
+        Assert.Empty(result.Guards["update"]);
+    }
+
+    [Fact]
+    public async Task UpdateOfTagCreatedEarlierInCall_ResolvesFromSimulation()
+    {
+        using var f = await Fixture.Create();
+        var table = new HmiWriteOperationRequest { OperationId = "table", Operation = "create_tag_table", HmiName = "H", TableName = "NewTable" };
+        var create = Item("create_tag", "create", "New"); create.TableName = "NewTable"; create.DataType = "Bool";
+        var rename = Item("update_tag", "rename", "New"); rename.NewName = "Renamed";
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([table, create, rename, Item("update_tag", "update", "Renamed")]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal("Renamed", result.Plan.Items[3].Effect!.Target.Name);
+        Assert.Equal("NewTable", result.Plan.Items[3].Effect!.Target.TableName);
+    }
+
+    [Fact]
+    public async Task DeleteTable_ListsTagsCreatedEarlierInCall()
+    {
+        using var f = await Fixture.Create();
+        var create = Item("create_tag", "create", "New"); create.TableName = "Table"; create.DataType = "Bool";
+        var delete = new HmiWriteOperationRequest { OperationId = "delete", Operation = "delete_tag_table", HmiName = "H", TableName = "Table" };
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([create, delete]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(new[] { "New", "T" }, result.Plan.Items[1].Effect!.Removes!.Tags.Order());
+        Assert.Equal("Table", Assert.Single(f.Requests, r => r.Method == "hmi_list_tags").HmiQuery!.TableName);
+        Assert.Equal("T", Assert.Single(f.Requests, r => r.Method == "read_cross_references").CrossReferenceSelector!.Hmi!.TagName);
+    }
+
+    [Fact]
+    public async Task PlanDeclaresNoReplan()
+    {
+        using var f = await Fixture.Create();
+        var table = new HmiWriteOperationRequest { OperationId = "table", Operation = "create_tag_table", HmiName = "H", TableName = "NewTable" };
+        var tag = Item("create_tag", "tag", "New"); tag.TableName = "NewTable"; tag.DataType = "Bool";
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([table, tag, Item("update_tag", "update", "New")]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.All(result.Plan.Items, i => Assert.Null(i.DependsOn));
+        Assert.Equal("table", result.Plan.Items[1].Effect!.DependsOn);
+        Assert.Equal("tag", result.Plan.Items[2].Effect!.DependsOn);
+    }
+
+    private static HmiWriteOperationRequest TableDelete() => new() { OperationId = "delete", Operation = "delete_tag_table", HmiName = "H", TableName = "Table" };
+    private static string[] Methods(Fixture f) => f.Requests.Select(r => r.Method).Where(m => m != "hello").ToArray();
     private static HmiTagRowInfo Tag(string name) => new() { Name = name, Table = "Table", Connection = "<Internal tag>" };
     private static HmiWriteOperationRequest Alarm(string id, string trigger) => new() { OperationId = id, Operation = "create_alarm", HmiName = "H", AlarmKind = "discrete", AlarmName = "NewAlarm", TriggerTag = trigger, AlarmClass = "Class", BitNumber = 0 };
     private static CrossReferenceReport References(string tag, string? name = null, string type = "HmiScreen") => new()
@@ -413,12 +435,9 @@ public class HmiWritePlannerTests
             var transport = new PersistentWorkerTransport(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"), TimeSpan.FromSeconds(15), workerArgs: $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{Path.Combine(directory, "worker.ps1")}\" -Root \"{directory}\"");
             typeof(OpennessWorkerClient).GetField("_transport", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(Client, transport);
             Put("hmi_list_hmi_devices", new HmiDeviceListInfo { Devices = [new() { DeviceName = "Device", SoftwareName = "H", Kind = "unified" }] });
-            Put("hmi_list_project_languages", new HmiProjectLanguagesInfo { Languages = ["en-US"] });
             Put("hmi_list_tag_tables", new HmiTagTableTreeInfo { Tables = [new() { Name = "Table", TagCount = 1 }] });
             Put("hmi_list_tags", new HmiTagListInfo { Tags = [Tag("T")], Page = new(0, 2000, 1, null) });
             Put("hmi_get_tag|T", new HmiTagDetailInfo { Tag = Tag("T") });
-            Put("hmi_list_connections", new HmiConnectionListInfo { Connections = [new() { Name = "Connection" }] });
-            Put("hmi_list_alarm_classes", new HmiAlarmClassesInfo { AlarmClasses = [new() { Name = "Class" }] });
             Put("hmi_list_alarms", new HmiAlarmListInfo { Page = new(0, 2000, 0, null) });
             Put("read_cross_references", References("T"));
         }

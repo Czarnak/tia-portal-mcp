@@ -35,7 +35,7 @@ public sealed class ConditionalMemberRegisterTests
         "NodeInfo.ConnectionEvidence",
         "SubnetInfo.ConnectionEvidence",
         "WorkerResponse.BlockImportOutcome",
-        // hmi_write: present on a worker failure after a mutation attempt.
+        // hmi_write: present on a worker failure after a mutation attempt, including portal_lost.
         "WorkerResponse.HmiWriteOutcome",
         // network_write: present on a rejected configure_network_device item; carries the settings applied before the rejection.
         "WorkerResponse.ConfigureNetworkDeviceOutcome",

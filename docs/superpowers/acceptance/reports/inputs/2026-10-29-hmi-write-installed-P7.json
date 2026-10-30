@@ -1,0 +1,124 @@
+{
+  "metadata": {
+    "date": "2026-10-29",
+    "version": "4.2.0-local.79.g75c0568",
+    "projectPath": "<disposable-copy>",
+    "portalProcessId": 35872,
+    "hmiName": "HMI_RT_1",
+    "deviceName": "HMI_Wash",
+    "originalModified": false,
+    "compileEvidence": [
+      {
+        "case": "qualified-baseline",
+        "reportedBy": "maintainer",
+        "report": "Clean compilation, no errors",
+        "recordedUtc": "2026-10-29T13:56:37.832Z"
+      }
+    ],
+    "purpose": "Installed-tool P7 and restoration before dedicated native probes"
+  },
+  "events": [
+    {
+      "label": "P7-before",
+      "tool": "hmi_read",
+      "args": {
+        "operations": [
+          {
+            "operationId": "P7-before-tag",
+            "operation": "get_tag",
+            "hmiName": "HMI_RT_1",
+            "tagName": "CP1029_Reuse"
+          }
+        ]
+      },
+      "started": "2026-10-29T13:56:37.832Z",
+      "ended": "2026-10-29T13:56:50.590Z",
+      "isError": false,
+      "responseText": "{\"batch\":{\"counts\":{\"failed\":0,\"omitted\":0,\"skipped\":0,\"succeeded\":1},\"operationCount\":1,\"operations\":[{\"failure\":null,\"omission\":null,\"operation\":\"get_tag\",\"operationId\":\"P7-before-tag\",\"result\":{\"hmiEndValue\":{\"type\":\"System.Double\",\"value\":100},\"hmiStartValue\":{\"type\":\"System.Double\",\"value\":0},\"initialValue\":{\"type\":\"System.String\",\"value\":\"\"},\"isComplete\":true,\"loggingTags\":[],\"lowerRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},\"members\":[],\"membersTruncated\":false,\"messages\":[],\"plcEndValue\":{\"type\":\"System.Double\",\"value\":10},\"plcStartValue\":{\"type\":\"System.Double\",\"value\":0},\"substituteValue\":{\"usage\":\"None\",\"value\":{\"type\":\"System.String\",\"value\":\"\"}},\"tag\":{\"accessMode\":\"SymbolicAccess\",\"acquisitionCycle\":\"T1s\",\"acquisitionMode\":\"CyclicOnUse\",\"address\":\"\",\"comment\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"connection\":\"\\u003CInternal tag\\u003E\",\"dataType\":\"Int\",\"displayName\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"hmiDataType\":\"Int\",\"linearScaling\":false,\"name\":\"CP1029_Reuse\",\"persistent\":false,\"plcName\":\"\",\"plcTag\":\"\",\"table\":\"CP1029_TableA\"},\"thresholds\":[{\"mode\":\"Upper\",\"name\":\"Upper Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},{\"mode\":\"Lower\",\"name\":\"Lower Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}],\"upperRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"1.1\",\"error\":null,\"success\":true,\"tool\":\"hmi_read\",\"warnings\":[]}"
+    },
+    {
+      "label": "P7",
+      "tool": "hmi_write",
+      "args": {
+        "operations": [
+          {
+            "operationId": "P7",
+            "operation": "update_tag",
+            "hmiName": "HMI_RT_1",
+            "tagName": "CP1029_Reuse",
+            "newName": "cp1029_reuse"
+          }
+        ]
+      },
+      "started": "2026-10-29T13:56:50.593Z",
+      "ended": "2026-10-29T13:58:07.471Z",
+      "isError": false,
+      "responseText": "{\"batch\":{\"counts\":{\"failed\":1,\"omitted\":0,\"skipped\":0,\"succeeded\":0},\"operationCount\":1,\"operations\":[{\"failure\":{\"category\":\"worker_operation_failed\",\"message\":\"Error when calling method \\u0027set_Name\\u0027 of type \\u0027Siemens.Engineering.HmiUnified.HmiTags.HmiTag\\u0027.\\r\\n\\r\\n-The tag name already exists (or) the name is a blank character.\\r\\n\"},\"omission\":null,\"operation\":\"update_tag\",\"operationId\":\"P7\",\"result\":{\"appliedProperties\":[],\"cleanup\":null,\"cleanupMessage\":null,\"failedProperty\":\"Name\",\"objectName\":\"cp1029_reuse\"},\"skipReason\":null,\"status\":\"failed\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"1.0\",\"effects\":[{\"effect\":{\"changes\":[{\"current\":\"CP1029_Reuse\",\"derived\":false,\"field\":\"name\",\"requested\":\"cp1029_reuse\"}],\"dependsOn\":null,\"operation\":\"update_tag\",\"removes\":null,\"target\":{\"alarmKind\":null,\"groupPath\":null,\"hmiName\":\"HMI_RT_1\",\"kind\":\"Tag\",\"name\":\"CP1029_Reuse\",\"tableName\":\"CP1029_TableA\"}},\"omission\":null,\"operationId\":\"P7\"}],\"error\":null,\"guards\":[],\"omission\":null,\"phase\":\"applied\",\"success\":false,\"tool\":\"hmi_write\",\"verification\":{\"omission\":null,\"operations\":[{\"actual\":\"present\",\"check\":\"observed\",\"expected\":null,\"message\":\"worker_operation_failed: Error when calling method \\u0027set_Name\\u0027 of type \\u0027Siemens.Engineering.HmiUnified.HmiTags.HmiTag\\u0027.\\r\\n\\r\\n-The tag name already exists (or) the name is a blank character.\\r\\n; cleanup=unknown; \",\"operationId\":\"P7\",\"success\":true},{\"actual\":\"CP1029_Reuse\",\"check\":\"name\",\"expected\":\"CP1029_Reuse\",\"message\":\"worker_operation_failed: Error when calling method \\u0027set_Name\\u0027 of type \\u0027Siemens.Engineering.HmiUnified.HmiTags.HmiTag\\u0027.\\r\\n\\r\\n-The tag name already exists (or) the name is a blank character.\\r\\n; cleanup=unknown; \",\"operationId\":\"P7\",\"success\":true},{\"actual\":\"CP1029_TableA\",\"check\":\"table\",\"expected\":\"CP1029_TableA\",\"message\":\"worker_operation_failed: Error when calling method \\u0027set_Name\\u0027 of type \\u0027Siemens.Engineering.HmiUnified.HmiTags.HmiTag\\u0027.\\r\\n\\r\\n-The tag name already exists (or) the name is a blank character.\\r\\n; cleanup=unknown; \",\"operationId\":\"P7\",\"success\":true},{\"actual\":\"\",\"check\":\"plcName\",\"expected\":null,\"message\":\"worker_operation_failed: Error when calling method \\u0027set_Name\\u0027 of type \\u0027Siemens.Engineering.HmiUnified.HmiTags.HmiTag\\u0027.\\r\\n\\r\\n-The tag name already exists (or) the name is a blank character.\\r\\n; cleanup=unknown; \",\"operationId\":\"P7\",\"success\":true},{\"actual\":\"Int\",\"check\":\"dataType\",\"expected\":null,\"message\":\"worker_operation_failed: Error when calling method \\u0027set_Name\\u0027 of type \\u0027Siemens.Engineering.HmiUnified.HmiTags.HmiTag\\u0027.\\r\\n\\r\\n-The tag name already exists (or) the name is a blank character.\\r\\n; cleanup=unknown; \",\"operationId\":\"P7\",\"success\":true}],\"success\":true},\"warnings\":[]}"
+    },
+    {
+      "label": "P7-independent-state-validation",
+      "tool": "hmi_read",
+      "args": {
+        "operations": [
+          {
+            "operationId": "P7-after-tag",
+            "operation": "get_tag",
+            "hmiName": "HMI_RT_1",
+            "tagName": "CP1029_Reuse"
+          },
+          {
+            "operationId": "P7-validate-tag",
+            "operation": "validate",
+            "hmiName": "HMI_RT_1",
+            "category": "tags",
+            "name": "CP1029_Reuse"
+          }
+        ]
+      },
+      "started": "2026-10-29T13:58:07.472Z",
+      "ended": "2026-10-29T13:58:23.661Z",
+      "isError": false,
+      "responseText": "{\"batch\":{\"counts\":{\"failed\":0,\"omitted\":0,\"skipped\":0,\"succeeded\":2},\"operationCount\":2,\"operations\":[{\"failure\":null,\"omission\":null,\"operation\":\"get_tag\",\"operationId\":\"P7-after-tag\",\"result\":{\"hmiEndValue\":{\"type\":\"System.Double\",\"value\":100},\"hmiStartValue\":{\"type\":\"System.Double\",\"value\":0},\"initialValue\":{\"type\":\"System.String\",\"value\":\"\"},\"isComplete\":true,\"loggingTags\":[],\"lowerRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},\"members\":[],\"membersTruncated\":false,\"messages\":[],\"plcEndValue\":{\"type\":\"System.Double\",\"value\":10},\"plcStartValue\":{\"type\":\"System.Double\",\"value\":0},\"substituteValue\":{\"usage\":\"None\",\"value\":{\"type\":\"System.String\",\"value\":\"\"}},\"tag\":{\"accessMode\":\"SymbolicAccess\",\"acquisitionCycle\":\"T1s\",\"acquisitionMode\":\"CyclicOnUse\",\"address\":\"\",\"comment\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"connection\":\"\\u003CInternal tag\\u003E\",\"dataType\":\"Int\",\"displayName\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"hmiDataType\":\"Int\",\"linearScaling\":false,\"name\":\"CP1029_Reuse\",\"persistent\":false,\"plcName\":\"\",\"plcTag\":\"\",\"table\":\"CP1029_TableA\"},\"thresholds\":[{\"mode\":\"Upper\",\"name\":\"Upper Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},{\"mode\":\"Lower\",\"name\":\"Lower Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}],\"upperRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"P7-validate-tag\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"1.1\",\"error\":null,\"success\":true,\"tool\":\"hmi_read\",\"warnings\":[]}"
+    },
+    {
+      "label": "restore-after-installed-P7-close",
+      "tool": "close_project",
+      "args": {
+        "saveBeforeClose": false
+      },
+      "started": "2026-10-29T14:00:26.905Z",
+      "ended": "2026-10-29T14:00:49.268Z",
+      "isError": false,
+      "responseText": "{\"contractVersion\":\"1.0\",\"effects\":{\"archiveMode\":null,\"archivePath\":null,\"destinationDirectory\":null,\"destinationProjectPath\":null,\"rebindsToDestination\":false,\"savesSource\":false,\"sourceOpenedByWorker\":null,\"sourceProjectPath\":\"<disposable-copy>\",\"sourceStatus\":{\"author\":\"ivan\",\"creationTime\":\"2021-04-22T06:39:01.3661499Z\",\"isModified\":true,\"isOpen\":true,\"lastModified\":\"2026-10-29T13:53:53.3716445Z\",\"lastModifiedBy\":\"LCZ\",\"metadata\":null,\"name\":\"<disposable-project>\",\"path\":\"<disposable-copy>\",\"size\":224379,\"version\":\"\"},\"targetExists\":false,\"willCloseSource\":false},\"error\":null,\"guards\":[{\"acknowledged\":true,\"id\":\"discards_unsaved_changes\",\"message\":\"Close \\u0027<disposable-copy>\\u0027 without saving and discard its unsaved changes.\",\"operationId\":\"lifecycle\",\"severity\":\"acknowledge\"}],\"phase\":\"applied\",\"result\":{\"failure\":null,\"omission\":null,\"status\":\"succeeded\",\"value\":{\"operation\":\"close_project\",\"project\":{\"author\":\"ivan\",\"creationTime\":\"2021-04-22T06:39:01.3661499Z\",\"isModified\":null,\"isOpen\":false,\"lastModified\":\"2026-10-29T13:53:53.3716445Z\",\"lastModifiedBy\":\"LCZ\",\"metadata\":null,\"name\":\"<disposable-project>\",\"path\":\"<disposable-copy>\",\"size\":224379,\"version\":\"\"},\"projectPath\":\"<disposable-copy>\",\"success\":true}},\"success\":true,\"tool\":\"close_project\",\"verification\":{\"failure\":null,\"omission\":null,\"status\":\"succeeded\",\"value\":{\"author\":null,\"creationTime\":null,\"isModified\":null,\"isOpen\":false,\"lastModified\":null,\"lastModifiedBy\":null,\"metadata\":null,\"name\":null,\"path\":null,\"size\":null,\"version\":null}},\"warnings\":[]}"
+    },
+    {
+      "label": "restore-after-installed-P7-reopen",
+      "tool": "open_project",
+      "args": {
+        "projectPath": "<disposable-copy>"
+      },
+      "started": "2026-10-29T14:01:26.059Z",
+      "ended": "2026-10-29T14:01:37.846Z",
+      "isError": false,
+      "responseText": "{\"contractVersion\":\"1.0\",\"effects\":{\"archiveMode\":null,\"archivePath\":null,\"destinationDirectory\":null,\"destinationProjectPath\":\"<disposable-copy>\",\"rebindsToDestination\":true,\"savesSource\":false,\"sourceOpenedByWorker\":null,\"sourceProjectPath\":null,\"sourceStatus\":null,\"targetExists\":false,\"willCloseSource\":false},\"error\":null,\"guards\":[],\"phase\":\"applied\",\"result\":{\"failure\":null,\"omission\":null,\"status\":\"succeeded\",\"value\":{\"operation\":\"open_project\",\"project\":{\"author\":\"ivan\",\"creationTime\":\"2021-04-22T06:39:01.3661499Z\",\"isModified\":false,\"isOpen\":true,\"lastModified\":\"2026-10-29T13:53:53.3716445Z\",\"lastModifiedBy\":\"LCZ\",\"metadata\":null,\"name\":\"<disposable-project>\",\"path\":\"<disposable-copy>\",\"size\":222578,\"version\":\"\"},\"projectPath\":\"<disposable-copy>\",\"success\":true}},\"success\":true,\"tool\":\"open_project\",\"verification\":{\"failure\":null,\"omission\":null,\"status\":\"succeeded\",\"value\":{\"author\":\"ivan\",\"creationTime\":\"2021-04-22T06:39:01.3661499Z\",\"isModified\":false,\"isOpen\":true,\"lastModified\":\"2026-10-29T13:53:53.3716445Z\",\"lastModifiedBy\":\"LCZ\",\"metadata\":null,\"name\":\"<disposable-project>\",\"path\":\"<disposable-copy>\",\"size\":222578,\"version\":\"\"}},\"warnings\":[]}"
+    },
+    {
+      "label": "restored-fixture-warmup-after-P7",
+      "tool": "hmi_read",
+      "args": {
+        "operations": [
+          {
+            "operationId": "restored-fixture-warmup",
+            "operation": "get_tag",
+            "hmiName": "HMI_RT_1",
+            "tagName": "CP1029_Reuse"
+          }
+        ]
+      },
+      "started": "2026-10-29T14:03:21.278Z",
+      "ended": "2026-10-29T14:03:39.719Z",
+      "isError": false,
+      "responseText": "{\"batch\":{\"counts\":{\"failed\":0,\"omitted\":0,\"skipped\":0,\"succeeded\":1},\"operationCount\":1,\"operations\":[{\"failure\":null,\"omission\":null,\"operation\":\"get_tag\",\"operationId\":\"restored-fixture-warmup\",\"result\":{\"hmiEndValue\":{\"type\":\"System.Double\",\"value\":100},\"hmiStartValue\":{\"type\":\"System.Double\",\"value\":0},\"initialValue\":{\"type\":\"System.String\",\"value\":\"\"},\"isComplete\":true,\"loggingTags\":[],\"lowerRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},\"members\":[],\"membersTruncated\":false,\"messages\":[],\"plcEndValue\":{\"type\":\"System.Double\",\"value\":10},\"plcStartValue\":{\"type\":\"System.Double\",\"value\":0},\"substituteValue\":{\"usage\":\"None\",\"value\":{\"type\":\"System.String\",\"value\":\"\"}},\"tag\":{\"accessMode\":\"SymbolicAccess\",\"acquisitionCycle\":\"T1s\",\"acquisitionMode\":\"CyclicOnUse\",\"address\":\"\",\"comment\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"connection\":\"\\u003CInternal tag\\u003E\",\"dataType\":\"Int\",\"displayName\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"hmiDataType\":\"Int\",\"linearScaling\":false,\"name\":\"CP1029_Reuse\",\"persistent\":false,\"plcName\":\"\",\"plcTag\":\"\",\"table\":\"CP1029_TableA\"},\"thresholds\":[{\"mode\":\"Upper\",\"name\":\"Upper Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},{\"mode\":\"Lower\",\"name\":\"Lower Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}],\"upperRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"1.1\",\"error\":null,\"success\":true,\"tool\":\"hmi_read\",\"warnings\":[]}"
+    }
+  ]
+}

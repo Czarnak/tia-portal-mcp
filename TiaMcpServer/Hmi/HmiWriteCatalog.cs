@@ -89,9 +89,7 @@ public static class HmiWriteCatalog
             if (r.Operation is "create_tag" or "update_tag")
             {
                 if (r.Connection is not null && r.PlcTag is null) Error("'connection' requires 'plcTag'.");
-                if (r.DataType is not null && r.PlcTag is not null) Error("'dataType' cannot accompany 'plcTag'.");
-                if (r.Operation == "create_tag" && (r.PlcTag is not null ? r.Connection is null : r.DataType is null))
-                    Error("Create requires connection plus plcTag, or dataType.");
+                if (r.Operation == "create_tag" && r.PlcTag is null && r.DataType is null) Error("Create requires plcTag or dataType.");
             }
             if (r.AlarmKind is not null && r.AlarmKind is not ("discrete" or "analog")) Error("'alarmKind' must be discrete or analog.");
             if (r.AlarmKind == "analog")

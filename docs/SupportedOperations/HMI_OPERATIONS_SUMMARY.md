@@ -166,11 +166,11 @@ worker methods.
 
 | Operation | Required | Optional |
 | --- | --- | --- |
-| `create_tag_table` | `tableName` | `groupPath` (existing group) |
+| `create_tag_table` | `tableName` | `groupPath` |
 | `update_tag_table` | `tableName`, `newName` | – |
 | `delete_tag_table` | `tableName` | – |
-| `create_tag` | `tableName`, `tagName`, and either `connection` + `plcTag` or `dataType` | `comment`, `displayName`, `acquisitionCycle` |
-| `update_tag` | `tagName` | `newName`, `plcTag`, `connection` (with `plcTag`), `dataType` (internal only), `comment`, `displayName`, `acquisitionCycle` |
+| `create_tag` | `tableName`, `tagName`, and either `plcTag` or `dataType` | `connection` (with `plcTag`), `comment`, `displayName`, `acquisitionCycle` |
+| `update_tag` | `tagName` | `newName`, `plcTag`, `connection` (with `plcTag`), `dataType`, `comment`, `displayName`, `acquisitionCycle` |
 | `delete_tag` | `tagName` | – |
 | `create_alarm` | `alarmKind`, `alarmName`, `triggerTag`; analog also `condition`, `conditionValue` | `alarmClass` (default `Alarm`), `priority`, `eventText`, `infoText`; discrete only `bitNumber` (default 0), `triggerMode` |
 | `update_alarm` | `alarmKind`, `alarmName` | `newName` and create fields valid for that kind |
@@ -178,27 +178,26 @@ worker methods.
 
 ### Fields and dependencies
 
-- **Binding.** Bound tags require an existing connection and PLC tag; binding never creates a
-  connection and their `dataType` is derived. Internal creates require `dataType`; their connection
-  reads `<Internal tag>`. Updating `plcTag` alone requires a bound tag. Quoted (`"DB".Member`) and
-  unquoted PLC paths normalize to Siemens' unquoted dotted form. A preview cannot prove PLC-source
-  existence; its setter can fail during mutation.
+- **Binding.** Request shape requires `plcTag` when `connection` is supplied; a create needs
+  `plcTag` or `dataType`. The host does not preflight connection existence, require a bound tag
+  for `plcTag`, or refuse `dataType` on a bound tag. Siemens decides those semantic cases during
+  mutation; binding does not create connection objects. Quoted (`"DB".Member`) and unquoted PLC
+  paths normalize to Siemens' unquoted dotted form. A preview cannot prove native acceptance or
+  PLC-source existence.
 - **Names.** Tags are HMI-wide, tables span all groups, alarms are scoped by kind. `tableName` places
   a new tag; existing tags use `tagName` alone. New names cannot be blank, padded, or contain controls,
-  `.` or `"`. Existing selectors match case-insensitively; final names verify exact case.
+  `.` or `"`. Existing selectors match case-insensitively. Create/rename collisions go to Siemens;
+  use a public read to inspect the resulting spelling and object identity.
 - **Values.** `acquisitionCycle` is `T100ms`, `T250ms`, `T500ms`, `T1s`, `T2s`, `T5s` or `T10s`.
   Priority is 0–255. Discrete `bitNumber` is at least zero, with its native type-specific upper bound;
   `triggerMode` is `OnRisingEdge` or `OnFallingEdge`. Analog `condition` is `LowerLimit`, `UpperLimit`,
   `Equal`, `NotEqual`, `LowerLimitOrEqual` or `UpperLimitOrEqual`. Finite JSON `conditionValue` uses Int32
-  setter input for integral values in Int32 range (including `50.0`), otherwise Double. Verification
-  allows only exact numeric equality, including lossless Int32-request to Double-readback
-  normalization, and retains actual readback type evidence.
-- **Members.** `triggerTag` accepts a tag or recursive `Tag.Member` path. Names created or renamed
-  earlier may supply `dependsOn`; dependent items re-plan immediately before mutation. A member of
-  an earlier-created bound tag is provisional during initial planning and must be proved by fresh
-  `get_tag` evidence before alarm mutation. An existing-tag rebind introducing a previously absent
-  member followed by an alarm on it in the same call is rejected before mutation: complete the binding update, read
-  tag/members, then create the alarm in a second call.
+  setter input for integral values in Int32 range (including `50.0`), otherwise Double.
+- **Members and references.** `triggerTag` accepts a tag or recursive `Tag.Member` path. The host
+  does not prove member, trigger-tag or alarm-class existence before mutation. There is no
+  rebind/read/second-call restriction for a newly introduced member. Siemens can accept an invalid
+  reference; read the affected objects, run public `validate`, and compile the HMI device in the
+  TIA Portal UI. These checks are separate from write verification.
 - **Texts.** `comment`, `displayName`, `eventText` and `infoText` are nonempty arrays of `{culture,text}`;
   only supplied cultures change. Duplicate cultures are `validation_error`; an unconfigured language
   is `target_not_found`. Send plain text: input starting with `<body` is rejected; EventText line
@@ -211,15 +210,18 @@ worker methods.
 
 | Guard | Level | Fires when |
 | --- | --- | --- |
-| `hmi_name_collision` | block | Create/rename collides case-insensitively with another object in its name scope. |
 | `hmi_state_unverifiable` | block | Required evidence is incomplete or initial delete planning needs over 200 cross-reference queries. |
 | `hmi_deletes_table_contents` | info | Deleting a table also deletes its inventoried tags. |
 | `hmi_deletes_referenced_tag` | info | Deleted tags have inventoried alarm/screen/script users; references can remain dangling. |
 
-The 200-query cap covers initial plan-time cross-reference reads for pre-existing top-level tags
-removed by the call, including table contents. Dependent deletes re-read their consequences before
-mutation; this is not a cap on total worker dispatches or all later reads. Delete tags over separate
-calls before deleting a table whose initial evidence would exceed the cap.
+Planning gathers one initial public-read evidence set per resolved HMI for update/delete targets
+and delete consequences through sequential, non-atomic reads, then simulates effects in caller
+order. The 200-query cap covers its cross-reference
+reads for pre-existing top-level tags
+removed by the call, including table contents. There is no per-item re-planning or worker
+post-write read-back. Delete effects use initial evidence plus caller-order simulation; no
+native consequence reads refresh them after mutation. Split deletes across calls if the initial
+evidence would exceed the cap.
 
 Binding-gate failures preserve their original category, including `worker_timeout`, `worker_crashed`,
 `portal_lost` and `protocol_error`, in the top-level error and audit. A gate denial stops before planning
@@ -229,19 +231,36 @@ The shared guarded pipeline pins the binding through planning, mutation, verific
 There is no elicitation, confirmation argument, acknowledgment input or safety token. Execution stops
 at the first failing setter/item; there is no batch rollback or automatic replay. Typed results
 retain ordered `appliedProperties`, `failedProperty` and create `cleanup` (`notNeeded`, `deleted`,
-`failed`, with diagnostics). A failed create attempts identity-checked deletion; successful cleanup
-is verified absent, while failed cleanup can leave an object. Categorized worker failures retain their
-category (for example, `target_not_found` for a missing text culture) and warnings alongside the partial
-outcome. A failed update keeps earlier setters.
-Inspect actual state before retrying.
+`failed`, with diagnostics). `appliedProperties` lists completed stages, not an atomic change set:
+a failing multi-culture `Comment` stage can already have changed an earlier culture even though
+`Comment` is not listed. A failed create attempts identity-checked deletion of the new object;
+cleanup can fail and leave it behind. A failed update keeps earlier changes. Inspect actual state
+with public reads before retrying.
 
-Public table/tag/alarm readback verifies requested values, names and cultures; name-scoped `validate`
-errors fail postconditions and warnings remain non-fatal. Derived values are reported. Deletes and
-successful cleanup are checked for absence; later-overwritten items are `superseded`. Mutations drop
-that HMI's read snapshots; planning inventories can also consume or evict the four snapshot slots.
+An `EngineeringTargetInvocationException` during a mutation method is `engineering_rejected`;
+other Siemens `EngineeringException` failures are `worker_operation_failed`, and `portal_lost`
+takes precedence. The conditional item-failure `engineeringError` contains `type`, verbatim
+`message` and `inner[]`, capped at 4,000 message characters and eight inner exceptions. HMI wraps
+preserve this evidence except when `portal_lost` takes precedence. A partial outcome is present
+only after writer allocation; HMI resolution can fail before that point.
+Worker refusals keep their category, such as `target_not_found` for a missing culture; that
+category alone does not establish that nothing changed. For example, a duplicate-tag create's
+captured message is:
 
-Write responses use `contractVersion:"1.0"`, phases `preview`, `applied`, `blocked`, `error`, typed
-effects/results/verification, explicit nulls and 180,000-document/60,000-value character budgets.
+```json
+"Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\n-The value must be unique.\r\n"
+```
+
+Shared verification records completed items as `trusted` or `superseded`, without a worker
+read-back or Validate call. Failed/skipped items have no verification entry. A later attempted
+item can supersede an earlier success even when it fails after possible mutation, including
+an outcome-bearing `target_not_found`; its verification message identifies the uncertainty.
+Thus `verification.success:true` can coexist with root `success:false`. Mutations invalidate
+that HMI's read snapshots; initial planning reads can also consume or evict snapshot slots.
+
+Write responses use `contractVersion:"2.0"` (reads remain `1.1`), phases `preview`, `applied`, `blocked`, `error`, typed
+effects/results/verification, explicit nulls and default 180,000-document/60,000-value character
+budgets, raisable at startup.
 Rejections have a top-level error; attempted mutation/verification failure has `success:false`,
 `error:null`, MCP `isError:false` and can retain changes. Whole-value omissions may fail delivery
 while preserving true execution summaries. Each entered call, including preview/denial, produces
@@ -251,6 +270,62 @@ read-write and `policy` in full.
 Standalone and local-session writes use the active engineering root; they do not implicitly save,
 compile, refresh from or check in to Project Server. Use `save_project` explicitly; a local save
 calls `LocalSession.Save()` only.
+
+### Write response data
+
+The root is `{tool, contractVersion, phase, success, error, warnings, guards, effects, batch,
+verification, omission}`. Text and structured content are the same canonical document.
+
+| Value | Fields |
+| --- | --- |
+| `effects[]` | `operationId`, `effect`, `omission` |
+| `effect` | `operation`, `target`, `changes`, `removes`, nullable `dependsOn` (presentation metadata, not a re-plan request) |
+| `target` | `kind`, `hmiName`, `name`, `alarmKind`, `tableName`, `groupPath` |
+| `changes[]` | `field`, `current`, `requested`, `derived` |
+| `removes` | `tags[]`, `references[]`; each reference has `tag`, `name`, `typeName`, `path` |
+| Item `result` | `objectName`, ordered `appliedProperties[]`, `failedProperty`, `cleanup`, `cleanupMessage` |
+| `verification` | `success`, `operations[]`, `omission`; each entry has `operationId`, `success`, `check`, `expected`, `actual`, `message` |
+
+An attempted failed item can retain its typed `result` alongside `failure`; it is not a success
+result or proof of unchanged state. Preview has no mutation outcome or read-back guarantee.
+
+### Current qualification
+
+The [native-rejection qualification record](../superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md)
+records completed qualification within the recorded R1/R2/R3 scope. The fresh 35-case matrix ran on installed
+`4.2.0-local.112.g96a28b7`: 31 P variants produced 21 O1 native rejections, three O2 accepted
+invalid references, five accepted controls and two worker refusals, plus L1–L4. O1 error types
+and messages match the native checkpoint. O2 references remained visible in public reads and
+were reported by public Validate; write success does not certify their validity.
+
+| Captured native case | Tool result / observed state |
+| --- | --- |
+| Duplicate table/tag/alarm or colliding rename; tag case-only rename; default-table delete | O1 `engineering_rejected`; original objects remained |
+| Bound-tag `dataType`, `plcTag` without connection, or missing connection followed by `PlcTag` | O1 setter rejection with completed stages retained; failed new tags were cleaned up |
+| Create tag into missing table | O1 native `Create` rejection; no fallback placement or automatic table creation |
+| Missing alarm class, trigger tag or struct member | O2 accepted reference; public Validate reports the missing object; earlier checkpoint UI compile also diagnosed these cases |
+| Cross-kind alarm-name reuse, table/alarm case-only rename, delete-then-create case variant | Accepted controls; intended objects/read state and public Validate matched |
+| Missing table group or text culture | Worker `target_not_found`; group refusal precedes Create, while the culture refusal can follow mutation and cleanup |
+
+The [31-variant table and canonical inputs](../superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases.md)
+retain exact outcomes, independent reads, public validation and restoration. The checkpoint UI
+observations are not fresh compiles of every candidate variant.
+
+The R1 fix's focused live check passed on installed `.113` / `31d1a44` and restored the saved
+baseline. It demonstrated conservative supersession after a later partial failure. The full
+offline suite passed 7,644 tests with 95.05% scoped coverage; this is separate from native/UI
+qualification. Manual/local-session evidence on `.113` is accepted and complete: the maintainer
+reported clean compiles for P10, P12-discrete, L1, L2 and L5; L4 produced the expected two
+missing-tag errors and zero warnings. Six R3 waivers reuse the earlier checkpoint with fresh
+candidate reads/Validate, rather than fresh candidate compiles.
+
+L5's two cleanup items succeeded and its full inventory matched the local baseline: seven
+tables, 72 tags and 78 alarms. `isModified` changed from false to true despite restored inventory;
+the probe did not save or check in. The maintainer then reported manual cleanup and opening the
+standalone project. Timing-after on `.113` is complete: root medians from three measured samples
+are H1 12,117 ms, H2 128,725 ms, H3 33,934 ms, H4 34,542 ms and H5 17,824 ms. The comparison
+uses installed `75c0568` as the baseline, a recorded deviation from planned `0b2640a`.
+No full `.113` matrix rerun, global O3-absence proof, or induced race/fault qualification is claimed.
 
 ## Known limits
 
@@ -262,7 +337,7 @@ calls `LocalSession.Save()` only.
   the cache and left O1 open: the planned traversal saving is not delivered. The earlier roughly
   6 s per `validate screenItems` item is historical baseline evidence.
 - Direct case-only tag rename can fail at the Siemens setter while preserving the original tag.
-  The self-rename collision guard permits it; table/alarm case-only success does not qualify tags.
+  Table/alarm case-only success does not qualify tags.
   Two explicit caller-owned renames through a unique intermediate name worked on an earlier
   candidate; there is no hidden server rename. Inspect partial state before retrying.
 - Default tag-table deletion can fail natively; no public property reliably identifies it, so no
@@ -275,11 +350,13 @@ calls `LocalSession.Save()` only.
   arrives from Openness as a string (`System.String`), so non-integral `Double` encoding is still not
   observed live.
 - Live evidence gaps: non-default connection drivers (no OPC UA connection was available), live
-  validation warnings, non-default Object values.
+  validation warnings, non-default Object values, and native connection-only assignment without
+  a subsequent `PlcTag` setter. Public request shape still requires `plcTag` with `connection`;
+  the missing-connection probe's later `PlcTag` rejection does not qualify that isolated setter path.
 
 See the [improvement log](../IMPROVEMENT_LOG.md#open-hmi_read-follow-ups-2026-10-12) for follow-ups.
-The [write acceptance report](../superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md)
-qualifies both-mode functional verification on source `48f2edd`. Editor rendering remains one
+The [earlier write acceptance report](../superpowers/acceptance/reports/2026-10-14-hmi-write-live-acceptance.md)
+qualifies its historical both-mode functional verification on source `48f2edd`. Editor rendering remains one
 earlier-candidate maintainer check. Performance uses an archival baseline with no write tool:
 matched baseline-write comparisons and the three-repetition owner-transition gate remain
 unqualified; the single owner-transition observation failed the proposed 10% memory-return condition.

@@ -48,9 +48,9 @@ public static class HmiWritePayloadBudget
         return Budget.Apply(Present, () => current.Batch, ItemRoots(), DocumentRoots, maxItemChars, maxDocumentChars);
     }
 
-    // An initial blocking plan never runs. Otherwise each item has at most two initial info guards
-    // and two late info guards (messages may differ). The stopping item adds at most two blockers,
-    // then the pipeline adds one partial-write guard. 4N+3 also bounds an initially blocked plan.
+    // An upper bound, not an exact count. Each item fires at most two state_unverifiable blockers and two
+    // info guards; any blocker stops the call (blocked, at most 4N), so an applied call has only info guards
+    // plus one partial-write guard (at most 2N+1). 4N+3 covers both with headroom.
     internal static int MeasureProtectedCore(IReadOnlyList<HmiWriteOperationRequest> items)
         => Budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), 4, 3, true,
             core => new HmiGuardedWriteResponse("hmi_write", HmiWriteContractVersion.Current, WritePhases.Applied, false,

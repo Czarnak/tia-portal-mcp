@@ -23,6 +23,20 @@ raw outcomes and worker-response carriers before permissive decoding, without re
 worker replacement. Twelve previously failing malformed-wire cases, sixteen new controls and the
 focused 517-test set passed. The worker is unchanged; this follow-up has offline evidence only,
 without new live/timing qualification. See the [scoped report, final offline gate and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
+HMI writes now use contract `2.0` while reads remain `1.1`. Initial public-read planning and
+caller-order simulation replace per-item re-planning; shared `TrustedWriteVerifier` and
+`HmiVerificationPolicy` report `trusted`/`superseded` without post-write read-back. The
+[2026-10-30 scoped report](../superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md)
+separates the 35 functional cases on installed `4.2.0-local.112.g96a28b7` from the focused R1
+partial-failure check and manual UI, L5 and timing qualification on `4.2.0-local.113.g31d1a44`.
+Offline qualification passed 7,644 default tests
+and 95.05% linked host/contracts line coverage. The maintainer accepted the manual compile queue
+as complete with six R3 waivers. L5 local-session create/read/Validate/cleanup restored the complete
+inventory of seven tables, 72 tags and 78 alarms without save or check-in; `isModified` changed from `false`
+to `true`. The maintainer subsequently reported manual cleanup and the correct standalone project
+open. The timing archive and final restoration/hash checks passed, completing the recorded
+R1/R2/R3 qualification with these waivers. Broader native fault and cleanup-failure coverage
+is not established by this scope.
 The batch tools are retired
 (`plc_write`, 2026-10-07); project-tree alignment remains future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
 On 2026-09-29 the
@@ -54,7 +68,7 @@ it without inventing a second mechanism.
 | `plc_read`, `read_cross_references` | Structured (`1.0`, root warnings/explicit nulls; 60,000-character value and 180,000-character document budgets) | Implemented and live-accepted 2026-10-05; replace `execute_read_batch`, which was retired |
 | `plc_write` | Structured guarded write envelope (`1.0`; effects, guards, typed batch and verification, omission) | Implemented and live-accepted 2026-10-07; replaces `preview_write_batch` and `apply_write_batch`, which were retired |
 | `hmi_read` | Structured (`1.1`, typed items, opt-in sealed snapshot cursors) | Implemented and live-accepted; see the [HMI reference](../SupportedOperations/HMI_OPERATIONS_SUMMARY.md) |
-| `hmi_write` | Structured guarded write envelope (`1.0`) | Implemented; scoped live acceptance 2026-10-14 |
+| `hmi_write` | Structured guarded write envelope (`2.0`); typed native errors/partial outcomes; `trusted`/`superseded` without read-back | Implemented and qualified within the recorded R1/R2/R3 scope: 35 functional cases on `96a28b7`; focused R1, manual UI, L5 and timing on `31d1a44`, with six R3 compile waivers; see the [completed scoped report](../superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md) |
 | `vci_read`, `vci_write` | Structured (`1.0`); `vci_write` uses the guarded write envelope | Implemented; scoped live acceptance 2026-10-16; see the [VCI reference](../SupportedOperations/VCI_OPERATIONS_SUMMARY.md) |
 
 The batch tools were excluded because the
@@ -306,7 +320,8 @@ not changed by this documentation task.
 
 ### Phase 4: Align and Retire
 
-- Network alignment delivered with guarded writes: read `1.0`, write `2.0`, warnings/explicit nulls, effects and typed mutation outcomes; actual-by-default `dryRun=false`, no server elicitation. Planning uses one initial hardware snapshot; `TrustedWriteVerifier` with domain policies reports `trusted`/`superseded` for successful prefix items, without immediate/final native read-back. Failed/skipped items have no verification entry. Configure stops at the first native rejection and retains `appliedSettings`; `skippedSettings`, immediate `identity`/`checks`, `finalChecks` and `networkDeviceCount` are retired. Legacy/unknown-root/nonboolean rejection before entry returns the canonical `validation_error` document with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. The scoped matrix and timing are qualified in the [live report](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md); HMI/VCI shared-verifier migration remains open. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
+- Network alignment delivered with guarded writes: read `1.0`, write `2.0`, warnings/explicit nulls, effects and typed mutation outcomes; actual-by-default `dryRun=false`, no server elicitation. Planning uses one initial hardware snapshot; `TrustedWriteVerifier` with domain policies reports `trusted`/`superseded` for successful prefix items, without immediate/final native read-back. Failed/skipped items have no verification entry. Configure stops at the first native rejection and retains `appliedSettings`; `skippedSettings`, immediate `identity`/`checks`, `finalChecks` and `networkDeviceCount` are retired. Legacy/unknown-root/nonboolean rejection before entry returns the canonical `validation_error` document with no audit; entered denials use a canonical root error and one audit. Aggregate encoded-ID protected-core admission retains per-ID 256, without a smaller per-ID limit. Whole omissions can report delivery failure while retaining true execution summaries; audit text/hash matches exact delivery. The scoped matrix and timing are qualified in the [live report](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md); VCI shared-verifier migration remains open. See the [current Network contract](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
+- HMI alignment delivered as write `2.0`, read `1.1`: one initial evidence set per HMI with caller-order dependency simulation, no per-item re-plan or post-write public reads. Its three guards are `hmi_state_unverifiable` (block), `hmi_deletes_table_contents` and `hmi_deletes_referenced_tag` (info). Typed Siemens failures carry `engineeringError` unless `portal_lost` takes precedence. A partial `HmiWriteOutcome` is conditional on reaching writer allocation; HMI resolution can fail before an outcome exists. Non-engineering categorized failures can carry outcomes too, and `portal_lost` can retain an outcome while omitting the engineering error. Shared verification uses flat effect keys, including old/new rename names and removed-tag keys for a later table delete; failed/skipped items have no entry. A failed item with a result can supersede earlier items even when its category normally describes a precondition refusal. `appliedProperties` records completed stages and can omit a setter's partial mutation. Callers must read affected state, run `hmi_read validate` and compile in the Portal UI. VCI's existing verifier and the PLC content-importer exception-flattening follow-ups remain open; see the [HMI reference](../SupportedOperations/HMI_OPERATIONS_SUMMARY.md) and [scoped report](../superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md).
 - Project tree: move to `tool`, `success`, and `error` in its next major contract version.
 - Lifecycle, Network and generic-batch token paths are retired. The remaining legacy text pieces
   (`StandaloneToolResultFormatter`, `WorkerCallResult.ToText` and `ToEnvelopeText`) were deleted

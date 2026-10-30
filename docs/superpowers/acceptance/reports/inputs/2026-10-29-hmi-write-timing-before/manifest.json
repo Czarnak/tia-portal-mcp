@@ -1,0 +1,50 @@
+{
+  "algorithm": "SHA-256",
+  "selfExcluded": true,
+  "files": {
+    ".gitattributes": {
+      "bytes": 8,
+      "sha256": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da"
+    },
+    "client.py": {
+      "bytes": 11652,
+      "sha256": "8d1579a7624e02e4fe8d94c020869a6bd0de2ee18634cc4404aeb02602beacc4"
+    },
+    "hmi-reads.jsonl.gz": {
+      "bytes": 131270,
+      "sha256": "0663703d20d6a577e522d176c867051cc0402b24d643bb74289aa629495a9f06",
+      "decompressedBytes": 3267412,
+      "decompressedSha256": "45620aefe05dfae07d13779a8c5d4ff8cf2666aaa8f8789ff0d5424891deeafb"
+    },
+    "lifecycle-status-projections.json": {
+      "bytes": 38451,
+      "sha256": "8eb90c5f25ef4d94b7d44b07c06d0e970369e363559325fb66ce30408c00d1e8"
+    },
+    "README.md": {
+      "bytes": 6331,
+      "sha256": "4dc4bafe37ce85f6d5d1d9e2d6b4d9fdf32d71e5dd94dbd47db8ea4719f9c361"
+    },
+    "self_test.py": {
+      "bytes": 3026,
+      "sha256": "d1cbfe72ab8424e58380ea45f8d96ce22fcd5024fd750659db98a84cecac1ebb"
+    },
+    "summary.json": {
+      "bytes": 5973,
+      "sha256": "06be69054fc5d0c4754dff5f9b32b0b6966f2266dfe26b5553d5d2e9275dfba6"
+    },
+    "timing-writes.jsonl.gz": {
+      "bytes": 33351,
+      "sha256": "f660a8613e406bc0b701c2d689f7ac6fe80eda6aaf031e9c40d0a8692361dcc4",
+      "decompressedBytes": 462772,
+      "decompressedSha256": "4eef28d3e891f113d649e81e140ec0b9f8bbbb3a19bf3bff15b20532b495fcd9"
+    },
+    "validate_archive.py": {
+      "bytes": 5109,
+      "sha256": "30d2813ff666baec99ce3e331a9078edfb38a424ce9d9f8ad104bd25c3620e40"
+    },
+    "workloads.json": {
+      "bytes": 5856,
+      "sha256": "b9efb11e4b5db42873b40a0bd8fbc4d93238aff4a713e4cb66acf52552261fbe"
+    }
+  }
+}

@@ -1,0 +1,1131 @@
+{
+  "scope": "Focused R1 partial-update supersession check only; the full 35-case matrix remains installed .112 evidence.",
+  "candidate": {
+    "installedVersion": "4.2.0-local.113.g31d1a44",
+    "sourceCommit": "31d1a44",
+    "hostSha256": "369695059fa9da0b0f149d79c0beae3359d4afa74c28b78af03761f8536749b0",
+    "workerSha256": "52c8e7de27ef6eb9d93832667baf6033737643610118cf29cf265e36015a797c",
+    "identitySource": "Controller-supplied installed identity and binary hashes."
+  },
+  "connectionAttemptNote": "The initial .113 attempt timed out while an Openness access prompt awaited user approval. The user approved access; this retry completed successfully.",
+  "request": {
+    "name": "hmi_write",
+    "arguments": {
+      "operations": [
+        {
+          "operationId": "r1-first",
+          "operation": "update_tag",
+          "hmiName": "HMI_RT_1",
+          "tagName": "CP1029_TagA",
+          "comment": [
+            {
+              "culture": "en-GB",
+              "text": "R1 first write"
+            }
+          ]
+        },
+        {
+          "operationId": "r1-partial",
+          "operation": "update_tag",
+          "hmiName": "HMI_RT_1",
+          "tagName": "CP1029_TagA",
+          "newName": "R1030_Renamed",
+          "comment": [
+            {
+              "culture": "en-GB",
+              "text": "R1 partial text"
+            },
+            {
+              "culture": "zu-ZA",
+              "text": "Checkpoint missing culture"
+            }
+          ]
+        },
+        {
+          "operationId": "r1-skipped",
+          "operation": "create_tag_table",
+          "hmiName": "HMI_RT_1",
+          "tableName": "R1030_NeverCreated"
+        }
+      ]
+    }
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"batch\":{\"counts\":{\"failed\":1,\"omitted\":0,\"skipped\":1,\"succeeded\":1},\"operationCount\":3,\"operations\":[{\"failure\":null,\"omission\":null,\"operation\":\"update_tag\",\"operationId\":\"r1-first\",\"result\":{\"appliedProperties\":[\"Comment\"],\"cleanup\":null,\"cleanupMessage\":null,\"failedProperty\":null,\"objectName\":\"CP1029_TagA\"},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":{\"category\":\"target_not_found\",\"message\":\"Text culture \\u0027zu-ZA\\u0027 was not found.\"},\"omission\":null,\"operation\":\"update_tag\",\"operationId\":\"r1-partial\",\"result\":{\"appliedProperties\":[\"Name\"],\"cleanup\":null,\"cleanupMessage\":null,\"failedProperty\":\"Comment\",\"objectName\":\"R1030_Renamed\"},\"skipReason\":null,\"status\":\"failed\",\"warnings\":[\"This call stopped at this operation. This operation and any earlier operation in the same call may already have changed TIA state; no rollback was attempted. Re-read the affected objects before retrying.\"]},{\"failure\":null,\"omission\":null,\"operation\":\"create_tag_table\",\"operationId\":\"r1-skipped\",\"result\":null,\"skipReason\":\"earlierOperationFailed\",\"status\":\"skipped\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"2.0\",\"effects\":[{\"effect\":{\"changes\":[{\"current\":\"\",\"derived\":false,\"field\":\"comment[en-GB]\",\"requested\":\"R1 first write\"}],\"dependsOn\":null,\"operation\":\"update_tag\",\"removes\":null,\"target\":{\"alarmKind\":null,\"groupPath\":null,\"hmiName\":\"HMI_RT_1\",\"kind\":\"Tag\",\"name\":\"CP1029_TagA\",\"tableName\":\"CP1029_TableA\"}},\"omission\":null,\"operationId\":\"r1-first\"},{\"effect\":{\"changes\":[{\"current\":\"R1 first write\",\"derived\":false,\"field\":\"comment[en-GB]\",\"requested\":\"R1 partial text\"},{\"current\":null,\"derived\":false,\"field\":\"comment[zu-ZA]\",\"requested\":\"Checkpoint missing culture\"},{\"current\":\"CP1029_TagA\",\"derived\":false,\"field\":\"name\",\"requested\":\"R1030_Renamed\"}],\"dependsOn\":\"r1-first\",\"operation\":\"update_tag\",\"removes\":null,\"target\":{\"alarmKind\":null,\"groupPath\":null,\"hmiName\":\"HMI_RT_1\",\"kind\":\"Tag\",\"name\":\"CP1029_TagA\",\"tableName\":\"CP1029_TableA\"}},\"omission\":null,\"operationId\":\"r1-partial\"},{\"effect\":{\"changes\":[{\"current\":null,\"derived\":false,\"field\":\"name\",\"requested\":\"R1030_NeverCreated\"}],\"dependsOn\":null,\"operation\":\"create_tag_table\",\"removes\":null,\"target\":{\"alarmKind\":null,\"groupPath\":null,\"hmiName\":\"HMI_RT_1\",\"kind\":\"TagTable\",\"name\":\"R1030_NeverCreated\",\"tableName\":\"R1030_NeverCreated\"}},\"omission\":null,\"operationId\":\"r1-skipped\"}],\"error\":null,\"guards\":[{\"acknowledged\":null,\"id\":\"partial_write_no_rollback\",\"message\":\"This call stopped at this operation. This operation and any earlier operation in the same call may already have changed TIA state; no rollback was attempted. Re-read the affected objects before retrying.\",\"operationId\":\"r1-partial\",\"severity\":\"info\"}],\"omission\":null,\"phase\":\"applied\",\"success\":false,\"tool\":\"hmi_write\",\"verification\":{\"omission\":null,\"operations\":[{\"actual\":null,\"check\":\"superseded\",\"expected\":null,\"message\":\"Operation \\u0027r1-first\\u0027: superseded by later operation \\u0027r1-partial\\u0027 on the same object; the later operation failed and may have changed the object; its final state is not verified. Inspect it with hmi_read before retrying.\",\"operationId\":\"r1-first\",\"success\":true}],\"success\":true},\"warnings\":[\"This call stopped at this operation. This operation and any earlier operation in the same call may already have changed TIA state; no rollback was attempted. Re-read the affected objects before retrying.\"]}"
+      }
+    ],
+    "structuredContent": {
+      "batch": {
+        "counts": {
+          "failed": 1,
+          "omitted": 0,
+          "skipped": 1,
+          "succeeded": 1
+        },
+        "operationCount": 3,
+        "operations": [
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "update_tag",
+            "operationId": "r1-first",
+            "result": {
+              "appliedProperties": [
+                "Comment"
+              ],
+              "cleanup": null,
+              "cleanupMessage": null,
+              "failedProperty": null,
+              "objectName": "CP1029_TagA"
+            },
+            "skipReason": null,
+            "status": "succeeded",
+            "warnings": []
+          },
+          {
+            "failure": {
+              "category": "target_not_found",
+              "message": "Text culture 'zu-ZA' was not found."
+            },
+            "omission": null,
+            "operation": "update_tag",
+            "operationId": "r1-partial",
+            "result": {
+              "appliedProperties": [
+                "Name"
+              ],
+              "cleanup": null,
+              "cleanupMessage": null,
+              "failedProperty": "Comment",
+              "objectName": "R1030_Renamed"
+            },
+            "skipReason": null,
+            "status": "failed",
+            "warnings": [
+              "This call stopped at this operation. This operation and any earlier operation in the same call may already have changed TIA state; no rollback was attempted. Re-read the affected objects before retrying."
+            ]
+          },
+          {
+            "failure": null,
+            "omission": null,
+            "operation": "create_tag_table",
+            "operationId": "r1-skipped",
+            "result": null,
+            "skipReason": "earlierOperationFailed",
+            "status": "skipped",
+            "warnings": []
+          }
+        ],
+        "truncation": null
+      },
+      "contractVersion": "2.0",
+      "effects": [
+        {
+          "effect": {
+            "changes": [
+              {
+                "current": "",
+                "derived": false,
+                "field": "comment[en-GB]",
+                "requested": "R1 first write"
+              }
+            ],
+            "dependsOn": null,
+            "operation": "update_tag",
+            "removes": null,
+            "target": {
+              "alarmKind": null,
+              "groupPath": null,
+              "hmiName": "HMI_RT_1",
+              "kind": "Tag",
+              "name": "CP1029_TagA",
+              "tableName": "CP1029_TableA"
+            }
+          },
+          "omission": null,
+          "operationId": "r1-first"
+        },
+        {
+          "effect": {
+            "changes": [
+              {
+                "current": "R1 first write",
+                "derived": false,
+                "field": "comment[en-GB]",
+                "requested": "R1 partial text"
+              },
+              {
+                "current": null,
+                "derived": false,
+                "field": "comment[zu-ZA]",
+                "requested": "Checkpoint missing culture"
+              },
+              {
+                "current": "CP1029_TagA",
+                "derived": false,
+                "field": "name",
+                "requested": "R1030_Renamed"
+              }
+            ],
+            "dependsOn": "r1-first",
+            "operation": "update_tag",
+            "removes": null,
+            "target": {
+              "alarmKind": null,
+              "groupPath": null,
+              "hmiName": "HMI_RT_1",
+              "kind": "Tag",
+              "name": "CP1029_TagA",
+              "tableName": "CP1029_TableA"
+            }
+          },
+          "omission": null,
+          "operationId": "r1-partial"
+        },
+        {
+          "effect": {
+            "changes": [
+              {
+                "current": null,
+                "derived": false,
+                "field": "name",
+                "requested": "R1030_NeverCreated"
+              }
+            ],
+            "dependsOn": null,
+            "operation": "create_tag_table",
+            "removes": null,
+            "target": {
+              "alarmKind": null,
+              "groupPath": null,
+              "hmiName": "HMI_RT_1",
+              "kind": "TagTable",
+              "name": "R1030_NeverCreated",
+              "tableName": "R1030_NeverCreated"
+            }
+          },
+          "omission": null,
+          "operationId": "r1-skipped"
+        }
+      ],
+      "error": null,
+      "guards": [
+        {
+          "acknowledged": null,
+          "id": "partial_write_no_rollback",
+          "message": "This call stopped at this operation. This operation and any earlier operation in the same call may already have changed TIA state; no rollback was attempted. Re-read the affected objects before retrying.",
+          "operationId": "r1-partial",
+          "severity": "info"
+        }
+      ],
+      "omission": null,
+      "phase": "applied",
+      "success": false,
+      "tool": "hmi_write",
+      "verification": {
+        "omission": null,
+        "operations": [
+          {
+            "actual": null,
+            "check": "superseded",
+            "expected": null,
+            "message": "Operation 'r1-first': superseded by later operation 'r1-partial' on the same object; the later operation failed and may have changed the object; its final state is not verified. Inspect it with hmi_read before retrying.",
+            "operationId": "r1-first",
+            "success": true
+          }
+        ],
+        "success": true
+      },
+      "warnings": [
+        "This call stopped at this operation. This operation and any earlier operation in the same call may already have changed TIA state; no rollback was attempted. Re-read the affected objects before retrying."
+      ]
+    },
+    "isError": false
+  },
+  "independentRead": {
+    "request": {
+      "name": "hmi_read",
+      "arguments": {
+        "operations": [
+          {
+            "operationId": "tables",
+            "operation": "list_tag_tables",
+            "hmiName": "HMI_RT_1"
+          },
+          {
+            "operationId": "tag:CP1029_TagA",
+            "operation": "get_tag",
+            "hmiName": "HMI_RT_1",
+            "tagName": "CP1029_TagA"
+          },
+          {
+            "operationId": "tag:R1030_Renamed",
+            "operation": "get_tag",
+            "hmiName": "HMI_RT_1",
+            "tagName": "R1030_Renamed"
+          },
+          {
+            "operationId": "alarm:discrete:CP1029_DiscreteA",
+            "operation": "get_alarm",
+            "hmiName": "HMI_RT_1",
+            "alarmKind": "discrete",
+            "alarmName": "CP1029_DiscreteA"
+          },
+          {
+            "operationId": "table-tags:CP1029_TableA",
+            "operation": "list_tags",
+            "hmiName": "HMI_RT_1",
+            "tableName": "CP1029_TableA",
+            "limit": 2000
+          }
+        ]
+      }
+    },
+    "response": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"batch\":{\"counts\":{\"failed\":1,\"omitted\":0,\"skipped\":0,\"succeeded\":4},\"operationCount\":5,\"operations\":[{\"failure\":null,\"omission\":null,\"operation\":\"list_tag_tables\",\"operationId\":\"tables\",\"result\":{\"groupPath\":null,\"groups\":[{\"groups\":[],\"name\":\"HMI\",\"tables\":[{\"name\":\"AnalogValues\",\"tagCount\":7},{\"name\":\"Counters\",\"tagCount\":15},{\"name\":\"Service\",\"tagCount\":28}]}],\"isComplete\":true,\"messages\":[],\"tables\":[{\"name\":\"Communication\",\"tagCount\":3},{\"name\":\"CP1029_TableA\",\"tagCount\":3},{\"name\":\"CP1029_TableB\",\"tagCount\":1},{\"name\":\"Default tag table\",\"tagCount\":12},{\"name\":\"Internal\",\"tagCount\":9},{\"name\":\"IO\",\"tagCount\":23}]},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":{\"category\":\"target_not_found\",\"message\":\"Tag \\u0027CP1029_TagA\\u0027 was not found. Use list_tags to see the tags.\"},\"omission\":null,\"operation\":\"get_tag\",\"operationId\":\"tag:CP1029_TagA\",\"result\":null,\"skipReason\":null,\"status\":\"failed\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"get_tag\",\"operationId\":\"tag:R1030_Renamed\",\"result\":{\"hmiEndValue\":{\"type\":\"System.Double\",\"value\":100},\"hmiStartValue\":{\"type\":\"System.Double\",\"value\":0},\"initialValue\":{\"type\":\"System.String\",\"value\":\"\"},\"isComplete\":true,\"loggingTags\":[],\"lowerRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},\"members\":[],\"membersTruncated\":false,\"messages\":[],\"plcEndValue\":{\"type\":\"System.Double\",\"value\":10},\"plcStartValue\":{\"type\":\"System.Double\",\"value\":0},\"substituteValue\":{\"usage\":\"None\",\"value\":{\"type\":\"System.String\",\"value\":\"\"}},\"tag\":{\"accessMode\":\"SymbolicAccess\",\"acquisitionCycle\":\"T1s\",\"acquisitionMode\":\"CyclicOnUse\",\"address\":\"\",\"comment\":[{\"culture\":\"en-GB\",\"text\":\"R1 partial text\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"connection\":\"\\u003CInternal tag\\u003E\",\"dataType\":\"Int\",\"displayName\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"hmiDataType\":\"Int\",\"linearScaling\":false,\"name\":\"R1030_Renamed\",\"persistent\":false,\"plcName\":\"\",\"plcTag\":\"\",\"table\":\"CP1029_TableA\"},\"thresholds\":[{\"mode\":\"Upper\",\"name\":\"Upper Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"},{\"mode\":\"Lower\",\"name\":\"Lower Threshold\",\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}],\"upperRange\":{\"value\":{\"type\":\"System.String\",\"value\":\"\"},\"valueType\":\"None\"}},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"get_alarm\",\"operationId\":\"alarm:discrete:CP1029_DiscreteA\",\"result\":{\"alarm\":{\"acknowledgmentControlTag\":\"\\u003CNo tag\\u003E\",\"acknowledgmentControlTagBit\":0,\"acknowledgmentStateTag\":\"\\u003CNo tag\\u003E\",\"acknowledgmentStateTagBit\":0,\"alarmClass\":\"Alarm\",\"condition\":null,\"conditionValue\":null,\"eventText\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp\\u003ECheckpoint discrete A\\u003C/p\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"infoText\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"kind\":\"discrete\",\"name\":\"CP1029_DiscreteA\",\"priority\":0,\"triggerAddress\":null,\"triggerBit\":0,\"triggerBitAddress\":\"0\",\"triggerMode\":\"OnRisingEdge\",\"triggerTag\":\"R1030_Renamed\"},\"alarmParameterTags\":[\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\"],\"eventText1\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText2\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText3\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText4\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText5\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText6\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText7\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText8\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"eventText9\":[{\"culture\":\"en-GB\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"es-ES\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"fr-FR\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"},{\"culture\":\"pl-PL\",\"text\":\"\\u003Cbody\\u003E\\u003Cp/\\u003E\\u003C/body\\u003E\"}],\"isComplete\":true,\"messages\":[]},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"list_tags\",\"operationId\":\"table-tags:CP1029_TableA\",\"result\":{\"isComplete\":true,\"messages\":[],\"page\":{\"limit\":2000,\"nextOffset\":null,\"offset\":0,\"total\":3},\"tags\":[{\"accessMode\":\"SymbolicAccess\",\"acquisitionCycle\":\"T1s\",\"acquisitionMode\":\"CyclicOnUse\",\"address\":\"\",\"comment\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"connection\":\"HMI_Connection_1\",\"dataType\":\"Int\",\"displayName\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"hmiDataType\":\"Int\",\"linearScaling\":false,\"name\":\"CP1029_Bound\",\"persistent\":false,\"plcName\":\"PLC_Wash\",\"plcTag\":\"AI_CL_M101\",\"table\":\"CP1029_TableA\"},{\"accessMode\":\"SymbolicAccess\",\"acquisitionCycle\":\"T1s\",\"acquisitionMode\":\"CyclicOnUse\",\"address\":\"\",\"comment\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"connection\":\"\\u003CInternal tag\\u003E\",\"dataType\":\"Int\",\"displayName\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"hmiDataType\":\"Int\",\"linearScaling\":false,\"name\":\"CP1029_Reuse\",\"persistent\":false,\"plcName\":\"\",\"plcTag\":\"\",\"table\":\"CP1029_TableA\"},{\"accessMode\":\"SymbolicAccess\",\"acquisitionCycle\":\"T1s\",\"acquisitionMode\":\"CyclicOnUse\",\"address\":\"\",\"comment\":[{\"culture\":\"en-GB\",\"text\":\"R1 partial text\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"connection\":\"\\u003CInternal tag\\u003E\",\"dataType\":\"Int\",\"displayName\":[{\"culture\":\"en-GB\",\"text\":\"\"},{\"culture\":\"es-ES\",\"text\":\"\"},{\"culture\":\"fr-FR\",\"text\":\"\"},{\"culture\":\"pl-PL\",\"text\":\"\"}],\"hmiDataType\":\"Int\",\"linearScaling\":false,\"name\":\"R1030_Renamed\",\"persistent\":false,\"plcName\":\"\",\"plcTag\":\"\",\"table\":\"CP1029_TableA\"}]},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"1.1\",\"error\":null,\"success\":false,\"tool\":\"hmi_read\",\"warnings\":[]}"
+        }
+      ],
+      "structuredContent": {
+        "batch": {
+          "counts": {
+            "failed": 1,
+            "omitted": 0,
+            "skipped": 0,
+            "succeeded": 4
+          },
+          "operationCount": 5,
+          "operations": [
+            {
+              "failure": null,
+              "omission": null,
+              "operation": "list_tag_tables",
+              "operationId": "tables",
+              "result": {
+                "groupPath": null,
+                "groups": [
+                  {
+                    "groups": [],
+                    "name": "HMI",
+                    "tables": [
+                      {
+                        "name": "AnalogValues",
+                        "tagCount": 7
+                      },
+                      {
+                        "name": "Counters",
+                        "tagCount": 15
+                      },
+                      {
+                        "name": "Service",
+                        "tagCount": 28
+                      }
+                    ]
+                  }
+                ],
+                "isComplete": true,
+                "messages": [],
+                "tables": [
+                  {
+                    "name": "Communication",
+                    "tagCount": 3
+                  },
+                  {
+                    "name": "CP1029_TableA",
+                    "tagCount": 3
+                  },
+                  {
+                    "name": "CP1029_TableB",
+                    "tagCount": 1
+                  },
+                  {
+                    "name": "Default tag table",
+                    "tagCount": 12
+                  },
+                  {
+                    "name": "Internal",
+                    "tagCount": 9
+                  },
+                  {
+                    "name": "IO",
+                    "tagCount": 23
+                  }
+                ]
+              },
+              "skipReason": null,
+              "status": "succeeded",
+              "warnings": []
+            },
+            {
+              "failure": {
+                "category": "target_not_found",
+                "message": "Tag 'CP1029_TagA' was not found. Use list_tags to see the tags."
+              },
+              "omission": null,
+              "operation": "get_tag",
+              "operationId": "tag:CP1029_TagA",
+              "result": null,
+              "skipReason": null,
+              "status": "failed",
+              "warnings": []
+            },
+            {
+              "failure": null,
+              "omission": null,
+              "operation": "get_tag",
+              "operationId": "tag:R1030_Renamed",
+              "result": {
+                "hmiEndValue": {
+                  "type": "System.Double",
+                  "value": 100
+                },
+                "hmiStartValue": {
+                  "type": "System.Double",
+                  "value": 0
+                },
+                "initialValue": {
+                  "type": "System.String",
+                  "value": ""
+                },
+                "isComplete": true,
+                "loggingTags": [],
+                "lowerRange": {
+                  "value": {
+                    "type": "System.String",
+                    "value": ""
+                  },
+                  "valueType": "None"
+                },
+                "members": [],
+                "membersTruncated": false,
+                "messages": [],
+                "plcEndValue": {
+                  "type": "System.Double",
+                  "value": 10
+                },
+                "plcStartValue": {
+                  "type": "System.Double",
+                  "value": 0
+                },
+                "substituteValue": {
+                  "usage": "None",
+                  "value": {
+                    "type": "System.String",
+                    "value": ""
+                  }
+                },
+                "tag": {
+                  "accessMode": "SymbolicAccess",
+                  "acquisitionCycle": "T1s",
+                  "acquisitionMode": "CyclicOnUse",
+                  "address": "",
+                  "comment": [
+                    {
+                      "culture": "en-GB",
+                      "text": "R1 partial text"
+                    },
+                    {
+                      "culture": "es-ES",
+                      "text": ""
+                    },
+                    {
+                      "culture": "fr-FR",
+                      "text": ""
+                    },
+                    {
+                      "culture": "pl-PL",
+                      "text": ""
+                    }
+                  ],
+                  "connection": "<Internal tag>",
+                  "dataType": "Int",
+                  "displayName": [
+                    {
+                      "culture": "en-GB",
+                      "text": ""
+                    },
+                    {
+                      "culture": "es-ES",
+                      "text": ""
+                    },
+                    {
+                      "culture": "fr-FR",
+                      "text": ""
+                    },
+                    {
+                      "culture": "pl-PL",
+                      "text": ""
+                    }
+                  ],
+                  "hmiDataType": "Int",
+                  "linearScaling": false,
+                  "name": "R1030_Renamed",
+                  "persistent": false,
+                  "plcName": "",
+                  "plcTag": "",
+                  "table": "CP1029_TableA"
+                },
+                "thresholds": [
+                  {
+                    "mode": "Upper",
+                    "name": "Upper Threshold",
+                    "value": {
+                      "type": "System.String",
+                      "value": ""
+                    },
+                    "valueType": "None"
+                  },
+                  {
+                    "mode": "Lower",
+                    "name": "Lower Threshold",
+                    "value": {
+                      "type": "System.String",
+                      "value": ""
+                    },
+                    "valueType": "None"
+                  }
+                ],
+                "upperRange": {
+                  "value": {
+                    "type": "System.String",
+                    "value": ""
+                  },
+                  "valueType": "None"
+                }
+              },
+              "skipReason": null,
+              "status": "succeeded",
+              "warnings": []
+            },
+            {
+              "failure": null,
+              "omission": null,
+              "operation": "get_alarm",
+              "operationId": "alarm:discrete:CP1029_DiscreteA",
+              "result": {
+                "alarm": {
+                  "acknowledgmentControlTag": "<No tag>",
+                  "acknowledgmentControlTagBit": 0,
+                  "acknowledgmentStateTag": "<No tag>",
+                  "acknowledgmentStateTagBit": 0,
+                  "alarmClass": "Alarm",
+                  "condition": null,
+                  "conditionValue": null,
+                  "eventText": [
+                    {
+                      "culture": "en-GB",
+                      "text": "<body><p>Checkpoint discrete A</p></body>"
+                    },
+                    {
+                      "culture": "es-ES",
+                      "text": "<body><p/></body>"
+                    },
+                    {
+                      "culture": "fr-FR",
+                      "text": "<body><p/></body>"
+                    },
+                    {
+                      "culture": "pl-PL",
+                      "text": "<body><p/></body>"
+                    }
+                  ],
+                  "infoText": [
+                    {
+                      "culture": "en-GB",
+                      "text": ""
+                    },
+                    {
+                      "culture": "es-ES",
+                      "text": ""
+                    },
+                    {
+                      "culture": "fr-FR",
+                      "text": ""
+                    },
+                    {
+                      "culture": "pl-PL",
+                      "text": ""
+                    }
+                  ],
+                  "kind": "discrete",
+                  "name": "CP1029_DiscreteA",
+                  "priority": 0,
+                  "triggerAddress": null,
+                  "triggerBit": 0,
+                  "triggerBitAddress": "0",
+                  "triggerMode": "OnRisingEdge",
+                  "triggerTag": "R1030_Renamed"
+                },
+                "alarmParameterTags": [
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                  ""
+                ],
+                "eventText1": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText2": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText3": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText4": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText5": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText6": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText7": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText8": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "eventText9": [
+                  {
+                    "culture": "en-GB",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "es-ES",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "fr-FR",
+                    "text": "<body><p/></body>"
+                  },
+                  {
+                    "culture": "pl-PL",
+                    "text": "<body><p/></body>"
+                  }
+                ],
+                "isComplete": true,
+                "messages": []
+              },
+              "skipReason": null,
+              "status": "succeeded",
+              "warnings": []
+            },
+            {
+              "failure": null,
+              "omission": null,
+              "operation": "list_tags",
+              "operationId": "table-tags:CP1029_TableA",
+              "result": {
+                "isComplete": true,
+                "messages": [],
+                "page": {
+                  "limit": 2000,
+                  "nextOffset": null,
+                  "offset": 0,
+                  "total": 3
+                },
+                "tags": [
+                  {
+                    "accessMode": "SymbolicAccess",
+                    "acquisitionCycle": "T1s",
+                    "acquisitionMode": "CyclicOnUse",
+                    "address": "",
+                    "comment": [
+                      {
+                        "culture": "en-GB",
+                        "text": ""
+                      },
+                      {
+                        "culture": "es-ES",
+                        "text": ""
+                      },
+                      {
+                        "culture": "fr-FR",
+                        "text": ""
+                      },
+                      {
+                        "culture": "pl-PL",
+                        "text": ""
+                      }
+                    ],
+                    "connection": "HMI_Connection_1",
+                    "dataType": "Int",
+                    "displayName": [
+                      {
+                        "culture": "en-GB",
+                        "text": ""
+                      },
+                      {
+                        "culture": "es-ES",
+                        "text": ""
+                      },
+                      {
+                        "culture": "fr-FR",
+                        "text": ""
+                      },
+                      {
+                        "culture": "pl-PL",
+                        "text": ""
+                      }
+                    ],
+                    "hmiDataType": "Int",
+                    "linearScaling": false,
+                    "name": "CP1029_Bound",
+                    "persistent": false,
+                    "plcName": "PLC_Wash",
+                    "plcTag": "AI_CL_M101",
+                    "table": "CP1029_TableA"
+                  },
+                  {
+                    "accessMode": "SymbolicAccess",
+                    "acquisitionCycle": "T1s",
+                    "acquisitionMode": "CyclicOnUse",
+                    "address": "",
+                    "comment": [
+                      {
+                        "culture": "en-GB",
+                        "text": ""
+                      },
+                      {
+                        "culture": "es-ES",
+                        "text": ""
+                      },
+                      {
+                        "culture": "fr-FR",
+                        "text": ""
+                      },
+                      {
+                        "culture": "pl-PL",
+                        "text": ""
+                      }
+                    ],
+                    "connection": "<Internal tag>",
+                    "dataType": "Int",
+                    "displayName": [
+                      {
+                        "culture": "en-GB",
+                        "text": ""
+                      },
+                      {
+                        "culture": "es-ES",
+                        "text": ""
+                      },
+                      {
+                        "culture": "fr-FR",
+                        "text": ""
+                      },
+                      {
+                        "culture": "pl-PL",
+                        "text": ""
+                      }
+                    ],
+                    "hmiDataType": "Int",
+                    "linearScaling": false,
+                    "name": "CP1029_Reuse",
+                    "persistent": false,
+                    "plcName": "",
+                    "plcTag": "",
+                    "table": "CP1029_TableA"
+                  },
+                  {
+                    "accessMode": "SymbolicAccess",
+                    "acquisitionCycle": "T1s",
+                    "acquisitionMode": "CyclicOnUse",
+                    "address": "",
+                    "comment": [
+                      {
+                        "culture": "en-GB",
+                        "text": "R1 partial text"
+                      },
+                      {
+                        "culture": "es-ES",
+                        "text": ""
+                      },
+                      {
+                        "culture": "fr-FR",
+                        "text": ""
+                      },
+                      {
+                        "culture": "pl-PL",
+                        "text": ""
+                      }
+                    ],
+                    "connection": "<Internal tag>",
+                    "dataType": "Int",
+                    "displayName": [
+                      {
+                        "culture": "en-GB",
+                        "text": ""
+                      },
+                      {
+                        "culture": "es-ES",
+                        "text": ""
+                      },
+                      {
+                        "culture": "fr-FR",
+                        "text": ""
+                      },
+                      {
+                        "culture": "pl-PL",
+                        "text": ""
+                      }
+                    ],
+                    "hmiDataType": "Int",
+                    "linearScaling": false,
+                    "name": "R1030_Renamed",
+                    "persistent": false,
+                    "plcName": "",
+                    "plcTag": "",
+                    "table": "CP1029_TableA"
+                  }
+                ]
+              },
+              "skipReason": null,
+              "status": "succeeded",
+              "warnings": []
+            }
+          ],
+          "truncation": null
+        },
+        "contractVersion": "1.1",
+        "error": null,
+        "success": false,
+        "tool": "hmi_read",
+        "warnings": []
+      },
+      "isError": false
+    }
+  },
+  "validation": {
+    "request": {
+      "name": "hmi_read",
+      "arguments": {
+        "operations": [
+          {
+            "operationId": "validate-tag:CP1029_TagA",
+            "operation": "validate",
+            "hmiName": "HMI_RT_1",
+            "category": "tags",
+            "name": "CP1029_TagA"
+          },
+          {
+            "operationId": "validate-tag:R1030_Renamed",
+            "operation": "validate",
+            "hmiName": "HMI_RT_1",
+            "category": "tags",
+            "name": "R1030_Renamed"
+          },
+          {
+            "operationId": "validate-alarm:discrete:CP1029_DiscreteA",
+            "operation": "validate",
+            "hmiName": "HMI_RT_1",
+            "category": "alarms",
+            "name": "CP1029_DiscreteA"
+          }
+        ]
+      }
+    },
+    "response": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"batch\":{\"counts\":{\"failed\":1,\"omitted\":0,\"skipped\":0,\"succeeded\":2},\"operationCount\":3,\"operations\":[{\"failure\":{\"category\":\"target_not_found\",\"message\":\"No \\u0027tags\\u0027 object named \\u0027CP1029_TagA\\u0027 was found. Use the list operations to see the objects.\"},\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate-tag:CP1029_TagA\",\"result\":null,\"skipReason\":null,\"status\":\"failed\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate-tag:R1030_Renamed\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]},{\"failure\":null,\"omission\":null,\"operation\":\"validate\",\"operationId\":\"validate-alarm:discrete:CP1029_DiscreteA\",\"result\":{\"clean\":1,\"findings\":[],\"isComplete\":true,\"messages\":[],\"notValidatable\":[],\"page\":{\"limit\":100,\"nextOffset\":null,\"offset\":0,\"total\":1},\"scanned\":1},\"skipReason\":null,\"status\":\"succeeded\",\"warnings\":[]}],\"truncation\":null},\"contractVersion\":\"1.1\",\"error\":null,\"success\":false,\"tool\":\"hmi_read\",\"warnings\":[]}"
+        }
+      ],
+      "structuredContent": {
+        "batch": {
+          "counts": {
+            "failed": 1,
+            "omitted": 0,
+            "skipped": 0,
+            "succeeded": 2
+          },
+          "operationCount": 3,
+          "operations": [
+            {
+              "failure": {
+                "category": "target_not_found",
+                "message": "No 'tags' object named 'CP1029_TagA' was found. Use the list operations to see the objects."
+              },
+              "omission": null,
+              "operation": "validate",
+              "operationId": "validate-tag:CP1029_TagA",
+              "result": null,
+              "skipReason": null,
+              "status": "failed",
+              "warnings": []
+            },
+            {
+              "failure": null,
+              "omission": null,
+              "operation": "validate",
+              "operationId": "validate-tag:R1030_Renamed",
+              "result": {
+                "clean": 1,
+                "findings": [],
+                "isComplete": true,
+                "messages": [],
+                "notValidatable": [],
+                "page": {
+                  "limit": 100,
+                  "nextOffset": null,
+                  "offset": 0,
+                  "total": 1
+                },
+                "scanned": 1
+              },
+              "skipReason": null,
+              "status": "succeeded",
+              "warnings": []
+            },
+            {
+              "failure": null,
+              "omission": null,
+              "operation": "validate",
+              "operationId": "validate-alarm:discrete:CP1029_DiscreteA",
+              "result": {
+                "clean": 1,
+                "findings": [],
+                "isComplete": true,
+                "messages": [],
+                "notValidatable": [],
+                "page": {
+                  "limit": 100,
+                  "nextOffset": null,
+                  "offset": 0,
+                  "total": 1
+                },
+                "scanned": 1
+              },
+              "skipReason": null,
+              "status": "succeeded",
+              "warnings": []
+            }
+          ],
+          "truncation": null
+        },
+        "contractVersion": "1.1",
+        "error": null,
+        "success": false,
+        "tool": "hmi_read",
+        "warnings": []
+      },
+      "isError": false
+    }
+  },
+  "restoration": {
+    "closed": true,
+    "reopened": true,
+    "hashUnchanged": true,
+    "inventoryEqual": true,
+    "counts": {
+      "tables": 9,
+      "tags": 101,
+      "alarms": 4,
+      "alarmKinds": {
+        "analog": 2,
+        "discrete": 2
+      }
+    },
+    "isOpenAfter": true,
+    "isModifiedAfter": false,
+    "baselineSavedFileSha256": "564a644a3116fe60cba9265e40e5a797fd68b57b0c954dff7e3059c84d702a81",
+    "savedFileHashRecomputedAtExport": true,
+    "baselineInventoryCanonicalSha256": "e63254de6f6d00edc66c9fed0cbb7b89e418a3927622a4e646487d3ff613ea6a",
+    "restoredInventoryCanonicalSha256": "e63254de6f6d00edc66c9fed0cbb7b89e418a3927622a4e646487d3ff613ea6a"
+  },
+  "audit": {
+    "found": true,
+    "canonicalPairMatches": true,
+    "responseHash": "sha256:807770d0005c1b7c40d3c32285e336d3a46212c1d06664e863dcd774962b22cd",
+    "representation": "Minimum projection; original audit metadata and line bytes are not exported."
+  },
+  "provenance": {
+    "rawInputs": [
+      {
+        "role": "case:R1",
+        "bytes": 21420,
+        "sha256": "908b178f83dba12db24f1a34250b4261fccc1067ce6f6a65790dcd0c0747f554"
+      },
+      {
+        "role": "trace",
+        "bytes": 368907,
+        "sha256": "8d766202fd9b8b28a219cd7aab8cf72de07ceba2586e33b45a3c1c02006aa667"
+      },
+      {
+        "role": "privateHostProbe",
+        "bytes": 455141,
+        "sha256": "3f360290b801a036f42807276ef15ac8330fa2606f4a7cf0a862b80881182af1"
+      }
+    ],
+    "responseRecords": [
+      {
+        "label": "R1-write",
+        "rawTraceLineSha256IncludingTerminator": "026c06aa0f2c015cabcc1dd10ddcb301818efea26cee45bb0e9dd50cecfad021",
+        "canonicalResponseSha256": "807770d0005c1b7c40d3c32285e336d3a46212c1d06664e863dcd774962b22cd"
+      },
+      {
+        "label": "R1-reads",
+        "rawTraceLineSha256IncludingTerminator": "07e0967cf436b82ee75dfde203b423c0c7127bfe1958d91280ebd044f2a6578f",
+        "canonicalResponseSha256": "d14045f1817001f4f4857132c9687606647f631b888c7bf1d05a53c20c34820b"
+      },
+      {
+        "label": "R1-validate",
+        "rawTraceLineSha256IncludingTerminator": "dbf7ee3d24aef6c99174c01f720dd97e41b69a09fb1f87d440bd3d316352de64",
+        "canonicalResponseSha256": "f57dde6622dcad33a2110cd2081e9dcaf9e5afa80fd09c262bda705d1ffcdd1c"
+      },
+      {
+        "label": "startup-inventory",
+        "rawTraceLineSha256IncludingTerminator": "b7c5a73f203c62f1c2037dcc98f56f0ae0a94a98b616d4c0e98a876d3fa3d336",
+        "canonicalResponseSha256": "e63254de6f6d00edc66c9fed0cbb7b89e418a3927622a4e646487d3ff613ea6a"
+      },
+      {
+        "label": "R1-restore-inventory",
+        "rawTraceLineSha256IncludingTerminator": "eeee19f6807ad0bb74fadecfdd1c2d44e43171ef9c58bedf613c172cc143d1b1",
+        "canonicalResponseSha256": "e63254de6f6d00edc66c9fed0cbb7b89e418a3927622a4e646487d3ff613ea6a"
+      },
+      {
+        "label": "R1-restore-status",
+        "rawTraceLineSha256IncludingTerminator": "23e2887cbf88f86afa7d40635172e28ea299fdd6e52f4d64c783c6b5c8c1f1b6",
+        "canonicalResponseSha256": "1a2ff6023c603dbfed242cacc968700051460aa14b0c293a981a7250deeb52e3"
+      }
+    ]
+  },
+  "limits": [
+    "No raw project status metadata or project identities are exported. Restoration status is a minimal projection.",
+    "The old tag selector is expected to fail after rename. The renamed tag and referenced alarm validate clean; the aggregate validation success false is not an O3 verdict.",
+    "Focused R1 only; no candidate UI compile, L5, timing-after or full .113 matrix rerun is claimed."
+  ]
+}

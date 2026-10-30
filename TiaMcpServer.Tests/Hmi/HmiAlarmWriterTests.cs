@@ -55,6 +55,33 @@ public class HmiAlarmWriterTests
         Assert.Equal(new[] { "Name" }, error.HmiWriteOutcome.AppliedProperties); Assert.Equal("RaisedStateTag", error.HmiWriteOutcome.FailedProperty);
         Assert.Equal((byte)0, alarm.Priority);
     }
+    [Theory] [InlineData("discrete")] [InlineData("analog")]
+    public void UpdateAlarm_TargetInvocationRejection_KeepsAppliedProperties(string kind)
+    {
+        var software = new HmiSoftware(); var request = Request(kind);
+        HmiAlarmWriter.Create(software, request);
+        var alarm = kind == "discrete" ? (Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase)software.DiscreteAlarms.Find("Alarm")! : software.AnalogAlarms.Find("Alarm")!;
+        alarm.SetFailures["RaisedStateTag"] = new EngineeringTargetInvocationException("rejected");
+        request.NewName = "Renamed"; request.TriggerTag = "Missing";
+        var error = Assert.Throws<WorkerOperationException>(() => HmiAlarmWriter.Update(software, request));
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, error.FailureCategory);
+        Assert.Equal("TIA Portal rejected the operation: rejected", error.Message);
+        Assert.Equal("Renamed", alarm.Name);
+        Assert.Equal(new[] { "Name" }, error.HmiWriteOutcome!.AppliedProperties);
+        Assert.Equal("RaisedStateTag", error.HmiWriteOutcome.FailedProperty);
+    }
+    [Theory] [InlineData("discrete")] [InlineData("analog")]
+    public void WriteLookupFailure_CarriesEngineeringError(string kind)
+    {
+        var software = new HmiSoftware(); var request = Request(kind);
+        HmiAlarmWriter.Create(software, request);
+        var alarm = kind == "discrete" ? (Siemens.Engineering.HmiUnified.HmiAlarm.HmiAlarmCommon.AlarmBase)software.DiscreteAlarms.Find("Alarm")! : software.AnalogAlarms.Find("Alarm")!;
+        if (kind == "discrete") software.DiscreteAlarms.EnumerationFailure = new EngineeringException("name broke"); else software.AnalogAlarms.EnumerationFailure = new EngineeringException("name broke");
+        var error = Assert.Throws<WorkerOperationException>(() => HmiAlarmWriter.Delete(software, request));
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, error.FailureCategory);
+        Assert.Equal($"The {kind} alarms could not be read: name broke", error.Message);
+        Assert.Equal("name broke", error.EngineeringError!.Message);
+    }
     [Theory] [InlineData("discrete", "deleted")] [InlineData("analog", "deleted")]
     [InlineData("discrete", "notNeeded")] [InlineData("analog", "notNeeded")]
     [InlineData("discrete", "failed")] [InlineData("analog", "failed")]

@@ -26,12 +26,15 @@ internal static class WorkerExecution
             var category = Classify(ex, mutates);
             return Failure(category, FailureMessage(ex, category), Describe(ex));
         }
-        catch (WorkerOperationException ex) when (ex.EngineeringError is not null)
+        // Wrapped Siemens failures (EngineeringError: Network/PLC/HMI paths) and HMI write outcomes are re-checked for current-execution
+        // Portal disposal so portal_lost wins; only HmiWriteRun.Failure sets HmiWriteOutcome.
+        catch (WorkerOperationException ex) when (ex.EngineeringError is not null || ex.HmiWriteOutcome is not null)
         {
             if (portalDisposalRevision() != before)
             {
                 var response = PortalLost(ex);
                 response.ConfigureNetworkDeviceOutcome = ex.ConfigureNetworkDeviceOutcome;
+                response.HmiWriteOutcome = ex.HmiWriteOutcome;
                 return response;
             }
             throw;

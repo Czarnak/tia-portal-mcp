@@ -1,0 +1,680 @@
+{
+  "probeSha256": "AC5056A03B9F68ABF73A753FAE25277CA40E5CDE44B1EBFA1D484FB92C54040F",
+  "startup": {
+    "type": "startup",
+    "processId": 25036,
+    "is64BitProcess": true,
+    "apartment": "MTA",
+    "runtime": "4.0.30319.42000",
+    "timeoutSeconds": 900,
+    "output": "C:\\Users\\LCZ\\.codex\\visualizations\\2026\\10\\29\\01a187d0-883d-7d82-b84c-24468920f5cd\\native-hmi-probe\\native-results-once.jsonl"
+  },
+  "attached": {
+    "type": "attached",
+    "portalPid": 35872,
+    "project": "<disposable-copy>",
+    "hmi": "HMI_RT_1",
+    "assembly": "Siemens.Engineering.WinCCUnified, Version=21.0.0.0, Culture=neutral, PublicKeyToken=29bfe5fdf4ba5d3b",
+    "runtime": "4.0.30319.42000",
+    "manualCompile": "Baseline maintainer reports clean, no errors. Per-case UI compile pending maintainer return.",
+    "transactions": "None: mimic current HMI writers and preserve partial mutation/create-cleanup evidence.",
+    "exclusiveAccess": "None: exact current HMI worker mutation context; single probe process only.",
+    "save": "Never called; exact saved baseline reopened after every variant."
+  },
+  "complete": {
+    "type": "complete",
+    "cases": 31,
+    "project": "<disposable-copy>",
+    "saved": false
+  },
+  "cases": [
+    {
+      "case": "P1",
+      "startedUtc": "2026-10-29T14:52:16.3783226Z",
+      "endedUtc": "2026-10-29T14:52:51.3773143Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagTableComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "TagTables.Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P2-cross-group",
+      "startedUtc": "2026-10-29T14:52:51.3844357Z",
+      "endedUtc": "2026-10-29T14:53:17.6728506Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagTableComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "HMI.TagTables.Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P2-case",
+      "startedUtc": "2026-10-29T14:53:17.6798598Z",
+      "endedUtc": "2026-10-29T14:53:48.4720828Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagTableComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "HMI.TagTables.Create.case",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P3",
+      "startedUtc": "2026-10-29T14:53:48.4770741Z",
+      "endedUtc": "2026-10-29T14:54:12.5104807Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_Name' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagTable'.\r\n\r\n-The name 'CP1029_TableA' is not unique.\r\n",
+      "failureStage": "Table.Name",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P4",
+      "startedUtc": "2026-10-29T14:54:12.5144422Z",
+      "endedUtc": "2026-10-29T14:54:52.5061739Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P5-cross-table",
+      "startedUtc": "2026-10-29T14:54:52.5117128Z",
+      "endedUtc": "2026-10-29T14:55:23.0104235Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P5-case",
+      "startedUtc": "2026-10-29T14:55:23.0204044Z",
+      "endedUtc": "2026-10-29T14:55:54.0013979Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P6",
+      "startedUtc": "2026-10-29T14:55:54.0083965Z",
+      "endedUtc": "2026-10-29T14:56:20.2118561Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_Name' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\n-The tag name already exists (or) the name is a blank character.\r\n",
+      "failureStage": "Tag.Name",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P7",
+      "startedUtc": "2026-10-29T14:56:20.2179149Z",
+      "endedUtc": "2026-10-29T14:56:52.2861330Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_Name' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\n-The tag name already exists (or) the name is a blank character.\r\n",
+      "failureStage": "Tag.Name.case",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P8",
+      "startedUtc": "2026-10-29T14:56:52.2911284Z",
+      "endedUtc": "2026-10-29T14:57:23.0231721Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiAlarm.HmiDiscreteAlarmComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P8-case",
+      "startedUtc": "2026-10-29T14:57:23.0286971Z",
+      "endedUtc": "2026-10-29T14:57:51.8216298Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiAlarm.HmiDiscreteAlarmComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P9",
+      "startedUtc": "2026-10-29T14:57:51.8276305Z",
+      "endedUtc": "2026-10-29T14:58:20.9944378Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiAlarm.HmiAnalogAlarmComposition'.\r\n\r\n-The value must be unique.\r\n",
+      "failureStage": "Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P10",
+      "startedUtc": "2026-10-29T14:58:20.9974432Z",
+      "endedUtc": "2026-10-29T14:58:56.3533920Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Create",
+        "RaisedStateTag",
+        "Condition",
+        "ConditionValue.Int32",
+        "AlarmClass",
+        "EventText.en-GB"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P11-discrete",
+      "startedUtc": "2026-10-29T14:58:56.3629454Z",
+      "endedUtc": "2026-10-29T14:59:27.8447811Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_Name' of type 'Siemens.Engineering.HmiUnified.HmiAlarm.HmiDiscreteAlarm'.\r\n\r\n-The name 'CP1029_DiscreteA' is not unique.\r\n",
+      "failureStage": "Discrete.Name",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P11-analog",
+      "startedUtc": "2026-10-29T14:59:27.8487217Z",
+      "endedUtc": "2026-10-29T14:59:54.8784458Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_Name' of type 'Siemens.Engineering.HmiUnified.HmiAlarm.HmiAnalogAlarm'.\r\n\r\n-The name 'CP1029_AnalogA' is not unique.\r\n",
+      "failureStage": "Analog.Name",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P12-discrete",
+      "startedUtc": "2026-10-29T14:59:54.8844441Z",
+      "endedUtc": "2026-10-29T15:00:29.5155571Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Discrete.Name.case"
+      ],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P12-analog",
+      "startedUtc": "2026-10-29T15:00:29.5236650Z",
+      "endedUtc": "2026-10-29T15:01:01.5053615Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Analog.Name.case"
+      ],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P12-table",
+      "startedUtc": "2026-10-29T15:01:01.5113263Z",
+      "endedUtc": "2026-10-29T15:01:31.8203018Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Table.Name.case"
+      ],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P13",
+      "startedUtc": "2026-10-29T15:01:31.8302991Z",
+      "endedUtc": "2026-10-29T15:02:02.8108915Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Tag.Delete",
+        "Create",
+        "DataType"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P14",
+      "startedUtc": "2026-10-29T15:02:02.8168750Z",
+      "endedUtc": "2026-10-29T15:02:36.1695528Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Delete' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagTable'.\r\n\r\n-Hmi tag table could not be deleted.\r\n",
+      "failureStage": "DefaultTable.Delete",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P15-update",
+      "startedUtc": "2026-10-29T15:02:36.1775597Z",
+      "endedUtc": "2026-10-29T15:03:03.7680252Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_DataType' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\n-Set is not allowed for disabled fields\r\n",
+      "failureStage": "BoundTag.DataType",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P15-create",
+      "startedUtc": "2026-10-29T15:03:03.7710239Z",
+      "endedUtc": "2026-10-29T15:03:30.1687688Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_DataType' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\n-Set is not allowed for disabled fields\r\n",
+      "failureStage": "DataType",
+      "appliedStages": [
+        "Create",
+        "Connection",
+        "PlcTag"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "deleted",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P16-create",
+      "startedUtc": "2026-10-29T15:03:30.1787446Z",
+      "endedUtc": "2026-10-29T15:04:01.6338437Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_PlcTag' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\nThe controller tag AI_CL_M101 was not found.",
+      "failureStage": "PlcTag",
+      "appliedStages": [
+        "Create"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "deleted",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P16-update",
+      "startedUtc": "2026-10-29T15:04:01.6378382Z",
+      "endedUtc": "2026-10-29T15:04:29.7350835Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_PlcTag' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\nThe controller tag AI_CL_M101 was not found.",
+      "failureStage": "InternalTag.PlcTag",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P17",
+      "startedUtc": "2026-10-29T15:04:29.7400822Z",
+      "endedUtc": "2026-10-29T15:05:00.7869039Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\nTag table not found",
+      "failureStage": "Create",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P18",
+      "startedUtc": "2026-10-29T15:05:00.7969067Z",
+      "endedUtc": "2026-10-29T15:05:30.7348542Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "Siemens.Engineering.EngineeringTargetInvocationException",
+      "message": "Error when calling method 'set_PlcTag' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\nThe controller tag AI_CL_M101 was not found.",
+      "failureStage": "PlcTag",
+      "appliedStages": [
+        "Create",
+        "Connection"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "deleted",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": false,
+      "validationFindings": []
+    },
+    {
+      "case": "P19",
+      "startedUtc": "2026-10-29T15:05:30.7418370Z",
+      "endedUtc": "2026-10-29T15:06:00.3289016Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Create",
+        "RaisedStateTag",
+        "RaisedStateTagBitNumber",
+        "AlarmClass",
+        "EventText.en-GB"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": [
+        {
+          "name": "CP1029_DiscreteA",
+          "kind": "discrete",
+          "validation": {
+            "supported": true,
+            "complete": true,
+            "clean": false,
+            "results": [
+              {
+                "property": "RaisedStateTagBitNumber",
+                "errors": [
+                  "The tag/bit combination is also used for other HMI alarms."
+                ],
+                "warnings": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "CP1029_P19",
+          "kind": "discrete",
+          "validation": {
+            "supported": true,
+            "complete": true,
+            "clean": false,
+            "results": [
+              {
+                "property": "RaisedStateTagBitNumber",
+                "errors": [
+                  "The tag/bit combination is also used for other HMI alarms."
+                ],
+                "warnings": []
+              },
+              {
+                "property": "AlarmClass",
+                "errors": [
+                  "The object \"CP1029_NoSuchClass\" does not exist. Please update or delete the reference."
+                ],
+                "warnings": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case": "P20-missing-tag",
+      "startedUtc": "2026-10-29T15:06:00.3338567Z",
+      "endedUtc": "2026-10-29T15:06:51.6076947Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Create",
+        "RaisedStateTag",
+        "RaisedStateTagBitNumber",
+        "AlarmClass",
+        "EventText.en-GB"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": [
+        {
+          "name": "CP1029_P20_missing_tag",
+          "kind": "discrete",
+          "validation": {
+            "supported": true,
+            "complete": true,
+            "clean": false,
+            "results": [
+              {
+                "property": "RaisedStateTag",
+                "errors": [
+                  "The object \"CP1029_NoSuchTag\" does not exist. Please update or delete the reference."
+                ],
+                "warnings": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case": "P20-missing-member",
+      "startedUtc": "2026-10-29T15:06:51.6207067Z",
+      "endedUtc": "2026-10-29T15:07:42.2448850Z",
+      "nativeMutationReturned": true,
+      "exceptionType": null,
+      "message": null,
+      "failureStage": null,
+      "appliedStages": [
+        "Create",
+        "RaisedStateTag",
+        "RaisedStateTagBitNumber",
+        "AlarmClass",
+        "EventText.en-GB"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "workerRefusal": false,
+      "validationFindings": [
+        {
+          "name": "CP1029_P20_missing_member",
+          "kind": "discrete",
+          "validation": {
+            "supported": true,
+            "complete": true,
+            "clean": false,
+            "results": [
+              {
+                "property": "RaisedStateTag",
+                "errors": [
+                  "The object \"Communication_DB_MOT01.CP1029_NoSuchMember\" does not exist. Please update or delete the reference."
+                ],
+                "warnings": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case": "P21",
+      "startedUtc": "2026-10-29T15:07:42.2537901Z",
+      "endedUtc": "2026-10-29T15:08:08.5820715Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "ProbeWorkerRefusalException",
+      "message": "Tag table group 'CP1029_NoSuchGroup' was not found.",
+      "failureStage": "worker-group-resolution",
+      "appliedStages": [],
+      "createReturned": false,
+      "createReturnMatchesPreexisting": null,
+      "cleanup": "not-needed",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": true,
+      "validationFindings": []
+    },
+    {
+      "case": "P22",
+      "startedUtc": "2026-10-29T15:08:08.5880731Z",
+      "endedUtc": "2026-10-29T15:08:42.7948036Z",
+      "nativeMutationReturned": false,
+      "exceptionType": "ProbeWorkerRefusalException",
+      "message": "Text culture 'zu-ZA' was not found.",
+      "failureStage": "worker-text-culture-lookup.zu-ZA",
+      "appliedStages": [
+        "Create",
+        "DataType"
+      ],
+      "createReturned": true,
+      "createReturnMatchesPreexisting": false,
+      "cleanup": "deleted",
+      "restoreMatchesBefore": true,
+      "harnessError": false,
+      "workerRefusal": true,
+      "validationFindings": []
+    }
+  ]
+}
