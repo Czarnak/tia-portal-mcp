@@ -21,6 +21,7 @@ Design documents, written before implementation.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-30 | [Docs lifecycle and project-memory compaction — directions only; plan follows (draft)](specs/2026-10-30-docs-lifecycle-and-adr-compaction-design.md) |
 | 2026-10-11 | [`hmi_read` completion — opt-in snapshot cursor, provisional `{hmi}` cross-reference selector, name-scoped `validate` categories, review cleanups (implemented; live-accepted)](specs/2026-10-11-hmi-read-completion-design.md) |
 | 2026-10-08 | [`create_block` OB creation, issue #75 (implemented; live-accepted)](specs/2026-10-08-ob-creation-design.md) |
 | 2026-10-05 | [PLC read/write tools and standalone cross-references (approved; PR A and PR B implemented and live-accepted)](specs/2026-10-05-plc-read-write-and-cross-references-design.md) |

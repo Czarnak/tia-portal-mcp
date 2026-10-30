@@ -91,6 +91,9 @@ Agent-facing build and convention reference lives in [AGENTS.md](../AGENTS.md).
 acceptance reports produced while building features. It is historical process material, not
 current documentation — see its index for what is there and how to read it.
 
+Planned: the [docs lifecycle and project-memory compaction directions](superpowers/specs/2026-10-30-docs-lifecycle-and-adr-compaction-design.md)
+describe how this material will be reduced to ADRs, kept reports and raw Openness evidence.
+
 Latest implementation entry: [Multiuser PR4 — open existing sessions](superpowers/plans/2026-10-07-multiuser-pr4-open-existing-sessions.md)
 records implemented/offline-qualified `.amc21` adoption and `.als21` opening, with scoped
 maintainer acceptance on October 8. The report retains failed noninteractive offline opening
