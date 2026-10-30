@@ -86,6 +86,27 @@ public sealed class WorkerExecutionTests
         Assert.Null(result.EngineeringError);
     }
 
+    [Theory]
+    [InlineData("discrete")]
+    [InlineData("analog")]
+    public void AlarmWriteLookupFailure_AfterPortalDisposal_MapsToPortalLost(string kind)
+    {
+        var revision = 0L;
+        var software = new Siemens.Engineering.HmiUnified.HmiSoftware();
+        var disposed = new EngineeringException("Access to a disposed object is not possible.");
+        software.DiscreteAlarms.EnumerationFailure = disposed;
+        software.AnalogAlarms.EnumerationFailure = disposed;
+        var result = WorkerExecution.Execute(() =>
+        {
+            revision++;
+            TiaMcpServer.OpennessWorker.Openness.Hmi.HmiAlarmWriter.Delete(software, new() { AlarmName = "A", AlarmKind = kind });
+            return new WorkerResponse { Success = true };
+        }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+    }
+
     [Fact]
     public void HmiWriteRunFailure_NonEngineeringException_IsRethrownUnchanged()
     {
