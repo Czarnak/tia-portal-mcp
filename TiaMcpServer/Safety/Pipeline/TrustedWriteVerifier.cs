@@ -45,7 +45,9 @@ public sealed class TrustedWriteVerifier<TItem>(IReadOnlyList<TItem> items, IWri
     {
         var own = policy.ObjectKeys(attempted[index], asLater: false);
         return attempted.Skip(index + 1)
-            .Where(later => outcomes[later.OperationId].Failure is not { } failure || !WorkerFailureCategories.IsPreconditionRefusal(failure.Category))
+            // A categorized refusal can still carry a partial outcome after setters have run.
+            .Where(later => outcomes[later.OperationId].Result is not null
+                || outcomes[later.OperationId].Failure is not { } failure || !WorkerFailureCategories.IsPreconditionRefusal(failure.Category))
             .LastOrDefault(later => policy.ObjectKeys(later, asLater: true).Any(k => own.Any(o => o == k || o.StartsWith(k + "\n", StringComparison.Ordinal))));
     }
 

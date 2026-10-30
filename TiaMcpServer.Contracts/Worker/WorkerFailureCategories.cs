@@ -140,10 +140,10 @@ public static class WorkerFailureCategories
         AccessDenied
     };
 
-    /// <summary>Categories of a precondition refusal: the item never changed TIA state.</summary>
+    /// <summary>Categories normally used for precondition refusals; a returned outcome may still describe partial mutation.</summary>
     public static IReadOnlyCollection<string> PreconditionRefusals => PreconditionRefusalSet;
 
-    /// <summary>True when <paramref name="category"/> is a precondition refusal (see <see cref="PreconditionRefusals"/>).</summary>
+    /// <summary>True when <paramref name="category"/> normally denotes a precondition refusal (see <see cref="PreconditionRefusals"/>).</summary>
     public static bool IsPreconditionRefusal(string? category) => category is not null && PreconditionRefusalSet.Contains(category);
 
     /// <summary>True when <paramref name="value"/> is exactly one of the approved category constants.</summary>

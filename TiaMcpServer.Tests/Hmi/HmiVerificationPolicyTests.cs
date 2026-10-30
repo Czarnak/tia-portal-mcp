@@ -91,6 +91,27 @@ public class HmiVerificationPolicyTests
         Assert.True(verification.Success);
     }
 
+    [Fact]
+    public async Task MissingCultureAfterRename_SupersedesEarlierWriteAndKeepsFailure()
+    {
+        var items = new[] { Item("first", "update_tag"), Item("rename", "update_tag", newName: "Renamed") };
+        var effects = items.ToDictionary(i => i.OperationId, _ => Effect("Tag", "X"));
+        var failure = HmiWritePayloadContract.Project(items[1],
+            TiaMcpServer.Worker.WorkerCallResult.Fail("target_not_found", "Text culture 'zu-ZA' was not found.") with
+            {
+                HmiWriteOutcome = new() { ObjectName = "Renamed", AppliedProperties = ["Name"], FailedProperty = "Comment" }
+            });
+        var batch = StructuredOperationBatch.FromItems([Succeeded(items[0]), failure]);
+        var verification = await new TrustedWriteVerifier<HmiWriteOperationRequest>(items, new HmiVerificationPolicy(effects))
+            .VerifyAsync(batch);
+        var entry = Assert.Single(verification.Operations);
+        Assert.Equal(("first", WriteVerificationChecks.Superseded), (entry.OperationId, entry.Check));
+        Assert.Contains("the later operation failed and may have changed the object", entry.Message);
+        Assert.Equal("target_not_found", failure.Failure!.Category);
+        Assert.Equal("Renamed", failure.Result!.Value.GetProperty("objectName").GetString());
+        Assert.True(verification.Success);
+    }
+
     private static async Task<string[]> Verify(params (HmiWriteOperationRequest Item, HmiWriteEffect Effect)[] steps)
     {
         var items = steps.Select(s => s.Item).ToArray();
