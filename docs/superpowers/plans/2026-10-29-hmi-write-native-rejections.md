@@ -348,3 +348,21 @@ The native checkpoint ([report](../acceptance/reports/2026-10-29-hmi-write-check
 ### Task 0 — project identity redacted
 
 The disposable project path and name were removed from the 2026-10-29 HMI checkpoint evidence, and the re-compressed traces' decompressed SHA-256 values were renewed. Rulings D1–D5 above apply.
+
+### Task 5 — offline qualification
+
+Candidate `c2a20f8` against merge base `0b2640a`; no code changed.
+
+- **Build:** Release stub build, 0 errors, 7 warnings on the branch and 7 on `0b2640a` (same set, none in changed files).
+- **Tests:** default suite in Release with the CI coverage command: 7,630 passed, 0 failed, 0 skipped (7 m 47 s).
+- **Coverage:** CI `coverage.runsettings` plus `scripts/verify-coverage-threshold.ps1`: line rate 0.9504 (12,303 / 12,944), threshold 0.80 met.
+- **Checks:**
+  - No Siemens call before the binding gate: pass; `WriteRun.cs:121` gates before `Validate` (184) and `PlanAsync` (213), and the diff adds no worker call ahead of it.
+  - Planning read failure never `engineering_rejected`: pass; `HmiWritePlanner.Read` forwards the read result's category, read methods classify with `mutates=false`, so only `worker_operation_failed`.
+  - `portal_lost` wins on the `Failure`, lookup and shared paths: pass; `WorkerExecution.Execute` checks the disposal revision in the `EngineeringException` and `WorkerOperationException` catches, now including `HmiWriteOutcome` (outcome copied onto the response).
+  - `hmi_read` messages unchanged: pass; `HmiReadLog.Guard` and `HmiTagLookup.FindUnique` take `describe=false` by default and only write paths pass `true`.
+  - `output-schemas.json`: unchanged (not in the diff), so no change outside the `hmi_write` key; `OutputSchemasMatchMain` passed.
+  - No new conditional member outside the register: pass; only a comment edit in `ConditionalMemberRegisterTests`, no new member.
+  - No `[LegacyNullOmission]` change: pass; none in the diff.
+- **Numstat, production (`TiaMcpServer`, `.OpennessWorker`, `.Contracts`, `.FakeWorker`):** +215 / -564. Largest: `HmiWriteVerifier.cs` 0/277 (deleted), `HmiWritePlanner.cs` 66/185, `HmiWorkingState.cs` 39/42, `HmiVerificationPolicy.cs` 40/0 (new), `HmiWriteRoundtripScenario.cs` 30/6, `HmiWriteDomain.cs` 9/18, `HmiWriteModels.cs` 3/11, `HmiWriteRun.cs` 8/2; the other nine files change 1-4 lines each. Whole branch incl. tests and docs: +7,367 / -1,386 over 71 files.
+- **Findings:** none.
