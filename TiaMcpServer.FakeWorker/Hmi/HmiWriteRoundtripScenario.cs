@@ -15,12 +15,12 @@ internal sealed class HmiWriteRoundtripScenario
     private readonly List<HmiAlarmRowInfo> _alarms = [];
     private static bool Same(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     private static string Ok(object value) => JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = WorkerJson.SerializePayload(value) }, WorkerJson.Envelope);
-    /// <summary>Portal's duplicate-create rejections as captured live (TIA Portal V21, English UI, 2026-10-29: P1 table, P4 tag, P8/P9 alarms).</summary>
+    /// <summary>Portal's duplicate-create rejections captured through the installed tool (V21, 2026-10-30: P1 table, P4 tag, P8/P9 alarms).</summary>
     internal const string NativeDuplicateTableMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagTableComposition'.\r\n\r\n-The value must be unique.\r\n";
     internal const string NativeDuplicateTagMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\n-The value must be unique.\r\n";
     internal const string NativeDuplicateDiscreteAlarmMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiAlarm.HmiDiscreteAlarmComposition'.\r\n\r\n-The value must be unique.\r\n";
     internal const string NativeDuplicateAnalogAlarmMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiAlarm.HmiAnalogAlarmComposition'.\r\n\r\n-The value must be unique.\r\n";
-    /// <summary>Portal's DataType rejection on a PLC-bound tag as captured live (P15-update).</summary>
+    /// <summary>Portal's DataType rejection on a PLC-bound tag captured through the installed tool (2026-10-30, P15-update).</summary>
     internal const string NativeBoundDataTypeMessage = "Error when calling method 'set_DataType' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\n-Set is not allowed for disabled fields\r\n";
     private static string Rejected(string message, HmiWriteOutcomeInfo outcome) => JsonSerializer.Serialize(new WorkerResponse
     {
