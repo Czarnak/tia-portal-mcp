@@ -11,7 +11,7 @@ namespace TiaMcpServer.Hmi;
 /// so nothing is re-planned. Only block and info guards exist, so nothing ever asks the user.
 /// </summary>
 public sealed class HmiWriteDomain(OpennessWorkerClient client)
-    : IWriteDomain<HmiWriteOperationRequest, HmiWriteEffect, HmiWriteVerification, HmiGuardedWriteResponse>
+    : IWriteDomain<HmiWriteOperationRequest, HmiWriteEffect, WriteVerification, HmiGuardedWriteResponse>
 {
     private readonly HmiWritePlanner _planner = new(client);
     private readonly Dictionary<string, IReadOnlyList<FiredGuard>> _guards = new(StringComparer.Ordinal);
@@ -61,13 +61,13 @@ public sealed class HmiWriteDomain(OpennessWorkerClient client)
     public StructuredOperationItem Project(HmiWriteOperationRequest item, WorkerCallResult result)
         => HmiWritePayloadContract.Project(item, result);
 
-    public async Task<HmiWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
-        => await new HmiWriteVerifier(client, _items, _effects).VerifyAsync(
+    public async Task<WriteVerification?> VerifyAsync(StructuredOperationBatch batch)
+        => await new TrustedWriteVerifier<HmiWriteOperationRequest>(_items, new HmiVerificationPolicy(_effects)).VerifyAsync(
             StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
 
-    public bool VerificationSucceeded(HmiWriteVerification? verification) => verification?.Success == true;
+    public bool VerificationSucceeded(WriteVerification? verification) => verification?.Success == true;
 
-    public HmiGuardedWriteResponse Compose(WriteReport<HmiWriteEffect, HmiWriteVerification> report)
+    public HmiGuardedWriteResponse Compose(WriteReport<HmiWriteEffect, WriteVerification> report)
         => HmiWritePayloadBudget.Apply(new HmiGuardedWriteResponse(ToolName, ContractVersion, report.Phase, report.Success,
             report.Error, report.Warnings, report.Guards,
             report.Effects.Select(e => new HmiWriteEffectPresentation(e.OperationId, e.Effect, null)).ToArray(),

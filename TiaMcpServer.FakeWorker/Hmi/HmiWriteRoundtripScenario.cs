@@ -15,6 +15,28 @@ internal sealed class HmiWriteRoundtripScenario
     private readonly List<HmiAlarmRowInfo> _alarms = [];
     private static bool Same(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     private static string Ok(object value) => JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = WorkerJson.SerializePayload(value) }, WorkerJson.Envelope);
+    /// <summary>Portal's duplicate-create rejection as captured live (TIA Portal V21, English UI, 2026-10-29, P4).</summary>
+    internal const string NativeDuplicateTagMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\n-The value must be unique.\r\n";
+    /// <summary>Portal's DataType rejection on a PLC-bound tag as captured live (P15-update).</summary>
+    internal const string NativeBoundDataTypeMessage = "Error when calling method 'set_DataType' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\n-Set is not allowed for disabled fields\r\n";
+    private static string Rejected(string message, HmiWriteOutcomeInfo outcome) => JsonSerializer.Serialize(new WorkerResponse
+    {
+        Success = false, FailureCategory = "engineering_rejected", Error = "TIA Portal rejected the operation: " + message, HmiWriteOutcome = outcome,
+        EngineeringError = new() { Type = "EngineeringTargetInvocationException", Message = message },
+    }, WorkerJson.Envelope);
+    private string? Duplicate(string method, HmiWriteRequestInfo w, HmiWriteOutcomeInfo outcome)
+    {
+        var exists = method switch
+        {
+            "hmi_create_tag_table" => _tables.Any(t => Same(t, w.TableName)),
+            "hmi_create_tag" => _tags.Any(t => Same(t.Name, w.TagName)),
+            "hmi_create_alarm" => _alarms.Any(a => Same(a.Name, w.AlarmName) && a.Kind == w.AlarmKind),
+            _ => false,
+        };
+        if (!exists) return null;
+        outcome.FailedProperty = "Create"; outcome.Cleanup = HmiCleanupStates.NotNeeded;
+        return Rejected(NativeDuplicateTagMessage, outcome);
+    }
     private static string Missing() => JsonSerializer.Serialize(new WorkerResponse { Success = false, FailureCategory = "target_not_found", Error = "Synthetic object not found." }, WorkerJson.Envelope);
 
     public string Handle(string line)
@@ -39,6 +61,7 @@ internal sealed class HmiWriteRoundtripScenario
         var w = r.HmiWrite!;
         if (w is null || w.HmiName != "H") return Missing();
         var outcome = new HmiWriteOutcomeInfo { ObjectName = w.NewName ?? w.TagName ?? w.AlarmName ?? w.TableName! };
+        if (Duplicate(r.Method, w, outcome) is { } duplicate) return duplicate;
         switch (r.Method)
         {
             case "hmi_create_tag_table": _tables.Add(w.TableName!); outcome.AppliedProperties.Add("Name"); break;
@@ -84,6 +107,8 @@ internal sealed class HmiWriteRoundtripScenario
                     return JsonSerializer.Serialize(new WorkerResponse { Success = false, Error = "Synthetic PLC tag rejected.", FailureCategory = "worker_operation_failed", HmiWriteOutcome = outcome }, WorkerJson.Envelope);
                 }
                 if (w.PlcTag is not null) { row.PlcTag = w.PlcTag; row.PlcName = "PLC"; row.DataType = "Bool"; outcome.AppliedProperties.Add("PlcTag"); }
+                if (w.DataType is not null && row.PlcTag is not null)
+                { outcome.FailedProperty = "DataType"; return Rejected(NativeBoundDataTypeMessage, outcome); }
                 if (w.DataType is not null) { row.DataType = w.DataType; outcome.AppliedProperties.Add("DataType"); }
                 if (w.AcquisitionCycle is not null) row.AcquisitionCycle = w.AcquisitionCycle;
                 if (w.Comment is not null) row.Comment = w.Comment;

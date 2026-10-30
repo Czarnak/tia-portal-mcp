@@ -70,10 +70,100 @@ public class HmiGuardedWriteMcpTests
         Assert.Equal("PlcTag", result.GetProperty("failedProperty").GetString());
         Assert.Equal(new[] { "Name", "Connection" }, result.GetProperty("appliedProperties").EnumerateArray().Select(p => p.GetString()));
         Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean(), root.GetRawText());
-        // The repeated create is no longer blocked by a host guard; Task 4 pins its typed rejection.
         var repeat = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { Sequence()[0] } }));
-        Assert.NotEqual("blocked", repeat.GetProperty("phase").GetString());
+        Assert.Equal("applied", repeat.GetProperty("phase").GetString());
+        var rejected = repeat.GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("engineering_rejected", rejected.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(NativeDuplicateTagMessage, rejected.GetProperty("failure").GetProperty("engineeringError").GetProperty("message").GetString());
+        Assert.Equal("notNeeded", rejected.GetProperty("result").GetProperty("cleanup").GetString());
         Assert.Equal(2, NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Length);
+    }
+
+    private const string NativeDuplicateTagMessage = "Error when calling method 'Create' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTagComposition'.\r\n\r\n-The value must be unique.\r\n";
+    private const string NativeBoundDataTypeMessage = "Error when calling method 'set_DataType' of type 'Siemens.Engineering.HmiUnified.HmiTags.HmiTag'.\r\n\r\n-Set is not allowed for disabled fields\r\n";
+
+    [Fact]
+    public async Task DuplicateCreate_ReachesPortalAndIsTypedWithoutCleanup()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new object[]
+        {
+            Sequence()[0],
+            new { operationId = "duplicate", operation = "create_tag_table", tableName = "existing" },
+            new { operationId = "last", operation = "create_tag_table", tableName = "NeverCreated" },
+        } });
+        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        Assert.False(reply.IsError == true);
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        var items = root.GetProperty("batch").GetProperty("operations");
+        Assert.Equal(new[] { "succeeded", "failed", "skipped" }, items.EnumerateArray().Select(i => i.GetProperty("status").GetString()));
+        var failure = items[1].GetProperty("failure");
+        Assert.Equal("engineering_rejected", failure.GetProperty("category").GetString());
+        Assert.Equal("TIA Portal rejected the operation: " + NativeDuplicateTagMessage, failure.GetProperty("message").GetString());
+        var engineering = failure.GetProperty("engineeringError");
+        Assert.Equal("EngineeringTargetInvocationException", engineering.GetProperty("type").GetString());
+        Assert.Equal(NativeDuplicateTagMessage, engineering.GetProperty("message").GetString());
+        Assert.Equal(0, engineering.GetProperty("inner").GetArrayLength());
+        Assert.Equal("notNeeded", items[1].GetProperty("result").GetProperty("cleanup").GetString());
+        var verification = root.GetProperty("verification");
+        Assert.True(verification.GetProperty("success").GetBoolean());
+        var check = Assert.Single(verification.GetProperty("operations").EnumerateArray());
+        Assert.Equal("table", check.GetProperty("operationId").GetString());
+        Assert.DoesNotContain(requests.Methods(), m => m.StartsWith("hmi_delete_", StringComparison.Ordinal));
+        AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+    }
+
+    [Fact]
+    public async Task BoundDataTypeRejection_KeepsAppliedProperties()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
+        var bound = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        { new { operationId = "bound", operation = "create_tag", tableName = "Existing", tagName = "Bound", connection = "Connection", plcTag = "Motor" } } }));
+        Assert.True(bound.GetProperty("success").GetBoolean(), bound.GetRawText());
+        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        { new { operationId = "retype", operation = "update_tag", tagName = "Bound", newName = "Renamed", dataType = "Int" } } }));
+        var item = root.GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("engineering_rejected", item.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(NativeBoundDataTypeMessage, item.GetProperty("failure").GetProperty("engineeringError").GetProperty("message").GetString());
+        Assert.Equal(new[] { "Name" }, item.GetProperty("result").GetProperty("appliedProperties").EnumerateArray().Select(p => p.GetString()));
+        Assert.Equal("DataType", item.GetProperty("result").GetProperty("failedProperty").GetString());
+        Assert.Empty(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task AppliedCall_IssuesNoPostWriteRead()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence() }));
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        var methods = requests.Methods().ToArray();
+        var first = Array.FindIndex(methods, m => m.StartsWith("hmi_create_", StringComparison.Ordinal));
+        Assert.True(first >= 0);
+        Assert.DoesNotContain(methods.Skip(first), m => m is "hmi_validate" || m.StartsWith("hmi_get_", StringComparison.Ordinal) || m.StartsWith("hmi_list_", StringComparison.Ordinal));
+        Assert.All(root.GetProperty("verification").GetProperty("operations").EnumerateArray(), c => Assert.Equal("trusted", c.GetProperty("check").GetString()));
+    }
+
+    [Fact]
+    public async Task DanglingReferenceCreate_IsTrusted()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        { new { operationId = "alarm", operation = "create_alarm", alarmName = "Orphan", alarmKind = "discrete", triggerTag = "MissingTag" } } }));
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        var check = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
+        Assert.Equal("trusted", check.GetProperty("check").GetString());
+        Assert.DoesNotContain("hmi_validate", requests.Methods());
     }
 
     [Fact]
@@ -139,9 +229,9 @@ public class HmiGuardedWriteMcpTests
     }
 
     [Theory]
-    [InlineData("CleanupFails", false)]
-    [InlineData("Missing", true)]
-    public async Task FailedCreateReadbackDistinguishesCleanupOutcome(string plcTag, bool verified)
+    [InlineData("CleanupFails", "failed")]
+    [InlineData("Missing", "deleted")]
+    public async Task FailedCreateReadbackDistinguishesCleanupOutcome(string plcTag, string cleanup)
     {
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
@@ -149,7 +239,8 @@ public class HmiGuardedWriteMcpTests
         { new { operationId = "a", operation = "create_tag", tableName = "Existing", tagName = "Bad", connection = "Connection", plcTag } } });
         var root = NetworkGuardedWriteMcpTests.Document(reply);
         Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal(verified, root.GetProperty("verification").GetProperty("success").GetBoolean());
+        Assert.Equal(cleanup, root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("cleanup").GetString());
+        Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean());
         AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
     }
 
@@ -257,29 +348,24 @@ public class HmiGuardedWriteMcpTests
     }
 
     [Theory]
-    [InlineData("50.0", "System.Int32", "50", "50.5", "System.Double", "50.5")]
-    [InlineData("50.5", "System.Double", "50.5", "50.0", "System.Int32", "50")]
-    public async Task AnalogCreateAndUpdateRoundtripBothNumericRepresentations(string created, string createdType, string createdValue, string updated, string updatedType, string updatedValue)
+    [InlineData("50.0", "50.5")]
+    [InlineData("50.5", "50.0")]
+    public async Task AnalogCreateAndUpdateRoundtripBothNumericRepresentations(string created, string updated)
     {
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
         var tag = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
         { ["operations"] = new[] { new { operationId = "tag", operation = "create_tag", tableName = "Existing", tagName = "Signal", dataType = "Int" } } }));
         Assert.True(tag.GetProperty("success").GetBoolean(), tag.GetRawText());
-        foreach (var (operation, input, type, value) in new[] { ("create_alarm", created, createdType, createdValue), ("update_alarm", updated, updatedType, updatedValue) })
+        foreach (var (operation, input) in new[] { ("create_alarm", created), ("update_alarm", updated) })
         {
             var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
             { ["operations"] = new[] { new { operationId = "alarm", operation, alarmKind = "analog", alarmName = "Analog", triggerTag = "Signal", condition = "UpperLimit", conditionValue = JsonSerializer.Deserialize<JsonElement>(input) } } });
             var root = NetworkGuardedWriteMcpTests.Document(reply);
             Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
-            var checks = root.GetProperty("verification").GetProperty("operations").EnumerateArray().ToArray();
-            foreach (var (check, expected) in new[] { ("conditionValue.type", type), ("conditionValue", value) })
-            {
-                var result = Assert.Single(checks, c => c.GetProperty("check").GetString() == check);
-                Assert.Equal(expected, result.GetProperty("expected").GetString());
-                Assert.Equal(expected, result.GetProperty("actual").GetString());
-                Assert.True(result.GetProperty("success").GetBoolean());
-            }
+            var check = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
+            Assert.Equal("trusted", check.GetProperty("check").GetString());
+            Assert.True(check.GetProperty("success").GetBoolean());
             AssertAudit(root, NetworkGuardedWriteMcpTests.AuditLines(audit.Path)[^1]);
         }
     }

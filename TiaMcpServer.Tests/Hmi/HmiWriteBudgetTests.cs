@@ -118,29 +118,24 @@ public class HmiWriteBudgetTests
     }
 
     [Fact]
-    public void MaximalLateProtectedShapeFitsReservedCoreAndKeepsEveryIdentity()
+    public void MaximalProtectedShapeFitsReservedCoreAndKeepsEveryIdentity()
     {
         var requests = Enumerable.Range(0, 50).Select(i => HmiGuardedWriteDomainTests.Item(new string('x', 253) + i.ToString("D3"))).ToArray();
         var omission = new StructuredOperationOmission(StructuredOperationBatchPayloadBudget.DocumentLimitReason, 180000, 999999, "hmi_read", "Inspect current state with hmi_read; use smaller hmi_write calls to see every effect. Do not replay the write.");
         var guards = requests.SelectMany(i => new[]
         {
-            new WriteGuardReport("hmi_deletes_table_contents", "info", i.OperationId, "Initial table diagnostic", null),
-            new WriteGuardReport("hmi_deletes_referenced_tag", "info", i.OperationId, "Initial reference diagnostic", null),
-            new WriteGuardReport("hmi_deletes_table_contents", "info", i.OperationId, "Changed table diagnostic", null),
-            new WriteGuardReport("hmi_deletes_referenced_tag", "info", i.OperationId, "Changed reference diagnostic", null),
-        }).Concat(new[]
-        {
-            new WriteGuardReport("hmi_state_unverifiable", "block", requests[^1].OperationId, "Incomplete evidence", null),
-            new WriteGuardReport("hmi_state_unverifiable", "block", requests[^1].OperationId, "Uncertain references", null),
-            new WriteGuardReport("partial_write", "info", requests[^1].OperationId, "Earlier writes remain", null),
-        }).ToArray();
+            new WriteGuardReport("hmi_state_unverifiable", "block", i.OperationId, "Incomplete evidence", null),
+            new WriteGuardReport("hmi_state_unverifiable", "block", i.OperationId, "Uncertain references", null),
+            new WriteGuardReport("hmi_deletes_table_contents", "info", i.OperationId, "Table diagnostic", null),
+            new WriteGuardReport("hmi_deletes_referenced_tag", "info", i.OperationId, "Reference diagnostic", null),
+        }).Append(new WriteGuardReport("partial_write", "info", requests[^1].OperationId, "Earlier writes remain", null)).ToArray();
         var items = requests.Select((r, i) => new StructuredOperationItem(r.OperationId, r.Operation, i == 49 ? "failed" : "succeeded", null,
-            i == 49 ? new("guard_blocked", "Late guard blocked") : null, omission, null, [])).ToArray();
-        var response = new HmiGuardedWriteResponse("hmi_write", "1.0", "applied", false, null, [], guards,
+            i == 49 ? new("engineering_rejected", "TIA Portal rejected the operation") : null, omission, null, [])).ToArray();
+        var response = new HmiGuardedWriteResponse("hmi_write", HmiWriteContractVersion.Current, "applied", false, null, [], guards,
             requests.Select(r => new HmiWriteEffectPresentation(r.OperationId, null, omission)).ToArray(),
             StructuredOperationBatch.FromItems(items, new(true, 999999, 180000, 50, 1, requests.Select(r => r.OperationId).ToArray())),
             new(false, [], omission), omission);
-        Assert.Equal(203, response.Guards.Count);
+        Assert.Equal(201, response.Guards.Count);
         Assert.True(CanonicalJson.Serialize(response).Length <= HmiWritePayloadBudget.MeasureProtectedCore(requests));
         var bounded = HmiWritePayloadBudget.Apply(response);
         Assert.True(CanonicalJson.Serialize(bounded).Length <= 180000);
@@ -153,7 +148,7 @@ public class HmiWriteBudgetTests
         var items = Enumerable.Range(0, count).Select(i => new StructuredOperationItem(i.ToString(), "create_tag", i == 0 ? "failed" : "succeeded",
             CanonicalJson.ToElement(new HmiWriteOutcomeInfo { ObjectName = "T", AppliedProperties = i == 0 && count > 1 ? [new string('x', 61000)] : ["Name"], Cleanup = "failed" }),
             i == 0 ? new("worker_operation_failed", "failed setter") : null, null, null, Array.Empty<string>())).ToArray();
-        return new("hmi_write", "1.0", "applied", false, null, [], [],
+        return new("hmi_write", HmiWriteContractVersion.Current, "applied", false, null, [], [],
             items.Select(i => new HmiWriteEffectPresentation(i.OperationId, new("create_tag", new("Tag", "H", "T", null, "Table", null), [new("comment[en-US]", null, new string('x', count > 1 ? 45000 : 1), false)], null, null), null)).ToArray(),
             StructuredOperationBatch.FromItems(items), new(true, [], null), null);
     }
