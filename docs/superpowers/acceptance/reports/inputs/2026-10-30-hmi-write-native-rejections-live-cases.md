@@ -139,9 +139,25 @@ All 35 captured batches ran on installed `.112` / `96a28b7`. The later R1 source
 `31d1a44` changes only the conservative supersession predicate: no native calls, object
 keys or schema changes. Source qualification found no old/new predicate admission
 differences across the 72 earlier-success/later-attempted pairs in these 35 batches.
-That bounded comparison is not a full rerun on the planned `.113` candidate. Focused R1
-live checks and timing on `.113` remain pending; R1 was not installed or live checked for
-this matrix.
+That bounded comparison is not a full rerun on `.113`.
+
+The separate [focused R1 live capture](2026-10-30-hmi-write-native-rejections-r1-live.json)
+passed on installed `4.2.0-local.113.g31d1a44` and restored the saved baseline. Its initial
+connection attempt timed out while an Openness access prompt awaited approval; the user
+approved access and the retry completed. One earlier update succeeds, the second update
+applies `Name` before `Comment` fails `target_not_found` on the missing culture, and the
+third item is skipped. The sole earlier verification entry is `superseded` and explicitly
+warns that the failed later item may have changed the object and its final state is not
+verified.
+
+Independent reads find the renamed tag with the partial `en-GB` comment `R1 partial text`,
+find the old tag name absent, and show `CP1029_DiscreteA` following the renamed trigger.
+Public Validate is clean for the renamed tag and that alarm. Its expected missing old
+selector makes the aggregate validation root false; this is not an O3 finding. Close without
+saving/reopen restores the original saved-file hash, identical inventory and clean/open
+status. The focused capture preserves exact canonical write/read/validation responses and
+source hashes with a minimal restoration/audit projection. It does not rerun the 35-case
+matrix or establish candidate UI compile evidence.
 
 Candidate UI compiles for state-changing variants, direct UI-language observation, L5 on
 a local-session root, and timing-after are pending. Earlier checkpoint UI observations

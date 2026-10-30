@@ -118,6 +118,12 @@ of O3 from success. The case report adds the independent state/diagnostic review
 records all 15 child-tag validations succeeding with zero findings on the unchanged restored
 baseline after the matrix; it is outside this frozen manifest and is not a table validator.
 Candidate UI compiles, direct UI-language observation, L5 and timing-after remain pending.
-The later R1
-source qualification and planned focused `.113` checks do not change the fact that every
-captured matrix case used `.112`. Do not edit the frozen data or manifest to imply otherwise.
+The separate [focused R1 capture](../2026-10-30-hmi-write-native-rejections-r1-live.json)
+passed on installed `.113` / `31d1a44`: earlier success is conservatively `superseded`
+after a later partial update fails, independent reads/validation confirm the observed state,
+and the saved baseline hash/inventory is restored. Its exact canonical responses, raw/source
+hashes and minimal restoration/audit projection sit outside this frozen manifest. The first
+connection attempt awaited an Openness access approval and timed out; the user approved and
+the retry succeeded. This focused check does not change the fact that every captured matrix
+case used `.112`, and does not claim a UI compile or full `.113` rerun. Do not edit the frozen
+data or manifest to imply otherwise.
