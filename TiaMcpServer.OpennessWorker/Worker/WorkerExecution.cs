@@ -26,6 +26,7 @@ internal static class WorkerExecution
             var category = Classify(ex, mutates);
             return Failure(category, FailureMessage(ex, category), Describe(ex));
         }
+        // Only HmiWriteRun.Failure sets HmiWriteOutcome: admitting it makes portal_lost win on every wrapped HMI write failure.
         catch (WorkerOperationException ex) when (ex.EngineeringError is not null || ex.HmiWriteOutcome is not null)
         {
             if (portalDisposalRevision() != before)
