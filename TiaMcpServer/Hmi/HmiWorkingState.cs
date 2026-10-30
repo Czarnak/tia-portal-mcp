@@ -15,8 +15,10 @@ internal sealed class HmiWorkingState
     private readonly List<HmiTableEvidence> _tables;
     private readonly List<HmiTagRowInfo> _tags;
     private readonly List<HmiAlarmRowInfo> _alarms;
-    private readonly List<string> _members;
     private readonly List<HmiReference> _references;
+    // Planning names of observed objects; rows created in the call have none.
+    private readonly Dictionary<HmiTagRowInfo, string> _tagOrigins = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<string, string> _tableOrigins = new(Names);
     private readonly List<HmiReference> _uncertainReferences = new();
     private readonly Dictionary<(string Kind, string Name, string? AlarmKind), (int Sequence, string Id)> _touches = new();
     private int _sequence;
@@ -28,15 +30,17 @@ internal sealed class HmiWorkingState
         // Read DTOs are mutable; planned updates must not mutate the planner's original observations.
         _evidence = JsonSerializer.Deserialize<HmiEvidence>(JsonSerializer.Serialize(evidence))!;
         _tables = _evidence.Tables.ToList(); _tags = _evidence.Tags.ToList(); _alarms = _evidence.Alarms.ToList();
-        _members = _evidence.MemberPaths.ToList(); _references = _evidence.References.ToList();
+        _references = _evidence.References.ToList();
+        foreach (var tag in _tags) _tagOrigins[tag] = tag.Name;
+        foreach (var table in _tables) _tableOrigins.TryAdd(table.Name, table.Name);
     }
     public static HmiWorkingState Create(HmiEvidence evidence) => new(evidence);
 
-    // Only the planner may seed a newly created bound tag; dependent replans require observed members.
-    internal void AddProvisionalMemberPath(string path)
-    {
-        if (!_members.Contains(path, Names)) _members.Add(path);
-    }
+    /// <summary>The planning name of the tag now called <paramref name="name"/>; null when absent or created in the call.</summary>
+    internal string? OriginalTagName(string name)
+        => _tags.FirstOrDefault(t => Names.Equals(t.Name, name)) is { } tag ? _tagOrigins.GetValueOrDefault(tag) : null;
+    /// <summary>The planning name of the table now called <paramref name="name"/>; null when absent or created in the call.</summary>
+    internal string? OriginalTableName(string name) => _tableOrigins.GetValueOrDefault(name);
 
     public HmiResolution Resolve(HmiWriteOperationRequest item)
     {
@@ -167,12 +171,16 @@ internal sealed class HmiWorkingState
         {
             case "create_tag_table": if (FindTable(r.TableName!) is null) _tables.Add(new(r.TableName!, r.GroupPath)); break;
             case "update_tag_table":
-                var table = Table(r.TableName!); _tables[_tables.IndexOf(table)] = table with { Name = r.NewName! };
+                var table = Table(r.TableName!);
+                // Portal judges a rename into a taken name; the simulation keeps both objects distinct.
+                if (r.NewName is null || _tables.Any(t => !ReferenceEquals(t, table) && Names.Equals(t.Name, r.NewName))) break;
+                _tables[_tables.IndexOf(table)] = table with { Name = r.NewName };
+                if (_tableOrigins.Remove(table.Name, out var tableOrigin)) _tableOrigins[r.NewName] = tableOrigin;
                 foreach (var member in _tags.Where(t => Names.Equals(t.Table, table.Name)))
                 { member.Table = r.NewName; Touch(Identity("Tag", member.Name), r.OperationId); }
                 break;
             case "delete_tag_table":
-                _tables.Remove(Table(r.TableName!));
+                _tables.Remove(Table(r.TableName!)); _tableOrigins.Remove(r.TableName!);
                 foreach (var removed in resolved.Effect.Removes!.Tags) RemoveTag(removed, r.OperationId);
                 break;
             case "create_tag":
@@ -183,10 +191,9 @@ internal sealed class HmiWorkingState
                 ApplyTag(created, r); _tags.Add(created); break;
             case "update_tag":
                 var tag = Tag(r.TagName!); ApplyTag(tag, r);
-                if (r.NewName is not null)
+                if (r.NewName is not null && !_tags.Any(t => !ReferenceEquals(t, tag) && Names.Equals(t.Name, r.NewName)))
                 {
                     var old = tag.Name; TouchReferencingAlarms(old, r.OperationId); tag.Name = r.NewName;
-                    for (var i = 0; i < _members.Count; i++) _members[i] = RenameReference(_members[i], old, r.NewName);
                     foreach (var references in new[] { _references, _uncertainReferences })
                         for (var i = 0; i < references.Count; i++) references[i] = references[i] with { Tag = RenameReference(references[i].Tag, old, r.NewName) };
                     foreach (var a in _alarms.Where(a => RefersTo(a.TriggerTag, old)))
@@ -209,11 +216,14 @@ internal sealed class HmiWorkingState
                     foreach (var reference in uncertain) _references.Remove(reference);
                 }
                 ApplyAlarm(alarm, r);
-                if (r.NewName is not null)
+                if (r.NewName is not null && !_alarms.Any(a => !ReferenceEquals(a, alarm) && a.Kind == alarm.Kind && Names.Equals(a.Name, r.NewName)))
+                {
                     foreach (var references in new[] { _references, _uncertainReferences })
                         for (var i = 0; i < references.Count; i++)
                             if (IsAlarmReference(references[i], alarm)) references[i] = references[i] with { Name = r.NewName };
-                alarm.Name = r.NewName ?? alarm.Name; TouchAlarmReferences(alarm, r.OperationId); break;
+                    alarm.Name = r.NewName;
+                }
+                TouchAlarmReferences(alarm, r.OperationId); break;
             case "delete_alarm":
                 var removedAlarm = Alarm(r.AlarmName!, r.AlarmKind);
                 TouchAlarmReferences(removedAlarm, r.OperationId);
@@ -241,7 +251,7 @@ internal sealed class HmiWorkingState
     private void RemoveTag(string name, string id)
     {
         TouchReferencingAlarms(name, id);
-        _tags.RemoveAll(t => Names.Equals(t.Name, name)); _members.RemoveAll(m => RefersTo(m, name));
+        _tags.RemoveAll(t => Names.Equals(t.Name, name));
         _references.RemoveAll(r => RefersTo(r.Tag, name)); Touch(Identity("Tag", name), id);
     }
     private static List<HmiText>? MergeTexts(List<HmiText>? current, List<HmiText>? requested)

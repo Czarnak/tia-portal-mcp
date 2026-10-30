@@ -9,10 +9,9 @@ public class HmiWorkingStateTests
     private static HmiEvidence Evidence() => new()
     {
         HmiName = "HMI", Tables = new[] { new HmiTableEvidence("Table", null), new HmiTableEvidence("Other", "Group") },
-        Groups = new[] { "Group" }, Connections = new[] { "PLC" }, AlarmClasses = new[] { "Warning" }, Cultures = new[] { "en-US" },
         Tags = new[] { new HmiTagRowInfo { Name = "T", Table = "Table", Connection = "<Internal tag>", DataType = "Bool" } },
         Alarms = new[] { new HmiAlarmRowInfo { Name = "Alarm", Kind = "discrete", TriggerTag = "T.Member" } },
-        MemberPaths = new[] { "T.Member" }, References = new[] { new HmiReference("T", "Screen", "HmiScreen", "/Screen") }, Complete = true
+        References = new[] { new HmiReference("T", "Screen", "HmiScreen", "/Screen") }, Complete = true
     };
     private static HmiWriteOperationRequest Item(string operation, string id = "item") => new() { OperationId = id, Operation = operation, HmiName = "HMI" };
     [Fact] public void TableRename_UpdatesMembershipAndDependency()
@@ -55,7 +54,7 @@ public class HmiWorkingStateTests
     }
     [Fact] public void AlarmEffects_WrapEventTextAndPreserveOtherCultures()
     {
-        var evidence = Evidence() with { Cultures = new[] { "en-US", "de-DE" } };
+        var evidence = Evidence();
         evidence.Alarms[0].EventText = new() { new("en-US", "Old"), new("de-DE", "Deutsch") };
         var state = HmiWorkingState.Create(evidence); var item = Item("update_alarm", "edit");
         item.AlarmName = "Alarm"; item.AlarmKind = "discrete"; item.EventText = new() { new("en-US", "A & \"B\" 'C' &quot;") };
@@ -81,7 +80,8 @@ public class HmiWorkingStateTests
         var change = document.GetProperty("changes").EnumerateArray().Single(c => c.GetProperty("field").GetString() == field + "[en-US]");
         Assert.Equal("Plain & text", change.GetProperty("requested").GetString());
         Assert.Equal(System.Text.Json.JsonValueKind.Null, change.GetProperty("current").ValueKind);
-    }    [Fact] public void RemovingAlarm_RemovesItsObservedReference()
+    }
+    [Fact] public void RemovingAlarm_RemovesItsObservedReference()
     {
         var evidence = Evidence() with { References = new[] { new HmiReference("T", "Alarm", "HmiDiscreteAlarm", null) } };
         var state = HmiWorkingState.Create(evidence); var alarm = Item("delete_alarm"); alarm.AlarmName = "Alarm"; alarm.AlarmKind = "discrete"; state.Apply(alarm);
@@ -169,7 +169,8 @@ public class HmiWorkingStateTests
         var delete = Item("delete_tag"); delete.TagName = "T"; var result = state.Resolve(delete);
         Assert.Empty(result.Effect!.Removes!.References); Assert.DoesNotContain(result.Guards, g => g.Id == "hmi_state_unverifiable");
         Assert.Equal("retarget", result.Effect.DependsOn);
-    }    [Theory] [InlineData("update_tag")] [InlineData("delete_tag")]
+    }
+    [Theory] [InlineData("update_tag")] [InlineData("delete_tag")]
     public void ChangedReferencedTag_TouchesAlarmEvenWhenItsTriggerIsElsewhere(string operation)
     {
         var evidence = Evidence() with { References = new[] { new HmiReference("T", "Alarm", "HmiDiscreteAlarm", null) } };
@@ -271,5 +272,32 @@ public class HmiWorkingStateTests
         var updateAlarm = Item("update_alarm"); updateAlarm.AlarmName = "Alarm"; updateAlarm.AlarmKind = "discrete"; updateAlarm.Priority = 1;
         var updateTable = Item("update_tag_table"); updateTable.TableName = "Table"; updateTable.NewName = "Renamed";
         Assert.Null(state.Resolve(updateTag).Error); Assert.Null(state.Resolve(updateAlarm).Error); Assert.Null(state.Resolve(updateTable).Error);
+    }
+    [Theory] [InlineData("tag")] [InlineData("tag_table")] [InlineData("alarm")]
+    public void RenameIntoTakenName_KeepsBothObjectsAndCaseOnlyRenameStillApplies(string kind)
+    {
+        var evidence = Evidence() with
+        {
+            Tags = new[] { new HmiTagRowInfo { Name = "T", Table = "Table" }, new HmiTagRowInfo { Name = "U", Table = "Other" } },
+            Alarms = new[] { new HmiAlarmRowInfo { Name = "Alarm", Kind = "discrete" }, new HmiAlarmRowInfo { Name = "Taken", Kind = "discrete" } }
+        };
+        var (first, taken) = kind switch { "tag" => ("T", "u"), "tag_table" => ("Table", "other"), _ => ("Alarm", "taken") };
+        HmiWriteOperationRequest Update(string id, string name, string? newName)
+        {
+            var item = Item("update_" + kind, id); item.NewName = newName; item.AlarmKind = "discrete"; item.Priority = 1; item.Comment = new() { new("en-US", "x") };
+            if (kind == "tag") item.TagName = name; else if (kind == "tag_table") item.TableName = name; else item.AlarmName = name;
+            return item;
+        }
+        var state = HmiWorkingState.Create(evidence);
+        state.Apply(Update("rename", first, taken));
+        var later = state.Resolve(Update("later", taken, null));
+        Assert.Null(later.Error); Assert.Empty(later.Guards);
+        Assert.Equal(taken, later.Effect!.Target.Name, StringComparer.OrdinalIgnoreCase);
+        Assert.Null(state.Resolve(Update("original", first, null)).Error);
+
+        state = HmiWorkingState.Create(evidence);
+        state.Apply(Update("case", first, first.ToUpperInvariant()));
+        var renamed = state.Resolve(Update("after", first.ToUpperInvariant(), null));
+        Assert.Null(renamed.Error); Assert.Equal(first.ToUpperInvariant(), renamed.Effect!.Target.Name);
     }
 }

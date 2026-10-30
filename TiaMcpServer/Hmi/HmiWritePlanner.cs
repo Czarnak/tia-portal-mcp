@@ -9,32 +9,27 @@ using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Hmi;
 
-/// <summary>Plans from complete public reads; retains original tag identities across caller-order edits.</summary>
+/// <summary>
+/// Plans from target reads and delete consequences only; earlier items in the call are simulated, never re-read.
+/// Cross-reference queries use each deleted tag's original planning name.
+/// </summary>
 public sealed class HmiWritePlanner(OpennessWorkerClient client)
 {
+    private const int MaxReferenceQueries = 200;
     private static readonly StringComparer Names = StringComparer.OrdinalIgnoreCase;
     private readonly Dictionary<string, string> _resolved = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, HashSet<string>> _deleteTags = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, HashSet<string>> _createdDeleteTags = new(StringComparer.Ordinal);
     private sealed class ReadFailure(string category, string message) : Exception(message)
     { public string Category { get; } = category; }
-    private sealed record Origin(string? Name, bool Bound);
     private sealed class Context(HmiEvidence evidence)
     {
         public HmiEvidence Evidence = evidence;
-        public readonly List<(HmiWriteOperationRequest Item, string? Provisional)> History = new();
-        public readonly Dictionary<string, Origin> Origins = evidence.Tags.GroupBy(t => t.Name, Names)
-            .ToDictionary(g => g.Key, g => new Origin(g.Key, Bound(g.First().Connection)), Names);
-        public readonly HashSet<string> MemberReads = new(Names);
+        public readonly List<HmiWriteOperationRequest> History = new();
+        public readonly HashSet<string> TableReads = new(Names);
         public readonly HashSet<string> ReferenceReads = new(Names);
         public HmiWorkingState Replay()
         {
             var state = HmiWorkingState.Create(Evidence);
-            foreach (var (item, provisional) in History)
-            {
-                if (provisional is not null) state.AddProvisionalMemberPath(provisional);
-                state.Apply(item);
-            }
+            foreach (var item in History) state.Apply(item);
             return state;
         }
     }
@@ -42,88 +37,57 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
 
     public async Task<PlanResult<HmiWriteEffect>> PlanAsync(IReadOnlyList<HmiWriteOperationRequest> items)
     {
-        _resolved.Clear(); _deleteTags.Clear(); _createdDeleteTags.Clear();
-        var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
+        _resolved.Clear();
         try
         {
             var devices = await Read<HmiDeviceListInfo>("list_hmi_devices", new());
+            foreach (var item in items) _resolved[item.OperationId] = ResolveHmi(devices, item.HmiName);
             var contexts = new Dictionary<string, Context>(Names);
-            var plans = new List<ItemPlan<HmiWriteEffect>>();
+            foreach (var group in items.GroupBy(i => _resolved[i.OperationId], Names))
+                contexts[group.Key] = new(await Load(group.Key, group.ToArray(), devices.IsComplete));
+
+            // Delete consequences depend on earlier items, so they are read against the simulation in caller order.
             var queryCount = 0;
             foreach (var item in items)
             {
-                var hmi = ResolveHmi(devices, item.HmiName);
-                _resolved[item.OperationId] = hmi;
-                if (!contexts.TryGetValue(hmi, out var context))
-                    contexts[hmi] = context = new(await Load(hmi, devices));
-
-                string? provisional = null;
-                if (item.TriggerTag is { } trigger && trigger.Contains('.'))
+                var context = contexts[_resolved[item.OperationId]];
+                if (item.Operation is "delete_tag" or "delete_tag_table")
                 {
-                    var parent = trigger.Split('.')[0];
-                    if (context.Origins.TryGetValue(parent, out var origin))
+                    var hmi = context.Evidence.HmiName;
+                    if (item.Operation == "delete_tag_table" && context.Replay().OriginalTableName(item.TableName!) is { } table && context.TableReads.Add(table))
                     {
-                        if (origin.Name is null && origin.Bound) provisional = trigger;
-                        else if (origin.Name is { } original && context.MemberReads.Add(original))
-                        {
-                            var detail = await Read<HmiTagDetailInfo>("get_tag", new() { HmiName = hmi, TagName = original });
-                            context.Evidence = context.Evidence with
-                            {
-                                Complete = context.Evidence.Complete && detail.IsComplete && !detail.MembersTruncated,
-                                MemberPaths = context.Evidence.MemberPaths.Concat(MemberPaths(detail.Members, original)).ToArray()
-                            };
-                        }
+                        var (rows, complete) = await Tags(hmi, table);
+                        context.Evidence = context.Evidence with { Tags = Merge(context.Evidence.Tags, rows, t => t.Name), Complete = context.Evidence.Complete && complete };
+                    }
+                    var state = context.Replay();
+                    var resolution = state.Resolve(item);
+                    if (resolution.Error is { } error) return Failed(error);
+                    // Incomplete evidence can leave a missing target without a removal; it is already blocked.
+                    var removed = resolution.Effect!.Removes?.Tags ?? Array.Empty<string>();
+                    var originals = removed.Select(state.OriginalTagName).OfType<string>()
+                        .Distinct(Names).Where(t => !context.ReferenceReads.Contains(t)).ToArray();
+                    if (queryCount + originals.Length > MaxReferenceQueries) context.Evidence = context.Evidence with { Complete = false };
+                    else foreach (var original in originals)
+                    {
+                        queryCount++;
+                        context.ReferenceReads.Add(original);
+                        var (references, complete) = await ReadReferences(hmi, original);
+                        context.Evidence = context.Evidence with { References = context.Evidence.References.Concat(references).ToArray(), Complete = context.Evidence.Complete && complete };
                     }
                 }
-                var state = context.Replay();
-                if (provisional is not null) state.AddProvisionalMemberPath(provisional);
-                var resolution = state.Resolve(item);
-                if (resolution.Error is { } error) return Failed(error);
-
-                if (resolution.Effect!.Removes is { } removal)
-                {
-                    var originals = removal.Tags.Where(context.Origins.ContainsKey).Select(t => context.Origins[t].Name)
-                        .OfType<string>().Distinct(Names).Where(t => !context.ReferenceReads.Contains(t)).ToArray();
-                    _deleteTags[item.OperationId] = new(removal.Tags, Names);
-                    _createdDeleteTags[item.OperationId] = new(removal.Tags.Where(t => context.Origins.TryGetValue(t, out var origin) && origin.Name is null), Names);
-                    if (queryCount + originals.Length > 200) context.Evidence = context.Evidence with { Complete = false };
-                    else
-                    {
-                        foreach (var original in originals)
-                        {
-                            queryCount++;
-                            context.ReferenceReads.Add(original);
-                            var (references, complete) = await ReadReferences(hmi, original);
-                            context.Evidence = context.Evidence with { References = context.Evidence.References.Concat(references).ToArray(), Complete = context.Evidence.Complete && complete };
-                        }
-                    }
-                    state = context.Replay();
-                    if (provisional is not null) state.AddProvisionalMemberPath(provisional);
-                    resolution = state.Resolve(item);
-                    if (resolution.Error is { } deleteError) return Failed(deleteError);
-                }
-                var effect = resolution.Effect!;
-                plans.Add(ItemPlan<HmiWriteEffect>.Resolved(effect) with { DependsOn = effect.DependsOn });
-                guards[item.OperationId] = resolution.Guards;
-                if (!resolution.Guards.Any(g => g.Id is HmiGuardDefinitions.StateUnverifiable))
-                {
-                    context.History.Add((item, provisional));
-                    TrackOrigins(context, item, effect);
-                }
+                context.History.Add(item);
             }
-            // Later deletes can reveal references affected by earlier items. Resolve final effects only
-            // after all that evidence is present, so their dependencies use the same complete observation.
-            plans.Clear(); guards.Clear();
-            var finalStates = contexts.ToDictionary(pair => pair.Key, pair => HmiWorkingState.Create(pair.Value.Evidence), Names);
-            var provisionalPaths = contexts.Values.SelectMany(c => c.History).Where(h => h.Provisional is not null)
-                .ToDictionary(h => h.Item.OperationId, h => h.Provisional!, StringComparer.Ordinal);
+
+            // Resolve every effect from the same final observation, so later delete evidence informs earlier items.
+            var plans = new List<ItemPlan<HmiWriteEffect>>();
+            var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
+            var states = contexts.ToDictionary(pair => pair.Key, pair => HmiWorkingState.Create(pair.Value.Evidence), Names);
             foreach (var item in items)
             {
-                var state = finalStates[_resolved[item.OperationId]];
-                if (provisionalPaths.TryGetValue(item.OperationId, out var member)) state.AddProvisionalMemberPath(member);
+                var state = states[_resolved[item.OperationId]];
                 var resolution = state.Resolve(item);
                 if (resolution.Error is { } error) return Failed(error);
-                plans.Add(ItemPlan<HmiWriteEffect>.Resolved(resolution.Effect!) with { DependsOn = resolution.Effect!.DependsOn });
+                plans.Add(ItemPlan<HmiWriteEffect>.Resolved(resolution.Effect!));
                 guards[item.OperationId] = resolution.Guards;
                 state.Apply(item);
             }
@@ -132,46 +96,8 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         catch (ReadFailure failure) { return Failed(new(failure.Category, failure.Message)); }
     }
 
-    public async Task<ReplanResult<HmiWriteEffect>> ReplanAsync(HmiWriteOperationRequest item)
-    {
-        try
-        {
-            var hmi = ResolvedHmiName(item.OperationId);
-            var evidence = await LoadItem(hmi, item);
-            var state = HmiWorkingState.Create(evidence);
-            var resolution = state.Resolve(item);
-            if (resolution.Error is { } error) return new(ItemReplan<HmiWriteEffect>.Fail(error.Category, error.Message), []);
-            if (resolution.Effect!.Removes is { } removes)
-            {
-                var covered = _deleteTags.GetValueOrDefault(item.OperationId);
-                var created = _createdDeleteTags.GetValueOrDefault(item.OperationId);
-                // Re-reads consume no new budget: every original tag must already have been counted at planning.
-                if (covered is null || removes.Tags.Any(t => !covered.Contains(t))) evidence = evidence with { Complete = false };
-                else foreach (var tag in removes.Tags.Where(t => created?.Contains(t) != true))
-                {
-                    var (references, complete) = await ReadReferences(hmi, tag);
-                    evidence = evidence with { References = evidence.References.Concat(references).ToArray(), Complete = evidence.Complete && complete };
-                }
-                resolution = HmiWorkingState.Create(evidence).Resolve(item);
-            }
-            return resolution.Error is { } lateError
-                ? new(ItemReplan<HmiWriteEffect>.Fail(lateError.Category, lateError.Message), [])
-                : new(ItemReplan<HmiWriteEffect>.Ok(ItemPlan<HmiWriteEffect>.Resolved(resolution.Effect!)), resolution.Guards);
-        }
-        catch (ReadFailure failure) { return new(ItemReplan<HmiWriteEffect>.Fail(failure.Category, failure.Message), []); }
-    }
-
-    private static void TrackOrigins(Context context, HmiWriteOperationRequest item, HmiWriteEffect effect)
-    {
-        if (effect.Removes is { } removal) foreach (var tag in removal.Tags) context.Origins.Remove(tag);
-        if (item.Operation == "create_tag") context.Origins[item.TagName!] = new(null, Bound(item.Connection));
-        if (item.Operation == "update_tag" && context.Origins.TryGetValue(effect.Target.Name, out var origin))
-        {
-            context.Origins.Remove(effect.Target.Name);
-            context.Origins[item.NewName ?? effect.Target.Name] = origin with { Bound = item.Connection is null ? origin.Bound : Bound(item.Connection) };
-        }
-    }
-    private static bool Bound(string? connection) => !string.IsNullOrEmpty(connection) && !Names.Equals(connection, "<Internal tag>");
+    private static IReadOnlyList<T> Merge<T>(IReadOnlyList<T> known, IEnumerable<T> rows, Func<T, string> key)
+        => known.Concat(rows.Where(row => !known.Any(k => Names.Equals(key(k), key(row))))).ToArray();
     private static PlanResult<HmiWriteEffect> Failed(WriteToolError error) => new(WritePlan<HmiWriteEffect>.Fail(error.Category, error.Message), new Dictionary<string, IReadOnlyList<FiredGuard>>());
     private static string ResolveHmi(HmiDeviceListInfo devices, string? name)
     {
@@ -181,70 +107,40 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         return matches[0].SoftwareName;
     }
 
-    private async Task<HmiEvidence> Load(string hmi, HmiDeviceListInfo devices)
+    /// <summary>Target reads for one HMI: tables, update/delete targets, and alarms when the HMI deletes tags.</summary>
+    private async Task<HmiEvidence> Load(string hmi, IReadOnlyList<HmiWriteOperationRequest> items, bool complete)
     {
-        var evidence = await LoadCommon(hmi, true, true, true);
-        var (tags, tagsComplete) = await Tags(hmi, null);
-        var (alarms, alarmsComplete) = await Alarms(hmi);
-        return evidence with { Devices = devices.Devices, Tags = tags, Alarms = alarms, Complete = evidence.Complete && devices.IsComplete && tagsComplete && alarmsComplete };
-    }
-    private async Task<HmiEvidence> LoadCommon(string hmi, bool cultures, bool connections, bool classes)
-    {
-        var tables = await Read<HmiTagTableTreeInfo>("list_tag_tables", new() { HmiName = hmi });
-        var flattened = new List<HmiTableEvidence>(); var groups = new List<string>();
-        void Flatten(IEnumerable<HmiTagTableInfo> ts, IEnumerable<HmiTagTableGroupInfo> gs, string? parent)
+        var tables = new List<HmiTableEvidence>(); var tags = new List<HmiTagRowInfo>(); var alarms = new List<HmiAlarmRowInfo>();
+        if (items.Any(i => i.Operation is "update_tag_table" or "delete_tag_table" or "update_tag" or "delete_tag"))
         {
-            flattened.AddRange(ts.Select(t => new HmiTableEvidence(t.Name, parent)));
-            foreach (var group in gs)
+            var tree = await Read<HmiTagTableTreeInfo>("list_tag_tables", new() { HmiName = hmi });
+            void Flatten(IEnumerable<HmiTagTableInfo> ts, IEnumerable<HmiTagTableGroupInfo> gs, string? parent)
             {
-                var child = parent is null ? group.Name : parent + "/" + group.Name;
-                groups.Add(child); Flatten(group.Tables, group.Groups, child);
+                tables.AddRange(ts.Select(t => new HmiTableEvidence(t.Name, parent)));
+                foreach (var group in gs) Flatten(group.Tables, group.Groups, parent is null ? group.Name : parent + "/" + group.Name);
             }
+            Flatten(tree.Tables, tree.Groups, tree.GroupPath);
+            complete &= tree.IsComplete;
         }
-        Flatten(tables.Tables, tables.Groups, tables.GroupPath);
-        var languages = cultures ? await Read<HmiProjectLanguagesInfo>("list_project_languages", new() { HmiName = hmi }) : new();
-        var cs = connections ? await Read<HmiConnectionListInfo>("list_connections", new() { HmiName = hmi }) : new();
-        var ac = classes ? await Read<HmiAlarmClassesInfo>("list_alarm_classes", new() { HmiName = hmi }) : new();
-        return new() { HmiName = hmi, Tables = flattened, Groups = groups, Cultures = languages.Languages, Connections = cs.Connections.Select(c => c.Name).ToArray(), AlarmClasses = ac.AlarmClasses.Select(c => c.Name).ToArray(), Complete = tables.IsComplete && languages.IsComplete && cs.IsComplete && ac.IsComplete };
-    }
-
-    private async Task<HmiEvidence> LoadItem(string hmi, HmiWriteOperationRequest item)
-    {
-        var evidence = await LoadCommon(hmi, new[] { item.Comment, item.DisplayName, item.EventText, item.InfoText }.Any(t => t is not null), item.Connection is not null, item.AlarmClass is not null);
-        var tags = new List<HmiTagRowInfo>(); var alarms = new List<HmiAlarmRowInfo>(); var members = new List<string>();
-        var complete = evidence.Complete;
-        var tagNames = new Dictionary<string, bool>(Names);
-        void NeedTag(string? name, bool required) { if (name is not null) tagNames[name] = required || tagNames.GetValueOrDefault(name); }
-        if (item.Operation.EndsWith("_tag", StringComparison.Ordinal))
+        // A target_not_found answer means absent at planning; the simulation may still create or rename that name.
+        foreach (var name in items.Where(i => i.Operation is "update_tag" or "delete_tag").Select(i => i.TagName!).Distinct(Names))
         {
-            NeedTag(item.TagName, item.Operation != "create_tag"); NeedTag(item.NewName, false);
+            if (await Read<HmiTagDetailInfo>("get_tag", new() { HmiName = hmi, TagName = name }, optional: true) is not { } detail) continue;
+            tags.Add(detail.Tag); complete &= detail.IsComplete;
         }
-        if (item.TriggerTag is { } trigger) NeedTag(trigger.Split('.')[0], true);
-        foreach (var (name, required) in tagNames)
+        foreach (var target in items.Where(i => i.Operation is "update_alarm" or "delete_alarm").DistinctBy(i => (i.AlarmKind, i.AlarmName!.ToUpperInvariant())))
         {
-            var detail = await Read<HmiTagDetailInfo>("get_tag", new() { HmiName = hmi, TagName = name }, optional: !required);
-            if (detail is null) continue;
-            tags.Add(detail.Tag); members.AddRange(MemberPaths(detail.Members, name));
-            complete &= detail.IsComplete && (!(item.TriggerTag?.Contains('.') == true && Names.Equals(item.TriggerTag.Split('.')[0], name)) || !detail.MembersTruncated);
+            if (await Read<HmiAlarmDetailInfo>("get_alarm", new() { HmiName = hmi, AlarmName = target.AlarmName, AlarmKind = target.AlarmKind }, optional: true) is not { } detail) continue;
+            alarms.Add(detail.Alarm); complete &= detail.IsComplete;
         }
-        if (item.Operation.EndsWith("_alarm", StringComparison.Ordinal))
+        // Alarm triggers are delete-consequence evidence: UsedBy cross references do not identify them.
+        if (items.Any(i => i.Operation is "delete_tag" or "delete_tag_table"))
         {
-            foreach (var name in new[] { item.AlarmName, item.NewName }.OfType<string>().Distinct(Names))
-            {
-                var detail = await Read<HmiAlarmDetailInfo>("get_alarm", new() { HmiName = hmi, AlarmName = name, AlarmKind = item.AlarmKind }, optional: item.Operation == "create_alarm" || !Names.Equals(name, item.AlarmName));
-                if (detail is null) continue;
-                alarms.Add(detail.Alarm); complete &= detail.IsComplete;
-            }
+            var (rows, alarmsComplete) = await Alarms(hmi);
+            alarms = Merge(alarms, rows, a => a.Kind + "|" + a.Name).ToList();
+            complete &= alarmsComplete;
         }
-        if (item.Operation == "delete_tag_table")
-        {
-            var tableTags = await Tags(hmi, item.TableName); tags.AddRange(tableTags.Rows); complete &= tableTags.Complete;
-        }
-        if (item.Operation is "delete_tag" or "delete_tag_table")
-        {
-            var currentAlarms = await Alarms(hmi); alarms.AddRange(currentAlarms.Rows); complete &= currentAlarms.Complete;
-        }
-        return evidence with { Tags = tags, Alarms = alarms, MemberPaths = members, Complete = complete };
+        return new() { HmiName = hmi, Tables = tables, Tags = tags, Alarms = alarms, Complete = complete };
     }
 
     private Task<(List<HmiTagRowInfo> Rows, bool Complete)> Tags(string hmi, string? table)
@@ -267,18 +163,6 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         }
     }
 
-    private static IEnumerable<string> MemberPaths(IEnumerable<HmiTagMemberInfo> members, string parent)
-    {
-        foreach (var member in members)
-        {
-            // Local member names derive their path from containment; qualified rows must belong to that parent.
-            var name = member.Tag.Name;
-            var path = name.Contains('.') ? name : parent + "." + name;
-            if (!path.StartsWith(parent + ".", StringComparison.OrdinalIgnoreCase)) continue;
-            yield return path;
-            foreach (var nested in MemberPaths(member.Members, path)) yield return nested;
-        }
-    }
     private async Task<T> Read<T>(string operation, HmiQueryInfo query, bool optional = false) where T : class
     {
         var result = await client.ReadHmiAsync(HmiOperationCatalog.WorkerMethod(operation), query).ConfigureAwait(false);
@@ -314,14 +198,11 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         switch (value)
         {
             case HmiDeviceListInfo v: Rows(v.Devices, d => { Name(d.SoftwareName); Name(d.Kind); }); break;
-            case HmiProjectLanguagesInfo v: Rows(v.Languages, Name); break;
             case HmiTagTableTreeInfo v: Rows(v.Tables, t => Name(t.Name)); Groups(v.Groups); break;
             case HmiTagListInfo v: Rows(v.Tags, Tag); break;
             case HmiTagDetailInfo v: Tag(v.Tag); Members(v.Members); break;
             case HmiAlarmListInfo v: Rows(v.Alarms, Alarm); break;
             case HmiAlarmDetailInfo v: Alarm(v.Alarm); break;
-            case HmiConnectionListInfo v: Rows(v.Connections, c => Name(c.Name)); break;
-            case HmiAlarmClassesInfo v: Rows(v.AlarmClasses, c => Name(c.Name)); break;
         }
     }
     private async Task<(IReadOnlyList<HmiReference> References, bool Complete)> ReadReferences(string hmi, string tag)

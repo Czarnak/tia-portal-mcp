@@ -7,8 +7,8 @@ namespace TiaMcpServer.Hmi;
 
 /// <summary>
 /// The hmi_write domain for the guarded pipeline; one instance per call. The planner's guards are
-/// cached by operationId so <see cref="EvaluateGuards"/> stays pure, and a late re-plan refreshes
-/// its item's entry. Only block and info guards exist, so nothing ever asks the user.
+/// cached by operationId so <see cref="EvaluateGuards"/> stays pure; plans declare no dependencies,
+/// so nothing is re-planned. Only block and info guards exist, so nothing ever asks the user.
 /// </summary>
 public sealed class HmiWriteDomain(OpennessWorkerClient client)
     : IWriteDomain<HmiWriteOperationRequest, HmiWriteEffect, HmiWriteVerification, HmiGuardedWriteResponse>
@@ -49,17 +49,8 @@ public sealed class HmiWriteDomain(OpennessWorkerClient client)
     public IReadOnlyList<FiredGuard> EvaluateGuards(IReadOnlyList<HmiWriteOperationRequest> items, IReadOnlyList<ItemPlan<HmiWriteEffect>> plans)
         => items.SelectMany(item => _guards.GetValueOrDefault(item.OperationId) ?? Array.Empty<FiredGuard>()).ToArray();
 
-    public async Task<ItemReplan<HmiWriteEffect>> ReplanAsync(HmiWriteOperationRequest item)
-    {
-        var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
-        if (!result.Replan.Success) return result.Replan;
-        _guards[item.OperationId] = result.Guards;
-        // The re-plan reads real state, so it knows no dependency; the presented effect keeps the planned one.
-        var plan = result.Replan.Plan!;
-        var effect = plan.Effect! with { DependsOn = _effects.GetValueOrDefault(item.OperationId)?.DependsOn };
-        _effects[item.OperationId] = effect;
-        return ItemReplan<HmiWriteEffect>.Ok(plan with { Effect = effect });
-    }
+    public Task<ItemReplan<HmiWriteEffect>> ReplanAsync(HmiWriteOperationRequest item)
+        => throw new InvalidOperationException("hmi_write plans declare no dependencies; ReplanAsync must never be called.");
 
     public Task<WorkerCallResult> MutateAsync(HmiWriteOperationRequest item)
     {

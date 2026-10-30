@@ -71,7 +71,7 @@ public class HmiWriteVerifierTests
         r.Connection = "PLC"; r.PlcTag = "\"DB\".Member";
         var state = HmiWorkingState.Create(new HmiEvidence
         {
-            HmiName = "H", Complete = true, Connections = ["PLC"], Tables = [new("Table", null)],
+            HmiName = "H", Complete = true, Tables = [new("Table", null)],
             Tags = operation == "create_tag" ? [] : [new() { Name = "T", Table = "Table", Connection = "PLC" }]
         });
         var effect = state.Resolve(r).Effect!;

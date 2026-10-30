@@ -20,18 +20,12 @@ public sealed record HmiWriteVerification(bool Success, IReadOnlyList<HmiOperati
 public sealed record HmiResolution(HmiWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards, WriteToolError? Error);
 public sealed record HmiTableEvidence(string Name, string? GroupPath);
 
-/// <summary>Complete, paged read evidence for one resolved HMI; member paths are full Tag.Member paths.</summary>
+/// <summary>Planning read evidence for one resolved HMI: update/delete targets and delete consequences.</summary>
 public sealed record HmiEvidence
 {
     public string HmiName { get; init; } = string.Empty;
-    public IReadOnlyList<HmiDeviceInfo> Devices { get; init; } = Array.Empty<HmiDeviceInfo>();
-    public IReadOnlyList<string> Cultures { get; init; } = Array.Empty<string>();
     public IReadOnlyList<HmiTableEvidence> Tables { get; init; } = Array.Empty<HmiTableEvidence>();
-    public IReadOnlyList<string> Groups { get; init; } = Array.Empty<string>();
     public IReadOnlyList<HmiTagRowInfo> Tags { get; init; } = Array.Empty<HmiTagRowInfo>();
-    public IReadOnlyList<string> MemberPaths { get; init; } = Array.Empty<string>();
-    public IReadOnlyList<string> Connections { get; init; } = Array.Empty<string>();
-    public IReadOnlyList<string> AlarmClasses { get; init; } = Array.Empty<string>();
     public IReadOnlyList<HmiAlarmRowInfo> Alarms { get; init; } = Array.Empty<HmiAlarmRowInfo>();
     public IReadOnlyList<HmiReference> References { get; init; } = Array.Empty<HmiReference>();
     public bool Complete { get; init; }

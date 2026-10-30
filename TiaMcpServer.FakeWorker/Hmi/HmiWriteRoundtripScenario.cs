@@ -106,12 +106,6 @@ internal sealed class HmiWriteRoundtripScenario
                 if (w.Priority is not null) alarmRow.Priority = w.Priority;
                 if (w.EventText is not null) alarmRow.EventText = w.EventText;
                 if (w.InfoText is not null) alarmRow.InfoText = w.InfoText;
-                // A concurrent editor change makes both late delete-info messages differ from planning.
-                if (w.AlarmName == "LateDrift")
-                {
-                    _tags.Add(new() { Name = "ConcurrentTag", Table = "NewTable", Connection = "<Internal tag>" });
-                    _alarms.Add(new() { Name = "ConcurrentAlarm", Kind = "discrete", TriggerTag = "ConcurrentTag" });
-                }
                 outcome.AppliedProperties.Add("Name"); break;
             case "hmi_delete_alarm": _alarms.RemoveAll(a => Same(a.Name, w.AlarmName) && a.Kind == w.AlarmKind); break;
             default: return Missing();
