@@ -193,6 +193,24 @@ public class HmiGuardedWriteMcpTests
         Assert.Equal(["hmi_list_hmi_devices", "hmi_list_tag_tables", "hmi_list_alarms", "hmi_list_tags"], hmi);
     }
 
+    [Fact]
+    public async Task DryRun_DeleteOfExistingTag_ReadsItsCrossReferences()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var seed = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        { new { operationId = "seed", operation = "create_tag", tableName = "Existing", tagName = "Seed", dataType = "Bool" } } }));
+        Assert.True(seed.GetProperty("success").GetBoolean(), seed.GetRawText());
+        static bool Hmi(string m) => m.StartsWith("hmi_", StringComparison.Ordinal) || m == "read_cross_references";
+        var before = requests.Methods().Count(Hmi);
+        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        { new { operationId = "delete", operation = "delete_tag", tagName = "Seed" } }, ["dryRun"] = true }));
+        Assert.Equal("preview", root.GetProperty("phase").GetString());
+        Assert.Equal(["hmi_list_hmi_devices", "hmi_list_tag_tables", "hmi_get_tag", "hmi_list_alarms", "read_cross_references"], requests.Methods().Where(Hmi).Skip(before));
+    }
+
     [Theory]
     [InlineData("confirm", "true")]
     [InlineData("acknowledge", "[]")]
