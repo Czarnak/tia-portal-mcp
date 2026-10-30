@@ -1,11 +1,14 @@
 # hmi_write native rejections and shared trusted verification — design
 
-**Status:** draft 2026-10-29. Maintainer decision: the §6.7 checkpoint probes (P1–P22) run in a
-separate session **before** the implementation plan is written, because the plan depends on their
-results. On the current build, `hmi_name_collision`, the bound-tag refusals and the existence
-checks stop P1–P6, P8, P9, P11, P13 and P15–P20 before Portal is reached; those cases need a probe
-build with the §6.1 error surfacing and the §6.2 removals (or a disposable build with them
-bypassed). P7, P10, P12, P14, P21 and P22 can run on the current build. Branch
+**Status:** implemented and qualified within recorded R1–R3 scope, 2026-10-30. The
+[acceptance report](../acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md)
+retains version boundaries, compile waivers and broader native-fault limits.
+The [checkpoint probes](../acceptance/reports/2026-10-29-hmi-write-checkpoint-probes.md)
+and [implementation plan](../plans/2026-10-29-hmi-write-native-rejections.md) preserve the execution record.
+At the pre-refactor analysis baseline, `hmi_name_collision`, bound-tag refusals and existence checks
+stopped P1–P6, P8, P9, P11, P15–P22 before Portal was reached. P7, P10, P12, P13 and P14 were
+reachable; P13 was incorrectly listed as blocked and P21/P22 as reachable in the draft header.
+The native checkpoint used a direct probe to bypass those host checks. Branch
 `refactor/hmi-write-native-rejections`, cut from `main` at `0b2640a` (merge of the Network
 native-rejections PR 202).
 

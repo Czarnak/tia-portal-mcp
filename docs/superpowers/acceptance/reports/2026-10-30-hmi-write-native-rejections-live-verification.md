@@ -241,7 +241,7 @@ restoration does not clear Portal's modification flag.
 
 The L5 helper's process session was lost when the turn was interrupted, so its exit code
 is unknown. Captured responses establish successful cleanup and restoration. A later
-process inspection finds the helper, host and worker gone. The maintainer subsequently
+process inspection finds the helper and Openness worker gone. The maintainer subsequently
 reports manual cleanup and standalone opening; those actions follow the helper's captured
 local-session state.
 

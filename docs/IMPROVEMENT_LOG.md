@@ -160,11 +160,20 @@ completion track closed remain in its linked acceptance report.
   `target_not_found` without the "UDT member paths are not supported" hint the `{hmi}`
   cross-reference selector gives.
 - **HMI-write scope follow-ups.** Connection creation/edit, acknowledgment tags, `EventText1`–`9`
-  and alarm-text parameter fields remain unsupported. Existing-tag rebinding that introduces a new
-  member followed by an alarm on that member in the same call is conservatively rejected before
-  mutation; use binding update, read tag/members, then another call. Extend update-dependent member
-  planning only with fresh proof before alarm mutation. Direct case-only tag rename can fail at the
+  and alarm-text parameter fields remain unsupported. HMI write 2.0 removes the host's member-binding
+  refusal and its required second-call workaround; native assignment determines acceptance. A successful
+  existing-tag rebind followed by a new-member alarm has not been demonstrated live. Direct case-only tag rename can fail at the
   Siemens setter; caller-owned intermediate-name renames are explicit operations, not server magic.
+- **Read-side native error evidence.** `HmiReadLog.Guard` and `HmiTagLookup.FindUnique` preserve their
+  earlier read messages (`describe=false`); write paths opt into typed `engineeringError` evidence.
+  Qualify a separate read-contract change before exposing equivalent native details from `hmi_read`.
+- **Delete-planning alarm inventory.** L4's four successful cross-reference reports alone identify all
+  four expected alarm trigger users. Evaluate removing the additional alarm read from delete planning,
+  retaining incomplete-evidence blocking and the initial 200-query cap. The current implementation
+  still performs that read; one fixture does not prove every reference kind is covered.
+- **Connection-only native assignment.** The public request rule still requires `plcTag` with
+  `connection`. The underlying setter's behavior for a connection-only assignment remains unprobed;
+  do not remove that request rule without a separate native probe.
 - **`open_project` dry run misses an open project (O3, pre-existing).** A dry run while another project
   is open in the same Portal reports no guard and `willCloseSource:false`; the actual call then fails
   `worker_operation_failed` "Another project is already open."
@@ -243,17 +252,13 @@ blocks it. Known limits are also listed in the
 Left open by the [native rejections plan](superpowers/plans/2026-10-25-plc-write-native-rejections.md)
 and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
 
-- **HMI and VCI adopt the same error contract.** Separate plans,
-  reusing the `engineering_rejected` / `engineeringError` contract and the timing protocol of
-  `docs/superpowers/acceptance/reports/inputs/2026-10-25-plc-write-timing-before.md`. HMI's
-  `hmi_name_collision` guard is the closest match. `hmi_write` and `vci_write` wrap Siemens exceptions in
-  `WorkerOperationException` before the shared catch, so neither produces `engineeringError` today;
-  Network's migration is [complete within its recorded scope](#completed-network_write-native-rejections-2026-10-29). Each plan records its own
-  baseline, the guards retired with the live case that proved the native rejection, and its contract
-  version bump.
-- **HMI and VCI onto the shared verifier.** PLC and Network now use `TrustedWriteVerifier` with
-  `IWriteVerificationPolicy` and their domain policies. Migrate HMI and VCI separately, retaining
-  their domain-specific mutation outcomes, verification needs and qualification gates.
+- **VCI adopt the same error contract.** HMI write 2.0 now retains typed native errors and its partial
+  mutation outcome; Network's migration is [complete within its recorded scope](#completed-network_write-native-rejections-2026-10-29).
+  `vci_write` still wraps Siemens exceptions without `engineeringError`. Its separate migration
+  should record a timing baseline, native rejection evidence and a contract version bump.
+- **VCI onto the shared verifier.** PLC, Network and HMI now use `TrustedWriteVerifier` with
+  `IWriteVerificationPolicy` and their domain policies. VCI remains separate; retain its
+  domain-specific mutation outcomes, verification needs and qualification gates when migrating it.
 - **Content importers still flatten Siemens errors.** `update_block_logic` and `update_type_content`
   import failures, and the exporters, are re-wrapped as `worker_operation_failed` with no
   `engineeringError`. These wrap sites do not populate `WorkerOperationException.EngineeringError`;
@@ -271,8 +276,8 @@ and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-
   rename or data-type change in the same item has applied. The rename read-back compares ordinally; if
   Portal ever normalised the case of a requested name, a case-only rename would fail
   `postcondition_failed`.
-- **Failed non-content items have no verification entry** (nothing to verify, unlike Network and HMI,
-  which still report `observed`). Add a `not_verified` check if a visible entry is wanted.
+- **Failed non-content items have no verification entry** in PLC, Network or HMI. Add a `not_verified`
+  check only if a visible entry is wanted; inspect actual state before retrying a partial failure.
 - **Verification wording and tests.** `BlockMutationService` still logs "resolved and compiled" and
   sets `reExportSucceeded:true` without a re-export; a comment in `PlcWriteRoundtripScenario.cs`
   still says "failed verification"; the FakeWorker `update_tag` allows a colliding rename, so no MCP
@@ -535,3 +540,52 @@ at its first native rejection and retains typed `appliedSettings`; native except
   These accepted/compile-silent observations remain evidence, not new native-rule emulation.
   Native acceptance outside the recorded matrix and HMI/VCI migration remain open; inspect failed
   items with `network_read` before retrying because applied properties can remain.
+
+## Completed: hmi_write native rejections (2026-10-30)
+
+The [plan](superpowers/plans/2026-10-29-hmi-write-native-rejections.md) and
+[scoped acceptance report](superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md)
+record write contract 2.0, read contract 1.1, typed Siemens errors with conditional partial outcomes,
+three retained guards and shared `trusted`/`superseded` verification. Planning uses initial,
+sequential public-read evidence and caller-order simulation, with no per-item re-plan or automatic
+post-write reads/Validate. Callers inspect state, Validate and compile in the HMI UI separately.
+
+- **Removed:** Task 5's frozen production/FakeWorker count was +215/-564. The final aggregate
+  against analysis baseline `0b2640a` is +255/-569 across 19 production/FakeWorker files, net -314.
+  `HmiWriteVerifier.cs` removes 277 lines; the domain policy adds 40. Later changes include the R1
+  shared-verifier fix and captured fixtures, so these totals describe different checkpoints.
+- **Qualification:** all 35 standalone cases ran on installed `.112`/`96a28b7`: 21 O1 rejections,
+  three O2 accepted invalid alarms, five healthy controls, two worker refusals and L1–L4. R1's
+  outcome-bearing `target_not_found` partial update is separately live-qualified on `.113`/`31d1a44`:
+  earlier success becomes `superseded`. R2 bounds reuse of the 35-case evidence; it is not a full
+  `.113` rerun. R3 records the maintainer's six repeated-compile waivers. Five fresh standalone UI
+  compiles and the L5 local-session compile are captured; L4's two missing-tag errors are expected.
+  L5 restores its full inventory without save/check-in. Its terminal helper exit is unknown after
+  interruption; canonical cleanup/restoration evidence and subsequent maintainer actions remain distinct.
+- **Offline gate:** 7,644 Release default tests pass with no failures/skips; linked host/contracts
+  coverage is 12,311/12,952 lines (95.05%, above 80%). The serial stub build has no errors and the
+  existing seven warnings. The real-assembly package/verifier pass; packaging-category tests were
+  not required because packaging/product project files did not change.
+- **Timing:** five discarded warm-ups and 15 measured calls replay the frozen H1–H5 workloads on
+  `.113`. The [before input](superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before.md)
+  used installed `75c0568`, not analysis baseline `0b2640a`; the
+  [after input](superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after.md) records
+  that deviation, the two client changes and unchanged workload bytes. Medians are in milliseconds:
+
+  | Case | Root before | Root after | Item sum before | Item sum after | Remainder before | Remainder after |
+  | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+  | H1 | 119,492 | 12,117 | 12,775 | 6,365 | 106,717 | 5,385 |
+  | H2 | 574,416 | 128,725 | 363,268 | 69,850 | 170,527 | 34,924 |
+  | H3 | 160,490 | 33,934 | 16,995 | 6,843 | 143,325 | 28,036 |
+  | H4 `dryRun` | 95,049 | 34,542 | 0 | 0 | 95,049 | 34,542 |
+  | H5 | 142,877 | 17,824 | 16,124 | 5,862 | 126,753 | 11,962 |
+
+  Each median is computed independently; remainder is root minus item sum per sample. Root medians
+  are 63.66–89.86% lower in these observations. Three samples, variable native/cache/session state
+  and the non-equivalent baseline prevent universal or isolated causal performance claims. All 107
+  client calls succeed; final independent status, saved hash and installed binary hashes are unchanged.
+- **Retained limits:** no native O3 was detected in the captured comparisons. Broader races, Portal
+  loss during HMI mutation and cleanup/transport faults were not induced. Connection-only assignment,
+  the read-side error-evidence gap and optional delete-planning alarm-read removal remain open above.
+  A setter may partially mutate before its stage appears in `appliedProperties`; inspect failed items
+  before retrying. VCI's error/verifier migration and PLC content-importer error flattening remain open.
