@@ -89,11 +89,21 @@ public class HmiWritePlannerTests
     public async Task IncompleteEvidenceWithAbsentDeleteTargetBlocks()
     {
         using var f = await Fixture.Create();
-        f.Put("hmi_list_alarms", new HmiAlarmListInfo { IsComplete = false, Page = new(0, 2000, 0, null) });
+        f.Put("hmi_list_tag_tables", new HmiTagTableTreeInfo { Tables = [new() { Name = "Table", TagCount = 1 }], IsComplete = false });
         var result = await new HmiWritePlanner(f.Client).PlanAsync([Item("delete_tag", "a", "Missing")]);
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
         Assert.Contains(result.Guards["a"], g => g.Id == "hmi_state_unverifiable");
         Assert.DoesNotContain(f.Requests, r => r.Method == "read_cross_references");
+    }
+
+    [Fact]
+    public async Task UnresolvableTarget_FailsBeforeAnyConsequenceRead()
+    {
+        using var f = await Fixture.Create();
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item("update_tag", "a", "Missing"), Item("delete_tag", "delete")]);
+        Assert.False(result.Plan.Success);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, result.Plan.Error!.Category);
+        Assert.DoesNotContain(f.Requests, r => r.Method is "read_cross_references" or "hmi_list_alarms");
     }
 
     [Fact]
@@ -188,6 +198,7 @@ public class HmiWritePlannerTests
         using var f = await Fixture.Create();
         f.Put("hmi_list_tags", new HmiTagListInfo { Tags = [Tag("T"), Tag("U")], Page = new(0, 2000, 2, null) });
         f.Put("hmi_list_alarms", new HmiAlarmListInfo { Alarms = [new() { Name = "Existing", Kind = "discrete", TriggerTag = "T" }], Page = new(0, 2000, 1, null) });
+        f.Put("hmi_get_alarm|Existing", new HmiAlarmDetailInfo { Alarm = new() { Name = "Existing", Kind = "discrete", TriggerTag = "T" } });
         f.Put("read_cross_references", References("T", "Existing", "HmiDiscreteAlarm"));
         var alarm = Alarm("retarget", "U"); alarm.Operation = "update_alarm"; alarm.AlarmName = "Existing";
         var result = await new HmiWritePlanner(f.Client).PlanAsync([alarm, Item("delete_tag", "delete")]);
@@ -215,6 +226,7 @@ public class HmiWritePlannerTests
     {
         using var f = await Fixture.Create();
         f.Put("hmi_list_alarms", new HmiAlarmListInfo { Alarms = [new() { Name = "Existing", Kind = "discrete", TriggerTag = "Elsewhere" }], Page = new(0, 2000, 1, null) });
+        f.Put("hmi_get_alarm|Existing", new HmiAlarmDetailInfo { Alarm = new() { Name = "Existing", Kind = "discrete", TriggerTag = "Elsewhere" } });
         f.Put("read_cross_references", References("T", "Existing", "HmiDiscreteAlarm"));
         var rename = Item("update_tag", "rename"); rename.NewName = "U";
         var alarm = new HmiWriteOperationRequest { OperationId = "alarm", Operation = "update_alarm", HmiName = "H", AlarmName = "Existing", AlarmKind = "discrete", Priority = 7 };

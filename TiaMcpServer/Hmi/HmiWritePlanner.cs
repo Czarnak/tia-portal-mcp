@@ -46,6 +46,17 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
             foreach (var group in items.GroupBy(i => _resolved[i.OperationId], Names))
                 contexts[group.Key] = new(await Load(group.Key, group.ToArray(), devices.IsComplete));
 
+            // Target existence first: a call that cannot resolve its targets issues no consequence reads.
+            if (Simulate(items, contexts).Select(s => s.Error).FirstOrDefault(e => e is not null) is { } targetError) return Failed(targetError);
+
+            // Alarm triggers are delete-consequence evidence: UsedBy cross references do not identify them.
+            foreach (var (hmi, context) in contexts)
+            {
+                if (!items.Any(i => Names.Equals(_resolved[i.OperationId], hmi) && i.Operation is "delete_tag" or "delete_tag_table")) continue;
+                var (rows, alarmsComplete) = await Alarms(hmi);
+                context.Evidence = context.Evidence with { Alarms = Merge(context.Evidence.Alarms, rows, a => a.Kind + "|" + a.Name), Complete = context.Evidence.Complete && alarmsComplete };
+            }
+
             // Delete consequences depend on earlier items, so they are read against the simulation in caller order.
             var queryCount = 0;
             foreach (var item in items)
@@ -81,19 +92,27 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
             // Resolve every effect from the same final observation, so later delete evidence informs earlier items.
             var plans = new List<ItemPlan<HmiWriteEffect>>();
             var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
-            var states = contexts.ToDictionary(pair => pair.Key, pair => HmiWorkingState.Create(pair.Value.Evidence), Names);
-            foreach (var item in items)
+            foreach (var (item, resolution) in items.Zip(Simulate(items, contexts)))
             {
-                var state = states[_resolved[item.OperationId]];
-                var resolution = state.Resolve(item);
                 if (resolution.Error is { } error) return Failed(error);
                 plans.Add(ItemPlan<HmiWriteEffect>.Resolved(resolution.Effect!));
                 guards[item.OperationId] = resolution.Guards;
-                state.Apply(item);
             }
             return new(WritePlan<HmiWriteEffect>.Ok(plans), guards);
         }
         catch (ReadFailure failure) { return Failed(new(failure.Category, failure.Message)); }
+    }
+
+    /// <summary>Resolves each item in caller order against its HMI's current evidence, applying it before the next.</summary>
+    private IEnumerable<HmiResolution> Simulate(IReadOnlyList<HmiWriteOperationRequest> items, Dictionary<string, Context> contexts)
+    {
+        var states = contexts.ToDictionary(pair => pair.Key, pair => HmiWorkingState.Create(pair.Value.Evidence), Names);
+        foreach (var item in items)
+        {
+            var state = states[_resolved[item.OperationId]];
+            yield return state.Resolve(item);
+            state.Apply(item);
+        }
     }
 
     private static IReadOnlyList<T> Merge<T>(IReadOnlyList<T> known, IEnumerable<T> rows, Func<T, string> key)
@@ -107,7 +126,7 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         return matches[0].SoftwareName;
     }
 
-    /// <summary>Target reads for one HMI: tables, update/delete targets, and alarms when the HMI deletes tags.</summary>
+    /// <summary>Target reads for one HMI: tables and update/delete targets.</summary>
     private async Task<HmiEvidence> Load(string hmi, IReadOnlyList<HmiWriteOperationRequest> items, bool complete)
     {
         var tables = new List<HmiTableEvidence>(); var tags = new List<HmiTagRowInfo>(); var alarms = new List<HmiAlarmRowInfo>();
@@ -132,13 +151,6 @@ public sealed class HmiWritePlanner(OpennessWorkerClient client)
         {
             if (await Read<HmiAlarmDetailInfo>("get_alarm", new() { HmiName = hmi, AlarmName = target.AlarmName, AlarmKind = target.AlarmKind }, optional: true) is not { } detail) continue;
             alarms.Add(detail.Alarm); complete &= detail.IsComplete;
-        }
-        // Alarm triggers are delete-consequence evidence: UsedBy cross references do not identify them.
-        if (items.Any(i => i.Operation is "delete_tag" or "delete_tag_table"))
-        {
-            var (rows, alarmsComplete) = await Alarms(hmi);
-            alarms = Merge(alarms, rows, a => a.Kind + "|" + a.Name).ToList();
-            complete &= alarmsComplete;
         }
         return new() { HmiName = hmi, Tables = tables, Tags = tags, Alarms = alarms, Complete = complete };
     }
