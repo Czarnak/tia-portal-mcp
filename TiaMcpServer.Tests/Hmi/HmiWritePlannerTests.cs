@@ -296,6 +296,17 @@ public class HmiWritePlannerTests
     }
 
     [Fact]
+    public async Task TwoHmiCall_ReadsEveryTargetBeforeAnyConsequence()
+    {
+        using var f = await Fixture.Create();
+        f.Put("hmi_list_hmi_devices", new HmiDeviceListInfo { Devices = [new() { DeviceName = "Device", SoftwareName = "H", Kind = "unified" }, new() { DeviceName = "Device2", SoftwareName = "H2", Kind = "unified" }] });
+        var other = Item("delete_tag", "delete"); other.HmiName = "H2";
+        var result = await new HmiWritePlanner(f.Client).PlanAsync([Item(), other]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(["hmi_list_hmi_devices", "hmi_list_tag_tables", "hmi_get_tag", "hmi_list_tag_tables", "hmi_get_tag", "hmi_list_alarms", "read_cross_references"], Methods(f));
+    }
+
+    [Fact]
     public async Task CallWithoutDelete_NeverReadsAlarms()
     {
         using var f = await Fixture.Create();
