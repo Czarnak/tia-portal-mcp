@@ -1,6 +1,6 @@
 # VCI native-rejection Stage 0 — 2026-10-31
 
-**Status:** Stage 0 capture is complete within the limits below: 21 qualified baseline timing samples, B1–B8 and supplements, 16 original probe variants and the later protected-FC probe. The [protected FC supplement](2026-10-31-vci-write-stage0/protected-supplement/README.md) qualifies know-how-specific refusal. The intended 25-failure input and native long-path boundary remain unqualified. Rulings 1–3 are approved; rulings 5–6 remain before the implementation plan.
+**Status:** Stage 0 capture is complete within the limits below: 21 qualified baseline timing samples, B1–B8 and supplements, 16 original probe variants, the later [protected-FC probe](2026-10-31-vci-write-stage0/protected-supplement/README.md) and seven [length-only path variants](2026-10-31-vci-write-stage0/path-supplement/README.md). Know-how-specific refusal and the observed SimaticML path boundary are qualified within those fixtures. The live 25-failure case remains unqualified. Rulings 1–3 are approved; the new path evidence supports ruling 5, and rulings 5–6 remain before the implementation plan.
 
 **Design:** [approved protocol](../../../specs/2026-10-30-vci-write-native-rejections-design.md), §§8–9. Stage 0 supplies evidence and maintainer rulings before an implementation plan. The product refactor, candidate timing and L1–L6 acceptance remain outstanding.
 
@@ -93,9 +93,11 @@ Source-content initialization invokes a whole-PLC compile in the baseline import
 
 The one-failure Safety mixed scope is a qualified alternative for continuation/error surfacing. It does not establish 25 native failures, the proposed 20-entry cap, five omitted entries, or 25 native message lengths.
 
-### Path-boundary limitation
+### Original path-boundary limitation and native follow-up
 
 `VciMirroredPath.FirstProblem` requires the full path without an extension plus the reserved eight extension characters to be at most 259. A SimaticML `.xml` path can therefore reach at most 255 characters under this check. The requested 256–259-character SimaticML input is blocked before native export. The approved probe patch retains this barrier, so P6 cannot settle Siemens' native 256-character boundary without an additional maintainer ruling. No barrier was weakened.
+
+The maintainer subsequently requested testing before ruling. A separate length-only diagnostic disabled only this numeric clause, retaining name/segment, containment, collision, format and workspace checks. In the [paired native matrix](2026-10-31-vci-write-stage0/path-supplement/README.md), complete `.xml` paths of 255–259 characters exported correctly with exact paths and `Equal` mappings; 260 and 263 characters raised native ETI, leaving no file/mapping and six empty directories. The native error text is generic, with no explicit length reason. This establishes observed behavior for the tested FC/SimaticML layout; fixed four-character extensions cannot distinguish a stem `<256` limit from a complete-path `<260` limit. Other formats and longer directory paths remain unqualified.
 
 ## Native probe observations
 
@@ -110,6 +112,7 @@ The one-failure Safety mixed scope is a qualified alternative for continuation/e
 | P5-OB supplement | One native ETI inconsistency refusal, zero exports, no fallback | Four empty export directories remain; no export file. This qualifies inconsistency, not know-how protection |
 | P5-protected supplement | Supplied FC: one native ETI from `Workspace.ExportObject`, explicitly “know-how protected”; one failed leaf, no file/mapping/fallback | O1 know-how-specific refusal qualified for this saved FC/SimaticML target; four empty directories removed during restoration |
 | P6 long path | `vci_name_not_representable` blocks; no filesystem changes | Kept barrier confirmed; native 256-character boundary unreachable |
+| P6 length-only follow-up | Five exact XML outputs at full lengths 255–259; native ETI/no file/map at 260 and 263 | Separate paired seven-case supplement qualifies this observed boundary and shows the old guard blocks four valid paths; other path protections stayed enabled |
 | P7 read-only file | One native ETI from `MappedObject.Synchronize`; one failed leaf, zero successes; file bytes unchanged | O1 under the induced read-only condition. Native text itself gives no read-only/access reason |
 | P8 semantic-invalid XML | Two imported, eight equal; no exception; compile errors `[1,0]` | O2. Invalid datatype accepted; valid peer changes from zero to one. Compilation is required to detect the invalid import |
 | P8 malformed XML | One native ETI; two failed candidates, zero imported, eight equal, `projectModified:false` | O1 plus scoped rollback. Both source texts/hashes unchanged and both compile successfully. One thrown leaf is distinct from two rolled-back candidate counts |
@@ -122,19 +125,19 @@ The later protected-FC pair also matches exactly. Its [separate evidence](2026-1
 
 Captured native outer messages have original, pre-anonymization lengths of 102 characters (duplicate name), 98 (read-only sync), 144 (inconsistent Safety OB) and 341 (malformed import). They have no inner-chain entries. Per-leaf failures also carry a separate 66-character aggregate `WorkerOperationException` note; that wrapper is not another native leaf failure. P9 supplies no 25-message length/variation sample.
 
-The protected-FC supplement adds a 232-character native outer message with no inner chain and the same separate 66-character aggregate wrapper.
+The protected-FC supplement adds a 232-character native outer message with no inner chain and the same separate 66-character aggregate wrapper. The length-only supplement adds two generic 96-character native `ExportObject` messages, each with no inner chain and its separate 66-character aggregate wrapper.
 
 No O3 effect was observed in these scopes. Accepted shared/nested-root creates do not qualify later writes through those roots. All mutating cases were restored before the next case.
 
 ## Maintainer decisions and completion boundary
 
-The maintainer approved rulings **1–3** during the walkthrough on 2026-10-31. For ruling **4**, the maintainer supplied the protected FC and requested the additional test; the completed supplement resolves that evidence gap. Rulings **5–6** await discussion.
+The maintainer approved rulings **1–3** during the walkthrough on 2026-10-31. For ruling **4**, the maintainer supplied the protected FC and requested the additional test; the completed supplement resolves that evidence gap. For ruling **5**, the maintainer requested native testing before deciding; the length-only supplement now supplies that evidence. Rulings **5–6** await final discussion.
 
 1. Retire the duplicate-name half of `vci_workspace_exists` based on both O1 variants, accepting the empty-root side effect.
 2. Retain the shared-root half: all three variants were accepted. Keep nested-root behavior as the design's record-only case; later writes through aliases/nested roots were not probed.
 3. Use the inconsistent Safety OB/mixed scope for reachable export-failure and continuation fixtures. Accept the live 25-failure coverage gap; require automated fake cases for the 20-entry cap, five omitted entries, exact counts and trimming. Candidate acceptance remains separate.
 4. Use the supplied protected FC as the qualified know-how-specific refusal fixture. Its native message explicitly confirms protection; the earlier Safety FB did not establish it.
-5. Keep the current path barrier and accept native 256–259 coverage as unreachable, or explicitly revise the protocol before a wider probe patch.
+5. Updated recommendation after native testing: retire only the numeric length clause, retaining the other filename/segment, containment and collision checks. The guard blocked four valid SimaticML outputs; tested longer paths failed natively without a file or mapping, leaving empty directories created before the call. Approval and cross-format qualification remain separate.
 6. Use malformed XML as the throwing import/rollback fixture, and missing-file import as the separate partial-commit fixture. Keep post-import compilation: well-formed semantic invalidity was accepted.
 
 Items 5–6 remain recommendations. Closing Stage 0 as an evidence record does not qualify the candidate's new failure list/cap, trusted/superseded verifier, dropped replans, contract 2.0 or final L matrix. The implementation plan follows the remaining rulings.
@@ -144,6 +147,8 @@ Items 5–6 remain recommendations. Closing Stage 0 as an evidence record does n
 Original canonical/audit correlation is verified before redaction. Stored original response hashes describe original unredacted text; they are not hashes of anonymized archive bytes. The archive omits full PLC source exports and project-status metadata/history. The hash-only import proof contains 21 before/after comparisons and 21 compile reports; the curated restoration record retains the necessary final state/file checks. Matrix presence is separate from negative-case qualification.
 
 Publication checks validated 217 selected original audit pairs and 2,162 archived artifacts, all 21 timing samples, all ten exact baseline/probe request pairs, all three helper self-checks, local document links and the published file checksums. The identifier/token-pattern scan found no retained originals. Independent post-stop review additionally checked all 593 raw canonical responses, 233 raw audit pairs and all 16 probe restorations; setup records outside the case filter account for the larger private totals.
+
+The later path supplement adds 124 original canonical responses/56 audited writes and 448 published artifacts, seven exact request pairs and 14 clean restorations. It uses source `b792c2e8`; its diagnostic Contracts DLL copies were independently verified. The temporary package/branch were removed and the safe checkout restored after the native run.
 
 The test clients stopped normally. The diagnostic tool was uninstalled and `spike/vci-native-probes` deleted after its exact commit was preserved in a verified private Git bundle and published patch. The app refused to archive its primary checkout and refused to attach the ordinary source checkout as a managed worktree. The retained clean managed checkout was returned to production source; it contains no active probe patch. The saved Stage 0 project/workspace fixture and file backup remain available for the candidate comparison, and the global installed tool remains unchanged.
 

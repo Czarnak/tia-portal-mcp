@@ -17,6 +17,7 @@ This folder contains privacy-safe evidence for the baseline and temporary native
 | `build_import_proof.py`, `selfcheck_import_proof.py` | Hash/value-only import proof generator and its offline self-check. The generator takes private capture directories. |
 | `checksums.json` | SHA-256 and byte lengths of the other files in this folder. |
 | [Protected FC supplement](protected-supplement/README.md) | Later paired B2/P5 know-how-specific rejection, eight audited writes and preserved saved FC/base files; its subfolder has its own checksums |
+| [Native path-length supplement](path-supplement/README.md) | Later length-only probe: XML paths 255–259 succeed, 260/263 fail natively; 56 audited writes, explicit scope/metric limits and separate subfolder checksums |
 
 ## Interpreting the evidence
 
