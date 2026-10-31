@@ -6,11 +6,11 @@
 **Current home:** [ARCHITECTURE: Internal active project context](../ARCHITECTURE.md#internal-active-project-context), [Project attachment and binding](../ARCHITECTURE.md#5-project-attachment-and-binding), [Multiuser reference](../SupportedOperations/MULTIUSER_OPERATIONS_SUMMARY.md)
 
 ## Context
-TIA V21 Multiuser local sessions had to be supported without a second process, a new read tool or a
+TIA V21 Multiuser local sessions had to be supported inside the existing two-process boundary, a new read tool or a
 repo-owned wrapper over the Siemens object model. Standalone code held a concrete `Project`, and
 Openness remoting keeps all access in the worker. Local sessions are shared collaborative state
 backed by a Project Server: closing, discarding or committing one can lose or publish other
-people's work, and Siemens behavior was only discoverable live.
+people's work, and every behavior change needed its own live verification gate.
 
 ## Decision
 - One internal `ActiveProjectContext` holds the Siemens `ProjectBase` engineering root, derived from a typed lifecycle owner (standalone project or local session), so root and owner cannot disagree. Content services take `ProjectBase`; capability gates decide which container kinds are eligible.

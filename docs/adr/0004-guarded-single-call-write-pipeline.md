@@ -14,23 +14,22 @@
 ## Decision
 - Every write is one call through a shared pipeline: validate, verified binding under a pinned lease, plan, guards, stop here on `dryRun:true`, mutate, verify, audit. A `dryRun` flag replaces the preview tool; the consequence report becomes the `effects` of both dry runs and applied writes.
 - Stale-state protection is a required, format-tagged `expectedContentHash` (If-Match style) on content replacement only, checked at plan time and again by the worker.
-- Asking the user uses MCP elicitation, the only mechanism that reached the user in all three clients tested (Claude Code, Codex CLI, MCP Inspector). The `anthropic/requiresUserInteraction` marker was dropped because only Claude Code honoured it. Anything other than an explicit accept denies, and the server never claims a human saw the prompt. Which tools elicit follows the access mode ([ADR-0007](0007-access-tiers-lifecycle-confirmation-and-binding.md)).
+- Asking the user uses MCP elicitation, the only mechanism that reached the user in every client tested (Claude Code, Codex CLI, MCP Inspector; Codex in unrestricted mode declines without a dialog). The `anthropic/requiresUserInteraction` marker was dropped because only Claude Code honoured it. Anything other than an explicit accept denies, and the server never claims a human saw the prompt. Which tools elicit follows the access mode ([ADR-0007](0007-access-tiers-lifecycle-confirmation-and-binding.md)).
 - Safety tokens, the token core, `SafetyRead` snapshot readers, the generic batch tools, the legacy write audit stream and PLC start/stop are removed. Generic batches split into `plc_read`, `read_cross_references` and `plc_write`.
 - PLC header metadata is read through typed `PlcBlock` properties only, never `GetAttribute`, which can throw over remoting and stall.
 - Follow-up contracts on the same pipeline:
   - Rebind never discards unsaved work: a modified worker-owned source is refused at preview and re-checked immediately before close; nothing is auto-saved; unreadable state fails closed; a modified UI-owned source may stay open.
   - Response budgeting is one shared `GuardedWriteResponseBudget` with typed per-domain adapters that keep their own omission priorities and guard reserves.
-  - Retired request fields (for example `update_tag.isSafety`) are rejected by the generic unknown-member rule, not by a retired-member list.
+  - A retired request field is rejected by the generic unknown-member rule, not by a retired-member list.
 - Rejected alternatives:
-  - Keep tokens with a stronger hash: still no consent, still fragile.
-  - Approval marker on tool annotations: honoured by one client only.
-  - A separate preview tool: two calls whose state can drift apart.
-  - A per-domain budget copy in each new domain: four copies had already diverged (bug B-10).
+  - A per-tool forced-approval `_meta` marker: honoured by one client only.
+  - A separate preview tool per surface: naming churn.
+  - A per-domain budget copy in each new domain: four copies of one algorithm already carried the same defect (B-10).
 
 ## Consequences
 - Safety rests on validation, transparent effects, content hashes and client-side consent, not on a server-enforced token. Stale-state protection outside content hashes is limited, because the agent and the maintainer share the open project.
 - New write domains build on `Safety/Pipeline`; tokens, snapshot readers and a `SafetyRead` catalog must not return. Network, PLC, HMI and VCI all use the pipeline.
-- Clients that prompt on destructive tools also prompt on dry runs. PLC run/stop stays out of scope unless Siemens exposes a public RUN/STOP surface.
+- Clients that prompt on destructive tools also prompt on dry runs. PLC start/stop was removed.
 - Later narrowed by [ADR-0012](0012-portal-as-rejection-authority.md): guard severities reduced to block/info outside lifecycle, and collision guards, replanning and read-back removed. The per-domain budget priorities and reserves are in [ARCHITECTURE](../ARCHITECTURE.md).
 
 ## Evidence
