@@ -16,6 +16,7 @@ This folder contains privacy-safe evidence for the baseline and temporary native
 | `validate_timing_protocol.py`, `selfcheck_protocol.py` | Generic timing-protocol validation and its offline self-check. |
 | `build_import_proof.py`, `selfcheck_import_proof.py` | Hash/value-only import proof generator and its offline self-check. The generator takes private capture directories. |
 | `checksums.json` | SHA-256 and byte lengths of the other files in this folder. |
+| [Protected FC supplement](protected-supplement/README.md) | Later paired B2/P5 know-how-specific rejection, eight audited writes and preserved saved FC/base files; its subfolder has its own checksums |
 
 ## Interpreting the evidence
 

@@ -1,0 +1,106 @@
+{
+  "format": "vci-stage0-protected-supplement-1",
+  "baselineCommit": "8713a476ec509360b7cc18083e76d21275fc1c92",
+  "probeCommit": "7275a3fe745d3b8426947dabe8ef3d3ef8f0b3b7",
+  "portalBuild": "2100.0.121.1",
+  "fixtureRevision": "The maintainer added and saved this FC after the original timing capture. These probes retained the 216 base mappings and timed selectors/scopes; no timings were repeated. Record the saved fixture addition in the later candidate comparison.",
+  "pairedWriteRequestsIdentical": true,
+  "nativeType": "Siemens.Engineering.EngineeringTargetInvocationException",
+  "nativeMessage": "Error when calling method 'ExportObject' of type 'Siemens.Engineering.VersionControl.Workspace'.\r\n\r\nThe object \"Protected [FC109]\" cannot be exported for the following reason: The block is know-how protected. Export is not possible.",
+  "nativeMessageLengthOriginal": 232,
+  "nativeInnerChain": [],
+  "canonicalResponsesReviewed": 26,
+  "verifiedWriteAuditPairs": 8,
+  "protectedBlockCondition": "Maintainer supplied target; native rejection explicitly confirms know-how protection.",
+  "fileHashComparison": "Root-relative file names, lengths and SHA256 compared; the original fixture-root snapshot base/ prefix is normalized.",
+  "diagnosticToolUninstalledAfterTest": true,
+  "cases": [
+    {
+      "case": "B2-protected",
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "canonicalFailure": {
+        "category": "worker_operation_failed",
+        "message": "One or more VCI leaves failed; inspect the counts before retrying."
+      },
+      "outcome": {
+        "failed": 1,
+        "formatFallbacks": 0,
+        "lastAttempted": null,
+        "leaves": 1,
+        "notes": [],
+        "projectModified": false,
+        "skipped": {
+          "alreadyMapped": 0,
+          "conflict": 0,
+          "equal": 0,
+          "targetChanged": 0
+        },
+        "succeeded": 0
+      },
+      "newExportFiles": 0,
+      "unchangedBaseFiles": 217,
+      "unchangedCaseMetadataFiles": 1,
+      "newEmptyDirectories": 4,
+      "caseMappingsBefore": 0,
+      "caseMappingsAfter": 0,
+      "projectOpenAfterRestore": true,
+      "projectModifiedAfterRestore": false,
+      "baseMappingsAfterRestore": 216,
+      "restoredFC": {
+        "name": "Protected",
+        "kind": "FC",
+        "number": 109,
+        "programmingLanguage": "SCL"
+      },
+      "temporaryRootRemoved": true,
+      "nativeLeafExceptionNotes": 0
+    },
+    {
+      "case": "P5-protected",
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "canonicalFailure": {
+        "category": "worker_operation_failed",
+        "message": "One or more VCI leaves failed; inspect the counts before retrying."
+      },
+      "outcome": {
+        "failed": 1,
+        "formatFallbacks": 0,
+        "lastAttempted": null,
+        "leaves": 1,
+        "notes": [
+          "PROBE_EXCEPTION Device:DEVICE_A/PlcSoftware:PLC_A/BlockFolder:Program blocks/BlockFolder:VCI_Stage0_20261031/FC:Protected\nSiemens.Engineering.EngineeringTargetInvocationException: Error when calling method 'ExportObject' of type 'Siemens.Engineering.VersionControl.Workspace'.\r\n\r\nThe object \"Protected [FC109]\" cannot be exported for the following reason: The block is know-how protected. Export is not possible.",
+          "PROBE_EXCEPTION top-level/no-leaf\nTiaMcpServer.OpennessWorker.Worker.WorkerOperationException: One or more VCI leaves failed; inspect the counts before retrying."
+        ],
+        "projectModified": false,
+        "skipped": {
+          "alreadyMapped": 0,
+          "conflict": 0,
+          "equal": 0,
+          "targetChanged": 0
+        },
+        "succeeded": 0
+      },
+      "newExportFiles": 0,
+      "unchangedBaseFiles": 217,
+      "unchangedCaseMetadataFiles": 1,
+      "newEmptyDirectories": 4,
+      "caseMappingsBefore": 0,
+      "caseMappingsAfter": 0,
+      "projectOpenAfterRestore": true,
+      "projectModifiedAfterRestore": false,
+      "baseMappingsAfterRestore": 216,
+      "restoredFC": {
+        "name": "Protected",
+        "kind": "FC",
+        "number": 109,
+        "programmingLanguage": "SCL"
+      },
+      "temporaryRootRemoved": true,
+      "nativeLeafExceptionNotes": 1
+    }
+  ]
+}

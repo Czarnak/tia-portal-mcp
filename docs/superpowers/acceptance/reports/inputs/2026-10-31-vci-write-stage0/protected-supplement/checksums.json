@@ -1,0 +1,27 @@
+[
+  {
+    "file": "case-inputs.json",
+    "bytes": 12000,
+    "sha256": "5dc654a0e94a17c1f5b8794098f2442a4d4f8f50da306f8f9ccf29d6b1948304"
+  },
+  {
+    "file": "evidence.jsonl.gz",
+    "bytes": 85822,
+    "sha256": "584e8b3d8d151abcbeea335792a02827bccd75e2be28bacd6cd55eaac3698e79"
+  },
+  {
+    "file": "README.md",
+    "bytes": 2845,
+    "sha256": "1be5d6bebdc3c0fbaeaa5895d11a49ebb415c83868f9ad1d36a7e7bdc8b13cb3"
+  },
+  {
+    "file": "summary.json",
+    "bytes": 6375,
+    "sha256": "4d2c27b85b09f03a5316026b4d60ed39d9413da50777cad8c69d969aba0c9a71"
+  },
+  {
+    "file": "verification.json",
+    "bytes": 4249,
+    "sha256": "2bd8ac012703e69572669b0d309798eb94c480e8bc49cd447a4aaf2f892b4436"
+  }
+]

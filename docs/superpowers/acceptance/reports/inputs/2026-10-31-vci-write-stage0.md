@@ -1,6 +1,6 @@
 # VCI native-rejection Stage 0 — 2026-10-31
 
-**Status:** Stage 0 capture is complete within the limits below: 21 qualified baseline timing samples, B1–B8 and supplements, and 16 probe variants. The intended 25-failure input, know-how-specific refusal and native long-path boundary remain unqualified. Maintainer rulings precede the implementation plan.
+**Status:** Stage 0 capture is complete within the limits below: 21 qualified baseline timing samples, B1–B8 and supplements, 16 original probe variants and the later protected-FC probe. The [protected FC supplement](2026-10-31-vci-write-stage0/protected-supplement/README.md) qualifies know-how-specific refusal. The intended 25-failure input and native long-path boundary remain unqualified. Rulings 1–3 are approved; rulings 5–6 remain before the implementation plan.
 
 **Design:** [approved protocol](../../../specs/2026-10-30-vci-write-native-rejections-design.md), §§8–9. Stage 0 supplies evidence and maintainer rulings before an implementation plan. The product refactor, candidate timing and L1–L6 acceptance remain outstanding.
 
@@ -83,6 +83,7 @@ These establish the before baseline. No candidate timing, speedup or before/afte
 | B8 | All 30 leaves exported: 30 succeeded, zero failed | No 25-failure live qualification or native message-length sample |
 | B2-OB supplement | Safety OB export: one failed leaf, zero succeeded, no fallback | Probe notes identify native inconsistency refusal; protection kind remains unverified |
 | B1-OBmix supplement | Seven-leaf Safety scope: one failed and six succeeded, no fallback | Reachable mixed export demonstrates continuation within the failed item; it is not a 25-failure fixture |
+| B2-protected supplement | Supplied protected FC: one failed leaf, zero succeeded, no fallback; old generic error | Paired diagnostic run explicitly identifies know-how protection; restored saved FC and base files preserved |
 
 Attempted baseline failures retain the old generic per-leaf message and counts, without native exception reasons. Their canonical attempted-failure documents use `error:null`; guard refusals are separate blocked documents.
 
@@ -100,13 +101,14 @@ The one-failure Safety mixed scope is a qualified alternative for continuation/e
 
 | Case | Observed result | Qualification |
 | --- | --- | --- |
-| P1 exact and case variant | Both rejected by `EngineeringTargetInvocationException`: “The workspace name must be unique” | O1. Existing inventory/files unchanged. Each attempt leaves the newly created empty destination root; name-guard retirement awaits ruling |
+| P1 exact and case variant | Both rejected by `EngineeringTargetInvocationException`: “The workspace name must be unique” | O1. Existing inventory/files unchanged. Each attempt leaves the newly created empty destination root; retirement approved, implementation pending |
 | P2 exact, case and trailing separator | All accepted; a new zero-mapping workspace shares the existing base root; base retains 216 mappings | O2 observable sharing, without a native warning. No files/directories changed. The design requires retaining the shared-root guard |
 | P3 nested root | Accepted; new workspace has zero mappings; one metadata file and two directories created within its nested root | O2 observable nesting. Existing files and base mappings unchanged; no O3 effect observed in this create-only scope |
 | P4 original 30-leaf input | 30 exported, 30 `Equal`, zero exceptions/fallbacks | Confirms acceptance; does not qualify the intended inconsistent-FC fixture |
 | P4-OBmix supplement | Seven Safety leaves: one native ETI refusal, six exported and `Equal`, no fallback | Qualified mixed inconsistent-block rejection and continuation. Failed leaf's message explicitly says the object is not consistent |
 | P5 Safety FB | Exported and `Equal`; no exception/fallback | Acceptance recorded; know-how protection is unverified. Public block metadata exposes no dedicated protection flag |
 | P5-OB supplement | One native ETI inconsistency refusal, zero exports, no fallback | Four empty export directories remain; no export file. This qualifies inconsistency, not know-how protection |
+| P5-protected supplement | Supplied FC: one native ETI from `Workspace.ExportObject`, explicitly “know-how protected”; one failed leaf, no file/mapping/fallback | O1 know-how-specific refusal qualified for this saved FC/SimaticML target; four empty directories removed during restoration |
 | P6 long path | `vci_name_not_representable` blocks; no filesystem changes | Kept barrier confirmed; native 256-character boundary unreachable |
 | P7 read-only file | One native ETI from `MappedObject.Synchronize`; one failed leaf, zero successes; file bytes unchanged | O1 under the induced read-only condition. Native text itself gives no read-only/access reason |
 | P8 semantic-invalid XML | Two imported, eight equal; no exception; compile errors `[1,0]` | O2. Invalid datatype accepted; valid peer changes from zero to one. Compilation is required to detect the invalid import |
@@ -116,22 +118,26 @@ The one-failure Safety mixed scope is a qualified alternative for continuation/e
 
 All ten paired baseline/probe primary request documents match exactly, including the corrected read-only and malformed-import cases. Every attempted probe still uses the old `worker_operation_failed` contract; ETI types are evidence in diagnostic notes, not an implemented `engineeringError` or `engineering_rejected` response.
 
+The later protected-FC pair also matches exactly. Its [separate evidence](2026-10-31-vci-write-stage0/protected-supplement/README.md) contains 26 original canonical responses/eight audited writes, preserves the maintainer's new saved FC and all 217 base files, and records the fixture revision for candidate timing. No timing run was repeated or requalified by that supplement.
+
 Captured native outer messages have original, pre-anonymization lengths of 102 characters (duplicate name), 98 (read-only sync), 144 (inconsistent Safety OB) and 341 (malformed import). They have no inner-chain entries. Per-leaf failures also carry a separate 66-character aggregate `WorkerOperationException` note; that wrapper is not another native leaf failure. P9 supplies no 25-message length/variation sample.
+
+The protected-FC supplement adds a 232-character native outer message with no inner chain and the same separate 66-character aggregate wrapper.
 
 No O3 effect was observed in these scopes. Accepted shared/nested-root creates do not qualify later writes through those roots. All mutating cases were restored before the next case.
 
 ## Maintainer decisions and completion boundary
 
-The record supports these rulings before the plan:
+The maintainer approved rulings **1–3** during the walkthrough on 2026-10-31. For ruling **4**, the maintainer supplied the protected FC and requested the additional test; the completed supplement resolves that evidence gap. Rulings **5–6** await discussion.
 
 1. Retire the duplicate-name half of `vci_workspace_exists` based on both O1 variants, accepting the empty-root side effect.
 2. Retain the shared-root half: all three variants were accepted. Keep nested-root behavior as the design's record-only case; later writes through aliases/nested roots were not probed.
-3. Use the inconsistent Safety OB/mixed scope for reachable export-failure and continuation fixtures. Accept a live limitation for the 25-failure cap/variation case unless a reliable larger input is supplied; retain the required offline cap tests and candidate qualification decision.
-4. Accept know-how-specific refusal as unqualified, or supply an independently protected target for additional testing. Safety language alone does not establish protection.
+3. Use the inconsistent Safety OB/mixed scope for reachable export-failure and continuation fixtures. Accept the live 25-failure coverage gap; require automated fake cases for the 20-entry cap, five omitted entries, exact counts and trimming. Candidate acceptance remains separate.
+4. Use the supplied protected FC as the qualified know-how-specific refusal fixture. Its native message explicitly confirms protection; the earlier Safety FB did not establish it.
 5. Keep the current path barrier and accept native 256–259 coverage as unreachable, or explicitly revise the protocol before a wider probe patch.
 6. Use malformed XML as the throwing import/rollback fixture, and missing-file import as the separate partial-commit fixture. Keep post-import compilation: well-formed semantic invalidity was accepted.
 
-These are recommendations for the maintainer, not recorded approval. Closing Stage 0 as an evidence record does not qualify the candidate's new failure list/cap, trusted/superseded verifier, dropped replans, contract 2.0 or final L matrix. The implementation plan follows the rulings.
+Items 5–6 remain recommendations. Closing Stage 0 as an evidence record does not qualify the candidate's new failure list/cap, trusted/superseded verifier, dropped replans, contract 2.0 or final L matrix. The implementation plan follows the remaining rulings.
 
 ## Evidence checks and cleanup
 
@@ -141,4 +147,4 @@ Publication checks validated 217 selected original audit pairs and 2,162 archive
 
 The test clients stopped normally. The diagnostic tool was uninstalled and `spike/vci-native-probes` deleted after its exact commit was preserved in a verified private Git bundle and published patch. The app refused to archive its primary checkout and refused to attach the ordinary source checkout as a managed worktree. The retained clean managed checkout was returned to production source; it contains no active probe patch. The saved Stage 0 project/workspace fixture and file backup remain available for the candidate comparison, and the global installed tool remains unchanged.
 
-Remaining work is the maintainer ruling, implementation plan/refactor, and candidate timing/acceptance. Native Portal-loss, crash and race probes were excluded by protocol.
+Remaining work is rulings 5–6, the implementation plan/refactor, and candidate timing/acceptance. Native Portal-loss, crash and race probes were excluded by protocol.
