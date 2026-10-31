@@ -1,6 +1,6 @@
 # Project history — specs, plans, and acceptance reports
 
-**This tree is development-process history, not current documentation.**
+**Plans, specs and evidence here are transient per-PR working files (see `AGENTS.md`); the reports below are kept.**
 
 It holds the design specs, implementation plans, and live acceptance reports produced while
 building features. Read it to understand *why* something was built the way it was, or to audit
@@ -12,8 +12,6 @@ Do not read it as a description of how the server behaves today:
 - Designs here were sometimes revised during implementation. The code, [ARCHITECTURE.md](../ARCHITECTURE.md),
   and [SupportedOperations](../SupportedOperations/README.md) are the authorities on current behavior.
 - Nothing here is a support document. For using the server, start at the [documentation index](../README.md).
-
-These files are kept for auditability and are intentionally not pruned.
 
 ## Specs
 

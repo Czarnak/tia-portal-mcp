@@ -70,12 +70,12 @@ Inspector test loop, see [docs/development/local-mcp-testing.md](docs/developmen
 ### Documentation
 
 Documents under `docs/` are grouped by audience: `guides/` for people using the server,
-`development/` for people building it, `roadmap/` for direction. `docs/superpowers/` is historical
-process material and is not current documentation.
+`development/` for people building it, `roadmap/` for direction. `docs/superpowers/` holds working plans, specs and evidence for one PR, which delete them before merge (see `AGENTS.md`), plus the live-verification reports. Decisions live in `docs/adr/`.
 
-**A new document under `docs/` is not complete until it is listed in
-[docs/README.md](docs/README.md).** That index is the only thing keeping the tree navigable — an
-unlisted document is one nobody will find.
+**A new document under `docs/` is not complete until it is reachable from
+[docs/README.md](docs/README.md), directly or through the index of its directory
+(`scripts/verify-docs.py` checks this in CI).** Those indexes are the only thing keeping the tree
+navigable.
 
 `README.md` is also the NuGet package readme, where relative links do not resolve. Every
 cross-document link in `README.md` must be an absolute

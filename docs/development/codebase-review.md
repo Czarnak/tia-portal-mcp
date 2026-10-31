@@ -95,8 +95,7 @@ accepted for now.
    string dispatch, JSON serialization, tests, FakeWorker and git-ignored harness scripts, and
    checks deliberate decisions in AGENTS.md and `docs/`.
 4. **Decide.** Bring design questions to the maintainer before writing proposals for them.
-5. **Plan.** Write the plan under `docs/superpowers/plans/`, list it in the
-   [documentation index](../README.md), and update the rule list and the ledger.
+5. **Plan.** Write a transient plan under `docs/superpowers/plans/` (not listed in the index), record durable decisions as an ADR, open findings in `docs/IMPROVEMENT_LOG.md` and mechanical rules as tests.
 
 Each run fits within 8 concurrent agents: one or two reviewers per slice, one sweeper, and one
 verifier per reviewer.

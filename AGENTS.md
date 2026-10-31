@@ -211,6 +211,15 @@ Network contract these rules describe in the abstract.
 - **Worker payload JSON** goes through `WorkerJson.SerializePayload`. A new payload contract writes null members and is decoded through the worker-payload reader; `[LegacyNullOmission]` is only for the reasons in `LegacyNullOmissionReason` (a payload that omits nulls cannot go through the reader), and adding or removing one updates `WorkerPayloadNullPolicyRegisterTests`
 - Siemens DLLs are **never committed** to the repo or the NuGet package
 
+## Plans, specs and evidence (lifecycle)
+
+These rules override the default output locations of the superpowers skills (brainstorming: "Write the validated design (spec) to"; writing-plans: "Save plans to") and of any similar tool.
+
+- Specs go to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, plans to `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, run evidence to `docs/superpowers/evidence/YYYY-MM-DD-<topic>/`. These three directories are a transient per-PR working area: collapsed in diffs and empty on `main`.
+- Never link a transient file from outside `docs/superpowers/`; cite it as "PR #N, commit `<sha>`".
+- Before pushing documentation changes, run `python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30` (`python3` on Linux/macOS).
+- Before the PR merges, delete everything you added there in a final commit (`docs: prune working files`). First move what must survive: a lasting decision to `docs/adr/` (one ADR, see its README), behavior to `docs/ARCHITECTURE.md` or `docs/SupportedOperations/`, follow-ups to `docs/IMPROVEMENT_LOG.md`, the live-verification report to `docs/superpowers/acceptance/reports/`, and verified raw Openness call/response files to `docs/superpowers/acceptance/reports/inputs/` (listed in its `README.md`). MCP-level traces, preflights, restoration dumps and timing outputs are not kept; use `scripts/timing/` for measurements.
+
 ## Documentation layout
 
 `docs/` is grouped by audience, not by document type:
@@ -227,8 +236,8 @@ Network contract these rules describe in the abstract.
 
 Two rules that keep this from re-rotting:
 
-- **A new document under `docs/` is not complete until it is listed in `docs/README.md`.** That
-  index is the entry point; an unlisted document is unreachable in practice.
+- **A new document under `docs/` is not complete until it is reachable from `docs/README.md`**,
+  directly or through the index of its directory. An unreachable document is unfindable in practice.
 - **`README.md` is also the NuGet package readme**, declared via `<PackageReadmeFile>` in
   `TiaMcpServer/TiaMcpServer.csproj`. Relative links do not resolve on nuget.org, so every
   cross-document link in `README.md` must be an absolute

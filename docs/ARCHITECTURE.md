@@ -1353,3 +1353,5 @@ Update this document when tool registration, operation classification, access
 modes, worker launch arguments, binding rules, or write-safety behavior changes.
 The architecture must describe the explicitly registered runtime surface, not
 only the set of decorated tool classes present in the assembly.
+
+When a change reverses or narrows a recorded decision, add an ADR that supersedes it in the same PR and update the affected sections here; do not edit the old ADR's body.
