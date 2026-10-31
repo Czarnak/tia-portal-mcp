@@ -27,3 +27,4 @@
 /docs/superpowers/evidence/** linguist-generated
 /docs/superpowers/evidence/** -text
 /docs/superpowers/acceptance/reports/inputs/** linguist-generated
+/docs/superpowers/acceptance/reports/inputs/** -text

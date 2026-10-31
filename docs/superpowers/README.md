@@ -107,6 +107,8 @@ Task-level implementation plans derived from the specs above.
 
 ## Acceptance reports
 
+Raw Openness evidence kept for these reports is indexed in [`acceptance/reports/inputs/README.md`](acceptance/reports/inputs/README.md).
+
 PR 5 and PR 6 qualified token-bound safety snapshots that `plc_write` has since replaced; their
 reports are evidence for the retired token flow only.
 

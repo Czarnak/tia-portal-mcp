@@ -101,6 +101,44 @@ restored baseline: all 15 operations succeed with zero findings. Public Validate
 table validator; this supplement is not in-case table validation. Expected missing selectors
 after deletion, rename or failed creation are absence checks.
 
+### Per-variant results (build 112)
+
+One row per P variant, folded from the case input so the matrix is readable without the evidence directory. "Clean" means captured public `hmi_read validate` results for the named surviving objects, not a candidate UI compile.
+
+| Variant | Probe | Classification / failure point | Observed result |
+| --- | --- | --- | --- |
+| P1 | Duplicate table, same group | O1 / `Create` | Original table and its three tags retained; no cleanup needed |
+| P2-cross-group | Duplicate table, another group | O1 / `Create` | No extra table; original table and contents retained |
+| P2-case | Case-variant duplicate table | O1 / `Create` | No extra table; original spelling and contents retained |
+| P3 | Colliding table rename | O1 / `Name` | Original table names and membership retained; contained tag clean |
+| P4 | Duplicate tag, same table | O1 / `Create` | Create did not return an object; original retained and clean; no cleanup needed |
+| P5-cross-table | Duplicate tag, another table | O1 / `Create` | Original name, membership and properties retained; clean |
+| P5-case | Case-variant duplicate tag | O1 / `Create` | Original spelling and membership retained; clean |
+| P6 | Colliding tag rename | O1 / `Name` | Both original tags retained; clean |
+| P7 | Case-only tag rename | O1 / `Name` | Original case retained; clean |
+| P8 | Duplicate discrete alarm | O1 / `Create` | Original alarm retained and clean; no cleanup needed |
+| P8-case | Case-variant duplicate discrete alarm | O1 / `Create` | Original spelling and properties retained; clean |
+| P9 | Duplicate analog alarm | O1 / `Create` | Original alarm retained and clean; no cleanup needed |
+| P10 | Analog alarm using an existing discrete alarm name | Accepted control | Separate scopes both present; both validate clean |
+| P11-discrete | Colliding discrete-alarm rename | O1 / `Name` | Both original alarms retained; clean |
+| P11-analog | Colliding analog-alarm rename | O1 / `Name` | Both original alarms retained; clean |
+| P12-discrete | Case-only discrete-alarm rename | Accepted control | Requested lowercase name landed; properties retained; clean |
+| P12-analog | Case-only analog-alarm rename | Accepted control | Requested lowercase name landed; properties retained; clean |
+| P12-table | Case-only table rename | Accepted control | Lowercase table name landed; child membership followed; child tag clean |
+| P13 | Delete tag, then create its case variant | Accepted control | Original absent, requested lowercase replacement present; clean |
+| P14 | Delete default tag table | O1 / `Delete` | Default table and all 12 child tags retained |
+| P15-update | Set `dataType` on a bound tag | O1 / `DataType` | Original binding and `Int` retained; clean |
+| P15-create | Create bound tag with `dataType` | O1 / `DataType` | Earlier binding properties reported applied; failed create cleanup `deleted` |
+| P16-create | Create with `plcTag`, no connection | O1 / `PlcTag` | Earlier create/properties may have applied; cleanup `deleted`; new tag absent |
+| P16-update | Set `plcTag` without connection | O1 / `PlcTag` | Internal tag retained unchanged; clean |
+| P17 | Create into a missing table | O1 / `Create` | No tag, fallback placement or automatic table creation; no cleanup needed |
+| P18 | Create with missing connection | O1 / subsequent `PlcTag` | Create/connection assignment returned before rejection; cleanup `deleted`; new tag absent |
+| P19 | Create with missing alarm class | O2 | Requested class retained; Validate reports `AlarmClass` missing and shared tag/bit findings |
+| P20-missing-tag | Create with missing trigger tag | O2 | Requested reference retained; Validate reports `RaisedStateTag` missing |
+| P20-missing-member | Create with missing struct member | O2 | Requested member retained; Validate reports `RaisedStateTag` missing |
+| P21 | Create table in missing group | Worker refusal / `target_not_found` | No native Create reached; no mutation |
+| P22 | Create tag with comment in missing culture | Worker refusal / `target_not_found`, `Comment` | Create and earlier properties returned; cleanup `deleted`; new tag absent |
+
 ## R1 and R2: partial failures and candidate reuse
 
 Independent review found a verification defect: HMI text mapping can fail `target_not_found`
