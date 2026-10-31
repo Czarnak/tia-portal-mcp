@@ -237,3 +237,4 @@ Two rules that keep this from re-rotting:
 
 `README.md` is a landing page: pitch, tool list, write-safety model, architecture summary, quick
 start, and the documentation map. Procedure belongs in `docs/`, not in the README.
+x

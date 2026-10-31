@@ -842,3 +842,4 @@ Expected: build succeeds, tests pass. The product `.csproj`, `Directory.Build.pr
 | Open question: attribute choice | Task 2 |
 
 Known limits to state in the PR: the `main` check informs rather than blocks (no required checks exist); pruning depends on agents reading `AGENTS.md` (the plugin-default path plus the checker are the safety net); retrospective ADRs are inferences from deleted documents, which is why each cites its originals and why Task 8 includes a refutation pass.
+x
