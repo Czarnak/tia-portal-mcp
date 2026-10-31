@@ -24,3 +24,4 @@ Caveats:
 - The `ui-P*` case records say `uiCompile: 'pending maintainer return'`. The maintainer's UI outcomes exist only in the checkpoint report text and the P19 PNG.
 - The Windows profile path in `2026-10-29-hmi-write-native-probes.jsonl.gz` is accepted as-is (no redaction).
 - Files here are byte-exact: `.gitattributes` marks the directory `-text` so line endings are never normalized.
+- `2026-10-29-network-write-native-rejections-live-rerun.md` differs from the archived copy only in its links to removed files, which now point at the archive tag; its bytes are otherwise unchanged.
