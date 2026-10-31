@@ -1,4 +1,4 @@
-Only verified raw Openness call/response evidence is kept here; everything else is at tag `docs-archive-2026-10-30`.
+Verified raw Openness call/response evidence is kept here, with the probe sources, a derived index, one UI screenshot and two tool-level records the maintainer chose to keep (column 3 says which is which); everything else is at tag `docs-archive-2026-10-30`.
 
 | File or directory | Report it backs | Raw Openness (how verified) | Notes |
 | --- | --- | --- | --- |
