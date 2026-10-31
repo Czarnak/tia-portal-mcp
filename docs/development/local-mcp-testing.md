@@ -261,3 +261,5 @@ from UI-assisted completion. Operator-owned endpoint stop/start and project-only
 their exact authorization. Never save/commit/generic-close a local session, auto-clean up, or
 replay an uncertain opener. Full-offline/headless/race rows remain unexecuted; baseline read-only
 and general lifecycle retesting were expressly excluded for this run.
+
+For server-side write timing against a disposable project, see [Measuring write timing](measuring-write-timing.md).

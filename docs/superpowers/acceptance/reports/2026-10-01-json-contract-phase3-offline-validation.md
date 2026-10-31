@@ -11,7 +11,7 @@ This report preserves the offline code/protocol evidence boundary.
 - Implementation starting base: `6b10dc28812947fc802cf96c8abc6dfa8d981ffa`.
 - Qualified code/test candidate: `8f0e26f83db4faf6cd243fef7489f6419db3925b`.
 - Later plan/report/documentation commits do not change the qualified production/test sources.
-- The maintainer requested implementation of the [lifecycle plan](../../plans/2026-09-30-json-contract-phase3-lifecycle.md),
+- The maintainer requested implementation of the [lifecycle plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md),
   authorized subagents as useful, and requested a commit after each implementation/fix step.
 - The scope is the six lifecycle tools, seven lifecycle guard IDs, shared binding/confirmation
   integration, typed results/verification, conformance retirement, and documentation. Network and

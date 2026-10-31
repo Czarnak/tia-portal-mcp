@@ -31,7 +31,7 @@ session cleanup is part of the protocol.
 
 ## Original cases and pass criteria
 
-The [implementation plan](../plans/2026-10-07-multiuser-pr4-open-existing-sessions.md#live-cases-requests-and-pass-criteria)
+The [implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-07-multiuser-pr4-open-existing-sessions.md#live-cases-requests-and-pass-criteria)
 retains the detailed original requests. Every stated mode/state row needs its own evidence.
 
 | Case | Original expectation |

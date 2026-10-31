@@ -229,6 +229,25 @@ public class CiWorkflowTests
     }
 
     /// <summary>
+    /// The docs checker is plain Python: its workflow is path-filtered, runs the checker script
+    /// and never builds or tests the .NET solution.
+    /// </summary>
+    [Fact]
+    public void DocsWorkflow_IsPathFilteredAndRunsTheChecker()
+    {
+        var docsWorkflowPath = Path.Combine(GetRepositoryRoot(), ".github", "workflows", "docs.yml");
+        Assert.True(File.Exists(docsWorkflowPath), $"Expected docs workflow to exist at {docsWorkflowPath}");
+
+        var workflow = File.ReadAllText(docsWorkflowPath);
+        Assert.Contains("paths:", workflow, StringComparison.Ordinal);
+        Assert.Contains("scripts/verify-docs.py", workflow, StringComparison.Ordinal);
+        Assert.Contains("--archive-tag docs-archive-2026-10-30", workflow, StringComparison.Ordinal);
+        Assert.Contains("scripts/tests/test_verify_docs.py", workflow, StringComparison.Ordinal);
+        Assert.Contains("scripts/timing/test_measure_write_timing.py", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet", workflow, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Documentation-side counterpart to <see cref="EverySolutionBuild_IsSerialized"/>: the "Build
     /// From Source" section is a human-facing copy of the same command and can drift independently
     /// of the CI workflow files. Reuses <see cref="SingleNodeBuildFlagPattern"/> so both surfaces

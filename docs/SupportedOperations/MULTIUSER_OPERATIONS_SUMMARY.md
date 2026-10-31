@@ -96,7 +96,7 @@ Fatal `NonRecoverableException` from inventory escapes to the shared worker
 `portal_lost` mapping; final attachment checks cannot replace the original fatal
 body exception. Ordinary server failures still preserve a healthy binding, and
 existing identity/disposal-only refusals retain `binding_conflict`. The
-[B-16/Q3 record](../superpowers/plans/2026-10-19-worker-portal-loss.md) records offline
+[B-16/Q3 record](../superpowers/acceptance/reports/2026-10-20-b16-q3-worker-portal-loss-live-verification.md) records offline
 coverage and maintainer-accepted scoped live read testing. Dedicated native
 inventory-fault injection remains untested; earlier local-session observations
 are limited to the recorded candidate and fixtures.
@@ -249,4 +249,4 @@ restored fixtures. The [acceptance report](../superpowers/acceptance/reports/202
 records exact evidence, failures and limits: project-comment dirtying, independent Openness
 external changes, and scripted elicitation. These results qualify the internal migration's
 standalone behavior; they do not qualify public Multiuser operations. The
-[implementation plan](../superpowers/plans/2026-10-05-multiuser-pr2-active-project-context.md) defines that boundary.
+[implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-28-multiuser-pr1-reference-contract-foundation.md) defines that boundary.

@@ -455,7 +455,7 @@ Existing narrower property-read
 policies, typed post-mutation failures, cleanup warnings and completed-operation
 diagnostic stamping retain their contracts. VCI's writer keeps its outcome-bearing
 mapping; VCI read/plan use the shared boundary. See the
-[B-16/Q3 implementation and verification record](superpowers/plans/2026-10-19-worker-portal-loss.md)
+[B-16/Q3 live verification report](superpowers/acceptance/reports/2026-10-20-b16-q3-worker-portal-loss-live-verification.md)
 for offline qualification and scoped Network, PLC, VCI and local-session read
 evidence. The HMI discovery and stale-project cache fixes have offline regressions
 and a scoped installed-candidate read retest: loss, immediate cursor invalidation
@@ -896,6 +896,24 @@ while audit items retain execution truth. Actual read-write confirmation is `non
 is `policy`; dry runs/denials are `none`. No Network server elicitation is attempted.
 See the [Network reference](SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md#network_write-envelope).
 
+The four guarded-write budgets (`network_write`, `plc_write`, `hmi_write`, `vci_write`) share
+`GuardedWriteResponseBudget` in `Safety/Pipeline` for diagnostic omission bookkeeping, canonical
+sizing, the ordered document-omission loop and protected-core construction; each domain's
+`*WritePayloadBudget` remains an adapter that owns its projections and omission priority.
+Diagnostic omission metadata reports the call's resolved document limit, except Network's ordinary
+512-character diagnostic cap, which reports `512`. Admission reserves the worst-case guard shapes
+before binding, using the longest encoded ID, with `N` items:
+
+| Domain | Guard reserve | Diagnostic policy | Document-root omission priority |
+| --- | --- | --- | --- |
+| PLC | `2N+1` | Preserve diagnostics while they fit; compact under pressure | Content diffs, failure import outcomes, verification operations, whole effects; size descending, request-order ties within each priority |
+| Network | `2N+1` | 512-character cap first, then full compaction under pressure | Early batch-result pass retaining recovery evidence; verification checks before effects, then size descending with request-order ties |
+| HMI | `4N+3` | Compact only on document/item pressure; includes `CleanupMessage` | Verification operations, then effects largest first with request-order ties |
+| VCI | `5N+5` | Compact only on document/item pressure | Verification operations, then effects largest first with request-order ties |
+
+Under item pressure PLC drops an effect's content diff before the whole effect. The reserves are
+upper bounds: for HMI, blockers stop a call at 4N, while an applied call has at most 2N+1 guards.
+
 ### Exact host-to-worker selector boundary
 
 Selector resolution happens **twice, independently, on both sides of the process boundary** —
@@ -1057,7 +1075,7 @@ committed edit made linked PN-name evidence unavailable, and excluded
 `MaxNumberIWlanLinksPerSegment` because the fixture reported `unknownAttribute`.
 The [historical acceptance report](superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md)
 records the qualification limits and final clean reopen; the
-[qualified contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
+[qualified contract](adr/0003-network-domain-identity-and-subnet-lifecycle.md)
 is input to later public slices. This diagnostic has no public safety token or write audit,
 and `update_io_system` is not shipped. Retire the probe with the final live-harness cleanup
 after the later public acceptance work.
@@ -1353,3 +1371,5 @@ Update this document when tool registration, operation classification, access
 modes, worker launch arguments, binding rules, or write-safety behavior changes.
 The architecture must describe the explicitly registered runtime surface, not
 only the set of decorated tool classes present in the assembly.
+
+When a change reverses or narrows a recorded decision, add an ADR that supersedes it in the same PR and update the affected sections here; do not edit the old ADR's body.

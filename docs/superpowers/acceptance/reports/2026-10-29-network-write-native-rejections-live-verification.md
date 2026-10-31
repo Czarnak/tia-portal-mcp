@@ -2,15 +2,15 @@
 
 Date: 2026-10-29. Verdict: **PASS for the executed installed-candidate scope on a disposable standalone project**, with the retained limits below. All 17 functional cases met their expected outcomes; the conditional three-run timing protocol and final Task 7 offline gate passed. This is not plant, online-PLC or general hardware-compatibility acceptance.
 
-Branch: `refactor/network-write-native-rejections`. [Plan](../../plans/2026-10-26-network-write-native-rejections.md), [approved design](../../specs/2026-10-26-network-write-native-rejections-design.md), [current Network reference](../../../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
+Branch: `refactor/network-write-native-rejections`. [Plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-26-network-write-native-rejections.md), [approved design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-26-network-write-native-rejections-design.md), [current Network reference](../../../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md).
 
 ## Candidates and provenance
 
 | Stage | Installed package / source | Evidence |
 | --- | --- | --- |
-| Task 0 baseline | `4.2.0-local.68.g012d967`; production-equivalent to branch base `8090ded` | [Before timing input](inputs/2026-10-27-network-write-timing-before.md) |
-| Initial functional observations | `4.2.0-local.76.gf1ae806` | [Frozen October 28 input](inputs/2026-10-28-network-write-native-rejections-live-cases.md); findings subsequently reviewed with the maintainer |
-| L3 fix, full rerun and candidate timing | `4.2.0-local.79.g75c0568`; production source `75c0568d4d83b9430a13feb62aea52e2232c2bad` | [October 29 functional input](inputs/2026-10-29-network-write-native-rejections-live-rerun.md), [after timing input](inputs/2026-10-29-network-write-timing-after.md) |
+| Task 0 baseline | `4.2.0-local.68.g012d967`; production-equivalent to branch base `8090ded` | [Before timing input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-27-network-write-timing-before.md) |
+| Initial functional observations | `4.2.0-local.76.gf1ae806` | [Frozen October 28 input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-28-network-write-native-rejections-live-cases.md); findings subsequently reviewed with the maintainer |
+| L3 fix, full rerun and candidate timing | `4.2.0-local.79.g75c0568`; production source `75c0568d4d83b9430a13feb62aea52e2232c2bad` | [October 29 functional input](inputs/2026-10-29-network-write-native-rejections-live-rerun.md), [after timing input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-network-write-timing-after.md) |
 | Final Task 7 fixtures/offline gate | `1acd599d96b55225e651c58cae4d18ae296d0db6` | FakeWorker/test changes only; production source at this gate equals the installed live-qualified candidate |
 | Final-review host follow-up | Host correction after `e0302e1`; native worker and contracts unchanged from `75c0568` | Raw carried-outcome validation and corrected tool-description categories; offline evidence only, with no new installation/live run/timing |
 
@@ -75,7 +75,7 @@ Task 7 qualification, serialized with process-local `TEMP`/`TMP` under ignored `
 | CI host/contracts line coverage | **12,530 / 13,174 = 95.11%**; 80% threshold passed |
 | TRX, coverage copies, source and frozen-input checks | Counters parsed independently; coverage copies identical; production source unchanged from `75c0568`; frozen inputs unchanged |
 
-Exact build/test commands are in the [Task 7 execution record](../../plans/2026-10-26-network-write-native-rejections.md#task-7-captured-fixtures-and-final-offline-gate--2026-10-29). Selected coverage attachment: `TestResults/task7-fixtures-20261029/coverage/1b6412e1-36e9-4a53-85a8-564c0d2de9f7/coverage.cobertura.xml`, SHA256 `83f933165665cc4aeea24440d94812a61fd3942d23682ba5181aad3593d6d7f3`. Coverage excludes the native worker under existing runsettings; the method-specific L3 evidence is separate. Packaging tests were not run because packaging inputs did not change. No expensive suite was repeated for documentation-only edits.
+Exact build/test commands are in the [Task 7 execution record](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-26-network-write-native-rejections.md#task-7-captured-fixtures-and-final-offline-gate--2026-10-29). Selected coverage attachment: `TestResults/task7-fixtures-20261029/coverage/1b6412e1-36e9-4a53-85a8-564c0d2de9f7/coverage.cobertura.xml`, SHA256 `83f933165665cc4aeea24440d94812a61fd3942d23682ba5181aad3593d6d7f3`. Coverage excludes the native worker under existing runsettings; the method-specific L3 evidence is separate. Packaging tests were not run because packaging inputs did not change. No expensive suite was repeated for documentation-only edits.
 
 ### Final-review host corrections (offline)
 
@@ -105,7 +105,7 @@ The largest observed root reduction is N2, 627.273 s → 81.174 s. **Preview is 
 
 The exact Task 0 requests and adaptations were replayed: restore before every scenario including N4; fresh untimed target subnet for N2/N4, with only its native ID substituted; one hardware-read warm-up before actual timed writes, no additional warm-up before N4 preview; N1–N5 order. The uninterrupted candidate series contains five discarded warm-ups and 15 measured calls. Baseline collection spans two machine sessions and contains ten discarded initial/restart warm-ups plus the same 15 included calls. Both comparisons use three measured samples per scenario.
 
-Candidate timing independently validated **20 sample requests, eight untimed setup writes, 116 canonical pairs and 28 exact fresh audit records**. No build, tests or agent analysis ran concurrently with measured writes. Item time includes work inside executors; baseline item time could include replanning and reads later removed. Remainder is not a pure planning measurement. Cache, Portal and machine-session state were not controlled between collection windows, so these are fixture observations, not universal performance or causal guarantees. Raw sample rows and exact delivery hashes are in the [after timing input](inputs/2026-10-29-network-write-timing-after.md).
+Candidate timing independently validated **20 sample requests, eight untimed setup writes, 116 canonical pairs and 28 exact fresh audit records**. No build, tests or agent analysis ran concurrently with measured writes. Item time includes work inside executors; baseline item time could include replanning and reads later removed. Remainder is not a pure planning measurement. Cache, Portal and machine-session state were not controlled between collection windows, so these are fixture observations, not universal performance or causal guarantees. Raw sample rows and exact delivery hashes are in the [after timing input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-network-write-timing-after.md).
 
 ## Restoration, adaptations and retained limits
 

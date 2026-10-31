@@ -7,7 +7,7 @@ Date: 2026-09-30. Status: implementation, offline qualification, and independent
 - Branch: `phase2-json-contract`.
 - Base: `ddeeae06d430955a23288accddae6887dbeda98b`.
 - Code/test candidate: `66d3693d9cb0c88711c802506c7f8dd928576099`.
-- The maintainer authorized the [Phase 2 implementation plan](../../plans/2026-09-30-json-contract-phase2-standalone-tools.md), independent subagent reviews, and a commit after each implementation or fixing step. The maintainer confirmed that `compile_check.success` means compilation passed.
+- The maintainer authorized the [Phase 2 implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md), independent subagent reviews, and a commit after each implementation or fixing step. The maintainer confirmed that `compile_check.success` means compilation passed.
 - No live TIA operation, remote write, merge, package tag, or release was authorized or performed. Phase 3 remains a separate discussion draft, to be revalidated after its predecessor merges.
 
 Documentation-only commits following this candidate do not change the executable evidence. Any subsequent code, test, or base change requires the relevant gates to be repeated.

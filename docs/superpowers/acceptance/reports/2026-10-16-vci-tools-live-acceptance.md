@@ -3,7 +3,7 @@
 **Candidate:** `4f745081c07708f743ad72fbb914b1e539c62454`, branch `feat/vci-tools`, installed package `4.0.0-local.102.g4f74508`.
 **Verdict:** not accepted. Live testing found a reproducible Unified HMI mapping-path defect. The read-write functional and controlled-crash checks below are finished; a completed whole-PLC export and thrown-leaf import rollback remain unqualified. The candidate was kept unchanged throughout testing.
 
-This report follows [design §8](../../specs/2026-10-15-vci-tools-design.md#8-live-acceptance) and [implementation Task 13](../../plans/2026-10-15-vci-tools.md#task-13-offline-gate-and-live-acceptance). Fixture roles are anonymous; raw selectors, project paths, source exports, request/response documents and audit records remain private.
+This report follows [design §8](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-15-vci-tools-design.md#8-live-acceptance) and [implementation Task 13](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-15-vci-tools.md#task-13-offline-gate-and-live-acceptance). Fixture roles are anonymous; raw selectors, project paths, source exports, request/response documents and audit records remain private.
 
 ## Provenance and scope
 

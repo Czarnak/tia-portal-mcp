@@ -32,7 +32,7 @@ Ordinary unreadable evidence and optional-property failures retain their existin
 behavior. The host invalidates verified binding/cursors without replay; inspect
 any attempted mutation and explicitly bind again before retrying. Existing typed
 post-mutation outcomes and cleanup warnings retain their established contracts. The
-[B-16/Q3 record](../superpowers/plans/2026-10-19-worker-portal-loss.md) distinguishes
+[B-16/Q3 record](../superpowers/acceptance/reports/2026-10-20-b16-q3-worker-portal-loss-live-verification.md) distinguishes
 offline fault-injection evidence from maintainer-accepted scoped live read
 testing. Native write interruptions and broader fault locations remain untested.
 

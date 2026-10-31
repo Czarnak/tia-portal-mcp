@@ -1,0 +1,40 @@
+name: Docs
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ["main"]
+    paths: &docs-paths
+      - "docs/**"
+      - "**/*.md"
+      - ".gitattributes"
+      - "scripts/verify-docs.py"
+      - "scripts/tests/**"
+      - "scripts/timing/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: ["main"]
+    paths: *docs-paths
+
+jobs:
+  verify-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Test the checker
+        run: python3 -I scripts/tests/test_verify_docs.py
+
+      - name: Test the timing script
+        run: python3 -I scripts/timing/test_measure_write_timing.py
+
+      - name: Verify docs
+        run: >
+          python3 -I scripts/verify-docs.py
+          --archive-tag docs-archive-2026-10-30
+          ${{ github.event_name == 'push' && '--fail-on-transient' || '' }}

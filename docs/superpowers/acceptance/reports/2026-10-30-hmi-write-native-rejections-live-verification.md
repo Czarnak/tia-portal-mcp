@@ -6,10 +6,10 @@ build-113 R1 regression, manual compile checkpoints under accepted R3 scope, L5 
 qualifies the recorded R1–R3 scope. Current documentation and evidence are complete; broader
 native-fault and workload coverage remains limited as recorded below.
 
-The protocol is [design §6.7](../../specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol)
-and [plan Task 6](../../plans/2026-10-29-hmi-write-native-rejections.md#task-6-live-verification-timing-after-captured-fixtures-maintainers-machine-tia-portal-v21).
-The [case input](inputs/2026-10-30-hmi-write-native-rejections-live-cases.md) contains the
-complete 31-variant matrix and L1–L4 results; its [archive README](inputs/2026-10-30-hmi-write-native-rejections-live-cases/README.md)
+The protocol is [design §6.7](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol)
+and [plan Task 6](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-29-hmi-write-native-rejections.md#task-6-live-verification-timing-after-captured-fixtures-maintainers-machine-tia-portal-v21).
+The [case input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases.md) contains the
+complete 31-variant matrix and L1–L4 results; its [archive README](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases/README.md)
 describes canonical responses, privacy projections, source hashes and archive validation.
 
 ## Candidate boundaries and fixture
@@ -95,11 +95,49 @@ reference form.
 
 Each functional case includes independent reads of every object it could touch, including
 pre-existing collision targets, plus public validation of validatable objects. The
-[validation supplement](inputs/2026-10-30-hmi-write-native-rejections-validation-supplement.json)
+[validation supplement](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-validation-supplement.json)
 checks the 15 distinct child tags from table-only cases after the matrix on the unchanged
 restored baseline: all 15 operations succeed with zero findings. Public Validate has no
 table validator; this supplement is not in-case table validation. Expected missing selectors
 after deletion, rename or failed creation are absence checks.
+
+### Per-variant results (build 112)
+
+One row per P variant, folded from the case input so the matrix is readable without the evidence directory. "Clean" means captured public `hmi_read validate` results for the named surviving objects, not a candidate UI compile.
+
+| Variant | Probe | Classification / failure point | Observed result |
+| --- | --- | --- | --- |
+| P1 | Duplicate table, same group | O1 / `Create` | Original table and its three tags retained; no cleanup needed |
+| P2-cross-group | Duplicate table, another group | O1 / `Create` | No extra table; original table and contents retained |
+| P2-case | Case-variant duplicate table | O1 / `Create` | No extra table; original spelling and contents retained |
+| P3 | Colliding table rename | O1 / `Name` | Original table names and membership retained; contained tag clean |
+| P4 | Duplicate tag, same table | O1 / `Create` | Create did not return an object; original retained and clean; no cleanup needed |
+| P5-cross-table | Duplicate tag, another table | O1 / `Create` | Original name, membership and properties retained; clean |
+| P5-case | Case-variant duplicate tag | O1 / `Create` | Original spelling and membership retained; clean |
+| P6 | Colliding tag rename | O1 / `Name` | Both original tags retained; clean |
+| P7 | Case-only tag rename | O1 / `Name` | Original case retained; clean |
+| P8 | Duplicate discrete alarm | O1 / `Create` | Original alarm retained and clean; no cleanup needed |
+| P8-case | Case-variant duplicate discrete alarm | O1 / `Create` | Original spelling and properties retained; clean |
+| P9 | Duplicate analog alarm | O1 / `Create` | Original alarm retained and clean; no cleanup needed |
+| P10 | Analog alarm using an existing discrete alarm name | Accepted control | Separate scopes both present; both validate clean |
+| P11-discrete | Colliding discrete-alarm rename | O1 / `Name` | Both original alarms retained; clean |
+| P11-analog | Colliding analog-alarm rename | O1 / `Name` | Both original alarms retained; clean |
+| P12-discrete | Case-only discrete-alarm rename | Accepted control | Requested lowercase name landed; properties retained; clean |
+| P12-analog | Case-only analog-alarm rename | Accepted control | Requested lowercase name landed; properties retained; clean |
+| P12-table | Case-only table rename | Accepted control | Lowercase table name landed; child membership followed; child tag clean |
+| P13 | Delete tag, then create its case variant | Accepted control | Original absent, requested lowercase replacement present; clean |
+| P14 | Delete default tag table | O1 / `Delete` | Default table and all 12 child tags retained |
+| P15-update | Set `dataType` on a bound tag | O1 / `DataType` | Original binding and `Int` retained; clean |
+| P15-create | Create bound tag with `dataType` | O1 / `DataType` | Earlier binding properties reported applied; failed create cleanup `deleted` |
+| P16-create | Create with `plcTag`, no connection | O1 / `PlcTag` | Earlier create/properties may have applied; cleanup `deleted`; new tag absent |
+| P16-update | Set `plcTag` without connection | O1 / `PlcTag` | Internal tag retained unchanged; clean |
+| P17 | Create into a missing table | O1 / `Create` | No tag, fallback placement or automatic table creation; no cleanup needed |
+| P18 | Create with missing connection | O1 / subsequent `PlcTag` | Create/connection assignment returned before rejection; cleanup `deleted`; new tag absent |
+| P19 | Create with missing alarm class | O2 | Requested class retained; Validate reports `AlarmClass` missing and shared tag/bit findings |
+| P20-missing-tag | Create with missing trigger tag | O2 | Requested reference retained; Validate reports `RaisedStateTag` missing |
+| P20-missing-member | Create with missing struct member | O2 | Requested member retained; Validate reports `RaisedStateTag` missing |
+| P21 | Create table in missing group | Worker refusal / `target_not_found` | No native Create reached; no mutation |
+| P22 | Create tag with comment in missing culture | Worker refusal / `target_not_found`, `Comment` | Create and earlier properties returned; cleanup `deleted`; new tag absent |
 
 ## R1 and R2: partial failures and candidate reuse
 
@@ -111,7 +149,7 @@ an earlier affected write `superseded`; an ordinary precondition refusal without
 retains its previous behavior. This adds no Portal rule or mutation read-back.
 
 Two focused regressions first fail with `trusted` instead of `superseded`, then pass after
-the fix. The [focused build-113 live capture](inputs/2026-10-30-hmi-write-native-rejections-r1-live.json)
+the fix. The [focused build-113 live capture](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-r1-live.json)
 shows the first update succeeding, the second applying `Name` before `Comment` fails on a
 missing culture, and the third item skipped. The sole verification entry marks the earlier
 write `superseded` and warns that the failed later item may have changed the object and its
@@ -168,8 +206,8 @@ diagnostics for its three accepted invalid-reference variants.
 
 The queued P12-analog build-113 case was cancelled before a maintainer compile and restored
 without saving before the reduced queue began. Its cancellation is not a successful compile.
-The [completed/reduced UI queue archive](inputs/2026-10-30-hmi-write-native-rejections-ui-compiles/README.md)
-and [L5 local-session input](inputs/2026-10-30-hmi-write-native-rejections-local-session/README.md)
+The [completed/reduced UI queue archive](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-ui-compiles/README.md)
+and [L5 local-session input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-local-session/README.md)
 preserve the maintainer reports, canonical HMI evidence and labelled restoration/status
 projections. All manual checkpoints required under R3 are complete.
 
@@ -182,7 +220,7 @@ status call. The archive's 22 complete HMI reads and 66 minimal lifecycle/status
 include that independent status and retain fixture/restoration evidence. Timing client and
 driver exit 0. The actual archive's offline self-check and validator pass.
 
-The [frozen baseline](inputs/2026-10-29-hmi-write-timing-before.md) measures installed
+The [frozen baseline](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before.md) measures installed
 `4.2.0-local.79.g75c0568`, **not analysis commit `0b2640a`**; source equivalence is not
 claimed. The build-113 replay retains exact workloads, settings and reset/read
 sequence. Its client changes only the expected installed version and write-contract
@@ -205,9 +243,9 @@ The columns were independently recomputed from both archives' individual rows. O
 median root durations are shorter for all five workloads, but three samples per workload
 and uncontrolled OS/Portal cache conditions do not support a general performance guarantee
 or isolate individual native-call costs. Functional trace elapsed times are excluded.
-The [timing input](inputs/2026-10-30-hmi-write-timing-after.md) records exact client changes,
+The [timing input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after.md) records exact client changes,
 hashes, all before/after metrics, settings, restoration and limitations; its
-[evidence README](inputs/2026-10-30-hmi-write-timing-after/README.md) links the validated archive.
+[evidence README](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/README.md) links the validated archive.
 
 ## Offline qualification and restoration
 

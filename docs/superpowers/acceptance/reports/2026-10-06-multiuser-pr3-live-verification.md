@@ -210,7 +210,7 @@ whole run: the three authorized lifecycle records are intentional.
 
 ## Accepted Task 5 and evidence limitations
 
-The [accepted plan](../../plans/2026-10-05-multiuser-pr3-read-only-inventory.md#task-5-frozen-candidate-live-acceptance)
+The [accepted plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-05-multiuser-pr3-read-only-inventory.md#task-5-frozen-candidate-live-acceptance)
 closes all six steps for PR 3 acceptance by maintainer decision. The table preserves actual run
 evidence and unexecuted cases; those cases no longer block PR 3 live acceptance. The maintainer
 also reported that a same-name grouped-project fixture could not be created through the available

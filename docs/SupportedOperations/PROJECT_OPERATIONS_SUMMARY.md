@@ -406,10 +406,10 @@ response's rejection-versus-attempted-failure classification remain intact.
 Each call appends one guarded-write audit record, including previews and refusals, to
 `%LOCALAPPDATA%\TiaMcpServer\audit\writes-yyyy-MM-dd.jsonl`. The record retains the exact returned
 canonical document/hash, requested operation, prepared binding, target, guards, and acknowledgement
-provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. No tool adds or consumes a safety token: Network, PLC and HMI writes use the same guarded pipeline and
+provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. No tool adds or consumes a safety token: Network, PLC, HMI and VCI writes use the same guarded pipeline and
 audit stream, and the legacy write audit was retired.
 
-Migration is staged for the final major release: remove client preview/token/apply loops for these
+Migrating from the retired token flow: remove client preview/token/apply loops for these
 six tools, remove old public confirmation/token arguments and agent confirmation arrays, use
 `dryRun` as needed, and read typed outputs. The removed startup switch is rejected with:
 

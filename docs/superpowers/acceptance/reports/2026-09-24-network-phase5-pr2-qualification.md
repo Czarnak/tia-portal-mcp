@@ -4,7 +4,7 @@
 worker-only candidate proved one exact PROFINET IO-system fixture (PN-B) and
 one DP master-system fixture (DP-B), their separate controller interface owner
 and master PLC hardware compile target, baseline compiles, and the field
-verdicts in the [qualified contract](../../specs/2026-09-24-network-phase5-qualified-contract.md).
+verdicts in the [qualified contract](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-09-24-network-phase5-qualified-contract.md).
 This was a diagnostic worker route, not a public `network_write` acceptance run.
 `update_io_system` is not shipped.
 

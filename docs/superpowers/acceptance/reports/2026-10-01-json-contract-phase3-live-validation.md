@@ -2,7 +2,7 @@
 
 Status: the authorized lifecycle acceptance matrix passed on the frozen installed candidate.
 This record supplements the [offline qualification](2026-10-01-json-contract-phase3-offline-validation.md)
-and [implementation plan](../../plans/2026-09-30-json-contract-phase3-lifecycle.md).
+and [implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md).
 It records lifecycle behavior, client confirmation, persisted artifacts, and source restoration;
 it does not establish PLC or plant acceptance.
 

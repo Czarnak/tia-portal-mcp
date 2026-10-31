@@ -18,3 +18,13 @@
 /reference-stubs/Siemens.Engineering.Step7/**/*.cs text eol=crlf
 /reference-stubs/Siemens.Engineering.WinCCUnified/**/*.cs text eol=crlf
 /reference-stubs/Siemens.Engineering.PublicKey.snk binary
+
+# Process material is collapsed by default in GitHub diffs (linguist-generated). Everything
+# removed from the tree stays reachable through the tag docs-archive-2026-10-30. A bare
+# directory pattern matches nothing, so '/**' is required. Reports are deliberately not matched.
+/docs/superpowers/specs/** linguist-generated
+/docs/superpowers/plans/** linguist-generated
+/docs/superpowers/evidence/** linguist-generated
+/docs/superpowers/evidence/** -text
+/docs/superpowers/acceptance/reports/inputs/** linguist-generated
+/docs/superpowers/acceptance/reports/inputs/** -text

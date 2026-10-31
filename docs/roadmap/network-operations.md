@@ -9,7 +9,7 @@ before permissive decoding, without request replay or worker replacement. Twelve
 failing malformed-wire cases, sixteen new controls and the focused 517-test set passed. The worker
 is unchanged; this host follow-up has offline evidence only and no new live/timing qualification.
 See the [live verification and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
-and [implementation plan](../superpowers/plans/2026-10-26-network-write-native-rejections.md).
+and [implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-26-network-write-native-rejections.md).
 Warnings/explicit nulls and `dryRun` replace Network tokens; **omitting dryRun executes**.
 Historical Phase4/worker-only qualification below applies only to recorded frozen sources.
 
@@ -54,7 +54,7 @@ merge-ready on that explicit source/behavioral-equivalence decision; no merge
 or current-HEAD Portal run is claimed.
 
 Phase 2 completion is scoped narrowly: Tasks 1-7 of
-`docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md` are implemented and
+the [Phase 2 plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-08-02-network-operations-phase2-json-contract.md) are implemented and
 their automated gates pass — the stub build, `dotnet test TiaMcpServer.Tests`, the FakeWorker
 protocol tests (including the multi-homed read-select-preview-apply-read proof and the
 protocol-error stop proof), and the schema/catalog/access-mode tests. It is **not** based on any
@@ -221,12 +221,12 @@ network-attribute writes, project save, or hardware compile.
 Design rationale and the evidence basis (a read-only subnet metadata probe and an explicitly
 enabled internal mutation probe, both run against disposable TIA Portal V21 project copies before
 the public contract was settled) are recorded in
-[../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
+[ADR-0012](../adr/0012-portal-as-rejection-authority.md).
 The full request/result contract, targeting rules, and current evidence status are documented in
 [../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md](../SupportedOperations/NETWORK_PHASE4_SUBNET_LIFECYCLE.md).
 
 The original static completion mark covered Tasks 1-9 of
-`docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md`. The subsequent audit found
+the [Phase 4 plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md). The subsequent audit found
 four contract gaps; PR 1 repairs them and restores a guarded public harness. The first
 current-revision public run on 2026-09-23 failed at connected Ethernet deletion after isolated
 operations passed. The fresh 2026-09-24 run passed both connected deletes and its post-read, with
@@ -243,7 +243,7 @@ were observed; the PN extension toggle also changed and restored a linked PN dev
 PN `MultipleUseIoSystem` remains excluded because a committed toggle made that linked name
 unavailable before compile. `MaxNumberIWlanLinksPerSegment` remains excluded as an unknown
 attribute in this fixture; no DP dynamic field was admitted. See the
-[qualified contract](../superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
+[qualified contract](../adr/0003-network-domain-identity-and-subnet-lifecycle.md)
 and [bounded live report](../superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md).
 
 The temporary `probe_io_system_qualification` produced that

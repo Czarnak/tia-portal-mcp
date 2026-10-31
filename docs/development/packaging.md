@@ -78,7 +78,7 @@ is running unless you pass `-AllowDirty` or `-StopRunningServer`:
    and never collides with a real release:
 
    ```powershell
-   git describe --tags --long
+   git describe --tags --long --match 'v[0-9]*'   # release tags only; archive tags are ignored
    # v2.3.2-39-ge65dc64  ->  version = 2.3.2-local.39.ge65dc64
    ```
 

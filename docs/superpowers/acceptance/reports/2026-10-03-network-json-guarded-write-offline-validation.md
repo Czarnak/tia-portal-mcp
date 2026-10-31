@@ -8,7 +8,7 @@ Report prepared 2026-10-04 for the approved 2026-10-03 design and plan. **The co
 - Original qualified/reviewed code candidate: `7407d277bf4e7857c5934062eff4e7f9a1eb94c3`.
 - Corrected frozen code candidate: **`b97b9ee9173905fa9c19649a73d4f8a29bd6c682`** on `feature/network-contract-write-safety`.
 - Worktree used: `C:/Users/LCZ/.codex/worktrees/network-contract-write-safety/tia-portal-mcp`.
-- [Approved design](../../specs/2026-10-03-network-json-guarded-write-design.md) and [implementation plan](../../plans/2026-10-03-network-json-guarded-write.md).
+- [Approved design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-03-network-json-guarded-write-design.md) and [implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-03-network-json-guarded-write.md).
 
 Task 1–8 independent reviews preceded original qualification. The **one whole-branch review** of `baf8117..7407d27` found two Important findings and one deferred Minor. The consolidated correction used separate commits: `758240e` observed regression tests; `6a2573d` producer-owned relationship diagnostics; `b97b9ee` complete Phase 4 acceptance/evidence. The **one scoped re-review** of `7407d27..b97b9ee` marked both Important findings addressed and found zero new Critical/Important/Minor issues. No second broad review or second fix wave was performed.
 

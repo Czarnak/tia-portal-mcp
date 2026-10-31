@@ -8,7 +8,7 @@ Binding changes, worker faults and the other cases listed below remain offline-o
 - Qualified source: `db2947ba3aac2f07b33510a6d877dded3f990282` on `fix/c5-sealed-network-object-cursors`. The installed package was built at `5647477ac8e83ec1cf92dbab08981116b9a57048`; its delta from the qualified source contains documentation only.
 - Installed version: `4.1.2-local.110.g5647477`, built with real V21 references. All 56 packaged runtime files matched the installed files by SHA-256. The running worker's executable path belonged to that installed version. The host command line selected `full` access mode.
 - In response to the pending exact-target authorization request, the maintainer confirmed installation and identified an already-open disposable standalone AP21. Only that exact target was bound. Public records call it **Fixture A** and omit its name, path, selectors and raw cursors.
-- The [approved C-5 plan](../../plans/2026-10-23-c5-sealed-network-object-cursors.md) limits this smoke to binding and read-only cursor checks. Every inventory request used `objectKinds:["deviceItem"]` and explicit `pageSize:1`, independent of C-9's planned defaults.
+- The [approved C-5 plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-23-c5-sealed-network-object-cursors.md) limits this smoke to binding and read-only cursor checks. Every inventory request used `objectKinds:["deviceItem"]` and explicit `pageSize:1`, independent of C-9's planned defaults.
 
 ## Executed checks
 
@@ -38,7 +38,7 @@ Real target identities and raw cursors are not stored in the report or manifest.
 - Coverage is one standalone root in `full` mode, one object-kind filter and two-page sequences. Other access modes, local sessions, a full traversal and performance qualification were not exercised.
 - C-9's size-100 defaults, rebased combined qualification and final paging matrix remain separate. C-5 must merge before C-9.
 
-The [offline execution record](../../plans/2026-10-23-c5-sealed-network-object-cursors.md#offline-execution-record-2026-10-23)
+The [offline execution record](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-23-c5-sealed-network-object-cursors.md#offline-execution-record-2026-10-23)
 retains the final 7,531 passing tests, zero failures/skips and 94.99% line coverage. That unchanged
 suite was not repeated for this documentation-only follow-up. No push, PR creation or merge was
 performed by this live gate.
