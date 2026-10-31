@@ -55,6 +55,7 @@ Task-level implementation plans derived from the specs above.
 
 | Date | Document |
 | --- | --- |
+| 2026-10-30 | [Docs lifecycle and project-memory compaction — implementation plan (in progress)](plans/2026-10-30-docs-lifecycle-and-adr-compaction.md) |
 | 2026-10-19 | [Worker Portal-loss handling, B-16 and Q3 (implemented; scoped live testing accepted 2026-10-20)](plans/2026-10-19-worker-portal-loss.md) |
 | 2026-10-11 | [`hmi_read` completion (implemented; live-accepted)](plans/2026-10-11-hmi-read-completion.md) |
 | 2026-10-08 | [`create_block` OB creation, issue #75 (implemented; live-accepted)](plans/2026-10-08-ob-creation.md) |
