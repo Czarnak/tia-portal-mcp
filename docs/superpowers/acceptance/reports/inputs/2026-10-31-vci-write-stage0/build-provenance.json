@@ -1,0 +1,79 @@
+{
+  "baseline": {
+    "commit": "8713a476ec509360b7cc18083e76d21275fc1c92",
+    "version": "4.2.0-stage0.baseline2.g8713a47",
+    "sha256": {
+      "package": "55c28a8e102ec87143cee54223b58c59088cc6debc87918b9bb84142b5a76089",
+      "hostDll": "cf29a4b6290a2b2a6b8975121ab530e84b76f0f7c6901ae787ee401e593ecc31",
+      "workerExe": "d23fa16d08026ac282af39d585173ae99f20effc34dba07d441036ae202f683a"
+    },
+    "packageSanity": {
+      "entries": 62,
+      "siemensEngineeringDlls": 0,
+      "installedHostAndWorkerMatchPackage": true,
+      "packageVersionMatchesExpected": true
+    },
+    "tests": {
+      "command": "dotnet test TiaMcpServer.Tests -c Release --no-restore --filter Category!=Packaging",
+      "passed": 7644,
+      "failed": 0,
+      "skipped": 0,
+      "total": 7644,
+      "durationSeconds": 356,
+      "sourceLog": "baseline-tests.log",
+      "verification": "Final passing result independently parsed from saved baseline log; suite not rerun by this check."
+    }
+  },
+  "probe": {
+    "baseCommit": "8713a476ec509360b7cc18083e76d21275fc1c92",
+    "commit": "7275a3fe745d3b8426947dabe8ef3d3ef8f0b3b7",
+    "version": "4.2.0-stage0.probe.g7275a3fe",
+    "sha256": {
+      "hostDll": "d6de3c3e38949f8d4ea3904919666b0473ec190188438246d0db1362d0bea048",
+      "workerExe": "a30967e48ae749fe9e0db6cd661c99006ed99db50e1ea87af70546a37f45edf9",
+      "package": "3659b4d0d261a16b4afb1cd888b00b085a28a4750fab644324f24f447187bbfa"
+    },
+    "packageSanity": {
+      "entries": 62,
+      "siemensEngineeringDlls": 0,
+      "installedHostAndWorkerMatchPackage": true
+    },
+    "focusedTests": {
+      "command": "dotnet test TiaMcpServer.Tests -c Release --no-restore --filter FullyQualifiedName~Vci",
+      "passed": 539,
+      "failed": 2,
+      "skipped": 0,
+      "total": 541,
+      "durationSeconds": 53,
+      "expectedFailures": [
+        "TiaMcpServer.Tests.Vci.VciPlannerTests.RootComparison_IgnoresCaseAndTrailingSeparator",
+        "TiaMcpServer.Tests.Vci.VciPlannerTests.Create_DuplicateNameIsConflictRegardlessOfRoot"
+      ],
+      "unexpectedFailures": [],
+      "log": "probe-focused-tests.log",
+      "trx": "probe-test-results/vci-probe.trx"
+    },
+    "fullTests": {
+      "status": "completed-with-expected-failures",
+      "command": "dotnet test TiaMcpServer.Tests -c Release --no-build --no-restore --filter Category!=Packaging",
+      "exitCode": 1,
+      "passed": 7642,
+      "failed": 2,
+      "skipped": 0,
+      "total": 7644,
+      "durationSeconds": 398,
+      "expectedFailures": [
+        "TiaMcpServer.Tests.Vci.VciPlannerTests.RootComparison_IgnoresCaseAndTrailingSeparator",
+        "TiaMcpServer.Tests.Vci.VciPlannerTests.Create_DuplicateNameIsConflictRegardlessOfRoot"
+      ],
+      "unexpectedFailures": [],
+      "log": "probe-full-tests.log",
+      "trx": "probe-test-results/vci-probe-full.trx"
+    },
+    "changedFiles": [
+      "TiaMcpServer.OpennessWorker/Openness/Vci/VciPlanner.cs",
+      "TiaMcpServer.OpennessWorker/Openness/Vci/VciWriter.cs"
+    ],
+    "scope": "Disable planner workspace name/root conflicts; append complete exception chains in VCI catch notes. No other runtime change."
+  }
+}

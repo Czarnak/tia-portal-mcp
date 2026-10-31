@@ -1,0 +1,107 @@
+diff --git a/TiaMcpServer.OpennessWorker/Openness/Vci/VciPlanner.cs b/TiaMcpServer.OpennessWorker/Openness/Vci/VciPlanner.cs
+--- a/TiaMcpServer.OpennessWorker/Openness/Vci/VciPlanner.cs
++++ b/TiaMcpServer.OpennessWorker/Openness/Vci/VciPlanner.cs
+@@ -27,17 +27,7 @@ public static class VciPlanner
+                     throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                         "workspaceName and rootPath are required.");
+                 plan.WorkspaceRootPath = Path.GetFullPath(write.RootPath!).TrimEnd('\\', '/');
+-                foreach (var candidate in service.WorkspaceGroup.Workspaces)
+-                {
+-                    if (string.Equals(candidate.Name, write.WorkspaceName, StringComparison.OrdinalIgnoreCase)
+-                        || (candidate.RootPath is not null && string.Equals(
+-                            Path.GetFullPath(candidate.RootPath.FullName).TrimEnd('\\', '/'),
+-                            plan.WorkspaceRootPath, StringComparison.OrdinalIgnoreCase)))
+-                    {
+-                        plan.WorkspaceConflict = "An existing workspace uses this name or root: " + candidate.Name;
+-                        break;
+-                    }
+-                }
++                // Stage 0 probe only: let native creation decide duplicate names and roots.
+                 return plan;
+             }
+ 
+diff --git a/TiaMcpServer.OpennessWorker/Openness/Vci/VciWriter.cs b/TiaMcpServer.OpennessWorker/Openness/Vci/VciWriter.cs
+--- a/TiaMcpServer.OpennessWorker/Openness/Vci/VciWriter.cs
++++ b/TiaMcpServer.OpennessWorker/Openness/Vci/VciWriter.cs
+@@ -97,9 +97,9 @@ public static class VciWriter
+                                 candidates.Add((VciFileKey.FromMapping(workspace.RootPath.FullName,
+                                     mapping.DirectoryPath.FullName, mapping.FileNameWithoutExtension), lastAttempted!));
+                         }
+-                        catch (NonRecoverableException) { throw; }
+-                        catch (EngineeringException) { outcome.Failed++; }
+-                        catch (Exception) { outcome.Failed++; }
++                        catch (NonRecoverableException ex) { Note(ex); throw; }
++                        catch (EngineeringException ex) { Note(ex); outcome.Failed++; }
++                        catch (Exception ex) { Note(ex); outcome.Failed++; }
+                     }
+ 
+                     if (candidates.Count > 0 && write.Operation == "sync_to_project")
+@@ -118,9 +118,9 @@ public static class VciWriter
+                                     {
+                                         Attempt(candidate.Attempt);
+                                         try { FindMapping(project, workspace, candidate.Key, candidate.Attempt.Path).Synchronize(SynchronizationMode.WorkspaceToProject); }
+-                                        catch (NonRecoverableException) { throw; }
+-                                        catch (EngineeringException) { allSucceeded = false; }
+-                                        catch (Exception) { allSucceeded = false; }
++                                        catch (NonRecoverableException ex) { Note(ex); throw; }
++                                        catch (EngineeringException ex) { Note(ex); allSucceeded = false; }
++                                        catch (Exception ex) { Note(ex); allSucceeded = false; }
+                                     }
+                                     if (allSucceeded && transaction.CanCommit)
+                                     {
+@@ -150,9 +150,9 @@ public static class VciWriter
+                                 mapping.Synchronize(SynchronizationMode.ProjectToWorkspace);
+                                 outcome.Succeeded++;
+                             }
+-                            catch (NonRecoverableException) { throw; }
+-                            catch (EngineeringException) { outcome.Failed++; }
+-                            catch (Exception) { outcome.Failed++; }
++                            catch (NonRecoverableException ex) { Note(ex); throw; }
++                            catch (EngineeringException ex) { Note(ex); outcome.Failed++; }
++                            catch (Exception ex) { Note(ex); outcome.Failed++; }
+                         }
+                     }
+                 }
+@@ -162,8 +162,9 @@ public static class VciWriter
+                     "One or more VCI leaves failed; inspect the counts before retrying.", vciWriteOutcome: outcome);
+             return outcome;
+         }
+-        catch (NonRecoverableException)
++        catch (NonRecoverableException ex)
+         {
++            Note(ex, topLevel: true);
+             if (!importCandidatesHandled) outcome.Failed++;
+             outcome.LastAttempted = lastAttempted;
+             throw new WorkerOperationException(WorkerFailureCategories.PortalLost,
+@@ -170,9 +171,10 @@ public static class VciWriter
+                 "VCI lost the Portal; restart TIA Portal and reopen the project. Exported files remain; unsaved workspaces, mappings and project edits are lost; do not retry the same leaf unattended.",
+                 vciWriteOutcome: outcome);
+         }
+-        catch (WorkerOperationException) { throw; }
++        catch (WorkerOperationException ex) { Note(ex, topLevel: true); throw; }
+         catch (Exception ex)
+         {
++            Note(ex, topLevel: true);
+             if (!importCandidatesHandled) outcome.Failed++;
+             throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, ex.Message, vciWriteOutcome: outcome);
+         }
+@@ -196,6 +198,19 @@ public static class VciWriter
+             return false;
+         }
+ 
++        void Note(Exception exception, bool topLevel = false)
++        {
++            var path = topLevel || lastAttempted is null
++                ? "top-level/no-leaf"
++                : string.Join("/", lastAttempted.Path.Select(segment => segment.NodeType + ":" + segment.Name));
++            var note = new System.Text.StringBuilder("PROBE_EXCEPTION ").Append(path);
++            for (Exception? current = exception; current is not null; current = current.InnerException)
++            {
++                note.Append('\n').Append(current.GetType().FullName).Append(": ").Append(current.Message);
++            }
++            outcome.Notes.Add(note.ToString());
++        }
++
+         void Attempt(VciLastAttemptedInfo attempt)
+         {
+             lastAttempted = attempt;

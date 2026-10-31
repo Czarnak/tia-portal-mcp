@@ -1,0 +1,3152 @@
+{
+  "validatedTimingSamples": 21,
+  "verifiedAuditPairs": 217,
+  "mediansMs": {
+    "T1": {
+      "rootMs": 3313,
+      "itemSumMs": 497,
+      "remainderMs": 2816
+    },
+    "T2": {
+      "rootMs": 12726,
+      "itemSumMs": 7024,
+      "remainderMs": 5596
+    },
+    "T3": {
+      "rootMs": 15797,
+      "itemSumMs": 14950,
+      "remainderMs": 847
+    },
+    "T4": {
+      "rootMs": 39,
+      "itemSumMs": 0,
+      "remainderMs": 39
+    },
+    "T5": {
+      "rootMs": 74073,
+      "itemSumMs": 44589,
+      "remainderMs": 31425
+    },
+    "T6": {
+      "rootMs": 22214,
+      "itemSumMs": 13606,
+      "remainderMs": 8608
+    },
+    "T7": {
+      "rootMs": 261084,
+      "itemSumMs": 149788,
+      "remainderMs": 111296
+    }
+  },
+  "timingSamples": [
+    {
+      "label": "T1-r1",
+      "rootMs": 3025,
+      "itemSumMs": 468,
+      "remainderMs": 2557
+    },
+    {
+      "label": "T1-r2",
+      "rootMs": 4186,
+      "itemSumMs": 568,
+      "remainderMs": 3618
+    },
+    {
+      "label": "T1-r3",
+      "rootMs": 3313,
+      "itemSumMs": 497,
+      "remainderMs": 2816
+    },
+    {
+      "label": "T2-r1",
+      "rootMs": 12726,
+      "itemSumMs": 7024,
+      "remainderMs": 5702
+    },
+    {
+      "label": "T2-r2",
+      "rootMs": 12280,
+      "itemSumMs": 6890,
+      "remainderMs": 5390
+    },
+    {
+      "label": "T2-r3",
+      "rootMs": 12785,
+      "itemSumMs": 7189,
+      "remainderMs": 5596
+    },
+    {
+      "label": "T3-r1",
+      "rootMs": 29980,
+      "itemSumMs": 27990,
+      "remainderMs": 1990
+    },
+    {
+      "label": "T3-r2",
+      "rootMs": 13579,
+      "itemSumMs": 12829,
+      "remainderMs": 750
+    },
+    {
+      "label": "T3-r3",
+      "rootMs": 15797,
+      "itemSumMs": 14950,
+      "remainderMs": 847
+    },
+    {
+      "label": "T4-r1",
+      "rootMs": 50,
+      "itemSumMs": 0,
+      "remainderMs": 50
+    },
+    {
+      "label": "T4-r2",
+      "rootMs": 37,
+      "itemSumMs": 0,
+      "remainderMs": 37
+    },
+    {
+      "label": "T4-r3",
+      "rootMs": 39,
+      "itemSumMs": 0,
+      "remainderMs": 39
+    },
+    {
+      "label": "T5-r1",
+      "rootMs": 78644,
+      "itemSumMs": 47219,
+      "remainderMs": 31425
+    },
+    {
+      "label": "T5-r2",
+      "rootMs": 73402,
+      "itemSumMs": 44589,
+      "remainderMs": 28813
+    },
+    {
+      "label": "T5-r3",
+      "rootMs": 74073,
+      "itemSumMs": 40453,
+      "remainderMs": 33620
+    },
+    {
+      "label": "T6-r1",
+      "rootMs": 27068,
+      "itemSumMs": 17643,
+      "remainderMs": 9425
+    },
+    {
+      "label": "T6-r2",
+      "rootMs": 19866,
+      "itemSumMs": 12550,
+      "remainderMs": 7316
+    },
+    {
+      "label": "T6-r3",
+      "rootMs": 22214,
+      "itemSumMs": 13606,
+      "remainderMs": 8608
+    },
+    {
+      "label": "T7-r1",
+      "rootMs": 295026,
+      "itemSumMs": 169662,
+      "remainderMs": 125364
+    },
+    {
+      "label": "T7-r2",
+      "rootMs": 261084,
+      "itemSumMs": 149788,
+      "remainderMs": 111296
+    },
+    {
+      "label": "T7-r3",
+      "rootMs": 248021,
+      "itemSumMs": 144440,
+      "remainderMs": 103581
+    }
+  ],
+  "behaviorAndProbes": [
+    {
+      "label": "B1-fixture-export-after-compile",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 0,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 1,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2091,
+      "itemSumMs": 502,
+      "remainderMs": 1589
+    },
+    {
+      "label": "B1-fixture-export",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2064,
+      "itemSumMs": 1201,
+      "remainderMs": 863
+    },
+    {
+      "label": "B1-fixture-prepare",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 3259,
+      "itemSumMs": 409,
+      "remainderMs": 2850
+    },
+    {
+      "label": "B1-prepare",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 5928,
+      "itemSumMs": 593,
+      "remainderMs": 5335
+    },
+    {
+      "label": "B1",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 30,
+            "succeeded": 30,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 21110,
+      "itemSumMs": 17275,
+      "remainderMs": 3835
+    },
+    {
+      "label": "B2-prepare",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 5566,
+      "itemSumMs": 536,
+      "remainderMs": 5030
+    },
+    {
+      "label": "B2",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 3505,
+      "itemSumMs": 2892,
+      "remainderMs": 613
+    },
+    {
+      "label": "B3-prepare",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 4974,
+      "itemSumMs": 510,
+      "remainderMs": 4464
+    },
+    {
+      "label": "B3",
+      "session": 0,
+      "success": false,
+      "phase": "blocked",
+      "error": {
+        "category": "guard_blocked",
+        "message": "The write was stopped by block guard(s): vci_name_not_representable."
+      },
+      "counts": null,
+      "items": [],
+      "rootMs": 295,
+      "itemSumMs": 0,
+      "remainderMs": 295
+    },
+    {
+      "label": "B4-prepare-mapping",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2479,
+      "itemSumMs": 1346,
+      "remainderMs": 1133
+    },
+    {
+      "label": "B4-prepare-workspace",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2763,
+      "itemSumMs": 316,
+      "remainderMs": 2447
+    },
+    {
+      "label": "B4",
+      "session": 0,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 0,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2122,
+      "itemSumMs": 1588,
+      "remainderMs": 534
+    },
+    {
+      "label": "B5-malformed",
+      "session": 0,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 10,
+            "succeeded": 0,
+            "failed": 2,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 8,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 39016,
+      "itemSumMs": 23546,
+      "remainderMs": 15470
+    },
+    {
+      "label": "B5",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 10,
+            "succeeded": 2,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 8,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 25958,
+      "itemSumMs": 16581,
+      "remainderMs": 9377
+    },
+    {
+      "label": "B6",
+      "session": 0,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 10,
+            "succeeded": 1,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 8,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 22804,
+      "itemSumMs": 14384,
+      "remainderMs": 8420
+    },
+    {
+      "label": "B7",
+      "session": 0,
+      "success": false,
+      "phase": "blocked",
+      "error": {
+        "category": "guard_blocked",
+        "message": "The write was stopped by block guard(s): vci_workspace_exists."
+      },
+      "counts": null,
+      "items": [],
+      "rootMs": 68,
+      "itemSumMs": 0,
+      "remainderMs": 68
+    },
+    {
+      "label": "B8-prepare",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 6198,
+      "itemSumMs": 604,
+      "remainderMs": 5594
+    },
+    {
+      "label": "B8",
+      "session": 0,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 30,
+            "succeeded": 30,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 19721,
+      "itemSumMs": 16271,
+      "remainderMs": 3450
+    },
+    {
+      "label": "B1-OBmix-prepare",
+      "session": 1,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 6817,
+      "itemSumMs": 548,
+      "remainderMs": 6269
+    },
+    {
+      "label": "B1-OBmix",
+      "session": 1,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 7,
+            "succeeded": 6,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 6418,
+      "itemSumMs": 5493,
+      "remainderMs": 925
+    },
+    {
+      "label": "B2-OB-prepare",
+      "session": 1,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 3466,
+      "itemSumMs": 517,
+      "remainderMs": 2949
+    },
+    {
+      "label": "B2-OB",
+      "session": 1,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 0,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 916,
+      "itemSumMs": 330,
+      "remainderMs": 586
+    },
+    {
+      "label": "P1-case",
+      "session": 2,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "Error when calling method 'Create' of type 'Siemens.Engineering.VersionControl.WorkspaceComposition'.\r\n\r\nThe workspace name must be unique"
+          },
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 0,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2811,
+      "itemSumMs": 388,
+      "remainderMs": 2423
+    },
+    {
+      "label": "P1-exact",
+      "session": 2,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "Error when calling method 'Create' of type 'Siemens.Engineering.VersionControl.WorkspaceComposition'.\r\n\r\nThe workspace name must be unique"
+          },
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 0,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2632,
+      "itemSumMs": 454,
+      "remainderMs": 2178
+    },
+    {
+      "label": "P2-case",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2786,
+      "itemSumMs": 348,
+      "remainderMs": 2438
+    },
+    {
+      "label": "P2-exact",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2779,
+      "itemSumMs": 346,
+      "remainderMs": 2433
+    },
+    {
+      "label": "P2-trailing",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 5190,
+      "itemSumMs": 441,
+      "remainderMs": 4749
+    },
+    {
+      "label": "P3-nested",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 2850,
+      "itemSumMs": 320,
+      "remainderMs": 2530
+    },
+    {
+      "label": "P4-OBmix-prepare",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 10402,
+      "itemSumMs": 759,
+      "remainderMs": 9643
+    },
+    {
+      "label": "P4-OBmix",
+      "session": 2,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 7,
+            "succeeded": 6,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 1,
+          "leafExceptionNotePreviews": [
+            "PROBE_EXCEPTION Device:DEVICE_A/PlcSoftware:PLC_A/BlockFolder:Program blocks/BlockFolder:Safety/OB:SAFETY_OB\nSiemens.Engineering.EngineeringTargetInvocationException: Error when calling method 'ExportObject' of type 'Siemens.Engineering.VersionControl.Workspace'.\r\n\r\nSAFETY_OB [OB123] object(s) is not consistent"
+          ],
+          "exceptionTypes": [
+            {
+              "type": "Siemens.Engineering.EngineeringTargetInvocationException",
+              "count": 1,
+              "messageLengthMin": 144,
+              "messageLengthMax": 144
+            }
+          ]
+        }
+      ],
+      "rootMs": 8596,
+      "itemSumMs": 6510,
+      "remainderMs": 2086
+    },
+    {
+      "label": "P4-prepare",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 11781,
+      "itemSumMs": 777,
+      "remainderMs": 11004
+    },
+    {
+      "label": "P4",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 30,
+            "succeeded": 30,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 26821,
+      "itemSumMs": 21552,
+      "remainderMs": 5269
+    },
+    {
+      "label": "P5-OB-prepare",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 10433,
+      "itemSumMs": 673,
+      "remainderMs": 9760
+    },
+    {
+      "label": "P5-OB",
+      "session": 2,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 0,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 1,
+          "leafExceptionNotePreviews": [
+            "PROBE_EXCEPTION Device:DEVICE_A/PlcSoftware:PLC_A/BlockFolder:Program blocks/BlockFolder:Safety/OB:SAFETY_OB\nSiemens.Engineering.EngineeringTargetInvocationException: Error when calling method 'ExportObject' of type 'Siemens.Engineering.VersionControl.Workspace'.\r\n\r\nSAFETY_OB [OB123] object(s) is not consistent"
+          ],
+          "exceptionTypes": [
+            {
+              "type": "Siemens.Engineering.EngineeringTargetInvocationException",
+              "count": 1,
+              "messageLengthMin": 144,
+              "messageLengthMax": 144
+            }
+          ]
+        }
+      ],
+      "rootMs": 1609,
+      "itemSumMs": 491,
+      "remainderMs": 1118
+    },
+    {
+      "label": "P5-prepare",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 10912,
+      "itemSumMs": 769,
+      "remainderMs": 10143
+    },
+    {
+      "label": "P5",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 4142,
+      "itemSumMs": 3279,
+      "remainderMs": 863
+    },
+    {
+      "label": "P6-prepare",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 9966,
+      "itemSumMs": 614,
+      "remainderMs": 9352
+    },
+    {
+      "label": "P6",
+      "session": 2,
+      "success": false,
+      "phase": "blocked",
+      "error": {
+        "category": "guard_blocked",
+        "message": "The write was stopped by block guard(s): vci_name_not_representable."
+      },
+      "counts": null,
+      "items": [],
+      "rootMs": 468,
+      "itemSumMs": 0,
+      "remainderMs": 468
+    },
+    {
+      "label": "P7-prepare-mapping",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 3993,
+      "itemSumMs": 2139,
+      "remainderMs": 1854
+    },
+    {
+      "label": "P7-prepare-workspace",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 5451,
+      "itemSumMs": 338,
+      "remainderMs": 5113
+    },
+    {
+      "label": "P7",
+      "session": 2,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 0,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 1,
+          "leafExceptionNotePreviews": [
+            "PROBE_EXCEPTION Device:DEVICE_A/PlcSoftware:PLC_A/TagTableFolder:PLC tags/TagTable:VCI_B4_Table\nSiemens.Engineering.EngineeringTargetInvocationException: Error when calling method 'Synchronize' of type 'Siemens.Engineering.VersionControl.MappedObject'."
+          ],
+          "exceptionTypes": [
+            {
+              "type": "Siemens.Engineering.EngineeringTargetInvocationException",
+              "count": 1,
+              "messageLengthMin": 98,
+              "messageLengthMax": 98
+            }
+          ]
+        }
+      ],
+      "rootMs": 2370,
+      "itemSumMs": 1623,
+      "remainderMs": 747
+    },
+    {
+      "label": "P8-corrupt",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 10,
+            "succeeded": 2,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 8,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 28486,
+      "itemSumMs": 18694,
+      "remainderMs": 9792
+    },
+    {
+      "label": "P8-malformed",
+      "session": 2,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 10,
+            "succeeded": 0,
+            "failed": 2,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 8,
+              "targetChanged": 0
+            },
+            "projectModified": false
+          },
+          "leafExceptionNoteCount": 1,
+          "leafExceptionNotePreviews": [
+            "PROBE_EXCEPTION Device:DEVICE_A/PlcSoftware:PLC_A/BlockFolder:Program blocks/BlockFolder:VCI_Stage0_20261031/BlockFolder:Mapped10/GlobalDB:VCI_Mapped01\nSiemens.Engineering.EngineeringTargetInvocationException: Error when calling method 'Synchronize' of type 'Siemens.Engineering.VersionControl.MappedObject'.\r\n\r\n\"[FIXTURE_ROOT]\\base\\mutable\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Mapped10\\VCI_Mapped01.xml\" could not be imported to the target \"Mapped10\" on device \"PLC_A\" ."
+          ],
+          "exceptionTypes": [
+            {
+              "type": "Siemens.Engineering.EngineeringTargetInvocationException",
+              "count": 1,
+              "messageLengthMin": 341,
+              "messageLengthMax": 341
+            }
+          ]
+        }
+      ],
+      "rootMs": 27656,
+      "itemSumMs": 18067,
+      "remainderMs": 9589
+    },
+    {
+      "label": "P8-missing",
+      "session": 2,
+      "success": false,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 1,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 0
+      },
+      "items": [
+        {
+          "operationId": "sync",
+          "status": "failed",
+          "failure": {
+            "category": "worker_operation_failed",
+            "message": "One or more VCI leaves failed; inspect the counts before retrying."
+          },
+          "outcome": {
+            "leaves": 10,
+            "succeeded": 1,
+            "failed": 1,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 8,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 25623,
+      "itemSumMs": 15234,
+      "remainderMs": 10389
+    },
+    {
+      "label": "P9-prepare",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "create",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 1,
+            "succeeded": 1,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 10908,
+      "itemSumMs": 808,
+      "remainderMs": 10100
+    },
+    {
+      "label": "P9",
+      "session": 2,
+      "success": true,
+      "phase": "applied",
+      "error": null,
+      "counts": {
+        "failed": 0,
+        "omitted": 0,
+        "skipped": 0,
+        "succeeded": 1
+      },
+      "items": [
+        {
+          "operationId": "export",
+          "status": "succeeded",
+          "failure": null,
+          "outcome": {
+            "leaves": 30,
+            "succeeded": 30,
+            "failed": 0,
+            "skipped": {
+              "alreadyMapped": 0,
+              "conflict": 0,
+              "equal": 0,
+              "targetChanged": 0
+            },
+            "projectModified": true
+          },
+          "leafExceptionNoteCount": 0,
+          "leafExceptionNotePreviews": [],
+          "exceptionTypes": []
+        }
+      ],
+      "rootMs": 24780,
+      "itemSumMs": 19746,
+      "remainderMs": 5034
+    }
+  ],
+  "fileChanges": [
+    {
+      "label": "B1",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad01.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad02.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad03.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad04.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad05.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad06.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad07.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad08.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad09.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad10.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad11.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad12.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad13.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad14.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad15.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad16.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad17.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad18.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad19.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad20.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad21.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad22.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad23.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad24.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad25.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good1.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good2.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good3.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good4.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good5.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\B1/DEVICE_A",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "B1-fixture",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\diag/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\VCI_FreshSclProbe.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\diag/DEVICE_A",
+        "[FIXTURE_ROOT]\\diag/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\diag/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\diag/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "B2",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A\\Program blocks\\Safety\\PROTECTED_FB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\B2/DEVICE_A",
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A\\Program blocks\\Safety"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "B3",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "B4",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "B5",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "B5-malformed",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "B6",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "B7",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "B8",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad01.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad02.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad03.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad04.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad05.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad06.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad07.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad08.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad09.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad10.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad11.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad12.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad13.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad14.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad15.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad16.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad17.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad18.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad19.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad20.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad21.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad22.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad23.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad24.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad25.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good1.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good2.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good3.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good4.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good5.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\B8/DEVICE_A",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T1-discard",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T1/.vci\\workspace.vci.config"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T1/.",
+        "[FIXTURE_ROOT]\\T1/.vci"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T1-r1",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T1/.vci\\workspace.vci.config"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T1/.",
+        "[FIXTURE_ROOT]\\T1/.vci"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T1-r2",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T1/.vci\\workspace.vci.config"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T1/.",
+        "[FIXTURE_ROOT]\\T1/.vci"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T1-r3",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T1/.vci\\workspace.vci.config"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T1/.",
+        "[FIXTURE_ROOT]\\T1/.vci"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T1-warm",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T1/.vci\\workspace.vci.config"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T1/.",
+        "[FIXTURE_ROOT]\\T1/.vci"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T2-r1",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped1.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped2.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped3.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T2",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T2-r2",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped1.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped2.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped3.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T2",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T2-r3",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped1.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped2.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped3.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T2",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T2-warm",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped1.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped2.xml",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3\\VCI_Unmapped3.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T2",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\base/T2\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped3"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T3-r1",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T3/.vci\\workspace.vci.config",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten04.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten05.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten06.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten07.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten08.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten09.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten10.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T3/.",
+        "[FIXTURE_ROOT]\\T3/.vci",
+        "[FIXTURE_ROOT]\\T3/first",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10",
+        "[FIXTURE_ROOT]\\T3/second",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T3-r2",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T3/.vci\\workspace.vci.config",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten04.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten05.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten06.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten07.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten08.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten09.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten10.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T3/.",
+        "[FIXTURE_ROOT]\\T3/.vci",
+        "[FIXTURE_ROOT]\\T3/first",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10",
+        "[FIXTURE_ROOT]\\T3/second",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T3-r3",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T3/.vci\\workspace.vci.config",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten04.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten05.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten06.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten07.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten08.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten09.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten10.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T3/.",
+        "[FIXTURE_ROOT]\\T3/.vci",
+        "[FIXTURE_ROOT]\\T3/first",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10",
+        "[FIXTURE_ROOT]\\T3/second",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T3-warm",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\T3/.vci\\workspace.vci.config",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten04.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten05.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten06.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten07.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten08.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten09.xml",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten10.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten01.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten02.xml",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10\\VCI_Ten03.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\T3/.",
+        "[FIXTURE_ROOT]\\T3/.vci",
+        "[FIXTURE_ROOT]\\T3/first",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/first\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10",
+        "[FIXTURE_ROOT]\\T3/second",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\T3/second\\DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Unmapped10"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T4-r1",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T4-r2",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T4-r3",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T4-warm",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T5-qualified-warm",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_01.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_02.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_03.xml"
+      ],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T5-r1",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_01.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_02.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_03.xml"
+      ],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T5-r2",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_01.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_02.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_03.xml"
+      ],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T5-r3",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_01.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_02.xml",
+        "[FIXTURE_ROOT]\\base/T5\\DEVICE_A\\PLC_A\\PLC tags\\VCI_T5_03.xml"
+      ],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T5-warm",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T6-qualified-warm",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T6-r1",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T6-r2",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T6-r3",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T6-warm",
+      "session": 0,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "T7-r1",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA10_Ath10_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA11_Ath11_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA12_Ath12_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA13_Ath13_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA14_Ath14_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA15_Ath15_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA16_Ath16_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA17_Ath17_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA18_Ath18_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA19_Ath19_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA1_Ath1_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA20_Ath20_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA21_Ath21_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA22_Ath22_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA23_Ath23_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA24_Ath24_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA25_Ath25_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA26_Ath26_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA27_Ath27_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA28_Ath28_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA29_Ath29_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA2_Ath2_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA30_Ath30_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA31_Ath31_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA32_Ath32_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA33_Ath33_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA34_Ath34_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA35_Ath35_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA36_Ath36_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA37_Ath37_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA38_Ath38_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA39_Ath39_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA3_Ath3_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA40_Ath40_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA41_Ath41_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA42_Ath42_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA4_Ath4_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA51_Ath43_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA52_Ath44_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA53_Ath45_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA54_Ath46_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA55_Ath47_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA56_Ath48_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA57_Ath49_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA58_Ath50_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA59_Ath51_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA5_Ath5_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA60_Ath52_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA61_Ath53_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA62_Ath54_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA63_Ath55_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA64_Ath56_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA65_Ath57_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA66_Ath58_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA6_Ath6_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA7_Ath7_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA8_Ath8_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA9_Ath9_DB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T7",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T7-r2",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA10_Ath10_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA11_Ath11_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA12_Ath12_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA13_Ath13_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA14_Ath14_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA15_Ath15_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA16_Ath16_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA17_Ath17_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA18_Ath18_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA19_Ath19_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA1_Ath1_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA20_Ath20_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA21_Ath21_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA22_Ath22_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA23_Ath23_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA24_Ath24_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA25_Ath25_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA26_Ath26_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA27_Ath27_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA28_Ath28_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA29_Ath29_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA2_Ath2_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA30_Ath30_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA31_Ath31_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA32_Ath32_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA33_Ath33_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA34_Ath34_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA35_Ath35_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA36_Ath36_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA37_Ath37_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA38_Ath38_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA39_Ath39_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA3_Ath3_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA40_Ath40_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA41_Ath41_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA42_Ath42_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA4_Ath4_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA51_Ath43_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA52_Ath44_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA53_Ath45_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA54_Ath46_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA55_Ath47_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA56_Ath48_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA57_Ath49_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA58_Ath50_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA59_Ath51_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA5_Ath5_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA60_Ath52_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA61_Ath53_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA62_Ath54_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA63_Ath55_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA64_Ath56_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA65_Ath57_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA66_Ath58_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA6_Ath6_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA7_Ath7_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA8_Ath8_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA9_Ath9_DB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T7",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T7-r3",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA10_Ath10_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA11_Ath11_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA12_Ath12_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA13_Ath13_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA14_Ath14_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA15_Ath15_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA16_Ath16_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA17_Ath17_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA18_Ath18_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA19_Ath19_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA1_Ath1_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA20_Ath20_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA21_Ath21_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA22_Ath22_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA23_Ath23_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA24_Ath24_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA25_Ath25_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA26_Ath26_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA27_Ath27_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA28_Ath28_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA29_Ath29_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA2_Ath2_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA30_Ath30_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA31_Ath31_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA32_Ath32_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA33_Ath33_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA34_Ath34_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA35_Ath35_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA36_Ath36_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA37_Ath37_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA38_Ath38_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA39_Ath39_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA3_Ath3_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA40_Ath40_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA41_Ath41_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA42_Ath42_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA4_Ath4_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA51_Ath43_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA52_Ath44_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA53_Ath45_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA54_Ath46_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA55_Ath47_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA56_Ath48_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA57_Ath49_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA58_Ath50_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA59_Ath51_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA5_Ath5_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA60_Ath52_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA61_Ath53_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA62_Ath54_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA63_Ath55_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA64_Ath56_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA65_Ath57_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA66_Ath58_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA6_Ath6_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA7_Ath7_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA8_Ath8_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA9_Ath9_DB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T7",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "T7-warm",
+      "session": 0,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA10_Ath10_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA11_Ath11_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA12_Ath12_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA13_Ath13_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA14_Ath14_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA15_Ath15_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA16_Ath16_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA17_Ath17_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA18_Ath18_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA19_Ath19_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA1_Ath1_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA20_Ath20_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA21_Ath21_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA22_Ath22_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA23_Ath23_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA24_Ath24_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA25_Ath25_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA26_Ath26_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA27_Ath27_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA28_Ath28_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA29_Ath29_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA2_Ath2_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA30_Ath30_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA31_Ath31_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA32_Ath32_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA33_Ath33_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA34_Ath34_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA35_Ath35_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA36_Ath36_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA37_Ath37_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA38_Ath38_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA39_Ath39_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA3_Ath3_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA40_Ath40_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA41_Ath41_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA42_Ath42_InExt_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA4_Ath4_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA51_Ath43_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA52_Ath44_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA53_Ath45_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA54_Ath46_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA55_Ath47_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA56_Ath48_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA57_Ath49_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA58_Ath50_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA59_Ath51_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA5_Ath5_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA60_Ath52_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA61_Ath53_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA62_Ath54_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA63_Ath55_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA64_Ath56_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA65_Ath57_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA66_Ath58_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA6_Ath6_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA7_Ath7_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA8_Ath8_DB.xml",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters\\TA9_Ath9_DB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/T7",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs",
+        "[FIXTURE_ROOT]\\base/T7\\DEVICE_A\\PLC_A\\Program blocks\\0100 - Facility\\0110 - IO Management\\0115 - VFDs\\DBs\\Airheaters"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "B1-OBmix",
+      "session": 1,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\DataFromSafety_DB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\DataToSafety.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\DataToSafety_DB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\PROTECTED_FB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\PROTECTED_FB_DB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\Safety_DB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "B2-OB",
+      "session": 1,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A",
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A\\PLC_A\\Program blocks\\Safety"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P1-case",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\P1case/."
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P1-exact",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\P1exact/."
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P2-case",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P2-exact",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P2-trailing",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P3-nested",
+      "session": 2,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\base/nested\\.vci\\workspace.vci.config"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\base/nested",
+        "[FIXTURE_ROOT]\\base/nested\\.vci"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P4",
+      "session": 2,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad01.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad02.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad03.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad04.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad05.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad06.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad07.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad08.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad09.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad10.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad11.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad12.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad13.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad14.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad15.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad16.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad17.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad18.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad19.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad20.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad21.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad22.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad23.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad24.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad25.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good1.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good2.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good3.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good4.xml",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good5.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\B1/DEVICE_A",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\B1/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P4-OBmix",
+      "session": 2,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\DataFromSafety_DB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\DataToSafety.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\DataToSafety_DB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\PROTECTED_FB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\PROTECTED_FB_DB.xml",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety\\Safety_DB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\safety-mixed/DEVICE_A\\PLC_A\\Program blocks\\Safety"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P5",
+      "session": 2,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A\\Program blocks\\Safety\\PROTECTED_FB.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\B2/DEVICE_A",
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\B2/DEVICE_A\\PLC_A\\Program blocks\\Safety"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P5-OB",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A",
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\safety-ob/DEVICE_A\\PLC_A\\Program blocks\\Safety"
+      ],
+      "removedDirectories": []
+    },
+    {
+      "label": "P6",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P7",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P8-corrupt",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P8-malformed",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P8-missing",
+      "session": 2,
+      "addedFiles": [],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [],
+      "removedDirectories": []
+    },
+    {
+      "label": "P9",
+      "session": 2,
+      "addedFiles": [
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad01.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad02.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad03.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad04.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad05.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad06.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad07.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad08.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad09.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad10.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad11.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad12.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad13.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad14.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad15.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad16.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad17.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad18.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad19.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad20.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad21.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad22.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad23.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad24.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Bad25.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good1.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good2.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good3.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good4.xml",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25\\VCI_Good5.xml"
+      ],
+      "removedFiles": [],
+      "changedFiles": [],
+      "addedDirectories": [
+        "[FIXTURE_ROOT]\\B8/DEVICE_A",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031",
+        "[FIXTURE_ROOT]\\B8/DEVICE_A\\PLC_A\\Program blocks\\VCI_Stage0_20261031\\Inconsistent25"
+      ],
+      "removedDirectories": []
+    }
+  ],
+  "pending": [],
+  "matrixPresenceComplete": true,
+  "auditCorrelation": "Verified against original raw captures before any redaction; archived response hashes are original, not hashes of redacted text.",
+  "archivedArtifacts": 2162
+}

@@ -1,0 +1,696 @@
+{
+  "cases": {
+    "T1": {
+      "status": "valid",
+      "validatedRuns": 3,
+      "runs": [
+        {
+          "label": "T1-r1",
+          "stages": [
+            {
+              "operation": "create_workspace",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T1-r2",
+          "stages": [
+            {
+              "operation": "create_workspace",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T1-r3",
+          "stages": [
+            {
+              "operation": "create_workspace",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        }
+      ],
+      "pending": [],
+      "errors": []
+    },
+    "T2": {
+      "status": "valid",
+      "validatedRuns": 3,
+      "runs": [
+        {
+          "label": "T2-r1",
+          "stages": [
+            {
+              "operation": "export",
+              "leaves": 3,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T2-r2",
+          "stages": [
+            {
+              "operation": "export",
+              "leaves": 3,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T2-r3",
+          "stages": [
+            {
+              "operation": "export",
+              "leaves": 3,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        }
+      ],
+      "pending": [],
+      "errors": []
+    },
+    "T3": {
+      "status": "valid",
+      "validatedRuns": 3,
+      "runs": [
+        {
+          "label": "T3-r1",
+          "stages": [
+            {
+              "operation": "create_workspace",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "export",
+              "leaves": 10,
+              "succeeded": 10,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "export",
+              "leaves": 10,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 7,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T3-r2",
+          "stages": [
+            {
+              "operation": "create_workspace",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "export",
+              "leaves": 10,
+              "succeeded": 10,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "export",
+              "leaves": 10,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 7,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T3-r3",
+          "stages": [
+            {
+              "operation": "create_workspace",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "export",
+              "leaves": 10,
+              "succeeded": 10,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "delete_mapping",
+              "leaves": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            },
+            {
+              "operation": "export",
+              "leaves": 10,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 7,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        }
+      ],
+      "pending": [],
+      "errors": []
+    },
+    "T4": {
+      "status": "valid",
+      "validatedRuns": 3,
+      "runs": [
+        {
+          "label": "T4-r1",
+          "stages": [
+            "create_workspace",
+            "export",
+            "delete_mapping",
+            "delete_mapping",
+            "delete_mapping",
+            "export"
+          ],
+          "preview": true,
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216,
+          "filesUnchanged": true
+        },
+        {
+          "label": "T4-r2",
+          "stages": [
+            "create_workspace",
+            "export",
+            "delete_mapping",
+            "delete_mapping",
+            "delete_mapping",
+            "export"
+          ],
+          "preview": true,
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216,
+          "filesUnchanged": true
+        },
+        {
+          "label": "T4-r3",
+          "stages": [
+            "create_workspace",
+            "export",
+            "delete_mapping",
+            "delete_mapping",
+            "delete_mapping",
+            "export"
+          ],
+          "preview": true,
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216,
+          "filesUnchanged": true
+        }
+      ],
+      "pending": [],
+      "errors": []
+    },
+    "T5": {
+      "status": "valid",
+      "validatedRuns": 3,
+      "runs": [
+        {
+          "label": "T5-r1",
+          "stages": [
+            {
+              "operation": "sync_to_workspace",
+              "leaves": 10,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 7,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 226,
+          "identityPreservingTagChanges": 3
+        },
+        {
+          "label": "T5-r2",
+          "stages": [
+            {
+              "operation": "sync_to_workspace",
+              "leaves": 10,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 7,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 226,
+          "identityPreservingTagChanges": 3
+        },
+        {
+          "label": "T5-r3",
+          "stages": [
+            {
+              "operation": "sync_to_workspace",
+              "leaves": 10,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 7,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 226,
+          "identityPreservingTagChanges": 3
+        }
+      ],
+      "pending": [],
+      "errors": []
+    },
+    "T6": {
+      "status": "valid",
+      "validatedRuns": 3,
+      "runs": [
+        {
+          "label": "T6-r1",
+          "stages": [
+            {
+              "operation": "sync_to_project",
+              "leaves": 3,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 209,
+          "untimedMappingsRemoved": 7,
+          "variablesChangedFromZeroToOne": 3,
+          "zeroErrorCompileReports": 3
+        },
+        {
+          "label": "T6-r2",
+          "stages": [
+            {
+              "operation": "sync_to_project",
+              "leaves": 3,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 209,
+          "untimedMappingsRemoved": 7,
+          "variablesChangedFromZeroToOne": 3,
+          "zeroErrorCompileReports": 3
+        },
+        {
+          "label": "T6-r3",
+          "stages": [
+            {
+              "operation": "sync_to_project",
+              "leaves": 3,
+              "succeeded": 3,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 209,
+          "untimedMappingsRemoved": 7,
+          "variablesChangedFromZeroToOne": 3,
+          "zeroErrorCompileReports": 3
+        }
+      ],
+      "pending": [],
+      "errors": []
+    },
+    "T7": {
+      "status": "valid",
+      "validatedRuns": 3,
+      "runs": [
+        {
+          "label": "T7-r1",
+          "stages": [
+            {
+              "operation": "export",
+              "leaves": 58,
+              "succeeded": 58,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T7-r2",
+          "stages": [
+            {
+              "operation": "export",
+              "leaves": 58,
+              "succeeded": 58,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        },
+        {
+          "label": "T7-r3",
+          "stages": [
+            {
+              "operation": "export",
+              "leaves": 58,
+              "succeeded": 58,
+              "failed": 0,
+              "formatFallbacks": 0,
+              "skipped": {
+                "alreadyMapped": 0,
+                "equal": 0,
+                "conflict": 0,
+                "targetChanged": 0
+              }
+            }
+          ],
+          "restorationOpenUnmodified": true,
+          "restoredBaseMappingCount": 216,
+          "beforeBaseMappingCount": 216
+        }
+      ],
+      "pending": [],
+      "errors": []
+    }
+  },
+  "allCasesQualified": true,
+  "invalidCompletedCases": [],
+  "stateEvidenceLimit": "Restoration uses public open/unmodified status and workspace inventory; AP21 hashes do not prove full project state."
+}
