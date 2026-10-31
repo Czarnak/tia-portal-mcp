@@ -10,7 +10,7 @@
 - A live spike showed Openness works on leaves only, container arguments are unsafe, and a whole-PLC export runs for minutes.
 - Status costs real time per mapping; a SIMATIC SD export can crash the Portal process; import rewrites engineering objects.
 - A killed worker cannot say what it was doing, and a Portal crash leaves the session with no usable project.
-- Live testing of the first candidate (2026-10-16) found a Unified HMI mapping-path defect, slow collision scans on export, and a broken same-session recovery after a Portal restart.
+- Live testing of the first candidate (2026-10-16) found a Unified HMI mapping-path defect, whole-PLC exports that did not finish within the tested timeouts (repeated mapping scans a suspected contributor), and a broken same-session recovery after a Portal restart.
 
 ## Decision
 - The tools are primitives. Git, workspace upkeep, `connect`, workspace groups, VCI settings and library scopes stay with the user or out of scope; the tool states its limits instead of orchestrating.
@@ -19,7 +19,7 @@
 - Import runs in one ExclusiveAccess transaction after a status prefilter; every other write runs plain. Sync touches only source-changed leaves and skips conflicts; an unknown status is treated as a conflict.
 - Before each leaf the worker overwrites a request-matched breadcrumb file, so the host can name the last attempted leaf after a timeout kill. A Portal loss returns `portal_lost` and invalidates the binding at once (see [ADR-0011](0011-fail-closed-surface-and-portal-loss.md)). Recovery reopens only after fresh empty-attachment proof and an explicit `open_project` with force-rebind.
 - HMI mapping paths are repaired by project/device/software ownership proof, never by guessed names or cached native handles.
-- Rejected: reads inside an existing read tool (cost and gating differ); a scope cap (users export whole devices); export transactions or exclusive locks to speed things up (no evidence, UI lock); replacing export collision checks with a snapshot, count check or handle cache (a stale view could overwrite files).
+- Rejected: reads inside an existing read tool (cost and gating differ); a scope cap (users export whole devices); export transactions or exclusive locks to speed things up (not measured, UI lock); replacing export collision checks with a snapshot, count check or handle cache (a stale view could overwrite files).
 
 ## Consequences
 - The surface is small and safe by construction: no container reaches Openness, and a lost Portal yields a named last leaf and a defined recovery path.

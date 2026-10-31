@@ -6,7 +6,7 @@
 **Current home:** [ARCHITECTURE: PLC writes](../ARCHITECTURE.md#plc-writes-plc_write); [ARCHITECTURE: HMI writes](../ARCHITECTURE.md#hmi-writes-hmi_write); [ARCHITECTURE: canonical safety flow (network writes)](../ARCHITECTURE.md#canonical-safety-flow-network-writes); [Network](../SupportedOperations/NETWORK_OPERATIONS_SUMMARY.md); [HMI](../SupportedOperations/HMI_OPERATIONS_SUMMARY.md); [PLC](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md)
 
 ## Context
-- Network writes began as token-gated preview/apply (subnet lifecycle, Phase 4), then moved to the guarded single-call pipeline. `plc_write` and `hmi_write` copied that pipeline, each with its own planner, in-call state tracking and read-back verifier.
+- Network writes began as token-gated preview/apply (subnet lifecycle, Phase 4), then moved to the guarded single-call pipeline. `plc_write` and `hmi_write` followed onto the pipeline, and each domain grew its own planner, in-call state tracking and read-back verifier.
 - Each domain then checked the same fact up to three times: a host planner guard, a worker precondition, and Portal itself. Planning read whole inventories and re-read them before dependent items.
 - The host rules also hid Portal's real answer: Siemens exceptions were flattened to message text under a generic category, so a caller never saw why Portal refused.
 - Probing showed Portal rejects most of these cases natively, but a few it silently ignores or only reports later, so "delete every check" was not safe either.
@@ -14,7 +14,7 @@
 ## Decision
 The server guards only a write that Portal neither rejects nor reports afterwards. Anything Portal rejects, or reports on validation or compile, is left to Portal and surfaced verbatim.
 - A Siemens `EngineeringTargetInvocationException` thrown inside a mutation worker method is the closed category `engineering_rejected`; other Siemens `EngineeringException` stays `worker_operation_failed`; `portal_lost` wins over both. The exception type decides, never message text, because messages follow the Portal UI language. Both carry the bounded `engineeringError` evidence.
-- Retired: name-collision and existence guards, worker duplicate preconditions, per-item re-planning, and post-write read-back verification. Planning keeps only target resolution for updates and deletes, and the reads delete-consequence guards need.
+- Retired: name-collision and existence guards, worker duplicate preconditions, per-item re-planning, and per-item read-back verification (content re-export excepted). Planning keeps only target resolution for updates and deletes, and the reads delete-consequence guards need.
 - Kept, because Openness cannot supply them: delete-consequence info guards, the unreadable-evidence block guard, PLC address-overlap and content-hash concurrency, and `plc_ob_singleton_exists`. The singleton guard stayed because Portal's own rejection was never reachable through the tool.
 - Silent-ignore cases keep one adjacent check: the PLC `update_tag` rename and the Network subnet rename are read back and fail `postcondition_failed`.
 - A shared `TrustedWriteVerifier` (in `Safety/Pipeline`) replaces the per-domain verifiers: a completed item is `trusted`, or `superseded` when a later item changed it again. PLC, Network and HMI use it; VCI does not.
