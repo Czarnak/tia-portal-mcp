@@ -7,7 +7,7 @@ implementation plan is written only after Stage 0 (§8 baseline timing, §9.2 ba
 native-rejections PR 203).
 
 **Stage 0 rulings — 2026-11-01:** all six maintainer decisions are settled in the
-[Stage 0 record](../acceptance/reports/inputs/2026-10-31-vci-write-stage0.md#maintainer-decisions-and-completion-boundary).
+[Stage 0 record](../evidence/2026-10-31-vci-write-stage0.md#maintainer-decisions-and-completion-boundary).
 They supersede conflicting expectations below: retain a corrected path-length diagnostic;
 remove export collision prevention and leaf filename-rule duplication; retain containment and
 directory-name boundary protection before managed filesystem operations. Native overwrite is
@@ -18,10 +18,10 @@ fixtures. Compilation remains a separate explicit `compile_check` call after imp
 25-failure gap is accepted; automated cap/omission/count/trimming coverage remains required.
 Stage 0 evidence does not qualify the unimplemented candidate contract or final live matrix.
 
-**Predecessors:** the [PLC plan](../plans/2026-10-25-plc-write-native-rejections.md), the
-[Network design](2026-10-26-network-write-native-rejections-design.md) and the
-[HMI design](2026-10-29-hmi-write-native-rejections-design.md), with their acceptance reports. VCI
-history: [design](2026-10-15-vci-tools-design.md), [spike](../acceptance/reports/2026-10-15-vci-spike.md),
+**Predecessors:** the [PLC plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-25-plc-write-native-rejections.md), the
+[Network design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-26-network-write-native-rejections-design.md) and the
+[HMI design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-29-hmi-write-native-rejections-design.md), with their acceptance reports. VCI
+history: [design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-15-vci-tools-design.md), [spike](../acceptance/reports/2026-10-15-vci-spike.md),
 [live acceptance](../acceptance/reports/2026-10-16-vci-tools-live-acceptance.md). This closes the VCI
 halves of the improvement-log follow-ups "HMI and VCI adopt the same error contract" and "HMI and
 VCI onto the shared verifier".

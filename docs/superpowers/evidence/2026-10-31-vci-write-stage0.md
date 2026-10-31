@@ -2,7 +2,7 @@
 
 **Status:** Stage 0 capture is complete within the limits below: 21 qualified baseline timing samples, B1–B8 and supplements, 16 original probe variants, the later [protected-FC probe](2026-10-31-vci-write-stage0/protected-supplement/README.md) and seven [length-only path variants](2026-10-31-vci-write-stage0/path-supplement/README.md). Know-how-specific refusal and the observed SimaticML path boundary are qualified within those fixtures. The live 25-failure case remains unqualified. Rulings 1–3 are approved; the new path evidence supports ruling 5, and rulings 5–6 remain before the implementation plan.
 
-**Design:** [approved protocol](../../../specs/2026-10-30-vci-write-native-rejections-design.md), §§8–9. Stage 0 supplies evidence and maintainer rulings before an implementation plan. The product refactor, candidate timing and L1–L6 acceptance remain outstanding.
+**Design:** [approved protocol](../specs/2026-10-30-vci-write-native-rejections-design.md), §§8–9. Stage 0 supplies evidence and maintainer rulings before an implementation plan. The product refactor, candidate timing and L1–L6 acceptance remain outstanding.
 
 **Evidence:** [archive and offline checks](2026-10-31-vci-write-stage0/README.md), [summary](2026-10-31-vci-write-stage0/summary.json), [timing qualification](2026-10-31-vci-write-stage0/timing-qualification.json), [import proof](2026-10-31-vci-write-stage0/import-proof.json), [restoration](2026-10-31-vci-write-stage0/restoration.json), and [anonymized inputs](2026-10-31-vci-write-stage0/case-inputs.json). Raw project identities, full project-status metadata/history and PLC source exports remain private; lifecycle actor names are anonymized, while ordinary state timestamps remain.
 
