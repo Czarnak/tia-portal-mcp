@@ -18,8 +18,8 @@ The `format` field accepts `xml` and `source`, case-insensitively. Block and typ
 ### PLC blocks
 
 - `format="xml"` is the default. Reads return a controlled bundle containing sanitized SimaticML and SIMATIC SD `.s7dcl`/`.s7res` documents.
-- `format="source"` returns Siemens external-source text for global DBs (`.db`).
-- Instance DBs, array DBs, FBs, FCs, OBs, LAD, FBD, GRAPH, and STL use the XML route; they are not eligible for the external-source route.
+- `format="source"` returns Siemens external-source text for global DBs (`.db`) and for SCL-language FB, FC and OB blocks (`.scl`).
+- Instance DBs, array DBs, and FB/FC/OB blocks written in LAD, FBD, GRAPH or STL use the XML route; they are not eligible for the external-source route and are refused with a message naming the addressed block.
 
 ### PLC data types
 
@@ -115,7 +115,8 @@ evidence only, not part of the hash check.
 | PLC block SimaticML/XML read and update | Supported |
 | PLC block SIMATIC SD `.s7dcl`/`.s7res` bundle handling | Partial: supported as controlled bundle context |
 | PLC block external-source `.db` exchange | Partial: global DBs |
-| FB/FC/OB, LAD/FBD/GRAPH/STL external-source exchange | Not supported |
+| PLC block external-source `.scl` exchange | Partial: SCL-language FB/FC/OB |
+| LAD/FBD/GRAPH/STL FB/FC/OB external-source exchange, instance DBs and array DBs | Not supported; use the XML route |
 | PLC data type SimaticML/XML exchange | Supported |
 | PLC data type `.udt` exchange | Supported |
 | Existing-object update | Supported |
