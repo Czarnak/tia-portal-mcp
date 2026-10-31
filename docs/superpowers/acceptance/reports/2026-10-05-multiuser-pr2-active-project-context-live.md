@@ -1,7 +1,7 @@
 # Multiuser PR 2 qualification and standalone live acceptance
 
 Date: 2026-10-05. Live status: **PASS within the standalone scope and deviations below**.
-This records acceptance of [PR 2](../../plans/2026-10-05-multiuser-pr2-active-project-context.md)
+This records acceptance of [PR 2](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-05-multiuser-pr2-active-project-context.md)
 on frozen candidate `a47bf0dbc3efba4ff654464b6393d01163dc7900`.
 Public Multiuser runtime operations and Issue #65 completion remain outside this result.
 

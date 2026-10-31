@@ -9,9 +9,9 @@ approved, under the repository [agent instructions](../../AGENTS.md). Never writ
 or private project paths into findings or tracked files.
 
 The last full review is the
-[2026-10-17 simplification review plan](../superpowers/plans/2026-10-17-codebase-simplification-review.md)
+[2026-10-17 simplification review plan](../adr/records/2026-10-17-codebase-simplification-review.md)
 (baseline `main` @ `f0c79f8`), with its
-[verified findings appendix](../superpowers/plans/2026-10-17-codebase-simplification-review-findings.md).
+[verified findings appendix](../adr/records/2026-10-17-codebase-simplification-review-findings.md).
 
 ## Why not split by project or only by area
 

@@ -1,6 +1,6 @@
 # hmi_write timing before the native-rejection refactor
 
-Completed the timing protocol in [design §6.6](../../../specs/2026-10-29-hmi-write-native-rejections-design.md#66-timing-protocol) on the installed tool, following the [native-rejection checkpoint](../2026-10-29-hmi-write-checkpoint-probes.md).
+Completed the timing protocol in [design §6.6](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-29-hmi-write-native-rejections-design.md#66-timing-protocol) on the installed tool, following the [native-rejection checkpoint](../2026-10-29-hmi-write-checkpoint-probes.md).
 
 **Complete: five discarded workload warm-ups and fifteen measured calls. All succeeded. The final project is open and unmodified, with the full HMI inventory restored exactly. No refactor implementation ran.**
 
@@ -31,7 +31,7 @@ The qualified series used one continuously running timing client/server. Initial
 
 Before every workload, including each preview, close with `saveBeforeClose:false`, reopen the same disposable copy, verify the saved AP21 hash and clean exact project identity, then perform an untimed complete `hmi_read` of tables, tags and alarms. Lifecycle operations and these reads are excluded from timing. One final close/reopen and complete inventory/status capture follow the last measured write. No request timed out, and no timing case required retry or replay.
 
-Exact requests are in [workloads.json](2026-10-29-hmi-write-timing-before/workloads.json). H4 has exactly H2's operation array plus `dryRun:true`.
+Exact requests are in [workloads.json](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before/workloads.json). H4 has exactly H2's operation array plus `dryRun:true`.
 
 | Case | Workload |
 | --- | --- |
@@ -89,6 +89,6 @@ Independent review and a separate main-agent calculation agreed on all five medi
 
 The existing desktop MCP binding became stale after the separate timing client's close/reopen cycles. An ordinary binding/status refresh returned `binding_conflict`; explicit `forceRebind:true` to the same already-open project succeeded, followed by an independent successful public status showing open and unmodified. This untimed binding recovery did not alter any timing sample.
 
-[Evidence and replay README](2026-10-29-hmi-write-timing-before/README.md) links the frozen client, offline self-check, workloads, numerical summary, privacy-redacted evidence archive and checksums. Canonical timing responses and their hashes are preserved; lifecycle/status projections are explicitly labelled. Raw local captures remain under ignored `artifacts/hmi-native/timing-before-20261029/`.
+[Evidence and replay README](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before/README.md) links the frozen client, offline self-check, workloads, numerical summary, privacy-redacted evidence archive and checksums. Canonical timing responses and their hashes are preserved; lifecycle/status projections are explicitly labelled. Raw local captures remain under ignored `artifacts/hmi-native/timing-before-20261029/`.
 
 No product code was changed. No product build, product test suite, packaging test, HMI UI compile or candidate timing comparison was run for this timing-only task. Harness self-checks and evidence/link/hash validation cover the new collection artifacts.

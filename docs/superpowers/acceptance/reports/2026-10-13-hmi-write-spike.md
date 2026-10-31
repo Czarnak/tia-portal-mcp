@@ -1,6 +1,6 @@
 # `hmi_write` live write spike (W0–W9) — 2026-10-13
 
-Result: **every question in the [hmi_read completion spec, Appendix A](../../specs/2026-10-11-hmi-read-completion-design.md#appendix-a-handoff-to-hmi_write)
+Result: **every question in the [hmi_read completion spec, Appendix A](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-11-hmi-read-completion-design.md#appendix-a-handoff-to-hmi_write)
 was answered from live evidence, plus the connection question added on 2026-10-13.** Openness does **not**
 create an HMI connection when a PLC tag is bound, so connection creation is deferred and v1 binds through an
 existing connection. No probe crashed TIA Portal. One harness defect closed every running Portal

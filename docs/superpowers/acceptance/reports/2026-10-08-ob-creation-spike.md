@@ -1,6 +1,6 @@
 # OB creation Phase 0 spike (issue #75)
 
-*2026-10-08. Spec: [OB creation design](../../specs/2026-10-08-ob-creation-design.md) §5.*
+*2026-10-08. Spec: [OB creation design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-08-ob-creation-design.md) §5.*
 
 ## Setup
 

@@ -141,4 +141,4 @@ not written to this report or the artifacts.
   deferred areas from static, offline, FakeWorker, or this bounded live evidence.
 
 The implementation plan for this evidence is
-[`2026-09-01-pr5-tag-operation-safety-scopes.md`](../../plans/2026-09-01-pr5-tag-operation-safety-scopes.md).
+[`2026-09-01-pr5-tag-operation-safety-scopes.md`](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-01-pr5-tag-operation-safety-scopes.md).

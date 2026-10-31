@@ -69,7 +69,7 @@ The initial status reported `isModified: false`; the final status reported `isMo
 for the same still-open project after the compilation checks. No save, close, project switch,
 source edit, apply-write operation, or PLC runtime command was issued during this verification.
 
-The [implementation plan's](../../plans/2026-09-30-json-contract-phase2-standalone-tools.md)
+The [implementation plan's](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md)
 complete live producer gate remains unchecked. The clean fixture did not exercise compiler
 diagnostics with errors, warning-only or unknown compiler states, or response omission. Keeping
 the authorized project open did not exercise no-project status. The read-write connection did

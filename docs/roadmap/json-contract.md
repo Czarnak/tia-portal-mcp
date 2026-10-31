@@ -38,9 +38,9 @@ open. The timing archive and final restoration/hash checks passed, completing th
 R1/R2/R3 qualification with these waivers. Broader native fault and cleanup-failure coverage
 is not established by this scope.
 The batch tools are retired
-(`plc_write`, 2026-10-07); project-tree alignment remains future work. See the [Network plan](../superpowers/plans/2026-10-03-network-json-guarded-write.md).
+(`plc_write`, 2026-10-07); project-tree alignment remains future work. See the [Network plan](../adr/0012-portal-as-rejection-authority.md).
 On 2026-09-29 the
-[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) redefined
+[write-safety redesign](../adr/0004-guarded-single-call-write-pipeline.md) redefined
 Phase 3 (lifecycle tools move onto its guarded write pipeline instead of onto canonical safety
 tokens) and added the token core to Phase 4. The three batch tools were excluded from this roadmap;
 `plc_read` and `plc_write` replaced them, so every registered tool is now structured. See [Scope](#scope).
@@ -72,7 +72,7 @@ it without inventing a second mechanism.
 | `vci_read`, `vci_write` | Structured (`1.0`); `vci_write` uses the guarded write envelope | Implemented; scoped live acceptance 2026-10-16; see the [VCI reference](../SupportedOperations/VCI_OPERATIONS_SUMMARY.md) |
 
 The batch tools were excluded because the
-[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md) split them
+[write-safety redesign](../adr/0004-guarded-single-call-write-pipeline.md) split them
 into domain read/write tools in the `network_read`/`network_write` shape. `plc_read` and `plc_write`
 now cover every operation they offered, so the batch pair, its legacy machinery
 (`OperationBatchResult`, `OperationBatchExecutionEngine`, `OperationBatchPayloadBudget`,
@@ -266,12 +266,12 @@ which Phase 3 migrates to explicit nulls and strict required-member decoding.
 - Whole-value omission replaces substring truncation on these tools: 60,000 canonical value characters and 180,000 document characters, with measured omission metadata and retry guidance. The legacy formatter is retained until Phase 4.
 - Compilation success means compilation passed; compiler errors retain typed diagnostics with `success:false`, `error:null`, and `isError:false`. Attempted worker/protocol/identity failures use `result.failure`; pre-operation rejection sets top-level error and `isError:true`.
 - Both tools leave the legacy register, with success/rejection and malformed/error/omission probes through the real MCP SDK. Inputs, access ceilings, and binding behavior remain; compile authorization runs before binding reads.
-- The [implementation plan](../superpowers/plans/2026-09-30-json-contract-phase2-standalone-tools.md) records execution. Installed-V21 producer compatibility must be qualified on a separately authorized disposable fixture before claiming live acceptance. No package release/tag is made during the write-safety transition.
+- The [implementation plan](../adr/0005-canonical-json-contract.md) records execution. Installed-V21 producer compatibility must be qualified on a separately authorized disposable fixture before claiming live acceptance. No package release/tag is made during the write-safety transition.
 
 ### Phase 3: Lifecycle Onto the Guarded Write Pipeline
 
 Redefined 2026-09-29 and delivered as Phase 2 of the
-[write-safety redesign](../superpowers/specs/2026-09-29-write-safety-redesign-design.md). The
+[write-safety redesign](../adr/0004-guarded-single-call-write-pipeline.md). The
 earlier plan (typed preview through `CreateCanonicalPreview`, canonical token binding) would have
 built lifecycle tokens only for the redesign to delete them.
 
@@ -301,7 +301,7 @@ built lifecycle tokens only for the redesign to delete them.
   schema, typed failure, omission, and elicitation probes. Only the three batch tools remain legacy.
 - `ProjectLifecycleTools` and unused lifecycle token paths are retired here. Batch/Network token
   helpers, `SafetyRead`, and their legacy audit support stayed until Phase 4 retired them.
-- The [implementation plan](../superpowers/plans/2026-09-30-json-contract-phase3-lifecycle.md) records
+- The [implementation plan](../adr/0007-access-tiers-lifecycle-confirmation-and-binding.md) records
   the delivery and gates. The Oct1 run passed on its source; Task13's Oct3 replacement qualified
   six operations, seven guards, accepted/declined/unsupported client behavior, dry runs, persisted
   artifacts, and restoration on the new frozen candidate. The report keeps programmatic acceptance

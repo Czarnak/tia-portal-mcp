@@ -11,7 +11,7 @@ native validation and the HMI compiler. No implementation plan or product refact
 
 ## Scope and provenance
 
-Matrix: [design §6.7](../../specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol).
+Matrix: [design §6.7](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol).
 The maintainer first requested installed-tool checks, then authorized dedicated native probes,
 confirmed that the entire project is disposable, and requested 15-minute probe timeouts.
 
@@ -155,9 +155,9 @@ The bound project was open and `isModified:false`.
   `B1C2AFA55D2ECB17FD8F72EAC9A352E2F59209BEA567AA99547A7138CBEDFD00`.
 - [Archived source/build instructions](inputs/2026-10-29-hmi-native-probe/README.md).
 - The archived source was edited after the run only to remove the project path, so the recorded executable SHA-256 identifies the pre-redaction build. The evidence traces were re-compressed after redacting the project path and name, and every decompressed SHA-256 recorded here was renewed after redaction.
-- [Installed preflight/fixtures](inputs/2026-10-29-hmi-write-baseline-preflight.json).
-- [Installed P7/restoration](inputs/2026-10-29-hmi-write-installed-P7.json).
-- [Final public-tool restoration](inputs/2026-10-29-hmi-write-final-restoration.json).
+- [Installed preflight/fixtures](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-baseline-preflight.json).
+- [Installed P7/restoration](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-installed-P7.json).
+- [Final public-tool restoration](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-final-restoration.json).
 
 Initial eight-item fixture setup hit the MCP client's 300-second timeout. Its missing canonical
 response was not reconstructed: independent reads established state, then smaller writes and
@@ -206,7 +206,7 @@ Interactive evidence:
 - [Leave-open source and instructions](inputs/2026-10-29-hmi-ui-compile-probe/README.md).
 - [P10 native trace, gzip](inputs/2026-10-29-hmi-ui-P10.jsonl.gz), decompressed SHA-256
   `8D881FCF14657D7375F8A3317A63E729F47C21BFC1243DA028A53C171CF6E2A3`.
-- [P10 cancelled-cleanup audit](inputs/2026-10-29-hmi-ui-P10-cleanup-audit.json): exact cancellation
+- [P10 cancelled-cleanup audit](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-ui-P10-cleanup-audit.json): exact cancellation
   before mutation, with the delete item skipped.
 - [P12-discrete native trace, gzip](inputs/2026-10-29-hmi-ui-P12-discrete.jsonl.gz), decompressed
   SHA-256 `EDA754693D1D6FA0A011A3DDE68A90EC3607F47654DE5CBD6CEADC35D3980F7C`.
@@ -224,7 +224,7 @@ Interactive evidence:
   SHA-256 `F9A7AA2A90497E8C498A3726166DFF2B07863527CEF525B11AB1768712082E67`.
 - [P20 missing-member native trace, gzip](inputs/2026-10-29-hmi-ui-P20-missing-member.jsonl.gz), decompressed
   SHA-256 `BBCCB36A43F7A4468327262A95D06C5AE87A5D8C4F0656195AA26D1C4CEB215E`.
-- [Final public project status](inputs/2026-10-29-hmi-ui-final-status.json): exact disposable project
+- [Final public project status](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-ui-final-status.json): exact disposable project
   open and modified after the last UI check. No helper Save was performed.
 
 **Checkpoint complete.** The tested matrix contains 21 native rejections (O1), three accepted

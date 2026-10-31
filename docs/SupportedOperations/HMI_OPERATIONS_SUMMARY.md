@@ -4,10 +4,10 @@
 8/19/19), never writes, never compiles, and never opens, saves or closes a project. It runs up to
 50 items per call on the structured JSON contract (`contractVersion:"1.1"`); items run
 independently, so a failing item does not stop later ones. Design background lives in the
-[hmi_read design spec](../superpowers/specs/2026-10-07-hmi-read-design.md), the
+[hmi_read design spec](../adr/0009-hmi-read-contract.md), the
 [spike report](../superpowers/acceptance/reports/2026-10-07-hmi-read-spike.md), the
 [live acceptance report](../superpowers/acceptance/reports/2026-10-08-hmi-read-live-acceptance.md),
-the [completion spec](../superpowers/specs/2026-10-11-hmi-read-completion-design.md) and the
+the [completion spec](../adr/0009-hmi-read-contract.md) and the
 [completion live acceptance report](../superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md).
 
 `hmi_write` separately provides nine tag-table, tag and alarm writes in writable modes on standalone
@@ -307,7 +307,7 @@ were reported by public Validate; write success does not certify their validity.
 | Cross-kind alarm-name reuse, table/alarm case-only rename, delete-then-create case variant | Accepted controls; intended objects/read state and public Validate matched |
 | Missing table group or text culture | Worker `target_not_found`; group refusal precedes Create, while the culture refusal can follow mutation and cleanup |
 
-The [31-variant table and canonical inputs](../superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases.md)
+The [31-variant table and canonical inputs](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases.md)
 retain exact outcomes, independent reads, public validation and restoration. The checkpoint UI
 observations are not fresh compiles of every candidate variant.
 

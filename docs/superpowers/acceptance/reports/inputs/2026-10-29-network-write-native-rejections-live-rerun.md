@@ -4,7 +4,7 @@ Date: 2026-10-29. **All 17 functional cases and the final restoration gate passe
 
 This input records the authorized rerun after serial maintainer review. All 17 case assertions, including L11b, corrected L11c and L13mini, passed. Per-case restoration, final whole-fixture restoration and functional-client shutdown were verified independently. This releases the maintainer's conditional timing gate; timing results are recorded separately and Task 7 is not yet complete.
 
-The [original October 28 input](2026-10-28-network-write-native-rejections-live-cases.md) remains unchanged. This rerun follows the approved [plan](../../../plans/2026-10-26-network-write-native-rejections.md) and its final issue rulings.
+The [original October 28 input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-28-network-write-native-rejections-live-cases.md) remains unchanged. This rerun follows the approved [plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-26-network-write-native-rejections.md) and its final issue rulings.
 
 ## Provenance and baseline
 

@@ -1,6 +1,6 @@
 # network_write call timing, before the native-rejection refactor
 
-Completed Task 0 baseline for the [Network write native-rejections plan](../../../plans/2026-10-26-network-write-native-rejections.md). Task 7 must repeat the payloads, response budgets, setup, read and restoration rules below unchanged. No implementation ran during baseline collection.
+Completed Task 0 baseline for the [Network write native-rejections plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-26-network-write-native-rejections.md). Task 7 must repeat the payloads, response budgets, setup, read and restoration rules below unchanged. No implementation ran during baseline collection.
 
 **Status: Task 0 complete. Fifteen measured calls cover three N1–N5 rounds. Ten discarded calls cover the original warm-up and a fresh warm-up after the machine restart. Only runs 1–3 enter the medians. The disposable fixture was restored and verified.**
 

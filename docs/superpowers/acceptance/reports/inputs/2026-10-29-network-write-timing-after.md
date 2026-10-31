@@ -2,7 +2,7 @@
 
 Date: 2026-10-29. **PASS: 20 timing captures validated, comprising five discarded warm-ups and 15 measured calls. Independent final review passed.**
 
-The [full functional rerun](2026-10-29-network-write-native-rejections-live-rerun.md) passed all 17 expected outcomes before this timing series started. This report compares the installed candidate with the [Task 0 baseline](2026-10-27-network-write-timing-before.md). Negative percentages below mean a shorter measured duration.
+The [full functional rerun](2026-10-29-network-write-native-rejections-live-rerun.md) passed all 17 expected outcomes before this timing series started. This report compares the installed candidate with the [Task 0 baseline](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-27-network-write-timing-before.md). Negative percentages below mean a shorter measured duration.
 
 ## Median root durations
 

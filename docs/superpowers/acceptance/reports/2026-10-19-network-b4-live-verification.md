@@ -35,4 +35,4 @@ Private response documents, exact inspection requests, provenance and a verifica
 - This run exercised the installed connector configuration and one standalone root. It does not establish additional access-mode or local-session coverage.
 - B-16 and Q3 remain separate work. This report does not qualify their outer exception handling or worker-wide `portal_lost` behavior.
 
-The [B-4 implementation record](../../plans/2026-10-17-codebase-simplification-review.md) retains the offline gate: 6,977 passing tests, 23 focused regression cases, 33/33 added executable resolver/helper lines covered, and successful stub and installed-V21-reference builds. Those suites were not repeated for this documentation-only follow-up.
+The [B-4 implementation record](../../../adr/records/2026-10-17-codebase-simplification-review.md) retains the offline gate: 6,977 passing tests, 23 focused regression cases, 33/33 added executable resolver/helper lines covered, and successful stub and installed-V21-reference builds. Those suites were not repeated for this documentation-only follow-up.

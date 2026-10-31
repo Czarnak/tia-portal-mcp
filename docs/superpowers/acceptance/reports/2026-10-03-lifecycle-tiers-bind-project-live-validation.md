@@ -3,7 +3,7 @@
 **Run date:** 2026-10-03 (Europe/Warsaw; full-mode raw UTC captures fall on 2026-10-02).
 **Status:** Task 13 live-accepted 2026-10-03: full-mode, read-write, and read-only functional cases PASS, with the maintainer's read-only Openness dialog observation recorded. Task 14 documentation/spec updates are complete.
 
-This report records the three access-mode groups of [Task 13](../../plans/2026-10-02-lifecycle-tiers-and-project-binding.md). The maintainer requested grouping by access mode and explicitly authorized each group on two running disposable projects. Each group's evidence is identified separately below. Task 14 documentation/spec updates are complete.
+This report records the three access-mode groups of [Task 13](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-02-lifecycle-tiers-and-project-binding.md). The maintainer requested grouping by access mode and explicitly authorized each group on two running disposable projects. Each group's evidence is identified separately below. Task 14 documentation/spec updates are complete.
 
 ## Candidate and provenance
 

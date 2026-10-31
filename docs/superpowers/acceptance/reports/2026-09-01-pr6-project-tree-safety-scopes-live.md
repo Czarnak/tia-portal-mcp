@@ -134,4 +134,4 @@ included in this report.
 - `start_plc` / `stop_plc`: unchanged and out of scope.
 
 The implementation plan for this evidence is
-[`2026-09-01-pr6-project-tree-safety-scopes.md`](../../plans/2026-09-01-pr6-project-tree-safety-scopes.md).
+[`2026-09-01-pr6-project-tree-safety-scopes.md`](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-01-pr6-project-tree-safety-scopes.md).

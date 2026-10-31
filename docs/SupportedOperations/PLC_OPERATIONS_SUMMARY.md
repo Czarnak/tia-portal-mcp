@@ -151,7 +151,7 @@ but the project tree has no node type for them), `DeviceItem`,
 `Subnet` and `Node` (no service observed), technology-object instance DBs and WinCC Classic HMI tags
 (not present in the spike project). `Device`, `PlcSoftware`, `SoftwareUnit` and `TagTable` are not
 owners themselves; they only enumerate the owners beneath them. See Appendix B of the
-[design spec](../superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md).
+[design spec](../adr/0004-guarded-single-call-write-pipeline.md).
 
 ## PLC writes (`plc_write`)
 
@@ -292,7 +292,7 @@ block (`create_block` is an XML import, so the message mentions `Import` of
 `PlcBlockComposition`, a line and a position) and deleting the default tag table. When item N of M
 is rejected, items before N are `applied`, item N is `engineering_rejected`, later items are
 `skipped` with `earlierOperationFailed`, and nothing is rolled back. See the
-[live cases](../superpowers/acceptance/reports/inputs/2026-10-26-plc-write-native-rejections-live-cases.md).
+[live cases](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-26-plc-write-native-rejections-live-cases.md).
 
 [Additional probes](../superpowers/acceptance/reports/inputs/2026-10-26-plc-write-collision-namespace-probes.md) demonstrated four more native rejection directions on one disposable project: creating a tag in a second table against an existing tag name, creating a user constant against that tag name, creating a tag against an existing FC name, and creating a table in an existing child folder against an existing root-table name. The reverse cross-kind directions, cross-group block duplicates and arbitrary folder layouts remain unverified. The source tag and empty tables were checked after the probes; the FC remained readable, without a before/after hash comparison. Cleanup restored the observed inventories and typed tree; unsaved edit history remained.
 

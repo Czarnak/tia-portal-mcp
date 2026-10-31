@@ -4,7 +4,7 @@ Open engineering follow-ups for this project, started 2026-07-15. Resolved items
 latest completed entry stays at the end.
 Historical implementation, qualification and acceptance records remain indexed in
 [the documentation map](README.md). Workstream C follow-up merge identities and verification
-are recorded in the [orchestration ledger](superpowers/plans/2026-10-24-workstream-c-followups-orchestration.md#completion-ledger).
+are recorded in the [orchestration ledger](adr/0008-tool-surface-consistency.md).
 An accepted implementation does not establish unexecuted native or plant acceptance.
 
 ## Open: VCI follow-ups (2026-10-16)
@@ -54,7 +54,7 @@ Not yet live-verified; the issue reporter offered to test. Left out by design:
 
 ## Open: create_block OB follow-ups (issue #75, 2026-10-09)
 
-Left out of [OB creation](superpowers/specs/2026-10-08-ob-creation-design.md) by design; none blocks
+Left out of [OB creation](adr/0001-plc-content-exchange-and-creation.md) by design; none blocks
 the shipped behavior.
 
 - **Renumbering.** No `set_block_number` operation exists: a created OB keeps the number the server
@@ -125,7 +125,7 @@ plugin cache or user configuration.
 
 ## Open: PLC read and cross-reference follow-ups (PR A)
 
-Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-references.md); none blocks it.
+Found while finishing [PR A](adr/0004-guarded-single-call-write-pipeline.md); none blocks it.
 
 - `totally-integrated-claude` skill: tracked in the skill-migration entry above.
 - `list_tag_tables`: when `tableName`/`folderPath` match nothing but part of the tree was unreadable, the incomplete inventory is returned without an explicit "not found among readable tables" message.
@@ -138,9 +138,9 @@ Found while finishing [PR A](superpowers/plans/2026-10-05-plc-read-and-cross-ref
 
 ## Open: hmi_read follow-ups (2026-10-12)
 
-Found while building and live-accepting [`hmi_read`](superpowers/specs/2026-10-07-hmi-read-design.md)
+Found while building and live-accepting [`hmi_read`](adr/0009-hmi-read-contract.md)
 ([live acceptance report](superpowers/acceptance/reports/2026-10-08-hmi-read-live-acceptance.md)) and
-its [completion track](superpowers/specs/2026-10-11-hmi-read-completion-design.md)
+its [completion track](adr/0009-hmi-read-contract.md)
 ([live acceptance report](superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md),
 observations O1-O6); none blocks it. Known limits are also listed in the
 [HMI operations summary](SupportedOperations/HMI_OPERATIONS_SUMMARY.md#known-limits). Items the
@@ -203,7 +203,7 @@ completion track closed remain in its linked acceptance report.
 
 ## Open: plc_write follow-ups (PR B, 2026-10-07)
 
-Found while building and live-accepting [PR B](superpowers/plans/2026-10-06-plc-write.md)
+Found while building and live-accepting [PR B](adr/0004-guarded-single-call-write-pipeline.md)
 ([validation report](superpowers/acceptance/reports/2026-10-07-plc-write-validation.md)); none
 blocks it. Known limits are also listed in the
 [PLC operations summary](SupportedOperations/PLC_OPERATIONS_SUMMARY.md#known-limits).
@@ -249,7 +249,7 @@ blocks it. Known limits are also listed in the
 
 ## Open: plc_write native rejections follow-ups (2026-10-26)
 
-Left open by the [native rejections plan](superpowers/plans/2026-10-25-plc-write-native-rejections.md)
+Left open by the [native rejections plan](adr/0012-portal-as-rejection-authority.md)
 and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
 
 - **VCI adopt the same error contract.** HMI write 2.0 now retains typed native errors and its partial
@@ -312,7 +312,7 @@ this optimization.
 
 PR 2's 2026-09-26 guarded worker-only V21 matrix verified exact PN/DP controller interface
 owners, their distinct master PLC hardware compile targets, baseline compiles, and one-field
-edit/restoration evidence. The [qualified contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
+edit/restoration evidence. The [qualified contract](adr/0003-network-domain-identity-and-subnet-lifecycle.md)
 admits PN/DP `Name` and `Number` plus PN `UseIoSystemNameAsDeviceNameExtension` for later
 public planning. PN `MultipleUseIoSystem` remains excluded after linked PN-name evidence became
 unavailable following a committed edit; `MaxNumberIWlanLinksPerSegment` remains unproved.
@@ -334,7 +334,7 @@ current-HEAD Portal rerun. No merge was performed.
 
 ## Open: JSON contract Phase 1b follow-ups
 
-These came out of the Phase 1b final review ([plan](superpowers/plans/2026-09-28-json-contract-phase1b-required-members.md)).
+These came out of the Phase 1b final review ([plan](adr/0005-canonical-json-contract.md)).
 None of them blocks the merge.
 
 - **Tag-match null path (predates Phase 1b).** `TagTableReader` → `HardwareTagIndexResolver` →
@@ -382,7 +382,7 @@ Unresolved notes retained from the July reviews after removing their completed p
 - **Duplicate binding tests.** `DifferentProjectPathIsRejectedAfterBinding` and
   `TryResolve_StillRejectsADifferentPathOnceBound` still cover the same rejection path.
 - **Direct batch dispatch.** The Phase 3 proposal to remove near-identical worker-client wrappers
-  remains deferred; the [current review findings](superpowers/plans/2026-10-17-codebase-simplification-review-findings.md)
+  remains deferred; the [current review findings](adr/records/2026-10-17-codebase-simplification-review-findings.md)
   describe the surviving worker-client duplication (HOSTCORE-15).
 
 ## Open: CI coverage and workflow follow-ups
@@ -409,7 +409,7 @@ Unresolved notes retained from the July reviews after removing their completed p
 
 ## Open: test-suite runtime, possible improvements (2026-10-25)
 
-Ideas left over from the [test-suite runtime design](superpowers/specs/2026-10-24-test-suite-runtime-design.md).
+Ideas left over from the [test-suite runtime design](adr/0013-toolchain-and-test-infrastructure.md).
 None is planned; each is a candidate to weigh against its cost and risk if the serial part of
 the suite becomes a problem again.
 
@@ -451,7 +451,7 @@ the suite becomes a problem again.
 
 ## Completed: plc_write native rejections (2026-10-26)
 
-[Plan](superpowers/plans/2026-10-25-plc-write-native-rejections.md), [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
+[Plan](adr/0012-portal-as-rejection-authority.md), [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
 `plc_write` stopped pre-checking create collisions; the recorded duplicate tag/table/block/group
 cases, four additional namespace directions and default-table delete failed `engineering_rejected` with a bounded
 `engineeringError`. Write contract `2.0`; `plc_read` stays `1.0`. Final fix `e7803a4` clarifies uncertainty after a failed later non-content item, removes unreachable independent-item replan storage and narrows tool claims; the final default suite passed 7717 tests with 7 pre-existing warnings. Its host changes are offline-qualified; the added native probes used installed `7445c5f`, whose worker code is unchanged.
@@ -483,7 +483,7 @@ cases, four additional namespace directions and default-table delete failed `eng
 
 ## Completed: network_write native rejections (2026-10-29)
 
-[Plan](superpowers/plans/2026-10-26-network-write-native-rejections.md),
+[Plan](adr/0012-portal-as-rejection-authority.md),
 [live verification](superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
 `network_write` is contract `2.0`; `network_read` stays `1.0`. Planning reads one initial hardware
 snapshot. Per-item replanning and immediate/final native read-back verification are removed;
@@ -516,8 +516,8 @@ at its first native rejection and retains typed `appliedSettings`; native except
 - **Timing** (audit `durationMs`, `full` mode, disposable fixture; medians in ms): five discarded
   warm-ups and three measured rounds of N1–N5 used installed source `75c0568`, before the host
   follow-up. The
-  [before input](superpowers/acceptance/reports/inputs/2026-10-27-network-write-timing-before.md)
-  and [after input](superpowers/acceptance/reports/inputs/2026-10-29-network-write-timing-after.md)
+  [before input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-27-network-write-timing-before.md)
+  and [after input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-network-write-timing-after.md)
   retain the frozen requests, project inventory and collection protocol.
 
   | Case | Root before | Root after | Item sum before | Item sum after | Remainder before | Remainder after |
@@ -543,7 +543,7 @@ at its first native rejection and retains typed `appliedSettings`; native except
 
 ## Completed: hmi_write native rejections (2026-10-30)
 
-The [plan](superpowers/plans/2026-10-29-hmi-write-native-rejections.md) and
+The [plan](adr/0012-portal-as-rejection-authority.md) and
 [scoped acceptance report](superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md)
 record write contract 2.0, read contract 1.1, typed Siemens errors with conditional partial outcomes,
 three retained guards and shared `trusted`/`superseded` verification. Planning uses initial,
@@ -567,9 +567,9 @@ post-write reads/Validate. Callers inspect state, Validate and compile in the HM
   existing seven warnings. The real-assembly package/verifier pass; packaging-category tests were
   not required because packaging/product project files did not change.
 - **Timing:** five discarded warm-ups and 15 measured calls replay the frozen H1–H5 workloads on
-  `.113`. The [before input](superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before.md)
+  `.113`. The [before input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before.md)
   used installed `75c0568`, not analysis baseline `0b2640a`; the
-  [after input](superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after.md) records
+  [after input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after.md) records
   that deviation, the two client changes and unchanged workload bytes. Medians are in milliseconds:
 
   | Case | Root before | Root after | Item sum before | Item sum after | Remainder before | Remainder after |

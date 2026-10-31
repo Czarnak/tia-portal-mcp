@@ -1,7 +1,7 @@
 # OB creation live acceptance (issue #75)
 
-*2026-10-09. Spec: [OB creation design](../../specs/2026-10-08-ob-creation-design.md) §6. Plan:
-[OB creation plan](../../plans/2026-10-08-ob-creation.md) Task 6. Candidate: `33058d8` on
+*2026-10-09. Spec: [OB creation design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-08-ob-creation-design.md) §6. Plan:
+[OB creation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-08-ob-creation.md) Task 6. Candidate: `33058d8` on
 `fix/ob-create-issue-75`.*
 
 ## Scope and authorization

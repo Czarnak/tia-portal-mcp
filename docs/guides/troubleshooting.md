@@ -103,7 +103,7 @@ worker-reported copied project path; verify it with a subsequent status or read 
   evidence and old cursors are invalidated; the failed request is never replayed.
   Existing typed post-mutation failures and cleanup warnings can retain their own
   categories, so inspect their outcome evidence too. The B-16/Q3 change has an
-  [verification record](../superpowers/plans/2026-10-19-worker-portal-loss.md)
+  [verification record](../adr/0011-fail-closed-surface-and-portal-loss.md)
   covering scoped Network, PLC, VCI and local-session interruption/recovery evidence.
   Candidate `e804e6f` exposed two HMI gaps: locator errors can retain
   `worker_operation_failed` after disposal and delay host invalidation; fresh HMI

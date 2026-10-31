@@ -14,9 +14,9 @@ separate final read observed zero subnets and 81 aggregate hardware devices. See
 below for the bounded live PASS and remaining readback limits.
 
 Design rationale, evidence basis, and rejected alternatives are recorded in
-[../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md](../superpowers/specs/2026-08-06-network-phase4-subnet-lifecycle-design.md).
+[ADR-0012](../adr/0012-portal-as-rejection-authority.md).
 The historical task-by-task implementation plan and its earlier Locked Public Contract are at
-[../superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md](../superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md).
+[the archived plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-08-06-network-phase4-subnet-lifecycle.md).
 See [../roadmap/network-operations.md](../roadmap/network-operations.md) for how this phase fits the
 overall network roadmap, and
 [NETWORK_OPERATIONS_SUMMARY.md](NETWORK_OPERATIONS_SUMMARY.md) for the previously supported

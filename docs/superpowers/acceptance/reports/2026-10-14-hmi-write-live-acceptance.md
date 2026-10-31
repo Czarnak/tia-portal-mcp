@@ -1,6 +1,6 @@
 # HMI write acceptance — 2026-10-14
 
-Case definitions are in the [design, section 7.3](../../specs/2026-10-13-hmi-write-design.md#73-live-cases-installed-tool-read-write-and-full); the [implementation plan](../../plans/2026-10-13-hmi-write.md) and [live write spike](2026-10-13-hmi-write-spike.md) provide the historical scope and Siemens baseline.
+Case definitions are in the [design, section 7.3](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-13-hmi-write-design.md#73-live-cases-installed-tool-read-write-and-full); the [implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-13-hmi-write.md) and [live write spike](2026-10-13-hmi-write-spike.md) provide the historical scope and Siemens baseline.
 
 **Functional live verification complete within the limits below.** The exact production candidate passed offline qualification, both-mode functional cases and final audit reconciliation. Timing/memory observations are complete with explicit scope limits; the proposed single-observation memory return condition was not met. The maintainer explicitly chose: **“Retain current cache; leave O1 open.”** That decision is not a full performance-gate pass.
 

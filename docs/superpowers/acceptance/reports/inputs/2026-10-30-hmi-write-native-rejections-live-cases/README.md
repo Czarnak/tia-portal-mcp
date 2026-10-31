@@ -1,6 +1,6 @@
 # HMI candidate live-evidence bundle
 
-This bundle accompanies the [case report](../2026-10-30-hmi-write-native-rejections-live-cases.md).
+This bundle accompanies the [case report](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases.md).
 It preserves 35 installed-candidate cases: all 31 P variants plus L1–L4, captured with
 `4.2.0-local.112.g96a28b7`. Identity is controller-supplied; the exporter does not inspect
 the installed binaries. The source, binary hashes, fixture, settings and pending checks
@@ -114,11 +114,11 @@ authorize a new live run.
 
 The generated summary deliberately does not assign final O classifications or infer absence
 of O3 from success. The case report adds the independent state/diagnostic review. A separate
-[validation supplement](../2026-10-30-hmi-write-native-rejections-validation-supplement.json)
+[validation supplement](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-validation-supplement.json)
 records all 15 child-tag validations succeeding with zero findings on the unchanged restored
 baseline after the matrix; it is outside this frozen manifest and is not a table validator.
 Candidate UI compiles, direct UI-language observation, L5 and timing-after remain pending.
-The separate [focused R1 capture](../2026-10-30-hmi-write-native-rejections-r1-live.json)
+The separate [focused R1 capture](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-r1-live.json)
 passed on installed `.113` / `31d1a44`: earlier success is conservatively `superseded`
 after a later partial update fails, independent reads/validation confirm the observed state,
 and the saved baseline hash/inventory is restored. Its exact canonical responses, raw/source

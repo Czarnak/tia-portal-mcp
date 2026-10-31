@@ -455,7 +455,7 @@ Existing narrower property-read
 policies, typed post-mutation failures, cleanup warnings and completed-operation
 diagnostic stamping retain their contracts. VCI's writer keeps its outcome-bearing
 mapping; VCI read/plan use the shared boundary. See the
-[B-16/Q3 implementation and verification record](superpowers/plans/2026-10-19-worker-portal-loss.md)
+[B-16/Q3 implementation and verification record](adr/0011-fail-closed-surface-and-portal-loss.md)
 for offline qualification and scoped Network, PLC, VCI and local-session read
 evidence. The HMI discovery and stale-project cache fixes have offline regressions
 and a scoped installed-candidate read retest: loss, immediate cursor invalidation
@@ -1075,7 +1075,7 @@ committed edit made linked PN-name evidence unavailable, and excluded
 `MaxNumberIWlanLinksPerSegment` because the fixture reported `unknownAttribute`.
 The [historical acceptance report](superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md)
 records the qualification limits and final clean reopen; the
-[qualified contract](superpowers/specs/2026-09-24-network-phase5-qualified-contract.md)
+[qualified contract](adr/0003-network-domain-identity-and-subnet-lifecycle.md)
 is input to later public slices. This diagnostic has no public safety token or write audit,
 and `update_io_system` is not shipped. Retire the probe with the final live-harness cleanup
 after the later public acceptance work.

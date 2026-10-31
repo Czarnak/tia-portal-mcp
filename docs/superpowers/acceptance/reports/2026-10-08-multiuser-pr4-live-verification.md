@@ -10,7 +10,7 @@ The maintainer also expressly excluded baseline retesting: “No read-only. Life
 tested before. Keep focus on current scope only.” Prior lifecycle/PR3 acceptance remains historical
 evidence and does not supply PR4-specific runtime evidence. The
 [definition](../2026-10-07-multiuser-pr4-live-definition.md) and
-[plan](../../plans/2026-10-07-multiuser-pr4-open-existing-sessions.md) retain original expectations.
+[plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-07-multiuser-pr4-open-existing-sessions.md) retain original expectations.
 
 ## Frozen candidate, offline qualification and installed provenance
 

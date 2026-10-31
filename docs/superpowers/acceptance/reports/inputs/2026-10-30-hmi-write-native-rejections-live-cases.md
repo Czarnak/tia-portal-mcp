@@ -6,10 +6,10 @@ invalid references, five accepted controls and two worker refusals**. No O3 was 
 in the captured state and diagnostic comparisons. Task 6 remains open: this is not the
 completed acceptance report.
 
-The protocol is [design §6.7](../../../specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol)
-and [plan Task 6](../../../plans/2026-10-29-hmi-write-native-rejections.md#task-6-live-verification-timing-after-captured-fixtures-maintainers-machine-tia-portal-v21).
+The protocol is [design §6.7](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol)
+and [plan Task 6](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-29-hmi-write-native-rejections.md#task-6-live-verification-timing-after-captured-fixtures-maintainers-machine-tia-portal-v21).
 Compare the earlier [native checkpoint](../2026-10-29-hmi-write-checkpoint-probes.md).
-The [evidence bundle README](2026-10-30-hmi-write-native-rejections-live-cases/README.md)
+The [evidence bundle README](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases/README.md)
 describes preserved canonical documents, projections, source hashes and offline checks.
 
 ## Candidate and fixture
@@ -117,7 +117,7 @@ findings; the generated summary intentionally leaves its `oClass` unclassified a
 alarm-comparison limitation intact.
 
 Public Validate does not validate a table directly. P1, both P2 variants and P14 therefore
-have no table Validate result. The separate [validation supplement](2026-10-30-hmi-write-native-rejections-validation-supplement.json)
+have no table Validate result. The separate [validation supplement](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-validation-supplement.json)
 checks their 15 distinct child tags after the matrix on the unchanged restored baseline:
 all 15 operations succeeded with zero findings. Status remained open and unmodified before
 and after, and the saved-file hash was unchanged. Its canonical HMI response SHA-256 is
@@ -141,7 +141,7 @@ keys or schema changes. Source qualification found no old/new predicate admissio
 differences across the 72 earlier-success/later-attempted pairs in these 35 batches.
 That bounded comparison is not a full rerun on `.113`.
 
-The separate [focused R1 live capture](2026-10-30-hmi-write-native-rejections-r1-live.json)
+The separate [focused R1 live capture](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-r1-live.json)
 passed on installed `4.2.0-local.113.g31d1a44` and restored the saved baseline. Its initial
 connection attempt timed out while an Openness access prompt awaited approval; the user
 approved access and the retry completed. One earlier update succeeds, the second update
@@ -159,12 +159,12 @@ status. The focused capture preserves exact canonical write/read/validation resp
 source hashes with a minimal restoration/audit projection. It does not rerun the 35-case
 matrix or establish candidate UI compile evidence.
 
-The subsequent build-113 [UI compile bundle](2026-10-30-hmi-write-native-rejections-ui-compiles/README.md)
+The subsequent build-113 [UI compile bundle](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-ui-compiles/README.md)
 records five fresh standalone compiles and accepted R3 scope: six repeated P-case compiles reuse
 earlier checkpoint UI evidence plus fresh public reads/Validate, without claiming fresh candidate
-compiles for those cases. The separate [L5 bundle](2026-10-30-hmi-write-native-rejections-local-session/README.md)
+compiles for those cases. The separate [L5 bundle](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-local-session/README.md)
 records local-session creation, reads, validation, clean maintainer compile and exact inventory
-restoration. The [timing-after input](2026-10-30-hmi-write-timing-after.md) records the prescribed
+restoration. The [timing-after input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after.md) records the prescribed
 20-call replay; timings inside this matrix's trace remain capture metadata.
 
 The evidence does not prove global absence of O3, race behavior, every native fault site,

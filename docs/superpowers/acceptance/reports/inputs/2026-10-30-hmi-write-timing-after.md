@@ -3,7 +3,7 @@
 **Complete: five discarded workload warm-ups and fifteen measured calls. All 20 workload
 calls succeed; final inventory is restored exactly, and independent status is open and
 unmodified.** This input compares installed candidate `4.2.0-local.113.g31d1a44` with the
-[installed-version baseline](2026-10-29-hmi-write-timing-before.md). Functional qualification,
+[installed-version baseline](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before.md). Functional qualification,
 maintainer UI compiles and the R1–R3 scope decisions are recorded in the
 [acceptance report](../2026-10-30-hmi-write-native-rejections-live-verification.md).
 
@@ -33,7 +33,7 @@ conditions were controlled only by the specified warm-up/reset sequence, and the
 and candidate were measured in separate series. These results do not establish statistical
 significance, predict every workload, or isolate the cost of a particular native call.
 Baseline item timers include dependent-item replanning, so the remainder is not all
-planning time. All individual rows are retained in [summary.json](2026-10-30-hmi-write-timing-after/summary.json).
+planning time. All individual rows are retained in [summary.json](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/summary.json).
 
 ## Installed artifacts and fixture
 
@@ -66,9 +66,9 @@ HMI reads establish engineering-content restoration.
 
 ## Exact replay inputs
 
-The candidate [workloads.json](2026-10-30-hmi-write-timing-after/workloads.json) is byte-for-byte
+The candidate [workloads.json](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/workloads.json) is byte-for-byte
 identical to the baseline, including H2's JSON-number `conditionValue:30`. The candidate
-[client.py](2026-10-30-hmi-write-timing-after/client.py) has exactly these two line changes:
+[client.py](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/client.py) has exactly these two line changes:
 
 ```diff
 -EXPECTED_VERSION = '4.2.0-local.79.g75c0568'
@@ -121,12 +121,12 @@ The completed evidence contains:
 - Successful saved-file/artifact hash checks, final exact inventory restoration, clean
   open status and timing-client/driver exit code 0.
 
-The [archive README](2026-10-30-hmi-write-timing-after/README.md) links the evidence format;
-[self_test.py](2026-10-30-hmi-write-timing-after/self_test.py) and
-[validate_archive.py](2026-10-30-hmi-write-timing-after/validate_archive.py) pass offline on the
+The [archive README](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/README.md) links the evidence format;
+[self_test.py](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/self_test.py) and
+[validate_archive.py](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/validate_archive.py) pass offline on the
 actual archive. Checks cover schedule, canonical/audit pairing, complete reads, projections,
 independent medians and byte/decompressed hashes. The
-[manifest](2026-10-30-hmi-write-timing-after/manifest.json) records input/output hashes and
+[manifest](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/manifest.json) records input/output hashes and
 excludes itself; `.gitattributes` preserves exact bytes.
 
 Canonical response text and audit response hashes are unchanged. Audit paths are redacted;

@@ -6,10 +6,10 @@ build-113 R1 regression, manual compile checkpoints under accepted R3 scope, L5 
 qualifies the recorded R1–R3 scope. Current documentation and evidence are complete; broader
 native-fault and workload coverage remains limited as recorded below.
 
-The protocol is [design §6.7](../../specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol)
-and [plan Task 6](../../plans/2026-10-29-hmi-write-native-rejections.md#task-6-live-verification-timing-after-captured-fixtures-maintainers-machine-tia-portal-v21).
-The [case input](inputs/2026-10-30-hmi-write-native-rejections-live-cases.md) contains the
-complete 31-variant matrix and L1–L4 results; its [archive README](inputs/2026-10-30-hmi-write-native-rejections-live-cases/README.md)
+The protocol is [design §6.7](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-29-hmi-write-native-rejections-design.md#67-live-probing-protocol)
+and [plan Task 6](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-29-hmi-write-native-rejections.md#task-6-live-verification-timing-after-captured-fixtures-maintainers-machine-tia-portal-v21).
+The [case input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases.md) contains the
+complete 31-variant matrix and L1–L4 results; its [archive README](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-live-cases/README.md)
 describes canonical responses, privacy projections, source hashes and archive validation.
 
 ## Candidate boundaries and fixture
@@ -95,7 +95,7 @@ reference form.
 
 Each functional case includes independent reads of every object it could touch, including
 pre-existing collision targets, plus public validation of validatable objects. The
-[validation supplement](inputs/2026-10-30-hmi-write-native-rejections-validation-supplement.json)
+[validation supplement](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-validation-supplement.json)
 checks the 15 distinct child tags from table-only cases after the matrix on the unchanged
 restored baseline: all 15 operations succeed with zero findings. Public Validate has no
 table validator; this supplement is not in-case table validation. Expected missing selectors
@@ -149,7 +149,7 @@ an earlier affected write `superseded`; an ordinary precondition refusal without
 retains its previous behavior. This adds no Portal rule or mutation read-back.
 
 Two focused regressions first fail with `trusted` instead of `superseded`, then pass after
-the fix. The [focused build-113 live capture](inputs/2026-10-30-hmi-write-native-rejections-r1-live.json)
+the fix. The [focused build-113 live capture](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-r1-live.json)
 shows the first update succeeding, the second applying `Name` before `Comment` fails on a
 missing culture, and the third item skipped. The sole verification entry marks the earlier
 write `superseded` and warns that the failed later item may have changed the object and its
@@ -206,8 +206,8 @@ diagnostics for its three accepted invalid-reference variants.
 
 The queued P12-analog build-113 case was cancelled before a maintainer compile and restored
 without saving before the reduced queue began. Its cancellation is not a successful compile.
-The [completed/reduced UI queue archive](inputs/2026-10-30-hmi-write-native-rejections-ui-compiles/README.md)
-and [L5 local-session input](inputs/2026-10-30-hmi-write-native-rejections-local-session/README.md)
+The [completed/reduced UI queue archive](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-ui-compiles/README.md)
+and [L5 local-session input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-native-rejections-local-session/README.md)
 preserve the maintainer reports, canonical HMI evidence and labelled restoration/status
 projections. All manual checkpoints required under R3 are complete.
 
@@ -220,7 +220,7 @@ status call. The archive's 22 complete HMI reads and 66 minimal lifecycle/status
 include that independent status and retain fixture/restoration evidence. Timing client and
 driver exit 0. The actual archive's offline self-check and validator pass.
 
-The [frozen baseline](inputs/2026-10-29-hmi-write-timing-before.md) measures installed
+The [frozen baseline](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-29-hmi-write-timing-before.md) measures installed
 `4.2.0-local.79.g75c0568`, **not analysis commit `0b2640a`**; source equivalence is not
 claimed. The build-113 replay retains exact workloads, settings and reset/read
 sequence. Its client changes only the expected installed version and write-contract
@@ -243,9 +243,9 @@ The columns were independently recomputed from both archives' individual rows. O
 median root durations are shorter for all five workloads, but three samples per workload
 and uncontrolled OS/Portal cache conditions do not support a general performance guarantee
 or isolate individual native-call costs. Functional trace elapsed times are excluded.
-The [timing input](inputs/2026-10-30-hmi-write-timing-after.md) records exact client changes,
+The [timing input](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after.md) records exact client changes,
 hashes, all before/after metrics, settings, restoration and limitations; its
-[evidence README](inputs/2026-10-30-hmi-write-timing-after/README.md) links the validated archive.
+[evidence README](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-30-hmi-write-timing-after/README.md) links the validated archive.
 
 ## Offline qualification and restoration
 

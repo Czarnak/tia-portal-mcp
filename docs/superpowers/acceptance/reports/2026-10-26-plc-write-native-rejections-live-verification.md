@@ -1,7 +1,7 @@
 # plc_write native rejections live verification
 
 Date: 2026-10-26. Verdict: **PASS for the executed installed-candidate scope on a disposable standalone project copy**, with initial deviations (L2 same-folder only, L6 not reachable) and one live defect (L7) that was fixed and re-verified.
-Branch `refactor/plc-write-native-rejections`, plan: [PLC write native rejections plan](../../plans/2026-10-25-plc-write-native-rejections.md).
+Branch `refactor/plc-write-native-rejections`, plan: [PLC write native rejections plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-25-plc-write-native-rejections.md).
 Nothing here is plant, hardware or online-PLC evidence, and nothing was saved: the project copy was bound with `bind_project` and never saved or closed.
 
 ## Candidates and mode
@@ -47,7 +47,7 @@ Final fix `e7803a4` passed `dotnet test TiaMcpServer.Tests --no-restore --filter
 | L10 item 2 of 3 collides | PASS | Item 1 `succeeded`, item 2 `engineering_rejected`, item 3 `skipped`; `success:false`, `error:null`, MCP `isError:false`; one `partial_write_no_rollback` info guard |
 | L11 `dryRun` of the L10 call | PASS | `preview`, no collision planned, no mutation |
 
-In every `engineering_rejected` capture the `type` is `EngineeringTargetInvocationException`, `inner` is `[]` and the message is English with a `\r\n\r\n` between the "Error when calling method ..." line and the reason. Full captures, including every `engineeringError` object verbatim: [live cases](inputs/2026-10-26-plc-write-native-rejections-live-cases.md).
+In every `engineering_rejected` capture the `type` is `EngineeringTargetInvocationException`, `inner` is `[]` and the message is English with a `\r\n\r\n` between the "Error when calling method ..." line and the reason. Full captures, including every `engineeringError` object verbatim: [live cases](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-26-plc-write-native-rejections-live-cases.md).
 
 ### L7 finding and re-verification (build `g7445c5f`)
 
@@ -95,7 +95,7 @@ Cleanup preview identified only three owned temporary tables (one tag, no consta
 
 ## Timing
 
-Protocol: [baseline](inputs/2026-10-25-plc-write-timing-before.md) replayed verbatim on the candidate: fixed object names, strictly sequential calls T5 then T1, T2, an untimed `plc_read`, T3, T4, untimed cleanup; one discarded warm-up, then three measured runs; medians per column. Source: audit v2 `durationMs` (root) and `items[].durationMs` (item sum); remainder is root minus item sum (planning, verification, audit, binding lease). The MCP Inspector wall-clock column was not measured (R7: the client was Claude Code). Raw tables: [Sets A and B](inputs/2026-10-26-plc-write-timing-after.md), [Set C](inputs/2026-10-26-plc-write-live-closeout.md).
+Protocol: [baseline](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-25-plc-write-timing-before.md) replayed verbatim on the candidate: fixed object names, strictly sequential calls T5 then T1, T2, an untimed `plc_read`, T3, T4, untimed cleanup; one discarded warm-up, then three measured runs; medians per column. Source: audit v2 `durationMs` (root) and `items[].durationMs` (item sum); remainder is root minus item sum (planning, verification, audit, binding lease). The MCP Inspector wall-clock column was not measured (R7: the client was Claude Code). Raw tables: [Sets A and B](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-26-plc-write-timing-after.md), [Set C](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/acceptance/reports/inputs/2026-10-26-plc-write-live-closeout.md).
 
 Set C (build `g7445c5f`) is the primary before/after comparison (R18): it is the only run that is both protocol-complete and quiet (the no-Siemens T5 dry run stayed flat at 6.1 to 6.3 s). Set A followed the protocol on a visibly noisy machine: even T5, which has no Siemens mutation, took about twice as long. Set B was a three-run replicate without warm-up, taken after the L-case session on the same worker; it is off-protocol. Both are shown as context only.
 
