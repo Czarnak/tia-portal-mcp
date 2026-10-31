@@ -1,9 +1,0 @@
-# L5 local-session evidence
-
-This is separate L5 engineering and maintainer UI-compile evidence on installed113. Safe canonical HMI responses/audits are preserved; project-tool responses and lifecycle audits are labelled metadata-minimal projections with original raw/canonical hashes. Saved standalone and local-session identities are redacted.
-
-Two fixtures absent from the complete initial local inventory were created, independently read and validated. A maintainer report is required separately from the release marker. Counts, text and language remain user observations; null means unknown, and zero is not converted into compiler success. Only the two owned fixture deletions were permitted. The complete final inventory equals the complete initial inventory.
-
-The local root was observed before/after and open and modified at the final captured status; its actual before/after isModified flags are retained. Later maintainer-reported cleanup and opening a standalone project are recorded separately from that captured local state. No save/check-in, extra local lifecycle operation or generic cleanup is present in the captured calls. Actual saved-standalone before/after hashes must match in both controller case evidence and provenance. Captured completion, owned cleanup and inventory equality do not establish a helper exit code. The summary distinguishes an observed exit0 from an unobserved exit (null, helperExitObserved:false); the latter also requires explicit completion and previous-processes-stopped observations. It does not invent exit0 or a captured later project transition.
-
-The manifest hashes every raw input and all output/compressed/decompressed bytes, excluding itself. Inputs must be unchanged through export. The UI queue exporter may reference this summary with --l5-report; that reference does not replace this full L5 proof. .gitattributes preserves exact bytes.
