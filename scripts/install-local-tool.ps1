@@ -45,7 +45,7 @@ try {
     }
 
     if (-not $Version) {
-        $described = (git describe --tags --long).Trim()
+        $described = (git describe --tags --long --match 'v[0-9]*').Trim()
         if ($described -notmatch '^v?(?<base>\d+\.\d+\.\d+)-(?<ahead>\d+)-g(?<sha>[0-9a-f]+)$') {
             throw "Cannot derive a version from 'git describe' output '$described'. Pass -Version."
         }
