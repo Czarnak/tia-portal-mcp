@@ -18,7 +18,7 @@
 - `GenerateOptions` and `GenerateBlockOption` are passed explicitly on every path; the temporary external-source node is removed by a scope, and a leftover node is a postcondition failure.
 - `update_block_logic` reports a closed typed `blockImportOutcome` with a conservative mutation boundary and `ContentRelation` left unknown, instead of implying the exported document equals the request.
 - Each component splits into a Siemens-free, unit-tested half and a thin Siemens shell.
-- `create_block` accepts `blockType` OB with a closed `obEventClass`; the server chooses the number (singleton base, or lowest free for multi-instance). One shared Contracts table and rule serve host planning and worker, so preview equals applied and the worker result wins. Singleton collisions are blocked by `plc_ob_singleton_exists`.
+- `create_block` accepts `blockType` OB with a closed `obEventClass`; the server chooses the number (a singleton gets its base number; a multi-instance class gets its base number if free, otherwise the lowest free number from 123). One shared Contracts table and rule serve host planning and worker, so preview equals applied and the worker result wins. Singleton collisions are blocked by `plc_ob_singleton_exists`.
 - Rejected: upsert semantics for multi-object source (would create unaddressed objects the preview never named). Rejected: caller-chosen or renumbered OB numbers, event-specific OB parameters, `SynchronousCycle`, Motion Control, redundancy and ProDiag OBs, and CPU-support modelling (Portal refuses unsupported classes with its own message). Rejected: routing `create_block` through external source (a working path with no gain).
 - Rejected: STL on source (different `.awl` file type, no evidence).
 

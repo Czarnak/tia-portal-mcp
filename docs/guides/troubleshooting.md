@@ -102,8 +102,8 @@ worker-reported copied project path; verify it with a subsequent status or read 
   as needed, then explicitly `bind_project` before resuming content access. Binding
   evidence and old cursors are invalidated; the failed request is never replayed.
   Existing typed post-mutation failures and cleanup warnings can retain their own
-  categories, so inspect their outcome evidence too. The B-16/Q3 change has an
-  [verification record](../adr/0011-fail-closed-surface-and-portal-loss.md)
+  categories, so inspect their outcome evidence too. The B-16/Q3 change has a
+  [verification report](../superpowers/acceptance/reports/2026-10-20-b16-q3-worker-portal-loss-live-verification.md)
   covering scoped Network, PLC, VCI and local-session interruption/recovery evidence.
   Candidate `e804e6f` exposed two HMI gaps: locator errors can retain
   `worker_operation_failed` after disposal and delay host invalidation; fresh HMI

@@ -2,9 +2,9 @@
 
 Open engineering follow-ups for this project, started 2026-07-15. Resolved items are removed; the
 latest completed entry stays at the end.
-Historical implementation, qualification and acceptance records remain indexed in
+History lives in the ADRs, the acceptance reports and the archive tag; see
 [the documentation map](README.md). Workstream C follow-up merge identities and verification
-are recorded in the [orchestration ledger](adr/0008-tool-surface-consistency.md).
+are recorded in the [orchestration ledger](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-24-workstream-c-followups-orchestration.md).
 An accepted implementation does not establish unexecuted native or plant acceptance.
 
 ## Open: VCI follow-ups (2026-10-16)
@@ -249,7 +249,7 @@ blocks it. Known limits are also listed in the
 
 ## Open: plc_write native rejections follow-ups (2026-10-26)
 
-Left open by the [native rejections plan](adr/0012-portal-as-rejection-authority.md)
+Left open by the [ADR-0012 (native rejections)](adr/0012-portal-as-rejection-authority.md)
 and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
 
 - **VCI adopt the same error contract.** HMI write 2.0 now retains typed native errors and its partial
@@ -334,7 +334,7 @@ current-HEAD Portal rerun. No merge was performed.
 
 ## Open: JSON contract Phase 1b follow-ups
 
-These came out of the Phase 1b final review ([plan](adr/0005-canonical-json-contract.md)).
+These came out of the Phase 1b final review ([plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-09-28-json-contract-phase1b-required-members.md)).
 None of them blocks the merge.
 
 - **Tag-match null path (predates Phase 1b).** `TagTableReader` → `HardwareTagIndexResolver` →
@@ -409,7 +409,7 @@ Unresolved notes retained from the July reviews after removing their completed p
 
 ## Open: test-suite runtime, possible improvements (2026-10-25)
 
-Ideas left over from the [test-suite runtime design](adr/0013-toolchain-and-test-infrastructure.md).
+Ideas left over from the [test-suite runtime design](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-24-test-suite-runtime-design.md).
 None is planned; each is a candidate to weigh against its cost and risk if the serial part of
 the suite becomes a problem again.
 
@@ -451,7 +451,7 @@ the suite becomes a problem again.
 
 ## Completed: plc_write native rejections (2026-10-26)
 
-[Plan](adr/0012-portal-as-rejection-authority.md), [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
+[ADR-0012](adr/0012-portal-as-rejection-authority.md), [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
 `plc_write` stopped pre-checking create collisions; the recorded duplicate tag/table/block/group
 cases, four additional namespace directions and default-table delete failed `engineering_rejected` with a bounded
 `engineeringError`. Write contract `2.0`; `plc_read` stays `1.0`. Final fix `e7803a4` clarifies uncertainty after a failed later non-content item, removes unreachable independent-item replan storage and narrows tool claims; the final default suite passed 7717 tests with 7 pre-existing warnings. Its host changes are offline-qualified; the added native probes used installed `7445c5f`, whose worker code is unchanged.
@@ -483,7 +483,7 @@ cases, four additional namespace directions and default-table delete failed `eng
 
 ## Completed: network_write native rejections (2026-10-29)
 
-[Plan](adr/0012-portal-as-rejection-authority.md),
+[ADR-0012](adr/0012-portal-as-rejection-authority.md),
 [live verification](superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md).
 `network_write` is contract `2.0`; `network_read` stays `1.0`. Planning reads one initial hardware
 snapshot. Per-item replanning and immediate/final native read-back verification are removed;
@@ -543,7 +543,7 @@ at its first native rejection and retains typed `appliedSettings`; native except
 
 ## Completed: hmi_write native rejections (2026-10-30)
 
-The [plan](adr/0012-portal-as-rejection-authority.md) and
+The [ADR-0012](adr/0012-portal-as-rejection-authority.md) and
 [scoped acceptance report](superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md)
 record write contract 2.0, read contract 1.1, typed Siemens errors with conditional partial outcomes,
 three retained guards and shared `trusted`/`superseded` verification. Planning uses initial,

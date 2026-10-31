@@ -8,7 +8,7 @@
 ## Context
 - Write access was a set of mode names gating individual tools. PR #29 review found that a missing session identity was treated differently by the real worker, FakeWorker and test fixtures, and that a same-path `forceRebind` kept the stale verified identity.
 - A third `full` tier and a `--confirm-with-user` switch followed. Lifecycle tools then prompted only when a rare acknowledge guard fired, so open, create, save and archive never asked anyone.
-- A read-write session could not bind at all: no registered tool established a verified binding, yet documents claimed reads did. Requested paths could implicitly open projects without a prompt.
+- A read-write session could not bind without a configured `--project` (a status read could promote a configured project): no registered tool established a verified binding, yet documents claimed reads did. Requested paths could implicitly open projects without a prompt.
 - Content tools accepted a per-call `projectPath`, so one call could name a project other than the one the session was verified against.
 
 ## Decision

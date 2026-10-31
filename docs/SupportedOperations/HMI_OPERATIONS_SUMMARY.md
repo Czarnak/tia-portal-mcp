@@ -4,10 +4,10 @@
 8/19/19), never writes, never compiles, and never opens, saves or closes a project. It runs up to
 50 items per call on the structured JSON contract (`contractVersion:"1.1"`); items run
 independently, so a failing item does not stop later ones. Design background lives in the
-[hmi_read design spec](../adr/0009-hmi-read-contract.md), the
+[hmi_read design spec](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-07-hmi-read-design.md), the
 [spike report](../superpowers/acceptance/reports/2026-10-07-hmi-read-spike.md), the
 [live acceptance report](../superpowers/acceptance/reports/2026-10-08-hmi-read-live-acceptance.md),
-the [completion spec](../adr/0009-hmi-read-contract.md) and the
+the [completion spec](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-11-hmi-read-completion-design.md) and the
 [completion live acceptance report](../superpowers/acceptance/reports/2026-10-12-hmi-read-completion-live-acceptance.md).
 
 `hmi_write` separately provides nine tag-table, tag and alarm writes in writable modes on standalone

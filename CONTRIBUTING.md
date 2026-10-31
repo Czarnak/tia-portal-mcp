@@ -70,7 +70,9 @@ Inspector test loop, see [docs/development/local-mcp-testing.md](docs/developmen
 ### Documentation
 
 Documents under `docs/` are grouped by audience: `guides/` for people using the server,
-`development/` for people building it, `roadmap/` for direction. `docs/superpowers/` holds working plans, specs and evidence for one PR, which delete them before merge (see `AGENTS.md`), plus the live-verification reports. Decisions live in `docs/adr/`.
+`development/` for people building it, `roadmap/` for direction. `docs/superpowers/` holds the live-verification reports; its `plans/`, `specs/` and
+`evidence/` directories are a per-PR working area, deleted before merge (see `AGENTS.md`).
+Decisions live in `docs/adr/`.
 
 **A new document under `docs/` is not complete until it is reachable from
 [docs/README.md](docs/README.md), directly or through the index of its directory

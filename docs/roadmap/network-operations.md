@@ -9,7 +9,7 @@ before permissive decoding, without request replay or worker replacement. Twelve
 failing malformed-wire cases, sixteen new controls and the focused 517-test set passed. The worker
 is unchanged; this host follow-up has offline evidence only and no new live/timing qualification.
 See the [live verification and limits](../superpowers/acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md)
-and [implementation plan](../adr/0012-portal-as-rejection-authority.md).
+and [implementation plan](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-26-network-write-native-rejections.md).
 Warnings/explicit nulls and `dryRun` replace Network tokens; **omitting dryRun executes**.
 Historical Phase4/worker-only qualification below applies only to recorded frozen sources.
 

@@ -70,7 +70,7 @@ VCI writer retains its own `portal_lost` mapping so partial counts, `lastAttempt
 and persistence notes survive. This B-16/Q3 consolidation has offline coverage
 and maintainer-accepted scoped live read testing; native write interruptions
 remain untested. Candidate and fixture limits are retained in the
-[implementation record](../adr/0011-fail-closed-surface-and-portal-loss.md).
+[B-16/Q3 verification report](../superpowers/acceptance/reports/2026-10-20-b16-q3-worker-portal-loss-live-verification.md).
 
 A native `NonRecoverableException` is reported as `portal_lost` and invalidates the binding immediately. It is a generic client exception: the real cause may be in the Portal report at `<ProgramData>\Siemens\Automation\Portal V21\Diagnostics\<build>\<id>\<id>.dr`, a ZIP containing `ErrorReport.xml` (`Reason="Openness"` in the observed crash). A worker timeout or crash also invalidates binding. Before each attempted leaf the worker writes a breadcrumb under `%LOCALAPPDATA%\TiaMcpServer`; on timeout/crash the host uses it only if its request ID matches, and may report `lastAttempted` in the error and audit. A missing breadcrumb does not prove that no leaf ran.
 

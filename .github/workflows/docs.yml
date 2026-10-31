@@ -12,6 +12,7 @@ on:
       - ".gitattributes"
       - "scripts/verify-docs.py"
       - "scripts/tests/**"
+      - "scripts/timing/**"
       - ".github/workflows/docs.yml"
   pull_request:
     branches: ["main"]
@@ -28,6 +29,9 @@ jobs:
 
       - name: Test the checker
         run: python3 -I scripts/tests/test_verify_docs.py
+
+      - name: Test the timing script
+        run: python3 -I scripts/timing/test_measure_write_timing.py
 
       - name: Verify docs
         run: >

@@ -6,8 +6,8 @@
 **Current home:** [ARCHITECTURE: Project enumeration completeness](../ARCHITECTURE.md#project-enumeration-completeness), [Project-tree v3 snapshot and continuation seam](../ARCHITECTURE.md#project-tree-v3-snapshot-and-continuation-seam), [Hardware configuration pagination seam](../ARCHITECTURE.md#hardware-configuration-pagination-seam)
 
 ## Context
-Project status, tree browsing and compile shared the generic read batch with unrelated reads, so one
-oversized result could sink a whole batch. Issue #31 showed that grouped devices and system blocks
+Project status, tree browsing and compile shared the generic read batch with unrelated reads, so the
+standalone tools were split out to remove duplication and give a cleaner tool surface; the per-item value cap was inherited. Issue #31 showed that grouped devices and system blocks
 were never enumerated, and that a complete hardware read would still exceed the per-value budget by
 orders of magnitude once they were. Issue #32 showed that tree browsing on large projects repeated
 expensive Openness walks and returned one unbounded result.

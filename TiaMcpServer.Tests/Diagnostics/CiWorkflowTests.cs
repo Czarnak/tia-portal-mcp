@@ -241,6 +241,9 @@ public class CiWorkflowTests
         var workflow = File.ReadAllText(docsWorkflowPath);
         Assert.Contains("paths:", workflow, StringComparison.Ordinal);
         Assert.Contains("scripts/verify-docs.py", workflow, StringComparison.Ordinal);
+        Assert.Contains("--archive-tag docs-archive-2026-10-30", workflow, StringComparison.Ordinal);
+        Assert.Contains("scripts/tests/test_verify_docs.py", workflow, StringComparison.Ordinal);
+        Assert.Contains("scripts/timing/test_measure_write_timing.py", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("dotnet", workflow, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -455,7 +455,7 @@ Existing narrower property-read
 policies, typed post-mutation failures, cleanup warnings and completed-operation
 diagnostic stamping retain their contracts. VCI's writer keeps its outcome-bearing
 mapping; VCI read/plan use the shared boundary. See the
-[B-16/Q3 implementation and verification record](adr/0011-fail-closed-surface-and-portal-loss.md)
+[B-16/Q3 live verification report](superpowers/acceptance/reports/2026-10-20-b16-q3-worker-portal-loss-live-verification.md)
 for offline qualification and scoped Network, PLC, VCI and local-session read
 evidence. The HMI discovery and stale-project cache fixes have offline regressions
 and a scoped installed-candidate read retest: loss, immediate cursor invalidation

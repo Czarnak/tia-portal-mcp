@@ -151,7 +151,7 @@ but the project tree has no node type for them), `DeviceItem`,
 `Subnet` and `Node` (no service observed), technology-object instance DBs and WinCC Classic HMI tags
 (not present in the spike project). `Device`, `PlcSoftware`, `SoftwareUnit` and `TagTable` are not
 owners themselves; they only enumerate the owners beneath them. See Appendix B of the
-[design spec](../adr/0004-guarded-single-call-write-pipeline.md).
+[design spec](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/specs/2026-10-05-plc-read-write-and-cross-references-design.md).
 
 ## PLC writes (`plc_write`)
 
