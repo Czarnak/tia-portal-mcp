@@ -131,16 +131,16 @@ No O3 effect was observed in these scopes. Accepted shared/nested-root creates d
 
 ## Maintainer decisions and completion boundary
 
-The maintainer approved rulings **1–3** during the walkthrough on 2026-10-31. For ruling **4**, the maintainer supplied the protected FC and requested the additional test; the completed supplement resolves that evidence gap. For ruling **5**, the maintainer requested native testing before deciding; the length-only supplement now supplies that evidence. Rulings **5–6** await final discussion.
+All six rulings are settled following the 2026-10-31 walkthrough and 2026-11-01 clarification. The protected-FC supplement resolves ruling **4**. The length-only supplement informed ruling **5**; the maintainer chose to retain a corrected length diagnostic, remove export collision prevention and delegate leaf filename rules to Portal. The maintainer also accepted ruling **6** and confirmed that compilation remains a separate explicit tool call.
 
 1. Retire the duplicate-name half of `vci_workspace_exists` based on both O1 variants, accepting the empty-root side effect.
 2. Retain the shared-root half: all three variants were accepted. Keep nested-root behavior as the design's record-only case; later writes through aliases/nested roots were not probed.
 3. Use the inconsistent Safety OB/mixed scope for reachable export-failure and continuation fixtures. Accept the live 25-failure coverage gap; require automated fake cases for the 20-entry cap, five omitted entries, exact counts and trimming. Candidate acceptance remains separate.
 4. Use the supplied protected FC as the qualified know-how-specific refusal fixture. Its native message explicitly confirms protection; the earlier Safety FB did not establish it.
-5. Updated recommendation after native testing: retire only the numeric length clause, retaining the other filename/segment, containment and collision checks. The guard blocked four valid SimaticML outputs; tested longer paths failed natively without a file or mapping, leaving empty directories created before the call. Approval and cross-format qualification remain separate.
-6. Use malformed XML as the throwing import/rollback fixture, and missing-file import as the separate partial-commit fixture. Keep post-import compilation: well-formed semantic invalidity was accepted.
+5. Retain the numeric length diagnostic and correct its conservative calculation: complete SimaticML `.xml` paths through 259 characters succeeded, while 260 and 263 failed with a generic native message. Other formats remain unqualified. Remove export collision prevention, accepting native overwrite as the tool contract; the earlier spike observed silent overwrite, companion-file deletion and disruption of another mapping. Remove leaf filename-rule duplication while retaining containment and protection of original directory-name boundaries before the writer creates directories. Native filename messages and problematic directory names were not qualified by the length-only probe.
+6. Use malformed XML as the throwing import/rollback fixture, and missing-file import as the separate partial-commit fixture. Keep `compile_check` as a separate explicit call after import, not part of import execution: well-formed semantic invalidity was accepted. All three paired baseline/probe cases are already captured with source-hash comparisons and separate compilation results.
 
-Items 5–6 remain recommendations. Closing Stage 0 as an evidence record does not qualify the candidate's new failure list/cap, trusted/superseded verifier, dropped replans, contract 2.0 or final L matrix. The implementation plan follows the remaining rulings.
+These rulings supersede the original design's collision-blocking and filename-validation expectations, including the original L2/L5 blocked/no-overwrite cases. Closing Stage 0 as an evidence record does not qualify the candidate's new failure list/cap, trusted/superseded verifier, dropped replans, contract 2.0 or revised final L matrix. The implementation plan must incorporate the settled rulings.
 
 ## Evidence checks and cleanup
 
@@ -152,4 +152,6 @@ The later path supplement adds 124 original canonical responses/56 audited write
 
 The test clients stopped normally. The diagnostic tool was uninstalled and `spike/vci-native-probes` deleted after its exact commit was preserved in a verified private Git bundle and published patch. The app refused to archive its primary checkout and refused to attach the ordinary source checkout as a managed worktree. The retained clean managed checkout was returned to production source; it contains no active probe patch. The saved Stage 0 project/workspace fixture and file backup remain available for the candidate comparison, and the global installed tool remains unchanged.
 
-Remaining work is rulings 5–6, the implementation plan/refactor, and candidate timing/acceptance. Native Portal-loss, crash and race probes were excluded by protocol.
+On 2026-11-01 the unchanged production source passed a fresh focused VCI run: 541 passed, zero failed/skipped. The three public evidence self-checks also passed. The import proof has 21 before/after hash comparisons, 21 separate compile reports and no pending cases; malformed-XML rollback, missing-file partial commit and accepted semantic invalidity are already qualified for the recorded baseline/probe. This verification added no live mutations or timing samples.
+
+Remaining work is the implementation plan/refactor and candidate timing/acceptance, including the automated failure-cap cases and revised collision expectations. Native Portal-loss, crash and race probes were excluded by protocol.

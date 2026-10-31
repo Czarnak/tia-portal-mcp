@@ -6,6 +6,18 @@ implementation plan is written only after Stage 0 (§8 baseline timing, §9.2 ba
 `refactor/vci-write-native-rejections`, cut from `main` at `8713a47` (merge of the HMI
 native-rejections PR 203).
 
+**Stage 0 rulings — 2026-11-01:** all six maintainer decisions are settled in the
+[Stage 0 record](../acceptance/reports/inputs/2026-10-31-vci-write-stage0.md#maintainer-decisions-and-completion-boundary).
+They supersede conflicting expectations below: retain a corrected path-length diagnostic;
+remove export collision prevention and leaf filename-rule duplication; retain containment and
+directory-name boundary protection before managed filesystem operations. Native overwrite is
+accepted as the tool contract, so the original L2/L5 blocked/no-overwrite expectations must be
+revised in the implementation plan. Keep the shared-root workspace check and allow nested roots;
+retire duplicate workspace-name checking. Use the supplied protected FC and the qualified import
+fixtures. Compilation remains a separate explicit `compile_check` call after import. The live
+25-failure gap is accepted; automated cap/omission/count/trimming coverage remains required.
+Stage 0 evidence does not qualify the unimplemented candidate contract or final live matrix.
+
 **Predecessors:** the [PLC plan](../plans/2026-10-25-plc-write-native-rejections.md), the
 [Network design](2026-10-26-network-write-native-rejections-design.md) and the
 [HMI design](2026-10-29-hmi-write-native-rejections-design.md), with their acceptance reports. VCI
