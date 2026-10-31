@@ -96,7 +96,7 @@ The harness source was an **unversioned user-provided saved copy** at the ignore
 `daf16d40ba50ee2fc33ab6c6a71ab28e9be23118dad0aee47e10ae56bf20a97d` and its computed
 Git blob ID was `9a1b2cdcb079494e35dc067929ea96b453be3610`. No historical source commit or original
 Git blob was established. The restored, adapted harness is
-[`scripts/live-test-network-phase4-subnets.ps1`](../../../../scripts/live-test-network-phase4-subnets.ps1)
+`scripts/live-test-network-phase4-subnets.ps1`
 at the frozen SHA-256 above; its computed Git blob ID is
 `d55a1fc990fd9ccf16bef7502a658f5fd964560a`.
 

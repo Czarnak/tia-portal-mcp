@@ -11,7 +11,7 @@ copy, fixtures, guarded calls, cleanup, and saved-baseline checks recorded here.
   and `STEP 7 Professional V21`. Separately, project history recorded that the copy was last saved
   by V21 Update 2 Hotfix 1; that history entry is not treated as the runtime-version probe.
 - Harness script path:
-  [`scripts/live-test-tag-operation-safety-scopes.ps1`](../../../../scripts/live-test-tag-operation-safety-scopes.ps1),
+  `scripts/live-test-tag-operation-safety-scopes.ps1`,
   run with PowerShell 7.6.5.
 - Repository revision: `2d6d071` on `feat/tag-operation-safety-scopes`.
 - Host DLL: `TiaMcpServer/bin/Debug/net8.0/TiaMcpServer.dll`, SHA-256

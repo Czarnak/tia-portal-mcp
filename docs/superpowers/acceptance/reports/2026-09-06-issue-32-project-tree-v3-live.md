@@ -12,7 +12,7 @@ Exact project identities, paths, and fixture-specific device, block, folder, and
 - Environment: Windows build 26200, PowerShell 7.6.6, .NET SDK 10.0.401, net8.0 host and net48 worker; installed modular TIA Portal V21 API version `2100.0.121.1`.
 - Real V21 assembly Release build: exit 0, zero errors, seven existing xUnit2031 analyzer warnings. No reference-stub option was supplied. An earlier restricted build failed during NuGet SSL/authentication; its logs remain preserved.
 - Prior offline controller gate at the tested commit: 3,017/3,017 tests, line coverage 0.929, focused project-tree suite 61/61, and both package verification modes passed. These are retained offline results, not newly executed tests or live proof.
-- Live source: [read-only harness](../../../../scripts/live-test-project-tree-v3.ps1). The host and worker both logged READONLY, and the harness verified exactly `browse_project_tree`, `execute_read_batch`, `get_project_status`, and `network_read` before browsing. Runtime binding logs matched each authorized fixture.
+- Live source: `scripts/live-test-project-tree-v3.ps1` read-only harness. The host and worker both logged READONLY, and the harness verified exactly `browse_project_tree`, `execute_read_batch`, `get_project_status`, and `network_read` before browsing. Runtime binding logs matched each authorized fixture.
 
 The private execution report retains the exact commands, project binding, timestamps, exit codes, and artifact hashes. The following command forms document the invocation with private values supplied through environment variables; they were not rerun to write this report:
 
