@@ -168,12 +168,25 @@ public sealed class VciMirroredPathTests
     }
 
     [Fact]
-    public void LengthCheck_NeverUsesPathCombine()
+    public void LengthCheck_LeafWithPortalOnlyCharactersReachesPortal()
     {
-        // net48 Path.Combine/GetFullPath throw on these characters.
+        // net48 Path.Combine/GetFullPath throw on these characters; the leaf must pass through to Portal.
         var key = new VciFileKey(@"\FixtureA", "\"<>|");
-        var ex = Record.Exception(() => VciMirroredPath.FirstProblem(@"C:\workspace", key, "SimaticML"));
-        Assert.Null(ex);
+        Assert.Null(VciMirroredPath.FirstProblem(@"C:\workspace", key, "SimaticML"));
+    }
+
+    [Fact]
+    public void FirstProblem_NeverUsesPathCombineOrGetFullPath()
+    {
+        // net10 does not throw on '"<>|', so the behavioural test cannot catch a regression to those APIs.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!File.Exists(Path.Combine(dir.FullName, "TiaMcpServer.slnx"))) dir = dir.Parent!;
+        var source = File.ReadAllText(Path.Combine(dir.FullName, "TiaMcpServer.Contracts", "Vci", "VciMirroredPath.cs"));
+        var start = source.IndexOf("public static string? FirstProblem", StringComparison.Ordinal);
+        var end = source.IndexOf("LeafBoundaryChars =", start, StringComparison.Ordinal);
+        var body = string.Join("\n", source.Substring(start, end - start).Split('\n').Where(l => !l.TrimStart().StartsWith("//")));
+        Assert.DoesNotContain("Path.Combine", body);
+        Assert.DoesNotContain("GetFullPath", body);
     }
 
     [Theory]
