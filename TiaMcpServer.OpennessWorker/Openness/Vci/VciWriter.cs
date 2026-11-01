@@ -14,6 +14,7 @@ public static class VciWriter
     public static VciWriteOutcomeInfo Write(TiaPortal portal, Project project, string method, VciWriteRequestInfo write)
     {
         var outcome = new VciWriteOutcomeInfo();
+        var log = new VciFailureLog(outcome);
         VciLastAttemptedInfo? lastAttempted = null;
         var importCandidatesHandled = false;
         if (write.Operation == "delete_workspace" || write.Operation == "delete_mapping") outcome.Notes.Add(VciNotes.FilesRemain);
@@ -98,8 +99,7 @@ public static class VciWriter
                                     mapping.DirectoryPath.FullName, mapping.FileNameWithoutExtension), lastAttempted!));
                         }
                         catch (NonRecoverableException) { throw; }
-                        catch (EngineeringException) { outcome.Failed++; }
-                        catch (Exception) { outcome.Failed++; }
+                        catch (Exception ex) { outcome.Failed++; log.Record(lastAttempted!, ex); }
                     }
 
                     if (candidates.Count > 0 && write.Operation == "sync_to_project")
@@ -119,8 +119,7 @@ public static class VciWriter
                                         Attempt(candidate.Attempt);
                                         try { FindMapping(project, workspace, candidate.Key, candidate.Attempt.Path).Synchronize(SynchronizationMode.WorkspaceToProject); }
                                         catch (NonRecoverableException) { throw; }
-                                        catch (EngineeringException) { allSucceeded = false; }
-                                        catch (Exception) { allSucceeded = false; }
+                                        catch (Exception ex) { allSucceeded = false; log.Record(candidate.Attempt, ex); }
                                     }
                                     if (allSucceeded && transaction.CanCommit)
                                     {
@@ -151,15 +150,15 @@ public static class VciWriter
                                 outcome.Succeeded++;
                             }
                             catch (NonRecoverableException) { throw; }
-                            catch (EngineeringException) { outcome.Failed++; }
-                            catch (Exception) { outcome.Failed++; }
+                            catch (Exception ex) { outcome.Failed++; log.Record(candidate.Attempt, ex); }
                         }
                     }
                 }
             }
             if (outcome.Failed > 0)
-                throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
-                    "One or more VCI leaves failed; inspect the counts before retrying.", vciWriteOutcome: outcome);
+                throw log.HasFailure ? log.ItemFailure()
+                    : new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed,
+                        "The VCI import transaction could not commit; no candidate was imported.", vciWriteOutcome: outcome);
             return outcome;
         }
         catch (NonRecoverableException)
@@ -174,7 +173,7 @@ public static class VciWriter
         catch (Exception ex)
         {
             if (!importCandidatesHandled) outcome.Failed++;
-            throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, ex.Message, vciWriteOutcome: outcome);
+            throw VciFailureLog.Stopped(ex, outcome);
         }
         finally
         {
@@ -190,7 +189,10 @@ public static class VciWriter
                 case VciSyncDecision.SkipEqual: outcome.Skipped.Equal++; break;
                 case VciSyncDecision.SkipConflict: outcome.Skipped.Conflict++; break;
                 case VciSyncDecision.SkipTargetChanged: outcome.Skipped.TargetChanged++; break;
-                case VciSyncDecision.FailMissing: outcome.Failed++; break;
+                case VciSyncDecision.FailMissing:
+                    outcome.Failed++;
+                    log.Record(lastAttempted!, "The workspace file for this mapping is missing.");
+                    break;
                 case VciSyncDecision.Sync: return true;
             }
             return false;

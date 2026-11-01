@@ -20,7 +20,7 @@ public sealed class VciContractDecodeTests
         { "VciMappingListInfo", """{"total":1,"offset":0,"limit":100,"mappings":[{"fileKey":{"directory":"\\dir","fileName":"Leaf"},"format":"SimaticML","path":null,"status":{"compareState":"Equal","details":null}}]}""" },
         { "VciSupportedFormatsInfo", """{"formats":["SimaticML"]}""" },
         { "VciPlanInfo", """{"leaves":1,"mappedLeaves":0,"formatFallbacks":0,"workspaceRootPath":null,"workspaceConflict":null,"keyCollisions":[],"unrepresentable":[],"unverifiable":null}""" },
-        { "VciWriteOutcomeInfo", """{"leaves":1,"succeeded":0,"failed":1,"skipped":{"equal":0,"alreadyMapped":0,"conflict":0,"targetChanged":0},"formatFallbacks":0,"lastAttempted":{"path":[{"nodeType":"Device","name":"Fixture"}],"operation":"export","format":null},"projectModified":false,"notes":[]}""" },
+        { "VciWriteOutcomeInfo", """{"leaves":1,"succeeded":0,"failed":1,"skipped":{"equal":0,"alreadyMapped":0,"conflict":0,"targetChanged":0},"formatFallbacks":0,"lastAttempted":{"path":[{"nodeType":"Device","name":"Fixture"}],"operation":"export","format":null},"projectModified":false,"notes":[],"failures":[{"path":[{"nodeType":"Device","name":"Fixture"}],"format":"SimaticML","category":"engineering_rejected","engineeringErrorType":"EngineeringTargetInvocationException","message":"m"}],"failuresOmitted":0}""" },
     };
 
     [Theory]

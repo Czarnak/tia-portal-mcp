@@ -65,6 +65,23 @@ public sealed class VciWriteOutcomeInfo
     public VciLastAttemptedInfo? LastAttempted { get; set; }
     public bool ProjectModified { get; set; }
     public List<string> Notes { get; set; } = new();
+    public List<VciLeafFailureInfo> Failures { get; set; } = new();
+    public int FailuresOmitted { get; set; }
+
+    public const int MaxFailures = 20;
+}
+
+public sealed class VciLeafFailureInfo
+{
+    public List<ProjectTreeSelectorSegment> Path { get; set; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? Format { get; set; }
+    public string Category { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? EngineeringErrorType { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    public const int MaxMessageChars = 500;
 }
 
 public sealed class VciSkipCountsInfo

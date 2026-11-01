@@ -39,7 +39,7 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.HmiWriteOutcome",
         // network_write: present on a rejected configure_network_device item; carries the settings applied before the rejection.
         "WorkerResponse.ConfigureNetworkDeviceOutcome",
-        // vci_write: present when the worker reports a typed mutation outcome.
+        // vci_write: present after a VCI mutation attempt, including portal_lost.
         "WorkerResponse.VciWriteOutcome",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
