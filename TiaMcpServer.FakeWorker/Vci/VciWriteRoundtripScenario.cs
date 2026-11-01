@@ -12,12 +12,15 @@ internal sealed class VciWriteRoundtripScenario
     private readonly HashSet<string> _mutated = new(StringComparer.OrdinalIgnoreCase);
     public VciWriteRoundtripScenario()
     {
-        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure", "Unverifiable", "EmptyUnverifiable", "PartialCollision" })
+        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure", "Unverifiable", "EmptyUnverifiable", "Rejected", "ImportRejected", "ManyRejected" })
             _workspaces[name] = new() { Name = name, RootPath = Path.Combine(Path.GetTempPath(), "vci-" + name) };
     }
     private static string Ok(object value) => JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = WorkerJson.SerializePayload(value) }, WorkerJson.Envelope);
-    private static string Fail(string category, VciWriteOutcomeInfo? value = null) => JsonSerializer.Serialize(new WorkerResponse
-    { Success = false, FailureCategory = category, Error = "Synthetic VCI failure.", VciWriteOutcome = value }, WorkerJson.Envelope);
+    private static string Fail(string category, VciWriteOutcomeInfo? value = null, EngineeringErrorInfo? engineeringError = null) => JsonSerializer.Serialize(new WorkerResponse
+    { Success = false, FailureCategory = category, Error = "Synthetic VCI failure.", VciWriteOutcome = value, EngineeringError = engineeringError }, WorkerJson.Envelope);
+
+    private static VciLeafFailureInfo Leaf(string name, string category, string? type, string message) => new()
+    { Path = [new() { NodeType = "Device", Name = name }], Format = null, Category = category, EngineeringErrorType = type, Message = message };
 
     public string Handle(string line, string scenario)
     {
@@ -34,8 +37,8 @@ internal sealed class VciWriteRoundtripScenario
                 return Ok(new VciPlanInfo { Unverifiable = "Synthetic mapping inventory failed.", WorkspaceRootPath = workspace!.RootPath });
             return Ok(new VciPlanInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" || w.WorkspaceName == "EmptyUnverifiable" ? 0 : 2,
                 MappedLeaves = workspace?.MappingCount ?? 0, WorkspaceRootPath = workspace?.RootPath ?? w.RootPath,
-                WorkspaceConflict = w.Operation == "create_workspace" && (workspace is not null || _workspaces.Values.Any(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase))) ? "Workspace exists." : null,
-                KeyCollisions = w.WorkspaceName == "Blocked" || w.WorkspaceName == "PartialCollision" && _mutated.Contains(w.WorkspaceName) ? ["Fixture/leaf"] : [] });
+                WorkspaceConflict = w.Operation == "create_workspace" && _workspaces.Values.FirstOrDefault(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase)) is { } sharedRoot ? "An existing workspace uses this root: " + sharedRoot.Name : null,
+                Unrepresentable = w.WorkspaceName == "Blocked" ? ["Fixture: Name is not representable: a/b"] : [] });
         }
         var outcome = new VciWriteOutcomeInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" ? 1 : 2 };
         if (w.WorkspaceName != "Healthy" && scenario is "vci-timeout" or "vci-timeout-silent" or "vci-crash")
@@ -47,19 +50,44 @@ internal sealed class VciWriteRoundtripScenario
         if (w.WorkspaceName != "Healthy" && scenario == "vci-portal-lost")
         {
             if (w.WorkspaceName == "OuterFailure") return Fail("portal_lost", new() { Leaves = 0, Failed = 1 });
+            outcome.Failed = 1;
+            outcome.Failures = [Leaf("Fixture", "worker_operation_failed", null, "Synthetic leaf failure.")];
             outcome.LastAttempted = new() { Path = w.Scope!, Operation = w.Operation!, Format = null };
             return Fail("portal_lost", outcome);
+        }
+        const string eti = "EngineeringTargetInvocationException";
+        if (w.Operation == "export" && w.WorkspaceName == "Rejected")
+        {
+            outcome.Leaves = 3; outcome.Succeeded = 2; outcome.Failed = 1; outcome.ProjectModified = true;
+            outcome.Failures = [Leaf("Fixture", "engineering_rejected", eti, "Synthetic native rejection.")];
+            return Fail("engineering_rejected", outcome, new() { Type = eti, Message = "Synthetic native rejection." });
+        }
+        if (w.Operation == "sync_to_project" && w.WorkspaceName == "ImportRejected")
+        {
+            outcome.Failed = 2; outcome.Succeeded = 0; outcome.ProjectModified = false;
+            outcome.Failures = [Leaf("Fixture", "engineering_rejected", eti, "Synthetic import rejection.")];
+            return Fail("engineering_rejected", outcome, new() { Type = eti, Message = "Synthetic import rejection." });
+        }
+        if (w.Operation == "export" && w.WorkspaceName == "ManyRejected")
+        {
+            outcome.Leaves = 30; outcome.Succeeded = 5; outcome.Failed = 25; outcome.ProjectModified = true; outcome.FailuresOmitted = 5;
+            outcome.Failures = Enumerable.Range(0, VciWriteOutcomeInfo.MaxFailures).Select(i =>
+                Leaf("Leaf" + i, "engineering_rejected", eti, i == 0 ? new string('m', VciLeafFailureInfo.MaxMessageChars) : "Synthetic native rejection.")).ToList();
+            return Fail("engineering_rejected", outcome, new() { Type = eti, Message = "Synthetic native rejection." });
         }
         switch (w.Operation)
         {
             case "create_workspace":
-                if (workspace is not null || _workspaces.Values.Any(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase))) return Fail("state_changed");
+                if (workspace is not null)
+                    return Fail("engineering_rejected", new() { Leaves = 1, Failed = 1 }, new() { Type = eti,
+                        Message = "Error when calling method 'Create' of type 'Siemens.Engineering.VersionControl.WorkspaceComposition'.\r\n\r\nThe workspace name must be unique" });
+                if (_workspaces.Values.Any(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase))) return Fail("state_changed");
                 _workspaces[w.WorkspaceName!] = new() { Name = w.WorkspaceName!, RootPath = w.RootPath }; outcome.Succeeded = 1; outcome.ProjectModified = true; break;
             case "delete_workspace": _workspaces.Remove(w.WorkspaceName!); outcome.Succeeded = 1; outcome.ProjectModified = true; break;
             case "export":
                 outcome.Skipped.AlreadyMapped = workspace!.MappingCount;
                 if (w.WorkspaceName == "EmptyUnverifiable") outcome.Leaves = 0;
-                outcome.Failed = w.WorkspaceName is "Fail" or "PartialCollision" ? 1 : 0;
+                outcome.Failed = w.WorkspaceName == "Fail" ? 1 : 0;
                 outcome.Succeeded = outcome.Leaves - outcome.Skipped.AlreadyMapped - outcome.Failed;
                 workspace.MappingCount += outcome.Succeeded; outcome.ProjectModified = outcome.Succeeded > 0; break;
             case "delete_mapping": outcome.Leaves = outcome.Succeeded = workspace!.MappingCount; workspace.MappingCount = 0; outcome.ProjectModified = outcome.Succeeded > 0; break;

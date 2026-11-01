@@ -36,6 +36,7 @@ To add one, copy [TEMPLATE.md](TEMPLATE.md) to `NNNN-<slug>.md` with the next fr
 | [0011](0011-fail-closed-surface-and-portal-loss.md) | The tool surface fails closed, and Portal loss is classified once at the worker boundary | Accepted | process | 2026-10-17 to 2026-10-20 | [simplification review](records/2026-10-17-codebase-simplification-review.md), [findings](records/2026-10-17-codebase-simplification-review-findings.md) |
 | [0012](0012-portal-as-rejection-authority.md) | TIA Portal is the authority on its own rejections; the server guards only what Portal does not report | Accepted | write-safety | 2026-08-06 to 2026-10-30 |  |
 | [0013](0013-toolchain-and-test-infrastructure.md) | The toolchain moves asymmetrically, and its build and test infrastructure is source-owned and policy-bound | Accepted | process | 2026-09-12 to 2026-10-24 |  |
+| [0014](0014-vci-write-native-rejection-contract.md) | VCI adopts native rejection evidence and accepts Portal's overwrite behavior | Accepted | vci | 2026-10-31 to 2026-11-01 |  |
 
 `Record` links an original plan or spec kept verbatim under `records/` because it holds material no ADR carries.
 

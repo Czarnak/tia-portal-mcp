@@ -39,94 +39,21 @@ public class VciPlannerTests
     }
 
     [Fact]
-    public void RerunExport_AlreadyMappedLeavesAreNotCollisions()
+    public void Plan_HasNoCollisionEvidenceAndNeverEnumeratesFiles()
     {
         using var f = new Fixture();
-        f.AddMapping(f.Leaf);
+        f.AddMapping(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.Leaf.Name.ToLowerInvariant();
         f.WriteFile(".xml");
-        f.WriteFile(".s7res");
-        f.Workspace.ThrowOnLeaf[f.Leaf] = new EngineeringException("Mapped leaves need no format resolution.");
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Equal(1, plan.Leaves);
-        Assert.Equal(1, plan.MappedLeaves);
-        Assert.Equal(0, plan.FormatFallbacks);
-        Assert.Empty(plan.KeyCollisions);
-        Assert.Empty(plan.Unrepresentable);
-        Assert.Null(plan.Unverifiable);
-        Assert.Empty(f.Workspace.SupportedFormatCalls);
-    }
-
-    [Theory]
-    [InlineData(".xml")]
-    [InlineData(".s7res")]
-    [InlineData(".unrelated")]
-    public void LeftoverFileOnDisk_IsCollision(string extension)
-    {
-        using var f = new Fixture();
-        f.WriteFile(extension);
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Contains(f.Leaf.Name, Assert.Single(plan.KeyCollisions));
-        Assert.Null(plan.Unverifiable);
-    }
-
-    [Fact]
-    public void DifferentStemOnDisk_IsNotCollision()
-    {
-        using var f = new Fixture();
-        f.WriteFile("Suffix.xml");
-        Assert.Empty(VciPlanner.Plan(f.Project, f.Write()).KeyCollisions);
-    }
-
-    [Fact]
-    public void ExistingMappingKey_IsCollision()
-    {
-        using var f = new Fixture();
-        var mapping = f.AddMapping(new FC { Name = "OtherFixture" });
-        mapping.DirectoryPath = new DirectoryInfo(f.TargetDirectory.ToUpperInvariant());
-        mapping.FileNameWithoutExtension = f.Leaf.Name.ToLowerInvariant();
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Contains(f.Leaf.Name, Assert.Single(plan.KeyCollisions));
-        Assert.Equal(0, plan.MappedLeaves);
-        Assert.Null(plan.Unverifiable);
-    }
-
-    [Theory]
-    [InlineData(0, 0, 0)]
-    [InlineData(20, 40, 20)]
-    public void ExportPlan_MapsEachExistingKeyOnce(int backgroundMappings, int enumerated, int propertyReads)
-    {
-        using var f = new Fixture();
-        for (var i = 0; i < backgroundMappings; i++)
-            f.AddMapping(new FC { Name = "Background" + i }).FileNameWithoutExtension = "Background" + i;
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Null(plan.Unverifiable);
-        Assert.Empty(plan.KeyCollisions);
-        Assert.Equal(1, f.Workspace.MappedObjects.FindCalls);
-        Assert.Equal(2, f.Workspace.MappedObjects.EnumerationStarts);
-        Assert.Equal(enumerated, f.Workspace.MappedObjects.EnumeratedMappings);
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.DirectoryPathReads));
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.FileNameReads));
-        Assert.Empty(f.Workspace.ExportCalls);
-    }
-
-    [Fact]
-    public void DuplicateKeyWithinItem_IsCollision()
-    {
-        using var f = new Fixture();
+        f.WriteFile(".unrelated");
         f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = f.Leaf.Name.ToLowerInvariant() });
 
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
         Assert.Equal(2, plan.Leaves);
-        Assert.Contains(f.Leaf.Name.ToLowerInvariant(), Assert.Single(plan.KeyCollisions));
+        Assert.Empty(plan.Unrepresentable);
+        Assert.Null(plan.Unverifiable);
+        Assert.Equal(0, f.Workspace.MappedObjects.EnumerationStarts);
+        Assert.Empty(f.Workspace.ExportCalls);
     }
 
     [Theory]
@@ -164,10 +91,9 @@ public class VciPlannerTests
     }
 
     [Theory]
-    [InlineData("CON")]
-    [InlineData("Trailing.")]
     [InlineData("Embedded\\Separator")]
     [InlineData("Embedded/Separator")]
+    [InlineData("Stream:Name")]
     public void UnrepresentableLeaf_ReportedByPlan(string name)
     {
         using var f = new Fixture();
@@ -176,9 +102,20 @@ public class VciPlannerTests
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
         Assert.Contains(name, Assert.Single(plan.Unrepresentable));
-        Assert.Empty(plan.KeyCollisions);
         Assert.Null(plan.Unverifiable);
         Assert.Empty(f.Workspace.ExportCalls);
+    }
+
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("Trailing.")]
+    public void LeafReservedOrTrailingDot_IsNotReportedByPlan(string name)
+    {
+        using var f = new Fixture();
+        f.Leaf.Name = name;
+        var plan = VciPlanner.Plan(f.Project, f.Write());
+        Assert.Empty(plan.Unrepresentable);
+        Assert.Null(plan.Unverifiable);
     }
 
     [Fact]
@@ -230,17 +167,44 @@ public class VciPlannerTests
         write.WorkspaceName = "NewFixture";
         write.RootPath = f.Root.ToUpperInvariant() + Path.DirectorySeparatorChar;
 
-        Assert.NotNull(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
+        Assert.Equal("An existing workspace uses this root: " + f.Workspace.Name, VciPlanner.Plan(f.Project, write).WorkspaceConflict);
     }
 
     [Fact]
-    public void Create_DuplicateNameIsConflictRegardlessOfRoot()
+    public void Create_RootWithIllegalCharacter_IsValidationErrorWithoutOutcome()
+    {
+        using var f = new Fixture();
+        var write = f.Write("create_workspace");
+        write.WorkspaceName = "NewFixture";
+        write.RootPath = Path.Combine(f.Root, "a|b");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => VciPlanner.Plan(f.Project, write));
+        Assert.Equal(WorkerFailureCategories.ValidationError, ex.FailureCategory);
+        Assert.Null(ex.VciWriteOutcome);
+    }
+
+    [Fact]
+    public void Create_DuplicateNameWithDifferentRoot_HasNoConflict()
     {
         using var f = new Fixture();
         var write = f.Write("create_workspace");
         write.WorkspaceName = f.Workspace.Name.ToLowerInvariant();
         write.RootPath = Path.Combine(f.Root, "OtherRoot");
-        Assert.NotNull(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
+        var plan = VciPlanner.Plan(f.Project, write);
+        Assert.Null(plan.WorkspaceConflict);
+        Assert.Null(plan.Unverifiable);
+    }
+
+    [Fact]
+    public void Create_NestedRoot_HasNoConflict()
+    {
+        using var f = new Fixture();
+        var write = f.Write("create_workspace");
+        write.WorkspaceName = "NewFixture";
+        write.RootPath = Path.Combine(f.Root, "Nested");
+        Assert.Null(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
+        write.RootPath = Path.GetDirectoryName(f.Root)!;
+        Assert.Null(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
     }
 
     [Fact]
@@ -256,19 +220,55 @@ public class VciPlannerTests
         Assert.False(Directory.Exists(write.RootPath));
     }
 
-    [Theory]
-    [InlineData("formats")]
-    [InlineData("mappings")]
-    [InlineData("service")]
-    [InlineData("scope")]
-    public void OrdinaryReadFailure_IsUnverifiable(string site)
+    [Fact]
+    public void FormatReadFailure_IsUnverifiableWithLeafAndMessage()
     {
         using var f = new Fixture();
-        f.SetFailure(site, new EngineeringException("Synthetic unreadable state."));
+        f.SetFailure("formats", new EngineeringException("Synthetic unreadable state."));
 
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
-        Assert.Contains("Synthetic unreadable state.", plan.Unverifiable);
+        Assert.Equal("Supported formats could not be read for leaf " + f.Leaf.Name + ": Synthetic unreadable state.", plan.Unverifiable);
+    }
+
+    [Theory]
+    [InlineData("mappings")]
+    [InlineData("service")]
+    [InlineData("scope")]
+    public void OtherReadFailures_EscapeAsTheOriginalException(string site)
+    {
+        using var f = new Fixture();
+        var failure = new EngineeringException("Synthetic unreadable state.");
+        f.SetFailure(site, failure);
+
+        Assert.Same(failure, Assert.Throws<EngineeringException>(() => VciPlanner.Plan(f.Project, f.Write())));
+    }
+
+    [Fact]
+    public void WorkspaceLookupFailure_EscapesAsTheOriginalException()
+    {
+        using var f = new Fixture();
+        var failure = new EngineeringException("Synthetic lookup failure.");
+        f.Service.WorkspaceGroup.Workspaces.EnumerationFailure = failure;
+
+        Assert.Same(failure, Assert.Throws<EngineeringException>(() => VciPlanner.Plan(f.Project, f.Write())));
+    }
+
+    [Fact]
+    public void PlanSiemensFailure_ThroughExecute_IsWorkerOperationFailedNeverRejected()
+    {
+        using var f = new Fixture();
+        f.SetFailure("scope", new EngineeringTargetInvocationException("Synthetic expansion failure."));
+
+        var response = WorkerExecution.Execute(() =>
+        {
+            VciDispatch.Plan(f.Project, f.Write());
+            return new WorkerResponse { Success = true };
+        }, () => 0, mutates: false);
+
+        Assert.False(response.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, response.FailureCategory);
+        Assert.Equal("EngineeringTargetInvocationException", response.EngineeringError!.Type);
     }
 
     [Theory]
@@ -293,16 +293,13 @@ public class VciPlannerTests
         f.Plc.BlockGroup.Blocks.Items.Clear();
         for (var i = 0; i < 15; i++)
         {
-            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Invalid" + i + "." });
-            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Collision" + i });
-            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Collision" + i });
+            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Invalid" + i + ":" });
         }
 
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
-        Assert.Equal(45, plan.Leaves);
+        Assert.Equal(15, plan.Leaves);
         Assert.Equal(10, plan.Unrepresentable.Count);
-        Assert.Equal(10, plan.KeyCollisions.Count);
     }
 
     [Theory]

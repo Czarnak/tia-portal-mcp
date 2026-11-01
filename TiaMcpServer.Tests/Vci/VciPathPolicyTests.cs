@@ -240,6 +240,20 @@ public sealed class VciPathPolicyTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("|")]
+    [InlineData("\"")]
+    [InlineData("<")]
+    [InlineData(">")]
+    [InlineData("\u0001")]
+    public void ValidateRoot_RejectsInvalidPathCharacters(string bad)
+    {
+        var result = ValidateRoot(Path.Combine(_testRoot, "ws" + bad + "x"));
+
+        Assert.False(result.IsValid);
+        Assert.Equal("workspace_root_invalid", result.Reason);
+    }
+
     private VciPathCheck ValidateRoot(string candidate)
         => VciPathPolicy.ValidateRoot(
             candidate,

@@ -22,7 +22,46 @@ public class VciGuardedWriteDomainTests
         if (withLast) Assert.Equal(JsonValueKind.Null, value.GetProperty("lastAttempted").GetProperty("format").ValueKind);
     }
 
-    public static TheoryData<string> Malformed => new() { "missingCount", "unknown", "wrongType", "nullSkipped", "missingNull", "nestedMissing", "nestedUnknown", "nestedCase", "nestedDuplicate", "outerCase", "outerDuplicate", "outerCaseDuplicate", "nullOutcome" };
+    public static TheoryData<string> Malformed => new() { "missingCount", "unknown", "wrongType", "nullSkipped", "missingNull", "nestedMissing", "nestedUnknown", "nestedCase", "nestedDuplicate", "outerCase", "outerDuplicate", "outerCaseDuplicate", "nullOutcome", "overCapFailures" };
+
+    internal static VciLeafFailureInfo Leaf(string marker = "ok", string category = "worker_operation_failed", string? type = null, string? message = null)
+        => new() { Path = [new() { NodeType = "Device", Name = marker }], Format = null, Category = category, EngineeringErrorType = type, Message = message ?? marker };
+
+    public static TheoryData<string> BadFailures => new() { "tooMany", "countExceedsFailed", "emptyPath", "badCategory", "noType", "longMessage", "nullEntry" };
+
+    [Theory]
+    [MemberData(nameof(BadFailures))]
+    public void Failures_OverCapOrCountMismatch_IsProtocolError(string kind)
+    {
+        const string m = "PRIVATE_MARKER";
+        var outcome = new VciWriteOutcomeInfo { Leaves = 30, Failed = 25, Succeeded = 5 };
+        switch (kind)
+        {
+            case "tooMany": outcome.Failures = Enumerable.Range(0, VciWriteOutcomeInfo.MaxFailures + 1).Select(_ => Leaf(m)).ToList(); break;
+            case "countExceedsFailed": outcome.Failed = 2; outcome.Failures = [Leaf(m), Leaf(m)]; outcome.FailuresOmitted = 1; break;
+            case "emptyPath": { var l = Leaf(m); l.Path = []; outcome.Failures = [l]; break; }
+            case "badCategory": outcome.Failures = [Leaf(m, "portal_lost")]; break;
+            case "noType": outcome.Failures = [Leaf(m, "engineering_rejected")]; break;
+            case "longMessage": outcome.Failures = [Leaf(m, message: m + new string('x', VciLeafFailureInfo.MaxMessageChars))]; break;
+            case "nullEntry": outcome.Failures = [Leaf(m), null!]; break;
+        }
+        var item = VciWritePayloadContract.Project(new() { OperationId = "a", Operation = "export" },
+            WorkerCallResult.Fail("worker_operation_failed", "Synthetic") with { VciWriteOutcome = outcome });
+        Assert.Equal("protocol_error", item.Failure!.Category);
+        Assert.Null(item.Result);
+        Assert.DoesNotContain(m, JsonSerializer.Serialize(item));
+    }
+
+    [Fact]
+    public void Failures_ValidCappedList_IsProjected()
+    {
+        var outcome = new VciWriteOutcomeInfo { Leaves = 30, Failed = 25, Succeeded = 5, FailuresOmitted = 5,
+            Failures = Enumerable.Range(0, VciWriteOutcomeInfo.MaxFailures).Select(i => Leaf("n" + i, "engineering_rejected", "EngineeringTargetInvocationException")).ToList() };
+        var item = VciWritePayloadContract.Project(new() { OperationId = "a", Operation = "export" },
+            WorkerCallResult.Fail("engineering_rejected", "Synthetic") with { VciWriteOutcome = outcome });
+        Assert.Equal("engineering_rejected", item.Failure!.Category);
+        Assert.Equal(20, item.Result!.Value.GetProperty("failures").GetArrayLength());
+    }
 
     [Theory]
     [MemberData(nameof(Malformed))]
@@ -39,6 +78,11 @@ public class VciGuardedWriteDomainTests
             case "nestedMissing": outcome["skipped"]!.AsObject().Remove("equal"); break;
             case "nestedUnknown": outcome["skipped"]!["PRIVATE_MARKER"] = true; break;
             case "nestedCase": outcome["skipped"]!.AsObject().Remove("equal"); outcome["skipped"]!["Equal"] = 0; break;
+            case "overCapFailures":
+                outcome["failed"] = 25;
+                outcome["failures"] = JsonSerializer.SerializeToNode(new VciWriteOutcomeInfo
+                    { Failures = Enumerable.Range(0, VciWriteOutcomeInfo.MaxFailures + 1).Select(_ => Leaf("PRIVATE_MARKER")).ToList() }, WorkerJson.ExplicitNullPayload)!["failures"]!.DeepClone();
+                break;
         }
         var payload = outcome.ToJsonString();
         if (kind == "nestedDuplicate") payload = payload.Replace("\"equal\":0", "\"equal\":0,\"equal\":1");
@@ -92,6 +136,14 @@ public class VciGuardedWriteDomainTests
             WorkerCallResult.Ok(WorkerJson.SerializePayload(new VciWriteOutcomeInfo { Leaves = 1, Failed = 1 })));
         Assert.Equal("failed", result.Status); Assert.Equal("worker_operation_failed", result.Failure!.Category);
         Assert.Equal(1, result.Result!.Value.GetProperty("failed").GetInt32());
+    }
+
+    [Fact]
+    public async Task ReplanAsync_Throws()
+    {
+        var domain = new VciWriteDomain(null!, null!);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => domain.ReplanAsync(new() { OperationId = "a", Operation = "export" }));
+        Assert.Equal("vci_write plans declare no dependencies; ReplanAsync must never be called.", error.Message);
     }
 
     private sealed class WireFixture : IDisposable

@@ -51,5 +51,17 @@ public static class VciWritePayloadContract
         if (outcome.LastAttempted is { } last && (last.Path is null || last.Path.Count == 0
             || last.Path.Any(p => p is null || string.IsNullOrWhiteSpace(p.NodeType) || string.IsNullOrWhiteSpace(p.Name))
             || string.IsNullOrWhiteSpace(last.Operation))) throw new JsonException();
+        if (outcome.Failures is not { } failures || failures.Count > VciWriteOutcomeInfo.MaxFailures || failures.Any(f => !IsValid(f))
+            || outcome.FailuresOmitted < 0 || failures.Count + outcome.FailuresOmitted > outcome.Failed)
+            throw new JsonException();
     }
+
+    private static bool IsValid(VciLeafFailureInfo? f)
+        => f is { Path: { Count: > 0 } path, Message: { } message }
+           && path.All(p => p is not null && !string.IsNullOrWhiteSpace(p.NodeType) && !string.IsNullOrWhiteSpace(p.Name))
+           && (f.Format is null || !string.IsNullOrWhiteSpace(f.Format))
+           && (f.EngineeringErrorType is null || !string.IsNullOrWhiteSpace(f.EngineeringErrorType))
+           && (f.Category == WorkerFailureCategories.EngineeringRejected && f.EngineeringErrorType is not null
+               || f.Category == WorkerFailureCategories.WorkerOperationFailed)
+           && message.Length <= VciLeafFailureInfo.MaxMessageChars;
 }

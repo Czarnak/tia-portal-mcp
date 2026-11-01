@@ -20,7 +20,11 @@ public class VciWriterTests
     {
         using var f = new Fixture();
         f.Workspace.OnExport = leaf => { if (Equals(leaf, f.First)) throw new EngineeringException("Refused fixture."); };
-        var outcome = f.Failure("export");
+        var ex = f.Thrown("export");
+        var outcome = ex.VciWriteOutcome!;
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Equal("TIA Portal operation failed: Refused fixture.", ex.Message);
+        Assert.Equal("EngineeringException", ex.EngineeringError!.Type);
         Assert.Equal(2, outcome.Leaves);
         Assert.Equal(1, outcome.Failed);
         Assert.Equal(1, outcome.Succeeded);
@@ -28,6 +32,171 @@ public class VciWriterTests
         Assert.Contains(VciNotes.SaveProject, outcome.Notes);
         Assert.Null(outcome.LastAttempted);
         Assert.Equal(2, f.Workspace.ExportCalls.Count);
+    }
+
+    [Fact]
+    public void ExportLeafTargetInvocation_IsEngineeringRejectedWithEvidenceAndContinues()
+    {
+        using var f = new Fixture();
+        var third = new FC { Name = "FixtureC" };
+        f.Plc.BlockGroup.Blocks.Items.Add(third);
+        f.Workspace.ThrowOnLeaf[f.Second] = new EngineeringTargetInvocationException("m");
+        var ex = f.Thrown("export");
+        var outcome = ex.VciWriteOutcome!;
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, ex.FailureCategory);
+        Assert.Equal("TIA Portal rejected the operation: m", ex.Message);
+        Assert.Equal("EngineeringTargetInvocationException", ex.EngineeringError!.Type);
+        Assert.Equal(2, outcome.Succeeded);
+        Assert.Equal(1, outcome.Failed);
+        var entry = Assert.Single(outcome.Failures);
+        Assert.Equal(f.Second.Name, entry.Path.Last().Name);
+        Assert.Equal("SimaticML", entry.Format);
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, entry.Category);
+        Assert.Equal("EngineeringTargetInvocationException", entry.EngineeringErrorType);
+        Assert.Equal("m", entry.Message);
+        Assert.Equal(0, outcome.FailuresOmitted);
+    }
+
+    [Fact]
+    public void ServerRaisedFirst_DecidesCategoryAndBothListed()
+    {
+        using var f = new Fixture();
+        f.Workspace.SupportedFormats[f.First] = Array.Empty<string>();
+        f.Workspace.ThrowOnLeaf[f.Second] = new EngineeringTargetInvocationException("native");
+        var ex = f.Thrown("export");
+        var outcome = ex.VciWriteOutcome!;
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Equal("No safe supported export format.", ex.Message);
+        Assert.Null(ex.EngineeringError);
+        Assert.Equal(2, outcome.Failures.Count);
+        Assert.Equal(f.First.Name, outcome.Failures[0].Path.Last().Name);
+        Assert.Null(outcome.Failures[0].EngineeringErrorType);
+        Assert.Equal("SimaticML", outcome.Failures[0].Format);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, outcome.Failures[0].Category);
+        Assert.Equal("EngineeringTargetInvocationException", outcome.Failures[1].EngineeringErrorType);
+    }
+
+    [Fact]
+    public void TwentyFiveFailures_CapsAtTwentyAndCountsOmitted()
+    {
+        using var f = new Fixture();
+        f.Plc.BlockGroup.Blocks.Items.Clear();
+        var leaves = Enumerable.Range(0, 30).Select(i => new FC { Name = "Leaf" + i.ToString("D2") }).ToList();
+        foreach (var leaf in leaves) f.Plc.BlockGroup.Blocks.Items.Add(leaf);
+        for (var i = 0; i < 25; i++)
+            f.Workspace.ThrowOnLeaf[leaves[i]] = new EngineeringTargetInvocationException(i == 0 ? new string('x', 600) : "m" + i);
+        var ex = f.Thrown("export");
+        var outcome = ex.VciWriteOutcome!;
+        Assert.Equal(20, outcome.Failures.Count);
+        Assert.Equal(5, outcome.FailuresOmitted);
+        Assert.Equal(25, outcome.Failed);
+        Assert.Equal(5, outcome.Succeeded);
+        Assert.Equal("Leaf00", outcome.Failures[0].Path.Last().Name);
+        Assert.Equal("Leaf19", outcome.Failures[19].Path.Last().Name);
+        Assert.Equal(VciLeafFailureInfo.MaxMessageChars, outcome.Failures[0].Message.Length);
+        Assert.Equal(600, ex.EngineeringError!.Message.Length);
+    }
+
+    [Fact]
+    public void SyncToWorkspace_ReadOnlyTargetInvocation_IsListedAndContinues()
+    {
+        using var f = new Fixture();
+        var maps = f.MapBoth(CompareState.Unequal, IndividualObjectCompareDetails.ProjectObjectChanged);
+        maps[0].StatusFailure = new EngineeringTargetInvocationException("status");
+        var ex = f.Thrown("sync_to_workspace");
+        var outcome = ex.VciWriteOutcome!;
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, ex.FailureCategory);
+        Assert.Equal(1, outcome.Failed);
+        Assert.Equal(1, outcome.Succeeded);
+        var entry = Assert.Single(outcome.Failures);
+        Assert.Equal(f.First.Name, entry.Path.Last().Name);
+        Assert.Equal("EngineeringTargetInvocationException", entry.EngineeringErrorType);
+    }
+
+    [Fact]
+    public void CreateWorkspace_SiemensRejection_IsClassifiedWithOutcome()
+    {
+        using var f = new Fixture();
+        f.Request.WorkspaceName = "NewWorkspace";
+        f.Request.RootPath = Path.Combine(f.Root, "NewRoot");
+        Directory.CreateDirectory(f.Root);
+        f.Service.WorkspaceGroup.Workspaces.CreateFailure = new EngineeringTargetInvocationException("dup");
+        var ex = f.Thrown("create_workspace");
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, ex.FailureCategory);
+        Assert.Equal("EngineeringTargetInvocationException", ex.EngineeringError!.Type);
+        Assert.Equal(1, ex.VciWriteOutcome!.Leaves);
+        Assert.Equal(1, ex.VciWriteOutcome.Failed);
+        Assert.Empty(ex.VciWriteOutcome.Failures);
+    }
+
+    [Fact]
+    public void DeleteWorkspace_SiemensFailure_IsClassifiedWithOutcome()
+    {
+        using var f = new Fixture();
+        f.Workspace.DeleteFailure = new EngineeringException("delete refused");
+        var ex = f.Thrown("delete_workspace");
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Equal("EngineeringException", ex.EngineeringError!.Type);
+        Assert.Equal(1, ex.VciWriteOutcome!.Failed);
+        Assert.Empty(ex.VciWriteOutcome.Failures);
+    }
+
+    [Fact]
+    public void WriterExpandThrow_IsClassifiedWithoutEntry()
+    {
+        using var f = new Fixture();
+        f.Project.Devices.EnumerationFailure = new EngineeringTargetInvocationException("scope");
+        var ex = f.Thrown("export");
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, ex.FailureCategory);
+        Assert.NotNull(ex.EngineeringError);
+        Assert.Empty(ex.VciWriteOutcome!.Failures);
+    }
+
+    [Fact]
+    public void TopLevelThrowAfterLeafFailures_DecidesCategoryAndKeepsList()
+    {
+        using var f = new Fixture();
+        f.Map(f.First).StatusResult.CompareState = CompareState.WorkspaceFileMissing;
+        f.Map(f.Second);
+        f.Portal.VciExclusiveAccessDisposeFailure = new EngineeringException("Access release failed.");
+        var ex = f.Thrown("sync_to_project");
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.NotNull(ex.EngineeringError);
+        var entry = Assert.Single(ex.VciWriteOutcome!.Failures);
+        Assert.Equal(f.First.Name, entry.Path.Last().Name);
+        Assert.Equal("The workspace file for this mapping is missing.", entry.Message);
+    }
+
+    [Fact]
+    public void MissingImportFile_IsListedAndOthersCommit()
+    {
+        using var f = new Fixture();
+        var maps = f.MapBoth();
+        maps[0].StatusResult = new() { CompareState = CompareState.WorkspaceFileMissing };
+        var ex = f.Thrown("sync_to_project");
+        var outcome = ex.VciWriteOutcome!;
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Null(ex.EngineeringError);
+        Assert.Equal(1, outcome.Succeeded);
+        Assert.Equal(1, outcome.Failed);
+        Assert.True(outcome.ProjectModified);
+        var entry = Assert.Single(outcome.Failures);
+        Assert.Null(entry.EngineeringErrorType);
+        Assert.Equal("The workspace file for this mapping is missing.", entry.Message);
+        Assert.True(Assert.Single(f.Portal.Transactions).Committed);
+    }
+
+    [Fact]
+    public void SyncToProject_SeveralThrowingCandidates_AllListed()
+    {
+        using var f = new Fixture();
+        var maps = f.MapBoth();
+        maps[0].SynchronizeFailure = new EngineeringTargetInvocationException("a");
+        maps[1].SynchronizeFailure = new EngineeringException("b");
+        var ex = f.Thrown("sync_to_project");
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, ex.FailureCategory);
+        Assert.Equal(2, ex.VciWriteOutcome!.Failures.Count);
+        Assert.Equal(2, ex.VciWriteOutcome.Failed);
     }
 
     [Fact]
@@ -54,12 +223,13 @@ public class VciWriterTests
     }
 
     [Fact]
-    public void SyncToProject_LeafThrows_RollsBackAndCountsAllFailed()
+    public void SyncToProject_ThrowingCandidate_RollsBackAndListsOnlyThrower()
     {
         using var f = new Fixture();
         var maps = f.MapBoth();
         maps[0].SynchronizeFailure = new EngineeringException("Refused fixture.");
         var outcome = f.Failure("sync_to_project");
+        Assert.Equal(f.First.Name, Assert.Single(outcome.Failures).Path.Last().Name);
         Assert.Equal(2, outcome.Failed);
         Assert.Equal(0, outcome.Succeeded);
         Assert.False(outcome.ProjectModified);
@@ -74,7 +244,12 @@ public class VciWriterTests
         using var f = new Fixture();
         var maps = f.MapBoth();
         maps[1].OnSynchronize = _ => f.Portal.Transactions[0].CanCommit = false;
-        var outcome = f.Failure("sync_to_project");
+        var ex = f.Thrown("sync_to_project");
+        var outcome = ex.VciWriteOutcome!;
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Equal("The VCI import transaction could not commit; no candidate was imported.", ex.Message);
+        Assert.Null(ex.EngineeringError);
+        Assert.Empty(outcome.Failures);
         Assert.Equal(2, outcome.Failed);
         Assert.Equal(0, outcome.Succeeded);
         Assert.False(outcome.ProjectModified);
@@ -234,6 +409,20 @@ public class VciWriterTests
     }
 
     [Fact]
+    public void NonRecoverable_KeepsEarlierRecordedFailure()
+    {
+        using var f = new Fixture();
+        f.Workspace.ThrowOnLeaf[f.First] = new EngineeringTargetInvocationException("early");
+        f.Workspace.NonRecoverableOnLeaf.Add(f.Second);
+        var ex = Assert.Throws<WorkerOperationException>(() => f.Run("export"));
+        Assert.Equal(WorkerFailureCategories.PortalLost, ex.FailureCategory);
+        Assert.Null(ex.EngineeringError);
+        var entry = Assert.Single(ex.VciWriteOutcome!.Failures);
+        Assert.Equal(f.First.Name, entry.Path.Last().Name);
+        Assert.NotNull(ex.VciWriteOutcome.LastAttempted);
+    }
+
+    [Fact]
     public void FatalStatusRead_RecordsLeafBeforeTransaction()
     {
         using var f = new Fixture();
@@ -327,27 +516,29 @@ public class VciWriterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void LateFileOrMappingCollision_RefusesLeafWithoutOverwrite(bool mapping)
+    public void Export_ExistingFileOrMappingKey_ReachesPortal(bool mapping)
     {
         using var f = new Fixture();
-        Assert.Empty(VciPlanner.Plan(f.Project, f.Request).KeyCollisions);
-        f.Workspace.OnExport = leaf =>
+        Directory.CreateDirectory(f.Target);
+        if (mapping) f.Map(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.Second.Name;
+        else
         {
-            if (!Equals(leaf, f.First)) return;
-            if (mapping) f.Map(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.Second.Name;
-            else File.WriteAllText(Path.Combine(f.Target, f.Second.Name + ".xml"), "retained");
-        };
-        var outcome = f.Failure("export");
-        Assert.Equal(1, outcome.Succeeded);
-        Assert.Equal(1, outcome.Failed);
-        Assert.Single(f.Workspace.ExportCalls);
-        if (!mapping) Assert.Equal("retained", File.ReadAllText(Path.Combine(f.Target, f.Second.Name + ".xml")));
+            // Files left by delete_mapping stay on disk (spec 7.6); Portal decides on the overwrite.
+            File.WriteAllText(Path.Combine(f.Target, f.First.Name + ".xml"), "left");
+            File.WriteAllText(Path.Combine(f.Target, f.Second.Name + ".xml"), "left");
+        }
+
+        var outcome = f.Run("export");
+
+        Assert.Equal(2, outcome.Succeeded);
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(2, f.Workspace.ExportCalls.Count);
     }
 
     [Theory]
-    [InlineData(0, 3, 2)]
-    [InlineData(20, 123, 82)]
-    public void Export_MappingWorkGrowsWithExistingMappings(int backgroundMappings, int enumerated, int propertyReads)
+    [InlineData(0)]
+    [InlineData(20)]
+    public void Export_DoesNotScanExistingMappings(int backgroundMappings)
     {
         using var f = new Fixture();
         for (var i = 0; i < backgroundMappings; i++) f.Map(new FC { Name = "Background" + i });
@@ -356,34 +547,26 @@ public class VciWriterTests
 
         Assert.Equal(2, outcome.Succeeded);
         Assert.Equal(2, f.Workspace.MappedObjects.FindCalls);
-        Assert.Equal(6, f.Workspace.MappedObjects.EnumerationStarts);
-        Assert.Equal(enumerated, f.Workspace.MappedObjects.EnumeratedMappings);
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.DirectoryPathReads));
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.FileNameReads));
+        Assert.Equal(0, f.Workspace.MappedObjects.EnumerationStarts);
         Assert.Equal(2, f.Workspace.ExportCalls.Count);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Export_CollisionAfterDirectoryCreation_IsRefused(bool mapping)
+    [Fact]
+    public void Export_DirectorySegmentProblem_IsListedLeafFailure()
     {
         using var f = new Fixture();
-        f.Plc.BlockGroup.Blocks.Items.Remove(f.Second);
-        f.Workspace.MappedObjects.OnEnumerationStart = scan =>
-        {
-            if (scan != 3) return;
-            if (mapping) f.Map(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.First.Name;
-            else File.WriteAllText(Path.Combine(f.Target, f.First.Name + ".xml"), "retained");
-        };
+        var group = new PlcBlockUserGroup { Name = "CON" };
+        f.Plc.BlockGroup.Blocks.Items.Clear();
+        group.Blocks.Items.Add(f.First);
+        f.Plc.BlockGroup.Groups.Items.Add(group);
 
         var outcome = f.Failure("export");
 
-        Assert.Equal(1, outcome.Leaves);
         Assert.Equal(1, outcome.Failed);
+        var entry = Assert.Single(outcome.Failures);
+        Assert.Equal(f.First.Name, entry.Path.Last().Name);
+        Assert.Contains("Name is not representable: CON", entry.Message);
         Assert.Empty(f.Workspace.ExportCalls);
-        Assert.Equal(3, f.Workspace.MappedObjects.EnumerationStarts);
-        if (!mapping) Assert.Equal("retained", File.ReadAllText(Path.Combine(f.Target, f.First.Name + ".xml")));
     }
 
     [Fact]
@@ -409,7 +592,61 @@ public class VciWriterTests
         var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
         var ex = Assert.Throws<WorkerOperationException>(() => f.Run("create_workspace"));
         Assert.Equal(WorkerFailureCategories.StateChanged, ex.FailureCategory);
+        Assert.Equal("An existing workspace uses this root: " + f.Workspace.Name, ex.Message);
+        Assert.Null(ex.VciWriteOutcome);
         Assert.False(Directory.Exists(f.Request.RootPath));
+        Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
+    }
+
+    [Fact]
+    public void Create_RecheckWithIllegalRoot_FailsValidationWithoutOutcome()
+    {
+        using var f = new Fixture();
+        f.Request.WorkspaceName = "NewWorkspace";
+        f.Request.RootPath = Path.Combine(f.Root, "a|b");
+        var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
+        var ex = f.Thrown("create_workspace");
+        Assert.Equal(WorkerFailureCategories.ValidationError, ex.FailureCategory);
+        Assert.Null(ex.VciWriteOutcome);
+        Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
+    }
+
+    [Fact]
+    public void FailureLog_BlankFormat_IsRecordedAsNull()
+    {
+        var outcome = new VciWriteOutcomeInfo();
+        var log = new VciFailureLog(outcome);
+        log.Record(new VciLastAttemptedInfo { Operation = "export", Format = "  " }, "boom");
+        Assert.Null(outcome.Failures[0].Format);
+    }
+
+    [Fact]
+    public void Create_DuplicateName_ReachesPortal()
+    {
+        using var f = new Fixture();
+        f.Request.WorkspaceName = f.Workspace.Name;
+        f.Request.RootPath = Path.Combine(f.Root, "NewRoot");
+        Directory.CreateDirectory(f.Root);
+        f.Service.WorkspaceGroup.Workspaces.CreateFailure = new EngineeringTargetInvocationException("The workspace name must be unique");
+        var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
+        var ex = f.Thrown("create_workspace");
+        Assert.Equal(before + 1, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, ex.FailureCategory);
+        Assert.Contains("The workspace name must be unique", ex.EngineeringError!.Message);
+    }
+
+    [Fact]
+    public void Create_RecheckReadFailure_IsWorkerOperationFailedNotRejected()
+    {
+        using var f = new Fixture();
+        f.Request.WorkspaceName = "NewWorkspace";
+        f.Request.RootPath = Path.Combine(f.Root, "NewRoot");
+        f.Service.WorkspaceGroup.Workspaces.EnumerationFailure = new EngineeringTargetInvocationException("Synthetic recheck failure.");
+        var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
+        var ex = f.Thrown("create_workspace");
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Equal("EngineeringTargetInvocationException", ex.EngineeringError!.Type);
+        Assert.Null(ex.VciWriteOutcome);
         Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
     }
 
@@ -439,8 +676,7 @@ public class VciWriterTests
         var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
         var ex = Assert.Throws<WorkerOperationException>(() => f.Run("create_workspace"));
         Assert.Equal(WorkerFailureCategories.StateChanged, ex.FailureCategory);
-        Assert.Equal(1, ex.VciWriteOutcome!.Failed);
-        Assert.False(ex.VciWriteOutcome.ProjectModified);
+        Assert.Null(ex.VciWriteOutcome);
         Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
         Assert.Equal("retained", File.ReadAllText(f.Request.RootPath));
     }
@@ -646,6 +882,9 @@ public class VciWriterTests
             Request.Operation = operation;
             return VciWriter.Write(Portal, Project, VciMethods.ForOperation(operation), Request);
         }
+
+        public WorkerOperationException Thrown(string operation)
+            => Assert.Throws<WorkerOperationException>(() => Run(operation));
 
         public VciWriteOutcomeInfo Failure(string operation)
         {

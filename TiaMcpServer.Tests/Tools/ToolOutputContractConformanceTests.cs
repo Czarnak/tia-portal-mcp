@@ -411,7 +411,7 @@ public sealed class ToolOutputContractConformanceTests
                     Assert.Equal(2, document.GetProperty("result").GetProperty("value").GetProperty("portals").GetArrayLength());
             }
         }
-        if (probe.Tool is "network_write" or "hmi_write")
+        if (probe.Tool is "network_write" or "hmi_write" or "vci_write")
             Assert.Equal("2.0", result.StructuredContent!.Value.GetProperty("contractVersion").GetString());
         if (probe.Tool == "network_read")
         {

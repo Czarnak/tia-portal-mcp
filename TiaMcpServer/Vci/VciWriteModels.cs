@@ -9,7 +9,5 @@ public sealed record VciWriteEffect(string Operation, string WorkspaceName, List
 public sealed record VciWriteEffectPresentation(string OperationId, VciWriteEffect? Effect, StructuredOperationOmission? Omission);
 public sealed record VciGuardedWriteResponse(string Tool, string ContractVersion, string Phase, bool Success,
     WriteToolError? Error, IReadOnlyList<string> Warnings, IReadOnlyList<WriteGuardReport> Guards,
-    IReadOnlyList<VciWriteEffectPresentation> Effects, StructuredOperationBatch? Batch, VciWriteVerification? Verification,
+    IReadOnlyList<VciWriteEffectPresentation> Effects, StructuredOperationBatch? Batch, WriteVerification? Verification,
     StructuredOperationOmission? Omission);
-public sealed record VciOperationVerification(string OperationId, bool Success, string Check, string? Expected, string? Actual, string? Message);
-public sealed record VciWriteVerification(bool Success, IReadOnlyList<VciOperationVerification> Operations, StructuredOperationOmission? Omission);

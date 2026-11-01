@@ -71,6 +71,44 @@ public sealed class WorkerExecutionTests
     }
 
     [Fact]
+    public void WrappedVciFailure_AfterPortalDisposal_MapsToPortalLostAndKeepsOutcome()
+    {
+        var revision = 0L;
+        var outcome = new TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo { Leaves = 1, Failed = 1 };
+        var exception = new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "x", vciWriteOutcome: outcome);
+        var result = WorkerExecution.Execute(() => { revision++; throw exception; }, () => revision, mutates: true);
+
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+        Assert.Same(outcome, result.VciWriteOutcome);
+    }
+
+    [Fact]
+    public void WrappedVciFailure_WithoutDisposal_IsRethrown()
+    {
+        var exception = new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "x",
+            vciWriteOutcome: new TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo { Leaves = 1 });
+        var thrown = Assert.Throws<WorkerOperationException>(() => WorkerExecution.Execute(() => throw exception, () => 0, mutates: true));
+        Assert.Same(exception, thrown);
+    }
+
+    [Fact]
+    public void VciPortalLostWrap_AfterDisposal_IsRethrownUnchanged()
+    {
+        var revision = 0L;
+        var exception = new WorkerOperationException(WorkerFailureCategories.PortalLost, "VCI lost the Portal.",
+            vciWriteOutcome: new TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo
+            {
+                Leaves = 1, Failed = 1, LastAttempted = new() { Operation = "export" }
+            });
+        var thrown = Assert.Throws<WorkerOperationException>(() => WorkerExecution.Execute(
+            () => { revision++; throw exception; }, () => revision, mutates: true));
+        Assert.Same(exception, thrown);
+        Assert.Equal("VCI lost the Portal.", thrown.Message);
+        Assert.NotNull(thrown.VciWriteOutcome!.LastAttempted);
+    }
+
+    [Fact]
     public void WriteLookupFailure_AfterPortalDisposal_MapsToPortalLost()
     {
         var revision = 0L;

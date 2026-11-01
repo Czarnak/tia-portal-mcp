@@ -38,18 +38,17 @@ public sealed class VciWritePlannerTests
     public async Task PlanMembersMapToBoundedGuards()
     {
         using var f = await Fixture.Create();
-        f.Put(new() { KeyCollisions = Enumerable.Range(0, 12).Select(i => "collision-" + i).ToList(),
-            Unrepresentable = ["CON: reserved"], WorkspaceConflict = "duplicate", Unverifiable = "unreadable" });
+        f.Put(new() { Unrepresentable = Enumerable.Range(0, 12).Select(i => "CON" + i + ": reserved").ToList(), WorkspaceConflict = "An existing workspace uses this root: Other", Unverifiable = "unreadable" });
         var result = await new VciWritePlanner(f.Client).PlanAsync([Item()]);
         Assert.True(result.Plan.Success);
         var guards = result.Guards["a"];
-        Assert.Equal(4, guards.Count);
+        Assert.Equal(3, guards.Count);
         Assert.All(guards, g => Assert.Equal("a", g.OperationId));
-        Assert.Contains(guards, g => g.Id == "vci_workspace_exists" && g.Message.Contains("duplicate"));
+        Assert.Contains(guards, g => g.Id == "vci_workspace_exists" && g.Message.Contains("uses this root: Other"));
         Assert.Contains(guards, g => g.Id == "vci_name_not_representable" && g.Message.Contains("CON"));
         Assert.Contains(guards, g => g.Id == "vci_state_unverifiable" && g.Message.Contains("unreadable"));
-        var collision = Assert.Single(guards, g => g.Id == "vci_file_key_collision");
-        Assert.Contains("collision-9", collision.Message); Assert.DoesNotContain("collision-10", collision.Message);
+        var name = Assert.Single(guards, g => g.Id == "vci_name_not_representable");
+        Assert.Contains("CON9", name.Message); Assert.DoesNotContain("CON10", name.Message);
     }
 
     [Theory]
@@ -84,48 +83,46 @@ public sealed class VciWritePlannerTests
     [InlineData("target_not_found")]
     [InlineData("worker_operation_failed")]
     [InlineData("target_kind_unsupported")]
-    public async Task WorkerFailurePassesThroughPlanAndReplan(string category)
+    public async Task WorkerFailurePassesThroughPlan(string category)
     {
         using var f = await Fixture.Create(); f.Fail(category, "fixture failure");
-        var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync([Item()]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync([Item()]);
         Assert.False(result.Plan.Success); Assert.Empty(result.Guards);
         Assert.Equal(category, result.Plan.Error!.Category); Assert.Equal("fixture failure", result.Plan.Error.Message);
-        var late = await planner.ReplanAsync(Item());
-        Assert.False(late.Replan.Success); Assert.Equal(category, late.Replan.Error!.Category);
     }
 
     [Fact]
-    public async Task ExportAfterCreateInSameCall_DependsOnCreate()
+    public async Task ExportAfterCreateInSameCall_HasNoPlanAndOneWorkerPlan()
     {
         using var f = await Fixture.Create();
         var create = Item("create_workspace"); create.RootPath = f.Root;
-        var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync([create, Item(id: "b", workspace: "FIXTURE"), Item("delete_mapping", "c")]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync([create, Item(id: "b", workspace: "FIXTURE"), Item("delete_mapping", "c")]);
         Assert.True(result.Plan.Success);
         Assert.Single(f.Plans);
-        Assert.Equal("a", result.Plan.Items[1].DependsOn); Assert.Null(result.Plan.Items[1].Effect);
-        Assert.Equal("b", result.Plan.Items[2].DependsOn); Assert.Null(result.Plan.Items[2].Effect);
+        Assert.NotNull(result.Plan.Items[0].Effect);
+        foreach (var dependent in result.Plan.Items.Skip(1))
+        {
+            Assert.Null(dependent.DependsOn); Assert.Null(dependent.Effect); Assert.Empty(dependent.Preconditions);
+        }
         Assert.Empty(result.Guards["b"]);
-        f.Put(new() { Leaves = 4, MappedLeaves = 1, WorkspaceRootPath = f.Root });
-        var replan = await planner.ReplanAsync(Item(id: "b"));
-        Assert.True(replan.Replan.Success); Assert.Equal(4, replan.Replan.Plan!.Effect!.Leaves);
-        Assert.Null(replan.Replan.Plan.DependsOn); Assert.Equal(2, f.Plans.Length);
+        Assert.Equal(new Dictionary<string, string> { ["b"] = "a", ["c"] = "a" }, result.Dependents);
     }
 
-    [Fact]
-    public async Task ReplanFiresLateBlock()
+    [Theory]
+    [InlineData("delete_workspace", "vci_files_remain")]
+    [InlineData("delete_mapping", "vci_files_remain")]
+    [InlineData("sync_to_project", "vci_import_unvalidated")]
+    [InlineData("export", null)]
+    [InlineData("sync_to_workspace", null)]
+    public async Task DependentItems_KeepOperationInfoGuards(string operation, string? guard)
     {
         using var f = await Fixture.Create();
-        var first = Item("create_workspace"); first.RootPath = f.Root;
-        var second = Item("create_workspace", "b"); second.RootPath = f.Root;
-        var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync([first, second]);
-        Assert.Equal("a", result.Plan.Items[1].DependsOn); Assert.Single(f.Plans);
-        f.Put(new() { WorkspaceConflict = "workspace now exists" });
-        var late = await planner.ReplanAsync(second);
-        Assert.True(late.Replan.Success);
-        Assert.Equal("vci_workspace_exists", Assert.Single(late.Guards).Id);
+        f.Put(new() { WorkspaceConflict = "must not reach dependents", Unverifiable = "nor this" });
+        var result = await new VciWritePlanner(f.Client).PlanAsync([Item("export"), Item(operation, "b")]);
+        Assert.True(result.Plan.Success);
+        Assert.Single(f.Plans);
+        if (guard is null) Assert.Empty(result.Guards["b"]);
+        else Assert.Equal(guard, Assert.Single(result.Guards["b"]).Id);
     }
 
     [Theory]
@@ -142,7 +139,6 @@ public sealed class VciWritePlannerTests
     [InlineData("negative")]
     [InlineData("mapped")]
     [InlineData("fallbacks")]
-    [InlineData("null-collisions")]
     [InlineData("blank-offender")]
     public async Task InconsistentPlanEvidenceFailsClosed(string fault)
     {
@@ -151,7 +147,6 @@ public sealed class VciWritePlannerTests
         if (fault == "negative") info.Leaves = -1;
         if (fault == "mapped") info.MappedLeaves = 1;
         if (fault == "fallbacks") info.FormatFallbacks = 1;
-        if (fault == "null-collisions") info.KeyCollisions = null!;
         if (fault == "blank-offender") info.Unrepresentable = [" "];
         f.Put(info);
         Assert.Equal("protocol_error", (await new VciWritePlanner(f.Client).PlanAsync([Item()])).Plan.Error!.Category);

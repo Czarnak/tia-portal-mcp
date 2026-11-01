@@ -428,18 +428,22 @@ message matching. Deliberate detach, stale callbacks and earlier disposal do not
 qualify. For a mutation worker method (`ProjectMutation` in `OperationPolicyCatalog`, passed to
 `WorkerExecution.Execute` as `mutates`), an `EngineeringTargetInvocationException` maps to
 `engineering_rejected`; the flag spans the entire method, including connection, identity and target checks before a native write. It does not prove a setter or create was reached. Any other engineering error, and a target-invocation error from a read
-method, remains `worker_operation_failed`. Both carry `WorkerResponse.EngineeringError`
+method, remains `worker_operation_failed`. VCI's read-only `create_workspace` planning recheck
+deliberately calls `Classify` with `mutates:false`, so even a target-invocation exception there
+remains `worker_operation_failed` with engineering evidence despite the outer mutation method. Both carry `WorkerResponse.EngineeringError`
 (`EngineeringErrorInfo`: type, message bounded at 4,000 characters, inner chain bounded at eight).
-`WorkerExecution.Classify` and `Describe` are shared by this catch, Network configure wrap sites
-and `HmiWriteRun.Failure`. HMI wraps preserve both `EngineeringError` and the separate
+`WorkerExecution.Classify` and `Describe` are shared by this catch, Network configure wrap sites,
+`HmiWriteRun.Failure` and `VciFailureLog`. HMI wraps preserve both `EngineeringError` and the separate
 `HmiWriteOutcome` carrier through `WorkerOperationException`, `WorkerResponse` and `WorkerCallResult`.
 An HMI `WorkerOperationException` can carry a partial outcome without an engineering error; its
 original category is preserved, including a refusal raised after earlier setters completed.
 Configure stops at the first rejection and carries `ConfigureNetworkDeviceOutcome` through
 `WorkerOperationException`, `WorkerResponse` and `WorkerCallResult`; the host projects its typed
 `appliedSettings` onto the failed item. A wrapped failure with either `EngineeringError` or
-`HmiWriteOutcome` also passes the current-execution disposal check. `portal_lost` is decided first,
-carries no engineering error, and preserves any carried partial configure or HMI outcome.
+`HmiWriteOutcome` also passes the current-execution disposal check, as does a `VciWriteOutcome`
+whose category is not already `portal_lost`. `portal_lost` is decided first, carries no engineering
+error, and preserves any carried partial configure, HMI or VCI outcome. An already classified VCI
+Portal-loss wrapper is preserved unchanged, including its `lastAttempted` context.
 Direct fatal loss after a partial configure
 has not been exercised live.
 Broad Network recovery, XML-bundle export, cached HMI liveness and
@@ -540,8 +544,8 @@ registered tool is now structured; the three batch tools were removed rather tha
   and tool-level error record. Rejections carry `batch:null` and MCP `isError:true`; a batch that
   ran carries `error:null` and `isError:false`, even when individual items failed or were omitted.
   The shared runner uses the same response composer for exact budget measurement and delivery.
-  Domain contract versions are HMI read `1.1`, PLC/Network reads `1.0`, PLC/Network/HMI writes `2.0`,
-  and VCI `1.0`.
+  Domain contract versions are HMI read `1.1`, PLC/Network/VCI reads `1.0`, and PLC/Network/HMI/VCI
+  writes `2.0`.
 - `TiaMcpServer/OperationBatches/StructuredOperationBatch*.cs` provides the shared
   item/failure/omission/count/truncation batch model and a read/write execution engine whose
   stop decision covers `protocol_error` alongside ordinary worker failures.
@@ -550,13 +554,16 @@ registered tool is now structured; the three batch tools were removed rather tha
 - `StructuredOperationFailure.engineeringError` is a conditional member on every structured tool's
   failure schema. The worker supplies it on `WorkerResponse`; the host copies it into an item failure
   in `WriteRun.RunItemAsync`, the one shared projection, only for a failed call that carries it, so
-  host-side rejections never have one. The worker exception mapping and PLC/Network/HMI write seams
+  host-side rejections never have one. The worker exception mapping and PLC/Network/HMI/VCI write seams
   describe which paths produce it.
 - `HmiWritePayloadContract` validates a carried `HmiWriteOutcome` and places it in a failed item's
   typed `result`, including non-engineering categorized failures. This is separate from the
   conditional `failure.engineeringError`; an outcome without that error still describes possible
   mutation. Missing outcome evidence is not an empty applied-properties list.
-- Network/PLC reads use version `1.0`, HMI reads use `1.1`, and Network/PLC/HMI writes use `2.0`,
+- `VciWritePayloadContract` validates success and carried failure outcomes with their bounded typed
+  leaf-failure lists. Rejected evidence becomes `protocol_error` and is never echoed. VCI outcome
+  evidence remains separate from conditional `failure.engineeringError` and can survive `portal_lost`.
+- Network/PLC/VCI reads use version `1.0`, HMI reads use `1.1`, and Network/PLC/HMI/VCI writes use `2.0`,
   with warnings arrays and explicit nulls.
   `CanonicalWriteSafety`, token preview DTOs, `WriteSafetyService`, `WriteSafetyTooling`,
   `SafetyRead` and the legacy write audit are retired.
@@ -751,34 +758,56 @@ single-trace memory-return condition not met. No traversal-saving performance cl
 
 ### VCI reads and writes
 
-`VciReadCatalog` and `VciWriteCatalog` validate separate strict per-operation fields. Both tools
-share the canonical `1.0` batch contract, typed worker payload decoding and effective response
-budgets. The worker's `VciScopeResolver` expands Device-rooted PLC and Unified HMI selectors to
+`VciReadCatalog` and `VciWriteCatalog` validate separate strict per-operation fields. Reads retain
+contract `1.0`; writes use `2.0`, with canonical delivery, typed worker payload decoding and effective
+response budgets. The worker's `VciScopeResolver` expands Device-rooted PLC and Unified HMI selectors to
 leaves; it resolves HMI mapping paths through Device, `HmiSoftware` and `ScriptModule` ownership.
 Live Openness identities use `object.Equals`; ambiguous or unreadable owners never become guessed
 selectors. The public VCI capability is standalone-only: reads and `vci_plan` enter through
 `WithEngineeringRoot`, while all six writes use `WithActiveContext` for Portal access during import.
 
-`VciWritePlanner` uses one Observe `vci_plan` per independent item and re-plans an item after the
-nearest earlier same-workspace item. It never reads status. The guarded pipeline pins binding,
-executes items in order, stops after a failed item and records audit v2. The worker expands scopes,
-rejects occupied relative file keys and unsafe paths, then invokes native VCI only on leaves.
-Export checks mapping keys and target files again near the native call; the explicit scans grow
-with leaves × mappings. `sync_to_workspace` resolves current mapping/selector ownership and takes
+`VciWritePlanner` sends one Observe `vci_plan` for the first item per case-insensitive workspace.
+Later items have no inventory, counts, effects or evidence guards of their own, no `DependsOn`
+and no re-plan; operation info guards and the project-folder boundary remain. The call warns with
+dependent IDs. Planning never reads status. The guarded pipeline pins binding, executes items in
+order, stops after a failed item and records audit v2. The worker invokes native VCI only on leaves.
+Workspace conflict protection compares exact roots, case-insensitively and ignoring trailing
+separators. Nested roots are allowed; duplicate names reach native creation and a refusal can leave
+the requested empty root. Directory segments and containment remain guarded, while leaf filename
+policy retains only path-boundary/ADS checks. The length diagnostic counts the complete path up to
+259 characters, including `.xml`'s four characters or an eight-character reserve for other formats.
+
+Export performs containment checks around directory creation, without the former mapping-key or
+existing-file collision scans. Portal owns native overwrite, companion-file deletion and possible
+disruption of another mapping inside the authorized key directory. `sync_to_workspace` resolves
+current mapping/selector ownership and takes
 one plain `GetStatus()` reading immediately before each native synchronization. Import status
 prefiltering precedes one ExclusiveAccess transaction; each candidate's mapping and owner are
 re-resolved before native use, since import may recreate engineering objects. Sequential calls
 cannot make external remapping or status changes atomic; the import prefilter window remains.
 
-`VciWriteVerifier` checks mapping/workspace existence or absence, marks earlier same-workspace
-items `superseded`, and labels sync results `notStatusVerified`; it does not fetch status again.
+`VciFailureLog` retains up to 20 leaf failures in encounter order, with type/category evidence and
+messages cut to 500 characters; `failuresOmitted` counts further recorded failures, while result
+counts remain uncapped. Import prefilter failures are recorded before candidate synchronization
+failures, so there is no global scope-order guarantee. The first encountered/recorded failure
+determines the item category and native `engineeringError`, not necessarily the first selected
+leaf, unless a later top-level exception stops the operation. Non-native refusals
+have no engineering evidence. A rolled-back import can count every candidate failed while listing
+only the leaves that threw. Typed outcomes survive the shared Portal-disposal classification.
+
+`VciVerificationPolicy` uses one case-insensitive workspace key with `TrustedWriteVerifier` and
+no native read-back. Completed items are `trusted` or `superseded` by later attempted same-workspace
+items; an outcome-bearing failure can supersede earlier success, while a precondition refusal
+without an outcome cannot. Failed/skipped items have no entry. Callers inspect `vci_read` separately.
 Before each leaf the worker writes a request-matched breadcrumb. `portal_lost` invalidates binding
 immediately, while timeout/crash may attach the matching `lastAttempted` to the failure and audit.
 After context loss, explicit opening requires fresh zero-owner Portal evidence and exact target
 identity; no projectless response promotes to a verified project binding. The
 [VCI reference](SupportedOperations/VCI_OPERATIONS_SUMMARY.md) details operation fields, status
-decisions, path policy and retry limits; the [scoped report](superpowers/acceptance/reports/2026-10-16-vci-tools-live-acceptance.md)
-retains the failed frozen verdict and repaired-candidate evidence.
+decisions, path policy and retry limits. [ADR-0014](adr/0014-vci-write-native-rejection-contract.md)
+records the native-rejection/overwrite decision; the
+[current scoped report](superpowers/acceptance/reports/2026-11-01-vci-write-native-rejections-live-verification.md)
+keeps native observations, mixed timing results and untested crash/race/format limits separate.
 
 ### Typed Network payload registry
 
@@ -1176,7 +1205,7 @@ acceptance boundaries.
 ### Guarded write pipeline (foundation and lifecycle)
 
 `TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaced the token flow.
-The six lifecycle tools, `network_write`, `plc_write` and `hmi_write` use it. Network, PLC and HMI have no server
+The six lifecycle tools, `network_write`, `plc_write`, `hmi_write` and `vci_write` use it. Network, PLC, HMI and VCI have no server
 elicitation; lifecycle read-write confirms every actual call.
 The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
 are recorded separately; client acceptance does not prove that a person saw the consequence.
@@ -1192,7 +1221,7 @@ can make root `success` false while execution statuses and verification truth re
 `IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
 evaluation, the mutation, verification, and the response shape.
 
-`TrustedWriteVerifier<TItem>` shares the completion/supersedence algorithm for PLC, Network and HMI.
+`TrustedWriteVerifier<TItem>` shares the completion/supersedence algorithm for PLC, Network, HMI and VCI.
 `IWriteVerificationPolicy<TItem>` supplies object keys, the read tool and any domain read-back.
 A successful item is `superseded` by a later attempted item's equal key or container key unless
 that later failure was a precondition refusal with no result. A non-null failed-item result keeps
@@ -1210,7 +1239,8 @@ hash members. `NetworkVerificationPolicy` has no read-back. Its configure key in
 case-normalized device name, interface path names/positions and ordinal raw node ID; optional type
 evidence does not change identity. Update/delete share the ordinal subnet key; a create has no
 pre-call subnet key. `HmiVerificationPolicy` also has no read-back and uses flat effect keys as
-described in §7a. VCI retains its existing verifier; its migration remains an open follow-up.
+described in §7a. `VciVerificationPolicy` has no read-back and uses one case-insensitive workspace
+key, so a later attempted item can supersede any earlier success on that workspace.
 
 Pipeline stages, in order:
 
@@ -1233,7 +1263,8 @@ Pipeline stages, in order:
    under the same binding lease before dispatch: the TIA UI can edit while the prompt is visible.
 6. **Mutate** sequentially. The first item that does not succeed stops the call; later items are
    `skipped`. A domain that declares `DependsOn` re-plans that item just before its own mutation;
-   HMI plans declare no dependencies and use their initial caller-order simulation.
+   HMI plans declare no dependencies and use their initial caller-order simulation; VCI leaves later
+   same-workspace items unplanned and declares no `DependsOn`.
 7. **Verify, compose, audit.** `VerifyAsync`, then `Compose`, then one audit record; the tool result
    carries the same canonical text that was audited. `isError` is true only for `error` and
    `blocked`; a write that ran and failed reports `success: false` under `applied`.
@@ -1262,6 +1293,8 @@ acceptance also stops the item; full satisfies that severity by policy. Lifecycl
 single-item; `plc_write` uses this mechanism for items that depend on objects created earlier in
 the call. A re-planned guard identical to one already reported for the item is reported once.
 HMI simulates in-call dependencies during initial planning and does not enter this re-plan path.
+VCI also stays out of this path: only the first item per workspace is planned, and dependents
+execute without their own inventory or evidence guards.
 
 #### Partial writes
 
