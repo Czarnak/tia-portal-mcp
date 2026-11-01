@@ -24,7 +24,15 @@ public static class VciPlanner
             if (string.IsNullOrWhiteSpace(write.WorkspaceName) || string.IsNullOrWhiteSpace(write.RootPath))
                 throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
                     "workspaceName and rootPath are required.");
-            plan.WorkspaceRootPath = Path.GetFullPath(write.RootPath!).TrimEnd('\\', '/');
+            try
+            {
+                if (VciPathPolicy.HasInvalidRootCharacters(write.RootPath!)) throw new ArgumentException();
+                plan.WorkspaceRootPath = Path.GetFullPath(write.RootPath!).TrimEnd('\\', '/');
+            }
+            catch (Exception e) when (e is ArgumentException || e is NotSupportedException || e is PathTooLongException)
+            {
+                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "workspace_root_invalid");
+            }
             foreach (var candidate in service.WorkspaceGroup.Workspaces)
             {
                 if (candidate.RootPath is not null && string.Equals(

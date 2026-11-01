@@ -47,7 +47,7 @@ internal sealed class VciFailureLog(VciWriteOutcomeInfo outcome)
         outcome.Failures.Add(new VciLeafFailureInfo
         {
             Path = new List<TiaMcpServer.Contracts.Project.ProjectTreeSelectorSegment>(attempt.Path),
-            Format = attempt.Format,
+            Format = string.IsNullOrWhiteSpace(attempt.Format) ? null : attempt.Format,
             Category = category,
             EngineeringErrorType = type,
             Message = message.Length <= VciLeafFailureInfo.MaxMessageChars

@@ -171,6 +171,19 @@ public class VciPlannerTests
     }
 
     [Fact]
+    public void Create_RootWithIllegalCharacter_IsValidationErrorWithoutOutcome()
+    {
+        using var f = new Fixture();
+        var write = f.Write("create_workspace");
+        write.WorkspaceName = "NewFixture";
+        write.RootPath = Path.Combine(f.Root, "a|b");
+
+        var ex = Assert.Throws<WorkerOperationException>(() => VciPlanner.Plan(f.Project, write));
+        Assert.Equal(WorkerFailureCategories.ValidationError, ex.FailureCategory);
+        Assert.Null(ex.VciWriteOutcome);
+    }
+
+    [Fact]
     public void Create_DuplicateNameWithDifferentRoot_HasNoConflict()
     {
         using var f = new Fixture();

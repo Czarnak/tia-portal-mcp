@@ -599,6 +599,28 @@ public class VciWriterTests
     }
 
     [Fact]
+    public void Create_RecheckWithIllegalRoot_FailsValidationWithoutOutcome()
+    {
+        using var f = new Fixture();
+        f.Request.WorkspaceName = "NewWorkspace";
+        f.Request.RootPath = Path.Combine(f.Root, "a|b");
+        var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
+        var ex = f.Thrown("create_workspace");
+        Assert.Equal(WorkerFailureCategories.ValidationError, ex.FailureCategory);
+        Assert.Null(ex.VciWriteOutcome);
+        Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
+    }
+
+    [Fact]
+    public void FailureLog_BlankFormat_IsRecordedAsNull()
+    {
+        var outcome = new VciWriteOutcomeInfo();
+        var log = new VciFailureLog(outcome);
+        log.Record(new VciLastAttemptedInfo { Operation = "export", Format = "  " }, "boom");
+        Assert.Null(outcome.Failures[0].Format);
+    }
+
+    [Fact]
     public void Create_DuplicateName_ReachesPortal()
     {
         using var f = new Fixture();
