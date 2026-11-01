@@ -181,7 +181,8 @@ namespace Siemens.Engineering.VersionControl
         public MappedObject? Find(IEngineeringObject engineeringObject)
         {
             FindCalls++;
-            return this.FirstOrDefault(x => object.Equals(x.EngineeringObject, engineeringObject));
+            if (EnumerationFailure is not null) throw EnumerationFailure;
+            return Items.FirstOrDefault(x => object.Equals(x.EngineeringObject, engineeringObject));
         }
         public IEnumerator<MappedObject> GetEnumerator()
         {

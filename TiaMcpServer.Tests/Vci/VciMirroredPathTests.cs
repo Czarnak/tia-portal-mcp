@@ -58,7 +58,7 @@ public sealed class VciMirroredPathTests
     {
         var path = PlcPath();
         path[0].Name = "S7-1500/ET200MP station_1";
-        Assert.Null(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false)));
+        Assert.Null(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false), "SimaticML"));
     }
 
     [Theory]
@@ -74,32 +74,53 @@ public sealed class VciMirroredPathTests
     [Theory]
     [InlineData("CON")]
     [InlineData("con.xml")]
-    [InlineData("CON.part.xml")]
-    [InlineData("PRN")]
-    [InlineData("AUX")]
-    [InlineData("NUL")]
-    [InlineData("CLOCK$")]
+    [InlineData("CON.part")]
     [InlineData("COM1")]
-    [InlineData("COM9")]
-    [InlineData("LPT1")]
     [InlineData("LPT9")]
+    [InlineData("CLOCK$")]
     [InlineData("LeafA.")]
     [InlineData("LeafA ")]
     [InlineData("bad<name>")]
     [InlineData("bad|name")]
     [InlineData("bad?name")]
     [InlineData("bad*name")]
-    [InlineData("sub\\name")]
-    [InlineData("sub/name")]
-    [InlineData("name:stream")]
-    [InlineData("")]
+    [InlineData("a\"b")]
     [InlineData("..")]
-    public void ReservedAndTrailingDotNames_AreNotRepresentable(string name)
-        => Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", new VciFileKey(@"\FixtureA", name)));
+    public void DirectorySegmentRules_StillApply(string name)
+    {
+        var problem = VciMirroredPath.FirstProblem(@"C:\workspace", new VciFileKey(@"\FixtureA\" + name, "LeafA"), "SimaticML");
+        Assert.Equal("Name is not representable: " + name, problem);
+        var path = PlcPath();
+        path[3].Name = name;
+        Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false), "SimaticML"));
+    }
+
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("CON.part")]
+    [InlineData("Trailing.")]
+    [InlineData("Trailing ")]
+    [InlineData("a\"b")]
+    [InlineData("a|b")]
+    [InlineData("a<b>")]
+    public void LeafReservedOrTrailingDotName_IsLeftToPortal(string name)
+        => Assert.Null(VciMirroredPath.FirstProblem(@"C:\workspace", new VciFileKey(@"\FixtureA", name), "SimaticML"));
+
+    [Theory]
+    [InlineData("a\\b")]
+    [InlineData("a/b")]
+    [InlineData("name:stream")]
+    public void LeafBoundaryCharacters_AreNotRepresentable(string name)
+    {
+        var path = PlcPath();
+        path[4].Name = name;
+        Assert.Equal("Name is not representable: " + name,
+            VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false), "SimaticML"));
+    }
 
     [Fact]
     public void UnrepresentableDirectory_IsReported()
-        => Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", new VciFileKey(@"\CON\GroupA", "LeafA")));
+        => Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", new VciFileKey(@"\CON\GroupA", "LeafA"), "SimaticML"));
 
     [Theory]
     [InlineData("bad/name")]
@@ -108,7 +129,7 @@ public sealed class VciMirroredPathTests
     {
         var path = PlcPath();
         path[3].Name = name;
-        Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false)));
+        Assert.NotNull(VciMirroredPath.FirstProblem(@"C:\workspace", VciMirroredPath.Build(null, path, false), "SimaticML"));
     }
 
     [Theory]
@@ -117,15 +138,42 @@ public sealed class VciMirroredPathTests
     [InlineData("LPT0")]
     [InlineData("Leaf.part")]
     public void RepresentableNames_AreAccepted(string name)
-        => Assert.Null(VciMirroredPath.FirstProblem(@"C:\workspace", new VciFileKey("\\", name)));
+        => Assert.Null(VciMirroredPath.FirstProblem(@"C:\workspace", new VciFileKey("\\", name), "SimaticML"));
+
+    // Complete path = root + "\\" + directory + "\\" + leaf, plus the extension reserve.
+    private static string RootForTotal(int total, string dir, string leaf, int reserve)
+        => @"C:\" + new string('a', total - reserve - 3 - dir.Length - 1 - leaf.Length - 1);
 
     [Fact]
-    public void LongPath_Over259_IsReported()
+    public void SimaticMlCompletePathOf259_IsAccepted()
     {
-        var key = new VciFileKey("\\", "LeafA");
-        var acceptedRoot = @"C:\" + new string('a', 259 - 3 - 1 - key.FileName.Length - VciMirroredPath.MaxExtensionLength);
-        Assert.Null(VciMirroredPath.FirstProblem(acceptedRoot, key));
-        Assert.NotNull(VciMirroredPath.FirstProblem(acceptedRoot + "a", key));
+        var key = new VciFileKey(@"\FixtureA", "LeafA");
+        Assert.Null(VciMirroredPath.FirstProblem(RootForTotal(259, "FixtureA", "LeafA", 4), key, "simaticml"));
+    }
+
+    [Fact]
+    public void SimaticMlCompletePathOf260_IsReported()
+    {
+        var key = new VciFileKey(@"\FixtureA", "LeafA");
+        Assert.Equal("Mirrored path exceeds 259 characters: LeafA",
+            VciMirroredPath.FirstProblem(RootForTotal(260, "FixtureA", "LeafA", 4), key, "SimaticML"));
+    }
+
+    [Fact]
+    public void OtherFormat_KeepsEightCharacterReserve()
+    {
+        var key = new VciFileKey(@"\FixtureA", "LeafA");
+        Assert.Null(VciMirroredPath.FirstProblem(RootForTotal(259, "FixtureA", "LeafA", 8), key, "SimaticSD"));
+        Assert.NotNull(VciMirroredPath.FirstProblem(RootForTotal(260, "FixtureA", "LeafA", 8), key, "SimaticSD"));
+    }
+
+    [Fact]
+    public void LengthCheck_NeverUsesPathCombine()
+    {
+        // net48 Path.Combine/GetFullPath throw on these characters.
+        var key = new VciFileKey(@"\FixtureA", "\"<>|");
+        var ex = Record.Exception(() => VciMirroredPath.FirstProblem(@"C:\workspace", key, "SimaticML"));
+        Assert.Null(ex);
     }
 
     [Theory]

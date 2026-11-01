@@ -516,27 +516,29 @@ public class VciWriterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void LateFileOrMappingCollision_RefusesLeafWithoutOverwrite(bool mapping)
+    public void Export_ExistingFileOrMappingKey_ReachesPortal(bool mapping)
     {
         using var f = new Fixture();
-        Assert.Empty(VciPlanner.Plan(f.Project, f.Request).KeyCollisions);
-        f.Workspace.OnExport = leaf =>
+        Directory.CreateDirectory(f.Target);
+        if (mapping) f.Map(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.Second.Name;
+        else
         {
-            if (!Equals(leaf, f.First)) return;
-            if (mapping) f.Map(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.Second.Name;
-            else File.WriteAllText(Path.Combine(f.Target, f.Second.Name + ".xml"), "retained");
-        };
-        var outcome = f.Failure("export");
-        Assert.Equal(1, outcome.Succeeded);
-        Assert.Equal(1, outcome.Failed);
-        Assert.Single(f.Workspace.ExportCalls);
-        if (!mapping) Assert.Equal("retained", File.ReadAllText(Path.Combine(f.Target, f.Second.Name + ".xml")));
+            // Files left by delete_mapping stay on disk (spec 7.6); Portal decides on the overwrite.
+            File.WriteAllText(Path.Combine(f.Target, f.First.Name + ".xml"), "left");
+            File.WriteAllText(Path.Combine(f.Target, f.Second.Name + ".xml"), "left");
+        }
+
+        var outcome = f.Run("export");
+
+        Assert.Equal(2, outcome.Succeeded);
+        Assert.Equal(0, outcome.Failed);
+        Assert.Equal(2, f.Workspace.ExportCalls.Count);
     }
 
     [Theory]
-    [InlineData(0, 3, 2)]
-    [InlineData(20, 123, 82)]
-    public void Export_MappingWorkGrowsWithExistingMappings(int backgroundMappings, int enumerated, int propertyReads)
+    [InlineData(0)]
+    [InlineData(20)]
+    public void Export_DoesNotScanExistingMappings(int backgroundMappings)
     {
         using var f = new Fixture();
         for (var i = 0; i < backgroundMappings; i++) f.Map(new FC { Name = "Background" + i });
@@ -545,34 +547,26 @@ public class VciWriterTests
 
         Assert.Equal(2, outcome.Succeeded);
         Assert.Equal(2, f.Workspace.MappedObjects.FindCalls);
-        Assert.Equal(6, f.Workspace.MappedObjects.EnumerationStarts);
-        Assert.Equal(enumerated, f.Workspace.MappedObjects.EnumeratedMappings);
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.DirectoryPathReads));
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.FileNameReads));
+        Assert.Equal(0, f.Workspace.MappedObjects.EnumerationStarts);
         Assert.Equal(2, f.Workspace.ExportCalls.Count);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Export_CollisionAfterDirectoryCreation_IsRefused(bool mapping)
+    [Fact]
+    public void Export_DirectorySegmentProblem_IsListedLeafFailure()
     {
         using var f = new Fixture();
-        f.Plc.BlockGroup.Blocks.Items.Remove(f.Second);
-        f.Workspace.MappedObjects.OnEnumerationStart = scan =>
-        {
-            if (scan != 3) return;
-            if (mapping) f.Map(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.First.Name;
-            else File.WriteAllText(Path.Combine(f.Target, f.First.Name + ".xml"), "retained");
-        };
+        var group = new PlcBlockUserGroup { Name = "CON" };
+        f.Plc.BlockGroup.Blocks.Items.Clear();
+        group.Blocks.Items.Add(f.First);
+        f.Plc.BlockGroup.Groups.Items.Add(group);
 
         var outcome = f.Failure("export");
 
-        Assert.Equal(1, outcome.Leaves);
         Assert.Equal(1, outcome.Failed);
+        var entry = Assert.Single(outcome.Failures);
+        Assert.Equal(f.First.Name, entry.Path.Last().Name);
+        Assert.Contains("Name is not representable: CON", entry.Message);
         Assert.Empty(f.Workspace.ExportCalls);
-        Assert.Equal(3, f.Workspace.MappedObjects.EnumerationStarts);
-        if (!mapping) Assert.Equal("retained", File.ReadAllText(Path.Combine(f.Target, f.First.Name + ".xml")));
     }
 
     [Fact]

@@ -62,8 +62,6 @@ public static class VciPlanner
         }
         if (write.Operation != "export") return plan;
 
-        HashSet<VciFileKey>? existingKeys = null;
-        var itemKeys = new HashSet<VciFileKey>();
         foreach (var leaf in unmapped)
         {
             var name = leaf.Path[leaf.Path.Count - 1].Name;
@@ -82,7 +80,7 @@ public static class VciPlanner
             }
             if (format.IsFallback) plan.FormatFallbacks++;
             var key = VciMirroredPath.Build(write.RelativeDirectory, leaf.Path, leaf.IsPcStation);
-            var problem = VciMirroredPath.FirstProblem(plan.WorkspaceRootPath!, key);
+            var problem = VciMirroredPath.FirstProblem(plan.WorkspaceRootPath!, key, format.Format);
             if (problem is not null)
             {
                 AddOffender(plan.Unrepresentable, name + ": " + problem);
@@ -94,14 +92,6 @@ public static class VciPlanner
                 plan.Unverifiable = name + ": " + directory.Reason;
                 return plan;
             }
-            existingKeys ??= new HashSet<VciFileKey>(workspace.MappedObjects.Select(mapping =>
-                VciFileKey.FromMapping(plan.WorkspaceRootPath!, mapping.DirectoryPath.FullName,
-                    mapping.FileNameWithoutExtension)));
-            // shortcut: any matching stem blocks, refine only if real unrelated sibling files require it.
-            if (!itemKeys.Add(key) || existingKeys.Contains(key)
-                || (Directory.Exists(directory.CanonicalPath) && Directory.EnumerateFiles(directory.CanonicalPath!)
-                    .Any(file => Path.GetFileName(file).StartsWith(key.FileName + ".", StringComparison.OrdinalIgnoreCase))))
-                AddOffender(plan.KeyCollisions, key.Directory + "\\" + key.FileName);
         }
         return plan;
     }

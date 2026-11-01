@@ -153,6 +153,18 @@ public class VciGuardedWriteMcpTests
     }
 
     [Fact]
+    public async Task ExportOntoExistingKey_IsNotBlocked()
+    {
+        using var audit = new TempAuditDirectory(); Directory.CreateDirectory(audit.Path);
+        await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, "vci-write-roundtrip");
+        var args = Args(Item(workspace: "Fixture")); args["dryRun"] = true;
+        var root = Document(await h.Client.CallToolAsync("vci_write", args));
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal("preview", root.GetProperty("phase").GetString());
+        Assert.Empty(root.GetProperty("guards").EnumerateArray());
+    }
+
+    [Fact]
     public async Task BlockedCallWritesOneAudit()
     {
         using var audit = new TempAuditDirectory(); Directory.CreateDirectory(audit.Path);

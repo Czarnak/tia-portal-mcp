@@ -49,7 +49,6 @@ public sealed class VciPlanInfo
     public int FormatFallbacks { get; set; }
     public string? WorkspaceRootPath { get; set; }
     public string? WorkspaceConflict { get; set; }
-    public List<string> KeyCollisions { get; set; } = new();
     public List<string> Unrepresentable { get; set; } = new();
     public string? Unverifiable { get; set; }
 }

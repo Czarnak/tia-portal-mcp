@@ -27,24 +27,6 @@ public class VciWriteVerifierTests
     }
 
     [Fact]
-    public async Task PartialExportWithKnownFailedLeafCollisionStillVerifiesMappedCount()
-    {
-        using var audit = new TempAuditDirectory();
-        await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, "vci-write-roundtrip");
-        var root = Document(await h.Client.CallToolAsync("vci_write", Args(Item(workspace: "PartialCollision"))));
-        Assert.False(root.GetProperty("success").GetBoolean());
-        var outcome = root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
-        Assert.Equal(1, outcome.GetProperty("failed").GetInt32());
-        Assert.Equal(1, outcome.GetProperty("succeeded").GetInt32());
-        var verification = root.GetProperty("verification");
-        Assert.True(verification.GetProperty("success").GetBoolean(), root.GetRawText());
-        var check = Assert.Single(verification.GetProperty("operations").EnumerateArray());
-        Assert.Equal("mappedLeaves", check.GetProperty("check").GetString());
-        Assert.Equal("1", check.GetProperty("expected").GetString());
-        Assert.Equal("1", check.GetProperty("actual").GetString());
-    }
-
-    [Fact]
     public async Task DeleteMappingOnUnmappedScopeVerifiesZeroWithoutCountingUnmappedLeaves()
     {
         using var audit = new TempAuditDirectory();

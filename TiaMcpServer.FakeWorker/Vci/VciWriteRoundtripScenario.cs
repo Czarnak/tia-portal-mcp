@@ -12,7 +12,7 @@ internal sealed class VciWriteRoundtripScenario
     private readonly HashSet<string> _mutated = new(StringComparer.OrdinalIgnoreCase);
     public VciWriteRoundtripScenario()
     {
-        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure", "Unverifiable", "EmptyUnverifiable", "PartialCollision", "Rejected", "ImportRejected", "ManyRejected" })
+        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure", "Unverifiable", "EmptyUnverifiable", "Rejected", "ImportRejected", "ManyRejected" })
             _workspaces[name] = new() { Name = name, RootPath = Path.Combine(Path.GetTempPath(), "vci-" + name) };
     }
     private static string Ok(object value) => JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = WorkerJson.SerializePayload(value) }, WorkerJson.Envelope);
@@ -38,7 +38,7 @@ internal sealed class VciWriteRoundtripScenario
             return Ok(new VciPlanInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" || w.WorkspaceName == "EmptyUnverifiable" ? 0 : 2,
                 MappedLeaves = workspace?.MappingCount ?? 0, WorkspaceRootPath = workspace?.RootPath ?? w.RootPath,
                 WorkspaceConflict = w.Operation == "create_workspace" && _workspaces.Values.FirstOrDefault(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase)) is { } sharedRoot ? "An existing workspace uses this root: " + sharedRoot.Name : null,
-                KeyCollisions = w.WorkspaceName == "Blocked" || w.WorkspaceName == "PartialCollision" && _mutated.Contains(w.WorkspaceName) ? ["Fixture/leaf"] : [] });
+                Unrepresentable = w.WorkspaceName == "Blocked" ? ["Fixture: Name is not representable: a/b"] : [] });
         }
         var outcome = new VciWriteOutcomeInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" ? 1 : 2 };
         if (w.WorkspaceName != "Healthy" && scenario is "vci-timeout" or "vci-timeout-silent" or "vci-crash")
@@ -87,7 +87,7 @@ internal sealed class VciWriteRoundtripScenario
             case "export":
                 outcome.Skipped.AlreadyMapped = workspace!.MappingCount;
                 if (w.WorkspaceName == "EmptyUnverifiable") outcome.Leaves = 0;
-                outcome.Failed = w.WorkspaceName is "Fail" or "PartialCollision" ? 1 : 0;
+                outcome.Failed = w.WorkspaceName == "Fail" ? 1 : 0;
                 outcome.Succeeded = outcome.Leaves - outcome.Skipped.AlreadyMapped - outcome.Failed;
                 workspace.MappingCount += outcome.Succeeded; outcome.ProjectModified = outcome.Succeeded > 0; break;
             case "delete_mapping": outcome.Leaves = outcome.Succeeded = workspace!.MappingCount; workspace.MappingCount = 0; outcome.ProjectModified = outcome.Succeeded > 0; break;

@@ -66,20 +66,32 @@ public static class VciMirroredPath
         return new VciFileKey(string.Join("\\", names), leafName) { MirroredSegments = names.Concat(new[] { leafName }).ToArray() };
     }
 
-    public static string? FirstProblem(string rootPath, VciFileKey key)
+    public static string? FirstProblem(string rootPath, VciFileKey key, string format)
     {
         var segments = key.MirroredSegments ?? key.Directory.TrimStart('\\').Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries)
             .Concat(new[] { key.FileName }).ToArray();
-        foreach (var segment in segments)
+        // Directory segments are created by the writer and keep every rule; the leaf is left to Portal
+        // except for the directory boundary and alternate-stream characters (containment).
+        for (var i = 0; i < segments.Count - 1; i++)
         {
+            var segment = segments[i];
             if (string.IsNullOrWhiteSpace(segment) || segment.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
                 || segment.EndsWith(".", StringComparison.Ordinal) || segment.EndsWith(" ", StringComparison.Ordinal)
                 || IsReserved(segment))
                 return "Name is not representable: " + segment;
         }
-        var fullPath = Path.Combine(rootPath, key.Directory.TrimStart('\\'), key.FileName);
-        return fullPath.Length + MaxExtensionLength > 259 ? "Mirrored path exceeds 259 characters: " + key.FileName : null;
+        var leaf = segments[segments.Count - 1];
+        if (leaf.IndexOfAny(LeafBoundaryChars) >= 0) return "Name is not representable: " + leaf;
+        // String concatenation, never Path.Combine/GetFullPath: net48 throws on '"', '<', '>' and '|' in a leaf name.
+        var parts = new[] { rootPath.TrimEnd('\\', '/'), key.Directory.Trim('\\'), key.FileName }.Where(part => part.Length > 0);
+        return string.Join("\\", parts).Length + ExtensionReserve(format) > 259
+            ? "Mirrored path exceeds 259 characters: " + key.FileName : null;
     }
+
+    private static readonly char[] LeafBoundaryChars = { '\\', '/', ':' };
+
+    internal static int ExtensionReserve(string format)
+        => string.Equals(format, "SimaticML", StringComparison.OrdinalIgnoreCase) ? 4 : MaxExtensionLength;
 
     private static bool IsReserved(string name)
     {

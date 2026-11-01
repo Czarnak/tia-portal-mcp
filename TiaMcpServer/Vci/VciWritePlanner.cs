@@ -49,8 +49,7 @@ public sealed class VciWritePlanner(OpennessWorkerClient client)
             var plan = CanonicalJson.DeserializeWorkerPayload<VciPlanInfo>(result.Payload);
             if (plan is null || plan.Leaves < 0 || plan.MappedLeaves < 0 || plan.MappedLeaves > plan.Leaves
                 || plan.FormatFallbacks < 0 || plan.FormatFallbacks > plan.Leaves
-                || plan.KeyCollisions is null || plan.Unrepresentable is null
-                || plan.KeyCollisions.Any(string.IsNullOrWhiteSpace) || plan.Unrepresentable.Any(string.IsNullOrWhiteSpace))
+                || plan.Unrepresentable is null || plan.Unrepresentable.Any(string.IsNullOrWhiteSpace))
                 throw new JsonException();
             var effect = new VciWriteEffect(item.Operation, item.WorkspaceName!, item.Scope,
                 plan.WorkspaceRootPath, plan.Leaves, plan.MappedLeaves, plan.FormatFallbacks);
@@ -75,7 +74,6 @@ public sealed class VciWritePlanner(OpennessWorkerClient client)
     {
         var guards = new List<FiredGuard>();
         void Fire(string id, string message) => guards.Add(new(id, item.OperationId, message));
-        if (plan.KeyCollisions.Count > 0) Fire(VciGuardDefinitions.FileKeyCollision, "File key collisions: " + string.Join("; ", plan.KeyCollisions.Take(10)));
         if (plan.Unrepresentable.Count > 0) Fire(VciGuardDefinitions.NameNotRepresentable, "Unrepresentable leaves: " + string.Join("; ", plan.Unrepresentable.Take(10)));
         if (plan.WorkspaceConflict is not null) Fire(VciGuardDefinitions.WorkspaceExists, plan.WorkspaceConflict);
         if (plan.Unverifiable is not null) Fire(VciGuardDefinitions.StateUnverifiable, plan.Unverifiable);

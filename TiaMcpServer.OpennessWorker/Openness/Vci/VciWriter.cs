@@ -78,11 +78,11 @@ public static class VciWriter
                                 Attempt(new VciLastAttemptedInfo { Path = leaf.Path, Operation = write.Operation, Format = format.Format });
                                 if (format.IsFallback) outcome.FormatFallbacks++;
                                 var key = VciMirroredPath.Build(write.RelativeDirectory, leaf.Path, leaf.IsPcStation);
-                                var problem = VciMirroredPath.FirstProblem(workspace.RootPath.FullName, key);
+                                var problem = VciMirroredPath.FirstProblem(workspace.RootPath.FullName, key, format.Format);
                                 if (problem is not null) throw new InvalidOperationException(problem);
                                 var directory = ExportDirectory(workspace, key);
                                 Directory.CreateDirectory(directory);
-                                // Recheck the full mirrored path and current keys after directory creation, immediately before export.
+                                // Recheck containment after directory creation, immediately before export; an existing file or key is left to Portal.
                                 ExportDirectory(workspace, key);
                                 workspace.ExportObject(leaf.Object, new DirectoryInfo(key.Directory), key.FileName, format.Format);
                                 outcome.Succeeded++;
@@ -217,11 +217,6 @@ public static class VciWriter
         var root = workspace.RootPath.FullName;
         var directory = VciPathPolicy.ResolveRelativeDirectory(root, key.Directory.TrimStart('\\'));
         if (!directory.IsValid) throw new InvalidOperationException(directory.Reason);
-        if (workspace.MappedObjects.Any(mapping => key.Equals(VciFileKey.FromMapping(root,
-                mapping.DirectoryPath.FullName, mapping.FileNameWithoutExtension)))
-            || (Directory.Exists(directory.CanonicalPath) && Directory.EnumerateFiles(directory.CanonicalPath!)
-                .Any(file => Path.GetFileName(file).StartsWith(key.FileName + ".", StringComparison.OrdinalIgnoreCase))))
-            throw new InvalidOperationException("The export file key is now occupied.");
         return directory.CanonicalPath!;
     }
 

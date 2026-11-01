@@ -39,94 +39,21 @@ public class VciPlannerTests
     }
 
     [Fact]
-    public void RerunExport_AlreadyMappedLeavesAreNotCollisions()
+    public void Plan_HasNoCollisionEvidenceAndNeverEnumeratesFiles()
     {
         using var f = new Fixture();
-        f.AddMapping(f.Leaf);
+        f.AddMapping(new FC { Name = "OtherFixture" }).FileNameWithoutExtension = f.Leaf.Name.ToLowerInvariant();
         f.WriteFile(".xml");
-        f.WriteFile(".s7res");
-        f.Workspace.ThrowOnLeaf[f.Leaf] = new EngineeringException("Mapped leaves need no format resolution.");
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Equal(1, plan.Leaves);
-        Assert.Equal(1, plan.MappedLeaves);
-        Assert.Equal(0, plan.FormatFallbacks);
-        Assert.Empty(plan.KeyCollisions);
-        Assert.Empty(plan.Unrepresentable);
-        Assert.Null(plan.Unverifiable);
-        Assert.Empty(f.Workspace.SupportedFormatCalls);
-    }
-
-    [Theory]
-    [InlineData(".xml")]
-    [InlineData(".s7res")]
-    [InlineData(".unrelated")]
-    public void LeftoverFileOnDisk_IsCollision(string extension)
-    {
-        using var f = new Fixture();
-        f.WriteFile(extension);
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Contains(f.Leaf.Name, Assert.Single(plan.KeyCollisions));
-        Assert.Null(plan.Unverifiable);
-    }
-
-    [Fact]
-    public void DifferentStemOnDisk_IsNotCollision()
-    {
-        using var f = new Fixture();
-        f.WriteFile("Suffix.xml");
-        Assert.Empty(VciPlanner.Plan(f.Project, f.Write()).KeyCollisions);
-    }
-
-    [Fact]
-    public void ExistingMappingKey_IsCollision()
-    {
-        using var f = new Fixture();
-        var mapping = f.AddMapping(new FC { Name = "OtherFixture" });
-        mapping.DirectoryPath = new DirectoryInfo(f.TargetDirectory.ToUpperInvariant());
-        mapping.FileNameWithoutExtension = f.Leaf.Name.ToLowerInvariant();
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Contains(f.Leaf.Name, Assert.Single(plan.KeyCollisions));
-        Assert.Equal(0, plan.MappedLeaves);
-        Assert.Null(plan.Unverifiable);
-    }
-
-    [Theory]
-    [InlineData(0, 0, 0)]
-    [InlineData(20, 40, 20)]
-    public void ExportPlan_MapsEachExistingKeyOnce(int backgroundMappings, int enumerated, int propertyReads)
-    {
-        using var f = new Fixture();
-        for (var i = 0; i < backgroundMappings; i++)
-            f.AddMapping(new FC { Name = "Background" + i }).FileNameWithoutExtension = "Background" + i;
-
-        var plan = VciPlanner.Plan(f.Project, f.Write());
-
-        Assert.Null(plan.Unverifiable);
-        Assert.Empty(plan.KeyCollisions);
-        Assert.Equal(1, f.Workspace.MappedObjects.FindCalls);
-        Assert.Equal(2, f.Workspace.MappedObjects.EnumerationStarts);
-        Assert.Equal(enumerated, f.Workspace.MappedObjects.EnumeratedMappings);
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.DirectoryPathReads));
-        Assert.Equal(propertyReads, f.Workspace.MappedObjects.Items.Sum(mapping => mapping.FileNameReads));
-        Assert.Empty(f.Workspace.ExportCalls);
-    }
-
-    [Fact]
-    public void DuplicateKeyWithinItem_IsCollision()
-    {
-        using var f = new Fixture();
+        f.WriteFile(".unrelated");
         f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = f.Leaf.Name.ToLowerInvariant() });
 
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
         Assert.Equal(2, plan.Leaves);
-        Assert.Contains(f.Leaf.Name.ToLowerInvariant(), Assert.Single(plan.KeyCollisions));
+        Assert.Empty(plan.Unrepresentable);
+        Assert.Null(plan.Unverifiable);
+        Assert.Equal(0, f.Workspace.MappedObjects.EnumerationStarts);
+        Assert.Empty(f.Workspace.ExportCalls);
     }
 
     [Theory]
@@ -164,10 +91,9 @@ public class VciPlannerTests
     }
 
     [Theory]
-    [InlineData("CON")]
-    [InlineData("Trailing.")]
     [InlineData("Embedded\\Separator")]
     [InlineData("Embedded/Separator")]
+    [InlineData("Stream:Name")]
     public void UnrepresentableLeaf_ReportedByPlan(string name)
     {
         using var f = new Fixture();
@@ -176,9 +102,20 @@ public class VciPlannerTests
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
         Assert.Contains(name, Assert.Single(plan.Unrepresentable));
-        Assert.Empty(plan.KeyCollisions);
         Assert.Null(plan.Unverifiable);
         Assert.Empty(f.Workspace.ExportCalls);
+    }
+
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("Trailing.")]
+    public void LeafReservedOrTrailingDot_IsNotReportedByPlan(string name)
+    {
+        using var f = new Fixture();
+        f.Leaf.Name = name;
+        var plan = VciPlanner.Plan(f.Project, f.Write());
+        Assert.Empty(plan.Unrepresentable);
+        Assert.Null(plan.Unverifiable);
     }
 
     [Fact]
@@ -343,16 +280,13 @@ public class VciPlannerTests
         f.Plc.BlockGroup.Blocks.Items.Clear();
         for (var i = 0; i < 15; i++)
         {
-            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Invalid" + i + "." });
-            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Collision" + i });
-            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Collision" + i });
+            f.Plc.BlockGroup.Blocks.Items.Add(new FC { Name = "Invalid" + i + ":" });
         }
 
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
-        Assert.Equal(45, plan.Leaves);
+        Assert.Equal(15, plan.Leaves);
         Assert.Equal(10, plan.Unrepresentable.Count);
-        Assert.Equal(10, plan.KeyCollisions.Count);
     }
 
     [Theory]

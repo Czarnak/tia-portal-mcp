@@ -38,18 +38,17 @@ public sealed class VciWritePlannerTests
     public async Task PlanMembersMapToBoundedGuards()
     {
         using var f = await Fixture.Create();
-        f.Put(new() { KeyCollisions = Enumerable.Range(0, 12).Select(i => "collision-" + i).ToList(),
-            Unrepresentable = ["CON: reserved"], WorkspaceConflict = "An existing workspace uses this root: Other", Unverifiable = "unreadable" });
+        f.Put(new() { Unrepresentable = Enumerable.Range(0, 12).Select(i => "CON" + i + ": reserved").ToList(), WorkspaceConflict = "An existing workspace uses this root: Other", Unverifiable = "unreadable" });
         var result = await new VciWritePlanner(f.Client).PlanAsync([Item()]);
         Assert.True(result.Plan.Success);
         var guards = result.Guards["a"];
-        Assert.Equal(4, guards.Count);
+        Assert.Equal(3, guards.Count);
         Assert.All(guards, g => Assert.Equal("a", g.OperationId));
         Assert.Contains(guards, g => g.Id == "vci_workspace_exists" && g.Message.Contains("uses this root: Other"));
         Assert.Contains(guards, g => g.Id == "vci_name_not_representable" && g.Message.Contains("CON"));
         Assert.Contains(guards, g => g.Id == "vci_state_unverifiable" && g.Message.Contains("unreadable"));
-        var collision = Assert.Single(guards, g => g.Id == "vci_file_key_collision");
-        Assert.Contains("collision-9", collision.Message); Assert.DoesNotContain("collision-10", collision.Message);
+        var name = Assert.Single(guards, g => g.Id == "vci_name_not_representable");
+        Assert.Contains("CON9", name.Message); Assert.DoesNotContain("CON10", name.Message);
     }
 
     [Theory]
@@ -142,7 +141,6 @@ public sealed class VciWritePlannerTests
     [InlineData("negative")]
     [InlineData("mapped")]
     [InlineData("fallbacks")]
-    [InlineData("null-collisions")]
     [InlineData("blank-offender")]
     public async Task InconsistentPlanEvidenceFailsClosed(string fault)
     {
@@ -151,7 +149,6 @@ public sealed class VciWritePlannerTests
         if (fault == "negative") info.Leaves = -1;
         if (fault == "mapped") info.MappedLeaves = 1;
         if (fault == "fallbacks") info.FormatFallbacks = 1;
-        if (fault == "null-collisions") info.KeyCollisions = null!;
         if (fault == "blank-offender") info.Unrepresentable = [" "];
         f.Put(info);
         Assert.Equal("protocol_error", (await new VciWritePlanner(f.Client).PlanAsync([Item()])).Plan.Error!.Category);
