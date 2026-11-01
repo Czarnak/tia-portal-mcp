@@ -1,5 +1,0 @@
-# Published checksums require identical bytes on every platform.
-* text eol=lf
-*.gz binary
-# A unified patch represents each blank context line with one required space.
-probe.patch whitespace=-blank-at-eol

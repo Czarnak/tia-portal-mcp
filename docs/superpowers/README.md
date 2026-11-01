@@ -68,7 +68,3 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 | 2026-08-14 | [Structured I/O map defect fixes — live](acceptance/reports/2026-08-14-io-map-defect-fixes-live.md) |
 | 2026-08-01 | [Network Phase 1 — rerun](acceptance/reports/2026-08-01-16-56-00-network-operations-phase1-rerun.md) |
 | 2026-08-01 | [Network Phase 1](acceptance/reports/2026-08-01-16-48-48-network-operations-phase1.md) |
-
-## Current working evidence
-
-[VCI candidate execution record](evidence/2026-11-01-vci-write-candidate/README.md) is transient and is removed, together with this section, at the plan's ready-to-merge pruning step.
