@@ -245,7 +245,7 @@ public sealed class VciPathPolicyTests : IDisposable
     [InlineData("\"")]
     [InlineData("<")]
     [InlineData(">")]
-    [InlineData("")]
+    [InlineData("\u0001")]
     public void ValidateRoot_RejectsInvalidPathCharacters(string bad)
     {
         var result = ValidateRoot(Path.Combine(_testRoot, "ws" + bad + "x"));
