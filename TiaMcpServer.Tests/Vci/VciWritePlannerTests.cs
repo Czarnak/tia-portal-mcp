@@ -83,48 +83,46 @@ public sealed class VciWritePlannerTests
     [InlineData("target_not_found")]
     [InlineData("worker_operation_failed")]
     [InlineData("target_kind_unsupported")]
-    public async Task WorkerFailurePassesThroughPlanAndReplan(string category)
+    public async Task WorkerFailurePassesThroughPlan(string category)
     {
         using var f = await Fixture.Create(); f.Fail(category, "fixture failure");
-        var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync([Item()]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync([Item()]);
         Assert.False(result.Plan.Success); Assert.Empty(result.Guards);
         Assert.Equal(category, result.Plan.Error!.Category); Assert.Equal("fixture failure", result.Plan.Error.Message);
-        var late = await planner.ReplanAsync(Item());
-        Assert.False(late.Replan.Success); Assert.Equal(category, late.Replan.Error!.Category);
     }
 
     [Fact]
-    public async Task ExportAfterCreateInSameCall_DependsOnCreate()
+    public async Task ExportAfterCreateInSameCall_HasNoPlanAndOneWorkerPlan()
     {
         using var f = await Fixture.Create();
         var create = Item("create_workspace"); create.RootPath = f.Root;
-        var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync([create, Item(id: "b", workspace: "FIXTURE"), Item("delete_mapping", "c")]);
+        var result = await new VciWritePlanner(f.Client).PlanAsync([create, Item(id: "b", workspace: "FIXTURE"), Item("delete_mapping", "c")]);
         Assert.True(result.Plan.Success);
         Assert.Single(f.Plans);
-        Assert.Equal("a", result.Plan.Items[1].DependsOn); Assert.Null(result.Plan.Items[1].Effect);
-        Assert.Equal("b", result.Plan.Items[2].DependsOn); Assert.Null(result.Plan.Items[2].Effect);
+        Assert.NotNull(result.Plan.Items[0].Effect);
+        foreach (var dependent in result.Plan.Items.Skip(1))
+        {
+            Assert.Null(dependent.DependsOn); Assert.Null(dependent.Effect); Assert.Empty(dependent.Preconditions);
+        }
         Assert.Empty(result.Guards["b"]);
-        f.Put(new() { Leaves = 4, MappedLeaves = 1, WorkspaceRootPath = f.Root });
-        var replan = await planner.ReplanAsync(Item(id: "b"));
-        Assert.True(replan.Replan.Success); Assert.Equal(4, replan.Replan.Plan!.Effect!.Leaves);
-        Assert.Null(replan.Replan.Plan.DependsOn); Assert.Equal(2, f.Plans.Length);
+        Assert.Equal(new Dictionary<string, string> { ["b"] = "a", ["c"] = "a" }, result.Dependents);
     }
 
-    [Fact]
-    public async Task ReplanFiresLateBlock()
+    [Theory]
+    [InlineData("delete_workspace", "vci_files_remain")]
+    [InlineData("delete_mapping", "vci_files_remain")]
+    [InlineData("sync_to_project", "vci_import_unvalidated")]
+    [InlineData("export", null)]
+    [InlineData("sync_to_workspace", null)]
+    public async Task DependentItems_KeepOperationInfoGuards(string operation, string? guard)
     {
         using var f = await Fixture.Create();
-        var first = Item("create_workspace"); first.RootPath = f.Root;
-        var second = Item("create_workspace", "b"); second.RootPath = f.Root;
-        var planner = new VciWritePlanner(f.Client);
-        var result = await planner.PlanAsync([first, second]);
-        Assert.Equal("a", result.Plan.Items[1].DependsOn); Assert.Single(f.Plans);
-        f.Put(new() { WorkspaceConflict = "workspace now exists" });
-        var late = await planner.ReplanAsync(second);
-        Assert.True(late.Replan.Success);
-        Assert.Equal("vci_workspace_exists", Assert.Single(late.Guards).Id);
+        f.Put(new() { WorkspaceConflict = "must not reach dependents", Unverifiable = "nor this" });
+        var result = await new VciWritePlanner(f.Client).PlanAsync([Item("export"), Item(operation, "b")]);
+        Assert.True(result.Plan.Success);
+        Assert.Single(f.Plans);
+        if (guard is null) Assert.Empty(result.Guards["b"]);
+        else Assert.Equal(guard, Assert.Single(result.Guards["b"]).Id);
     }
 
     [Theory]

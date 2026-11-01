@@ -252,21 +252,34 @@ public class VciGuardedWriteMcpTests
     }
 
     [Fact]
-    public async Task DeferredPreviewNamesUnknownInventoryThenApplyReplansAfterCreate()
+    public async Task CaseVariantDependent_NoPlanInPreviewOrApply()
     {
         using var audit = new TempAuditDirectory(); Directory.CreateDirectory(audit.Path);
         using var log = new FakeWorkerRequestLog(audit.Path);
         await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, "vci-write-roundtrip");
-        var args = Args(Item("create_workspace", "a", "New", Path.Combine(audit.Path, "workspace")), Item("export", "b", "New")); args["dryRun"] = true;
+        var args = Args(Item("create_workspace", "a", "w", Path.Combine(audit.Path, "workspace")), Item("export", "b", "W")); args["dryRun"] = true;
         var preview = Document(await h.Client.CallToolAsync("vci_write", args));
         Assert.True(preview.GetProperty("success").GetBoolean(), preview.GetRawText());
-        Assert.Contains(preview.GetProperty("warnings").EnumerateArray(), w => w.GetString()!.Contains("[b]") && w.GetString()!.Contains("await predecessor mutation"));
+        Assert.Contains(preview.GetProperty("warnings").EnumerateArray(), w => w.GetString()!.Contains("b after a") && w.GetString()!.StartsWith("Dependent operations ["));
         Assert.Single(preview.GetProperty("effects").EnumerateArray());
         Assert.Equal(1, log.Methods().Count(m => m == "vci_plan"));
         args.Remove("dryRun");
         var applied = Document(await h.Client.CallToolAsync("vci_write", args));
         Assert.True(applied.GetProperty("success").GetBoolean(), applied.GetRawText());
-        Assert.Equal(2, applied.GetProperty("effects")[1].GetProperty("effect").GetProperty("leaves").GetInt32());
+        Assert.Equal(2, log.Methods().Count(m => m == "vci_plan"));
+        Assert.Contains("vci_create_workspace", log.Methods()); Assert.Contains("vci_export", log.Methods());
+        Assert.Equal(["a", "b"], applied.GetProperty("batch").GetProperty("operations").EnumerateArray().Where(o => o.GetProperty("status").GetString() == "succeeded").Select(o => o.GetProperty("operationId").GetString()!));
+        var checks = applied.GetProperty("verification").GetProperty("operations").EnumerateArray().Select(o => o.GetProperty("check").GetString()!).ToArray();
+        Assert.Equal(["superseded", "trusted"], checks);
+    }
+
+    [Fact]
+    public void Description_StatesContractEssentials()
+    {
+        var description = typeof(TiaMcpServer.Vci.VciWriteTools).GetMethod("VciWrite")!
+            .GetCustomAttributes(typeof(System.ComponentModel.DescriptionAttribute), false).Cast<System.ComponentModel.DescriptionAttribute>().Single().Description;
+        foreach (var term in new[] { "failuresOmitted", "overwrite", "superseded", "compile_check", "standalone", "SimaticSD", "timeout" })
+            Assert.Contains(term, description);
     }
 
     [Fact]

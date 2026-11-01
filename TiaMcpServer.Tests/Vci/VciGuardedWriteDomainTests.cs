@@ -138,6 +138,14 @@ public class VciGuardedWriteDomainTests
         Assert.Equal(1, result.Result!.Value.GetProperty("failed").GetInt32());
     }
 
+    [Fact]
+    public async Task ReplanAsync_Throws()
+    {
+        var domain = new VciWriteDomain(null!, null!);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => domain.ReplanAsync(new() { OperationId = "a", Operation = "export" }));
+        Assert.Equal("vci_write plans declare no dependencies; ReplanAsync must never be called.", error.Message);
+    }
+
     private sealed class WireFixture : IDisposable
     {
         private readonly string directory = Path.Combine(Path.GetTempPath(), "vci-wire-" + Guid.NewGuid().ToString("N"));

@@ -13,7 +13,7 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
 {
     private readonly VciWritePlanner _planner = new(client);
     private readonly Dictionary<string, IReadOnlyList<FiredGuard>> _guards = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _deferred = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _dependents = new(StringComparer.Ordinal);
     private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
     private IReadOnlyList<VciOperationRequest> _items = [];
     public string ToolName => "vci_write";
@@ -33,21 +33,15 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
         var result = await _planner.PlanAsync(items).ConfigureAwait(false);
         foreach (var pair in result.Guards) _guards[pair.Key] = pair.Value;
         if (result.Plan.Success)
-            for (var i = 0; i < items.Count; i++)
-                if (result.Plan.Items[i].DependsOn is not null) _deferred.Add(items[i].OperationId);
+            foreach (var pair in result.Dependents) _dependents[pair.Key] = pair.Value;
         return result.Plan;
     }
 
     public IReadOnlyList<FiredGuard> EvaluateGuards(IReadOnlyList<VciOperationRequest> items, IReadOnlyList<ItemPlan<VciWriteEffect>> plans)
         => items.SelectMany(i => _guards.GetValueOrDefault(i.OperationId) ?? []).ToArray();
 
-    public async Task<ItemReplan<VciWriteEffect>> ReplanAsync(VciOperationRequest item)
-    {
-        var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
-        _guards[item.OperationId] = result.Guards;
-        if (result.Replan.Success) _deferred.Remove(item.OperationId);
-        return result.Replan;
-    }
+    public Task<ItemReplan<VciWriteEffect>> ReplanAsync(VciOperationRequest item)
+        => throw new InvalidOperationException("vci_write plans declare no dependencies; ReplanAsync must never be called.");
 
     public async Task<WorkerCallResult> MutateAsync(VciOperationRequest item)
     {
@@ -75,9 +69,9 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
 
     public VciGuardedWriteResponse Compose(WriteReport<VciWriteEffect, WriteVerification> report)
     {
-        var deferred = _items.Where(i => _deferred.Contains(i.OperationId)).Select(i => i.OperationId).ToArray();
-        var warnings = deferred.Length == 0 ? report.Warnings : report.Warnings.Concat(new[] {
-            "Deferred operations [" + string.Join(", ", deferred) + "]: inventory and guard checks await predecessor mutation; no inventory counts are confirmed." }).ToArray();
+        var dependents = _items.Where(i => _dependents.ContainsKey(i.OperationId)).Select(i => i.OperationId + " after " + _dependents[i.OperationId]).ToArray();
+        var warnings = dependents.Length == 0 ? report.Warnings : report.Warnings.Concat(new[] {
+            "Dependent operations [" + string.Join(", ", dependents) + "]: they rely on the earlier same-workspace item's plan; no inventory, counts or evidence guards are computed for them." }).ToArray();
         return VciWritePayloadBudget.Apply(new(ToolName, ContractVersion, report.Phase, report.Success, report.Error,
             warnings, report.Guards, report.Effects.Select(e => new VciWriteEffectPresentation(e.OperationId, e.Effect, null)).ToArray(),
             report.Batch, report.Verification, null));
