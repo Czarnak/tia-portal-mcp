@@ -20,17 +20,23 @@ The following remain open:
 - MCP progress notifications for long operations.
 - Consolidating the VCI path policy with the existing private path guards only after their
   reserved-name and containment rules can be reconciled without weakening them.
-- Export scan growth: the explicit collision checks scale with leaves × mappings, and native
-  `Find` complexity is unknown. The bounded three-leaf follow-up passed; there is no established
-  whole-project throughput or scan-reduction fix. Preserve the late-collision barrier while
-  investigating performance.
+- Native `Find` complexity and general whole-project throughput remain unknown. The explicit
+  per-leaf collision scans over all mappings were removed by the [native-rejection contract](#completed-vci_write-native-rejections-2026-11-01);
+  the measured export improvements do not establish a general throughput guarantee.
 - UI layout parity (issue #145) was observed for S7-1500, ET 200SP, a Unified panel, a generic
   PC station and an IPC. PC stations are recognized by device type pattern only; other PC-based
   families, devices inside project-tree device folders, and non-English workspace-language
   category names (`Program blocks`, …) remain unverified against UI exports.
-- Native `SimaticSD` exporter crash, abrupt-crash recovery timing, Unknown status, thrown-leaf
-  rollback, concurrent live remapping/status races and current-candidate HMI import/runtime
-  behavior remain unqualified within the live report's stated scope.
+- Native `SimaticSD` exporter crash, abrupt-crash recovery timing, Unknown status, arbitrary
+  thrown-leaf rollback, concurrent live remapping/status races and current-candidate HMI import/runtime
+  behavior remain unqualified. The [current report](superpowers/acceptance/reports/2026-11-01-vci-write-native-rejections-live-verification.md)
+  qualifies only its observed malformed-XML/two-candidate import outcome and targeted compiles.
+- **F28 — XML read after VCI re-import returns `.s7dcl`.** Deferred Stage 0 observation;
+  investigate the content-format/read path. The current run establishes neither reproduction,
+  root cause nor a fix.
+- **F29 — counters appear to carry over between items.** Deferred Stage 0 observation;
+  investigate before treating the appearance as an established accounting defect. The current
+  run establishes neither root cause nor a fix.
 
 ## Open: large PLC block follow-ups (issue #127, 2026-10-15)
 
@@ -252,13 +258,6 @@ blocks it. Known limits are also listed in the
 Left open by the [ADR-0012 (native rejections)](adr/0012-portal-as-rejection-authority.md)
 and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md).
 
-- **VCI adopt the same error contract.** HMI write 2.0 now retains typed native errors and its partial
-  mutation outcome; Network's migration is [complete within its recorded scope](#completed-network_write-native-rejections-2026-10-29).
-  `vci_write` still wraps Siemens exceptions without `engineeringError`. Its separate migration
-  should record a timing baseline, native rejection evidence and a contract version bump.
-- **VCI onto the shared verifier.** PLC, Network and HMI now use `TrustedWriteVerifier` with
-  `IWriteVerificationPolicy` and their domain policies. VCI remains separate; retain its
-  domain-specific mutation outcomes, verification needs and qualification gates when migrating it.
 - **Content importers still flatten Siemens errors.** `update_block_logic` and `update_type_content`
   import failures, and the exporters, are re-wrapped as `worker_operation_failed` with no
   `engineeringError`. These wrap sites do not populate `WorkerOperationException.EngineeringError`;
@@ -588,4 +587,35 @@ post-write reads/Validate. Callers inspect state, Validate and compile in the HM
   loss during HMI mutation and cleanup/transport faults were not induced. Connection-only assignment,
   the read-side error-evidence gap and optional delete-planning alarm-read removal remain open above.
   A setter may partially mutate before its stage appears in `appliedProperties`; inspect failed items
-  before retrying. VCI's error/verifier migration and PLC content-importer error flattening remain open.
+  before retrying. PLC content-importer error flattening remains open.
+
+## Completed: vci_write native rejections (2026-11-01)
+
+[ADR-0014](adr/0014-vci-write-native-rejection-contract.md) records why VCI adopts the native-rejection
+and shared-verifier policy. The [scoped report](superpowers/acceptance/reports/2026-11-01-vci-write-native-rejections-live-verification.md)
+qualifies local-branch source commit `4057b44a` and the installed matching package; live evidence was
+committed locally as `7e704176`. These are local branch commits, not a published PR or release.
+
+- **Delivered:** write contract `2.0`, read `1.0`, typed engineering failures and bounded leaf
+  diagnostics; the VCI error-contract and shared-verifier follow-ups above are closed. The former
+  explicit export collision scans are removed: Portal owns overwrite behavior. Exact shared roots,
+  directory segments and containment remain guarded, and the complete XML path diagnostic is
+  corrected. Dependents are not planned or re-planned; shared verification uses workspace-wide
+  `trusted`/`superseded` without native read-back.
+- **Qualification:** all 20 final variants across C1–C10/L1–L6 pass. All 21 measured timing calls
+  qualify under the unchanged Stage 0 validators, with 103 exact canonical-document/audit pairs.
+  Final observations preserve six workspace inventories, all 216 base mapping records (`Equal`),
+  1,249 file hashes and the independently checked saved-project hash; the project remained open
+  and unmodified. Two stopped setup attempts were corrected and retained separately, as the report
+  describes; no candidate product source changed.
+- **Timing:** root medians in seconds, baseline → candidate: T1 3.313 → 0.528 (−84.1%),
+  T2 12.726 → 10.103 (−20.6%), T3 15.797 → 11.151 (−29.4%), T4 0.039 → 0.042 (+3 ms),
+  **T5 74.073 → 87.047 (+17.5%)**, **T6 22.214 → 25.124 (+13.1%)**,
+  T7 261.084 → 154.438 (−40.8%). Synchronization regressed in these measurements. Three samples
+  per workload on one machine do not establish universal gains or an isolated causal effect.
+- **Retained limits:** the occupied-key candidate cases used matching valid file copies, whose
+  bytes stayed unchanged; destructive overwrite of differing content and companion deletion were
+  not newly exercised. No live 25-failure/cap/trimming case, broader-format/directory-name matrix,
+  crash, timeout, race or Portal-loss probe ran. The malformed-XML import qualifies only the
+  observed two-candidate outcome, followed by targeted compiles. F28/F29 remain open observations
+  above; independent reads remain necessary before retrying failed or possibly partial items.
