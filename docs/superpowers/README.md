@@ -23,6 +23,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-01 | [VCI write native rejections — 20 scoped contract/lifecycle variants, 21 qualified timing samples with synchronization regressions retained, native failure evidence, shared verification and restored fixture](acceptance/reports/2026-11-01-vci-write-native-rejections-live-verification.md) |
 | 2026-10-30 | [HMI write native rejections — scoped qualification complete: version boundaries, 31-variant matrix, R1 partial-failure fix, R2 evidence reuse, accepted R3 compile reduction, L1–L5, timing and retained limits](acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md) |
 | 2026-10-29 | [Network write native rejections — scoped 17-case PASS, maintainer rulings, corrected L11c/L13mini fixtures, three-run timing comparison, verified restoration and retained snapshot/native-fault limits](acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md) |
 | 2026-10-29 | [HMI native-rejection checkpoint probes — all 31 P1–P22 variants: 21 native rejections, eight accepted, two worker refusals; per-variant UI follow-up](acceptance/reports/2026-10-29-hmi-write-checkpoint-probes.md) |
@@ -67,3 +68,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 | 2026-08-14 | [Structured I/O map defect fixes — live](acceptance/reports/2026-08-14-io-map-defect-fixes-live.md) |
 | 2026-08-01 | [Network Phase 1 — rerun](acceptance/reports/2026-08-01-16-56-00-network-operations-phase1-rerun.md) |
 | 2026-08-01 | [Network Phase 1](acceptance/reports/2026-08-01-16-48-48-network-operations-phase1.md) |
+
+## Current working evidence
+
+[VCI candidate execution record](evidence/2026-11-01-vci-write-candidate/README.md) is transient and is removed, together with this section, at the plan's ready-to-merge pruning step.
