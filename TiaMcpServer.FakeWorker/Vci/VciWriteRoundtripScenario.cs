@@ -12,12 +12,15 @@ internal sealed class VciWriteRoundtripScenario
     private readonly HashSet<string> _mutated = new(StringComparer.OrdinalIgnoreCase);
     public VciWriteRoundtripScenario()
     {
-        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure", "Unverifiable", "EmptyUnverifiable", "PartialCollision" })
+        foreach (var name in new[] { "Fixture", "Fail", "Blocked", "Healthy", "Other", "UnitMapping", "OuterFailure", "Unverifiable", "EmptyUnverifiable", "PartialCollision", "Rejected", "ImportRejected", "ManyRejected" })
             _workspaces[name] = new() { Name = name, RootPath = Path.Combine(Path.GetTempPath(), "vci-" + name) };
     }
     private static string Ok(object value) => JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = WorkerJson.SerializePayload(value) }, WorkerJson.Envelope);
-    private static string Fail(string category, VciWriteOutcomeInfo? value = null) => JsonSerializer.Serialize(new WorkerResponse
-    { Success = false, FailureCategory = category, Error = "Synthetic VCI failure.", VciWriteOutcome = value }, WorkerJson.Envelope);
+    private static string Fail(string category, VciWriteOutcomeInfo? value = null, EngineeringErrorInfo? engineeringError = null) => JsonSerializer.Serialize(new WorkerResponse
+    { Success = false, FailureCategory = category, Error = "Synthetic VCI failure.", VciWriteOutcome = value, EngineeringError = engineeringError }, WorkerJson.Envelope);
+
+    private static VciLeafFailureInfo Leaf(string name, string category, string? type, string message) => new()
+    { Path = [new() { NodeType = "Device", Name = name }], Format = null, Category = category, EngineeringErrorType = type, Message = message };
 
     public string Handle(string line, string scenario)
     {
@@ -47,8 +50,30 @@ internal sealed class VciWriteRoundtripScenario
         if (w.WorkspaceName != "Healthy" && scenario == "vci-portal-lost")
         {
             if (w.WorkspaceName == "OuterFailure") return Fail("portal_lost", new() { Leaves = 0, Failed = 1 });
+            outcome.Failed = 1;
+            outcome.Failures = [Leaf("Fixture", "worker_operation_failed", null, "Synthetic leaf failure.")];
             outcome.LastAttempted = new() { Path = w.Scope!, Operation = w.Operation!, Format = null };
             return Fail("portal_lost", outcome);
+        }
+        const string eti = "EngineeringTargetInvocationException";
+        if (w.Operation == "export" && w.WorkspaceName == "Rejected")
+        {
+            outcome.Leaves = 3; outcome.Succeeded = 2; outcome.Failed = 1; outcome.ProjectModified = true;
+            outcome.Failures = [Leaf("Fixture", "engineering_rejected", eti, "Synthetic native rejection.")];
+            return Fail("engineering_rejected", outcome, new() { Type = eti, Message = "Synthetic native rejection." });
+        }
+        if (w.Operation == "sync_to_project" && w.WorkspaceName == "ImportRejected")
+        {
+            outcome.Failed = 2; outcome.Succeeded = 0; outcome.ProjectModified = false;
+            outcome.Failures = [Leaf("Fixture", "engineering_rejected", eti, "Synthetic import rejection.")];
+            return Fail("engineering_rejected", outcome, new() { Type = eti, Message = "Synthetic import rejection." });
+        }
+        if (w.Operation == "export" && w.WorkspaceName == "ManyRejected")
+        {
+            outcome.Leaves = 30; outcome.Succeeded = 5; outcome.Failed = 25; outcome.ProjectModified = true; outcome.FailuresOmitted = 5;
+            outcome.Failures = Enumerable.Range(0, VciWriteOutcomeInfo.MaxFailures).Select(i =>
+                Leaf("Leaf" + i, "engineering_rejected", eti, i == 0 ? new string('m', VciLeafFailureInfo.MaxMessageChars) : "Synthetic native rejection.")).ToList();
+            return Fail("engineering_rejected", outcome, new() { Type = eti, Message = "Synthetic native rejection." });
         }
         switch (w.Operation)
         {

@@ -54,6 +54,65 @@ public class VciGuardedWriteMcpTests
         Assert.Equal("skipped", items[1].GetProperty("status").GetString());
     }
 
+    private static async Task<JsonElement> RunAsync(string scenario, params object[] items)
+    {
+        using var audit = new TempAuditDirectory(); Directory.CreateDirectory(audit.Path);
+        await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, scenario);
+        return Document(await h.Client.CallToolAsync("vci_write", Args(items))).Clone();
+    }
+
+    [Fact]
+    public async Task RejectedExportLeaf_TypedWithFailuresAndStopsLaterItems()
+    {
+        var root = await RunAsync("vci-write-roundtrip", Item(id: "a", workspace: "Healthy"), Item(id: "b", workspace: "Rejected"), Item(id: "c", workspace: "Healthy"));
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
+        var items = root.GetProperty("batch").GetProperty("operations");
+        var bad = items[1];
+        Assert.Equal("engineering_rejected", bad.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal("EngineeringTargetInvocationException", bad.GetProperty("failure").GetProperty("engineeringError").GetProperty("type").GetString());
+        var result = bad.GetProperty("result");
+        Assert.Equal(1, result.GetProperty("failed").GetInt32());
+        Assert.Equal(1, result.GetProperty("failures").GetArrayLength());
+        Assert.Equal("skipped", items[2].GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task RejectedImport_ListsThrowerWithRollbackCounts()
+    {
+        var root = await RunAsync("vci-write-roundtrip", Item("sync_to_project", workspace: "ImportRejected"));
+        var result = root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        Assert.Equal(2, result.GetProperty("failed").GetInt32());
+        Assert.Equal(0, result.GetProperty("succeeded").GetInt32());
+        Assert.False(result.GetProperty("projectModified").GetBoolean());
+        Assert.Equal(1, result.GetProperty("failures").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task ManyRejected_DeliversCappedFailures()
+    {
+        var root = await RunAsync("vci-write-roundtrip", Item(workspace: "ManyRejected"));
+        var result = root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        Assert.Equal(20, result.GetProperty("failures").GetArrayLength());
+        Assert.Equal(5, result.GetProperty("failuresOmitted").GetInt32());
+        Assert.Equal(30, result.GetProperty("leaves").GetInt32());
+        Assert.Equal(5, result.GetProperty("succeeded").GetInt32());
+        Assert.Equal(25, result.GetProperty("failed").GetInt32());
+        Assert.Equal(500, result.GetProperty("failures")[0].GetProperty("message").GetString()!.Length);
+    }
+
+    [Fact]
+    public async Task PortalLostWithFailures_KeepsOutcomeAndInvalidatesBinding()
+    {
+        using var audit = new TempAuditDirectory(); Directory.CreateDirectory(audit.Path);
+        await using var h = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, "vci-portal-lost");
+        var root = Document(await h.Client.CallToolAsync("vci_write", Args(Item(id: "bad"))));
+        var item = root.GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("portal_lost", item.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Equal(1, item.GetProperty("result").GetProperty("failures").GetArrayLength());
+        Assert.False(h.WorkerClient.BindingSnapshot.IsVerified);
+    }
+
     [Theory]
     [InlineData("confirm", "true")]
     [InlineData("acknowledge", "[]")]
