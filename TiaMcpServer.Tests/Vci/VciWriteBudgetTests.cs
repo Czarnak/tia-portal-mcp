@@ -16,7 +16,7 @@ public class VciWriteBudgetTests
     [InlineData(1_000, 20_000)]
     public void DiagnosticOmissionReportsEffectiveDocumentLimit(int itemLimit, int documentLimit)
     {
-        var response = new VciGuardedWriteResponse("vci_write", "1.0", "applied", true,
+        var response = new VciGuardedWriteResponse("vci_write", "2.0", "applied", true,
             new("worker_operation_failed", new string('x', 6_000)), [], [], [],
             StructuredOperationBatch.FromItems([new("a", "export", "succeeded", null, null, null, null, [])]),
             new(true, [], null), null);
@@ -49,9 +49,9 @@ public class VciWriteBudgetTests
     {
         var batch = StructuredOperationBatch.FromItems([new("a", "export", OperationBatchStatus.Succeeded,
             CanonicalJson.ToElement(new VciWriteOutcomeInfo { Notes = [new string('x', 10000)] }), null, null, null, [])]);
-        var response = new VciGuardedWriteResponse("vci_write", "1.0", WritePhases.Applied, true, null, [], [],
+        var response = new VciGuardedWriteResponse("vci_write", "2.0", WritePhases.Applied, true, null, [], [],
             [new("a", new("export", "Fixture", null, new string('x', 10000), 0, 0, 0), null)], batch,
-            new(true, [new("a", true, "exists", null, null, null)], null), null);
+            new(true, [new WriteOperationVerification("a", true, WriteVerificationChecks.Trusted, null, null, null)], null), null);
         var bounded = VciWritePayloadBudget.Apply(response, 1000, 5000);
         Assert.True(CanonicalJson.Serialize(bounded).Length <= 5000);
         Assert.False(bounded.Success); Assert.True(bounded.Verification!.Success);
@@ -63,10 +63,10 @@ public class VciWriteBudgetTests
     [Fact]
     public void DocumentOmissionKeepsEffectOrderAndDropsChecksBeforeEqualSizedEffects()
     {
-        var response = new VciGuardedWriteResponse("vci_write", "1.0", "preview", true, null, [], [],
+        var response = new VciGuardedWriteResponse("vci_write", "2.0", "preview", true, null, [], [],
             [new("a", new("export", "Fixture", null, new string('x', 1_000), 0, 0, 0), null),
              new("b", new("export", "Fixture", null, new string('y', 1_000), 0, 0, 0), null)], null,
-            new(true, [new("a", true, "exists", null, null, new string('v', 1_000))], null), null);
+            new(true, [new WriteOperationVerification("a", true, WriteVerificationChecks.Trusted, null, null, new string('v', 1_000))], null), null);
 
         var bounded = VciWritePayloadBudget.Apply(response, maxDocumentChars: 2_500);
 
@@ -82,7 +82,7 @@ public class VciWriteBudgetTests
     [Fact]
     public void CompleteResponseWithNullOptionalRootsIsUnchanged()
     {
-        var response = new VciGuardedWriteResponse("vci_write", "1.0", "preview", true, null, [], [], [], null, null, null);
+        var response = new VciGuardedWriteResponse("vci_write", "2.0", "preview", true, null, [], [], [], null, null, null);
         Assert.Equal(CanonicalJson.Serialize(response), CanonicalJson.Serialize(VciWritePayloadBudget.Apply(response)));
     }
 }

@@ -9,14 +9,15 @@ using TiaMcpServer.Worker;
 namespace TiaMcpServer.Vci;
 
 public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLocation breadcrumb)
-    : IWriteDomain<VciOperationRequest, VciWriteEffect, VciWriteVerification, VciGuardedWriteResponse>
+    : IWriteDomain<VciOperationRequest, VciWriteEffect, WriteVerification, VciGuardedWriteResponse>
 {
     private readonly VciWritePlanner _planner = new(client);
     private readonly Dictionary<string, IReadOnlyList<FiredGuard>> _guards = new(StringComparer.Ordinal);
     private readonly HashSet<string> _deferred = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
     private IReadOnlyList<VciOperationRequest> _items = [];
     public string ToolName => "vci_write";
-    public string ContractVersion => VciContractVersion.Current;
+    public string ContractVersion => VciWriteContractVersion.Current;
     public bool ConfirmsEveryCall => false;
 
     public WriteValidation Validate(IReadOnlyList<VciOperationRequest> items, McpAccessMode accessMode)
@@ -50,6 +51,7 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
 
     public async Task<WorkerCallResult> MutateAsync(VciOperationRequest item)
     {
+        _attempted.Add(item.OperationId);
         var requestId = Guid.NewGuid().ToString("N");
         WorkerCallResult result;
         VciLastAttemptedInfo? last;
@@ -66,11 +68,12 @@ public sealed class VciWriteDomain(OpennessWorkerClient client, VciBreadcrumbLoc
     }
 
     public StructuredOperationItem Project(VciOperationRequest item, WorkerCallResult result) => VciWritePayloadContract.Project(item, result);
-    public async Task<VciWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
-        => await new VciWriteVerifier(client, _items).VerifyAsync(batch).ConfigureAwait(false);
-    public bool VerificationSucceeded(VciWriteVerification? verification) => verification?.Success == true;
+    public async Task<WriteVerification?> VerifyAsync(StructuredOperationBatch batch)
+        => await new TrustedWriteVerifier<VciOperationRequest>(_items, new VciVerificationPolicy()).VerifyAsync(
+            StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
+    public bool VerificationSucceeded(WriteVerification? verification) => verification?.Success == true;
 
-    public VciGuardedWriteResponse Compose(WriteReport<VciWriteEffect, VciWriteVerification> report)
+    public VciGuardedWriteResponse Compose(WriteReport<VciWriteEffect, WriteVerification> report)
     {
         var deferred = _items.Where(i => _deferred.Contains(i.OperationId)).Select(i => i.OperationId).ToArray();
         var warnings = deferred.Length == 0 ? report.Warnings : report.Warnings.Concat(new[] {

@@ -49,7 +49,7 @@ public static class VciWritePayloadBudget
     // Reserve initial and late guards plus the stopping blockers and partial-write guard.
     internal static int MeasureProtectedCore(IReadOnlyList<VciOperationRequest> items)
         => Budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), 5, 5, true,
-            core => new VciGuardedWriteResponse("vci_write", VciContractVersion.Current, WritePhases.Applied, false,
+            core => new VciGuardedWriteResponse("vci_write", VciWriteContractVersion.Current, WritePhases.Applied, false,
                 core.Error, core.Warnings, core.Guards,
                 items.Select(i => new VciWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(), core.Batch,
                 new(false, [], core.Omission), core.Omission));
