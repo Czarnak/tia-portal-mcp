@@ -39,13 +39,13 @@ public sealed class VciWritePlannerTests
     {
         using var f = await Fixture.Create();
         f.Put(new() { KeyCollisions = Enumerable.Range(0, 12).Select(i => "collision-" + i).ToList(),
-            Unrepresentable = ["CON: reserved"], WorkspaceConflict = "duplicate", Unverifiable = "unreadable" });
+            Unrepresentable = ["CON: reserved"], WorkspaceConflict = "An existing workspace uses this root: Other", Unverifiable = "unreadable" });
         var result = await new VciWritePlanner(f.Client).PlanAsync([Item()]);
         Assert.True(result.Plan.Success);
         var guards = result.Guards["a"];
         Assert.Equal(4, guards.Count);
         Assert.All(guards, g => Assert.Equal("a", g.OperationId));
-        Assert.Contains(guards, g => g.Id == "vci_workspace_exists" && g.Message.Contains("duplicate"));
+        Assert.Contains(guards, g => g.Id == "vci_workspace_exists" && g.Message.Contains("uses this root: Other"));
         Assert.Contains(guards, g => g.Id == "vci_name_not_representable" && g.Message.Contains("CON"));
         Assert.Contains(guards, g => g.Id == "vci_state_unverifiable" && g.Message.Contains("unreadable"));
         var collision = Assert.Single(guards, g => g.Id == "vci_file_key_collision");

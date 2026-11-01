@@ -37,7 +37,7 @@ internal sealed class VciWriteRoundtripScenario
                 return Ok(new VciPlanInfo { Unverifiable = "Synthetic mapping inventory failed.", WorkspaceRootPath = workspace!.RootPath });
             return Ok(new VciPlanInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" || w.WorkspaceName == "EmptyUnverifiable" ? 0 : 2,
                 MappedLeaves = workspace?.MappingCount ?? 0, WorkspaceRootPath = workspace?.RootPath ?? w.RootPath,
-                WorkspaceConflict = w.Operation == "create_workspace" && (workspace is not null || _workspaces.Values.Any(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase))) ? "Workspace exists." : null,
+                WorkspaceConflict = w.Operation == "create_workspace" && _workspaces.Values.FirstOrDefault(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase)) is { } sharedRoot ? "An existing workspace uses this root: " + sharedRoot.Name : null,
                 KeyCollisions = w.WorkspaceName == "Blocked" || w.WorkspaceName == "PartialCollision" && _mutated.Contains(w.WorkspaceName) ? ["Fixture/leaf"] : [] });
         }
         var outcome = new VciWriteOutcomeInfo { Leaves = w.Operation is "create_workspace" or "delete_workspace" ? 1 : 2 };
@@ -78,7 +78,10 @@ internal sealed class VciWriteRoundtripScenario
         switch (w.Operation)
         {
             case "create_workspace":
-                if (workspace is not null || _workspaces.Values.Any(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase))) return Fail("state_changed");
+                if (workspace is not null)
+                    return Fail("engineering_rejected", new() { Leaves = 1, Failed = 1 }, new() { Type = eti,
+                        Message = "Error when calling method 'Create' of type 'Siemens.Engineering.VersionControl.WorkspaceComposition'.\r\n\r\nThe workspace name must be unique" });
+                if (_workspaces.Values.Any(x => string.Equals(x.RootPath, w.RootPath, StringComparison.OrdinalIgnoreCase))) return Fail("state_changed");
                 _workspaces[w.WorkspaceName!] = new() { Name = w.WorkspaceName!, RootPath = w.RootPath }; outcome.Succeeded = 1; outcome.ProjectModified = true; break;
             case "delete_workspace": _workspaces.Remove(w.WorkspaceName!); outcome.Succeeded = 1; outcome.ProjectModified = true; break;
             case "export":

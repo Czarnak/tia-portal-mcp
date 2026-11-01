@@ -230,17 +230,31 @@ public class VciPlannerTests
         write.WorkspaceName = "NewFixture";
         write.RootPath = f.Root.ToUpperInvariant() + Path.DirectorySeparatorChar;
 
-        Assert.NotNull(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
+        Assert.Equal("An existing workspace uses this root: " + f.Workspace.Name, VciPlanner.Plan(f.Project, write).WorkspaceConflict);
     }
 
     [Fact]
-    public void Create_DuplicateNameIsConflictRegardlessOfRoot()
+    public void Create_DuplicateNameWithDifferentRoot_HasNoConflict()
     {
         using var f = new Fixture();
         var write = f.Write("create_workspace");
         write.WorkspaceName = f.Workspace.Name.ToLowerInvariant();
         write.RootPath = Path.Combine(f.Root, "OtherRoot");
-        Assert.NotNull(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
+        var plan = VciPlanner.Plan(f.Project, write);
+        Assert.Null(plan.WorkspaceConflict);
+        Assert.Null(plan.Unverifiable);
+    }
+
+    [Fact]
+    public void Create_NestedRoot_HasNoConflict()
+    {
+        using var f = new Fixture();
+        var write = f.Write("create_workspace");
+        write.WorkspaceName = "NewFixture";
+        write.RootPath = Path.Combine(f.Root, "Nested");
+        Assert.Null(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
+        write.RootPath = Path.GetDirectoryName(f.Root)!;
+        Assert.Null(VciPlanner.Plan(f.Project, write).WorkspaceConflict);
     }
 
     [Fact]
@@ -256,19 +270,55 @@ public class VciPlannerTests
         Assert.False(Directory.Exists(write.RootPath));
     }
 
-    [Theory]
-    [InlineData("formats")]
-    [InlineData("mappings")]
-    [InlineData("service")]
-    [InlineData("scope")]
-    public void OrdinaryReadFailure_IsUnverifiable(string site)
+    [Fact]
+    public void FormatReadFailure_IsUnverifiableWithLeafAndMessage()
     {
         using var f = new Fixture();
-        f.SetFailure(site, new EngineeringException("Synthetic unreadable state."));
+        f.SetFailure("formats", new EngineeringException("Synthetic unreadable state."));
 
         var plan = VciPlanner.Plan(f.Project, f.Write());
 
-        Assert.Contains("Synthetic unreadable state.", plan.Unverifiable);
+        Assert.Equal("Supported formats could not be read for leaf " + f.Leaf.Name + ": Synthetic unreadable state.", plan.Unverifiable);
+    }
+
+    [Theory]
+    [InlineData("mappings")]
+    [InlineData("service")]
+    [InlineData("scope")]
+    public void OtherReadFailures_EscapeAsTheOriginalException(string site)
+    {
+        using var f = new Fixture();
+        var failure = new EngineeringException("Synthetic unreadable state.");
+        f.SetFailure(site, failure);
+
+        Assert.Same(failure, Assert.Throws<EngineeringException>(() => VciPlanner.Plan(f.Project, f.Write())));
+    }
+
+    [Fact]
+    public void WorkspaceLookupFailure_EscapesAsTheOriginalException()
+    {
+        using var f = new Fixture();
+        var failure = new EngineeringException("Synthetic lookup failure.");
+        f.Service.WorkspaceGroup.Workspaces.EnumerationFailure = failure;
+
+        Assert.Same(failure, Assert.Throws<EngineeringException>(() => VciPlanner.Plan(f.Project, f.Write())));
+    }
+
+    [Fact]
+    public void PlanSiemensFailure_ThroughExecute_IsWorkerOperationFailedNeverRejected()
+    {
+        using var f = new Fixture();
+        f.SetFailure("scope", new EngineeringTargetInvocationException("Synthetic expansion failure."));
+
+        var response = WorkerExecution.Execute(() =>
+        {
+            VciDispatch.Plan(f.Project, f.Write());
+            return new WorkerResponse { Success = true };
+        }, () => 0, mutates: false);
+
+        Assert.False(response.Success);
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, response.FailureCategory);
+        Assert.Equal("EngineeringTargetInvocationException", response.EngineeringError!.Type);
     }
 
     [Theory]

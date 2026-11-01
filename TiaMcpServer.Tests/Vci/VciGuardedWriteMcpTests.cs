@@ -102,6 +102,26 @@ public class VciGuardedWriteMcpTests
     }
 
     [Fact]
+    public async Task CreateDuplicateName_IsEngineeringRejectedFromPortal()
+    {
+        var root = await RunAsync("vci-write-roundtrip", Item("create_workspace", workspace: "Fixture", root: Path.Combine(Path.GetTempPath(), "vci-dup-name-root")));
+        Assert.False(root.GetProperty("success").GetBoolean());
+        var item = root.GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal("engineering_rejected", item.GetProperty("failure").GetProperty("category").GetString());
+        Assert.Contains("The workspace name must be unique", item.GetProperty("failure").GetProperty("engineeringError").GetProperty("message").GetString());
+        Assert.DoesNotContain("vci_workspace_exists", root.GetRawText());
+    }
+
+    [Fact]
+    public async Task CreateSharedRoot_IsBlockedByWorkspaceExists()
+    {
+        var shared = Path.Combine(Path.GetTempPath(), "vci-Fixture");
+        var root = await RunAsync("vci-write-roundtrip", Item("create_workspace", workspace: "BrandNew", root: shared));
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Contains("vci_workspace_exists", root.GetRawText());
+    }
+
+    [Fact]
     public async Task PortalLostWithFailures_KeepsOutcomeAndInvalidatesBinding()
     {
         using var audit = new TempAuditDirectory(); Directory.CreateDirectory(audit.Path);

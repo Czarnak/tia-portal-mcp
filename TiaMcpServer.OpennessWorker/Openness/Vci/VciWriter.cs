@@ -29,14 +29,19 @@ public static class VciWriter
             if (write.Operation == "create_workspace")
             {
                 outcome.Leaves = 1;
-                var plan = VciPlanner.Plan(project, write);
-                var root = VciPathPolicy.ValidateRoot(write.RootPath);
-                if (plan.WorkspaceConflict is not null || plan.Unverifiable is not null || !root.IsValid)
+                // The recheck refuses without an outcome (a precondition refusal must not supersede) and a Siemens read failure is never "rejected".
+                VciPlanInfo plan;
+                try { plan = VciPlanner.Plan(project, write); }
+                catch (NonRecoverableException) { throw; }
+                catch (EngineeringException siemens)
                 {
-                    outcome.Failed = 1;
-                    throw new WorkerOperationException(WorkerFailureCategories.StateChanged,
-                        plan.WorkspaceConflict ?? plan.Unverifiable ?? root.Reason!, vciWriteOutcome: outcome);
+                    var category = WorkerExecution.Classify(siemens, false);
+                    throw new WorkerOperationException(category, WorkerExecution.FailureMessage(siemens, category),
+                        engineeringError: WorkerExecution.Describe(siemens));
                 }
+                var root = VciPathPolicy.ValidateRoot(write.RootPath);
+                if (plan.WorkspaceConflict is not null || !root.IsValid)
+                    throw new WorkerOperationException(WorkerFailureCategories.StateChanged, plan.WorkspaceConflict ?? root.Reason!);
                 Directory.CreateDirectory(root.CanonicalPath!);
                 service.WorkspaceGroup.Workspaces.Create(write.WorkspaceName!, new DirectoryInfo(root.CanonicalPath!));
                 outcome.Succeeded = 1;

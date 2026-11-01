@@ -598,7 +598,39 @@ public class VciWriterTests
         var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
         var ex = Assert.Throws<WorkerOperationException>(() => f.Run("create_workspace"));
         Assert.Equal(WorkerFailureCategories.StateChanged, ex.FailureCategory);
+        Assert.Equal("An existing workspace uses this root: " + f.Workspace.Name, ex.Message);
+        Assert.Null(ex.VciWriteOutcome);
         Assert.False(Directory.Exists(f.Request.RootPath));
+        Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
+    }
+
+    [Fact]
+    public void Create_DuplicateName_ReachesPortal()
+    {
+        using var f = new Fixture();
+        f.Request.WorkspaceName = f.Workspace.Name;
+        f.Request.RootPath = Path.Combine(f.Root, "NewRoot");
+        Directory.CreateDirectory(f.Root);
+        f.Service.WorkspaceGroup.Workspaces.CreateFailure = new EngineeringTargetInvocationException("The workspace name must be unique");
+        var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
+        var ex = f.Thrown("create_workspace");
+        Assert.Equal(before + 1, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
+        Assert.Equal(WorkerFailureCategories.EngineeringRejected, ex.FailureCategory);
+        Assert.Contains("The workspace name must be unique", ex.EngineeringError!.Message);
+    }
+
+    [Fact]
+    public void Create_RecheckReadFailure_IsWorkerOperationFailedNotRejected()
+    {
+        using var f = new Fixture();
+        f.Request.WorkspaceName = "NewWorkspace";
+        f.Request.RootPath = Path.Combine(f.Root, "NewRoot");
+        f.Service.WorkspaceGroup.Workspaces.EnumerationFailure = new EngineeringTargetInvocationException("Synthetic recheck failure.");
+        var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
+        var ex = f.Thrown("create_workspace");
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, ex.FailureCategory);
+        Assert.Equal("EngineeringTargetInvocationException", ex.EngineeringError!.Type);
+        Assert.Null(ex.VciWriteOutcome);
         Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
     }
 
@@ -628,8 +660,7 @@ public class VciWriterTests
         var before = f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count;
         var ex = Assert.Throws<WorkerOperationException>(() => f.Run("create_workspace"));
         Assert.Equal(WorkerFailureCategories.StateChanged, ex.FailureCategory);
-        Assert.Equal(1, ex.VciWriteOutcome!.Failed);
-        Assert.False(ex.VciWriteOutcome.ProjectModified);
+        Assert.Null(ex.VciWriteOutcome);
         Assert.Equal(before, f.Service.WorkspaceGroup.Workspaces.CreateCalls.Count);
         Assert.Equal("retained", File.ReadAllText(f.Request.RootPath));
     }
