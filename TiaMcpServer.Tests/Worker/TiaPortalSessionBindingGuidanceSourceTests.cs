@@ -50,7 +50,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         Assert.Contains("throw new InvalidOperationException(ProjectOpenPolicy.NoProjectOpenMessage(AccessMode))", owner);
         Assert.DoesNotContain("McpAccessMode.ReadWrite", owner);
 
-        var clientSource = File.ReadAllText(Path.Combine(repositoryRoot, "TiaMcpServer", "Worker", "OpennessWorkerClient.cs"));
+        var clientSource = File.ReadAllText(Path.Combine(repositoryRoot, "TiaMcpServer", "Worker", "OpennessWorkerClient.Binding.cs"));
         var refusalStart = clientSource.IndexOf("An invalidated source can be re-grounded", StringComparison.Ordinal);
         Assert.True(refusalStart >= 0);
         var refusalEnd = clientSource.IndexOf("));", refusalStart, StringComparison.Ordinal);
