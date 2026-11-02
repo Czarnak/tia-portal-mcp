@@ -134,6 +134,8 @@
       Link="Host\ProjectRebindStatePayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectBindingDecision.cs"
       Link="Host\ProjectBindingDecision.cs" />
+    <Compile Include="..\TiaMcpServer\Worker\ProjectSessionBinding.cs"
+      Link="Host\ProjectSessionBinding.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectBindingPayloadContract.cs"
       Link="Host\ProjectBindingPayloadContract.cs" />
     <Compile Include="..\TiaMcpServer\Worker\ProjectContextPayloadContract.cs"

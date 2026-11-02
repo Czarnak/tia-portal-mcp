@@ -3,7 +3,7 @@ namespace TiaMcpServer.Contracts.Project;
 /// <summary>
 /// Shared "is this the same project?" comparability primitive. <see cref="ProjectOpenPolicy"/>
 /// (worker-side: is the requested path the same as what TIA already has attached) and
-/// <see cref="ProjectSessionBinding"/> (host-side: is the requested path the same as what this
+/// <c>ProjectSessionBinding</c> (host-side: is the requested path the same as what this
 /// MCP session is bound to) both need path comparisons to survive relative segments ("..",
 /// trailing separators, forward vs back slashes) - not just casing - so they share this helper
 /// rather than each rolling their own.
