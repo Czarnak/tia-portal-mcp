@@ -92,7 +92,7 @@ public static class PlcOperationCatalog
     public static IReadOnlyList<string> WriteOperationNames { get; } =
         Specs.Where(entry => entry.Value.IsWrite).Select(entry => entry.Key).ToArray();
 
-    /// <summary>The declared required and optional wire fields of a write operation.</summary>
+    /// <summary>Exposes write fields to catalog and field-forwarding tests so new fields cannot escape their coverage.</summary>
     public static bool TryGetWriteFields(
         string operation,
         out IReadOnlyList<string> required,

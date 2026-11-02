@@ -87,13 +87,21 @@ public class ProjectTreeBrowseRequestTests
 
         Assert.Equal(first, second);
         Assert.NotEqual(first, changedDepth);
-        Assert.Matches("^[0-9a-f]{64}$", first);
+        Assert.Equal("44f70a270d24ec72e67a952e221160525364e6d1e70f9bcfef0d8d20dc9e535a", first);
         Assert.Equal(
             first,
             ProjectTreeBrowseRequest.CreateQueryHash(new ProjectTreeQuery(
                 ProjectPath,
                 Selector(("Device", "PLC_1")),
                 Depth: 2)));
+    }
+
+    [Fact]
+    public void CreateQueryHash_PreservesCanonicalNullFields()
+    {
+        var query = new ProjectTreeQuery(@"C:\Projects\Sample.ap21", null, null);
+
+        Assert.Equal("f522232b73532f285a1d5565c41ccbe0b14c92519c437939bc4c1dc287f0227c", ProjectTreeBrowseRequest.CreateQueryHash(query));
     }
 
     private static IReadOnlyList<ProjectTreeSelectorSegment> Selector(params (string Type, string Name)[] segments)

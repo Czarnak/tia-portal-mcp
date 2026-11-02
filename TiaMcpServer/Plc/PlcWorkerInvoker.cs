@@ -40,10 +40,8 @@ public static class PlcWorkerInvoker
     /// <summary>Executes one validated write operation against the worker.</summary>
     public static Task<WorkerCallResult> InvokeWriteAsync(
         OpennessWorkerClient client,
-        PlcOperationRequest op,
-        CancellationToken cancellationToken = default)
+        PlcOperationRequest op)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         return op.Operation switch
         {
             "update_block_logic" => InvokeUpdateBlockLogic(client, op),

@@ -81,7 +81,15 @@ public class HmiPageCursorCodecTests
         var b = new HmiOperationRequest { Operation = "list_tags", TableName = "T", Limit = 500 };
 
         Assert.Equal(HmiPageCursorCodec.QueryHash(a), HmiPageCursorCodec.QueryHash(b));
-        Assert.Matches("^[0-9a-f]{64}$", HmiPageCursorCodec.QueryHash(a));
+        Assert.Equal("a436a9306435e340985fc4306983a2a29cf8187b6e3aa13796fb42b054c0da0f", HmiPageCursorCodec.QueryHash(a));
+    }
+
+    [Fact]
+    public void QueryHash_PreservesJsonEscapingAndNullFilters()
+    {
+        var operation = new HmiOperationRequest { Operation = "list_tags", HmiName = "\u017B\u00F3\u0142\u0107" };
+
+        Assert.Equal("765414bee0c42f9ac265071df7e9630b84bb8543e06ff500e770dcff8bd67b60", HmiPageCursorCodec.QueryHash(operation));
     }
 
     [Theory]
