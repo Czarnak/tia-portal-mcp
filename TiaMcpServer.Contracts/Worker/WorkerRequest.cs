@@ -322,7 +322,7 @@ public class WorkerRequest
     public string? NetworkObjectCursor { get; set; }
 
     /// <summary>
-    /// Forwarded by: inspect_network_object, probe_network_object_attributes. Mapped from the
+    /// Forwarded by: inspect_network_object. Mapped from the
     /// host's <c>NetworkObjectTarget</c>
     /// to a fresh <see cref="NetworkObjectSelectorInfo"/>; item-path segments are deep-copied so
     /// the worker never holds a reference to the caller's mutable list.
@@ -330,9 +330,8 @@ public class WorkerRequest
     public NetworkObjectSelectorInfo? NetworkObjectTarget { get; set; }
 
     /// <summary>
-    /// Forwarded by: inspect_network_object, probe_network_object_attributes (optional). The
-    /// public inspection path validates [1, 200] unique names; the internal probe repeats that
-    /// validation because direct probe callers bypass the public host validation path.
+    /// Forwarded by: inspect_network_object (optional). The public inspection path validates
+    /// [1, 200] unique names.
     /// </summary>
     public List<string>? NetworkAttributeNames { get; set; }
 
@@ -361,32 +360,6 @@ public class WorkerRequest
     /// means leave it unchanged).
     /// </summary>
     public string? SubnetTransmissionSpeed { get; set; }
-
-    #endregion
-
-    #region Internal Network Phase 4 live mutation probe
-
-    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
-    public string? ProbeRunId { get; set; }
-
-    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
-    public string? ProbeConnectedEthernetSubnetId { get; set; }
-
-    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
-    public string? ProbeConnectedProfibusSubnetId { get; set; }
-
-    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
-    public int? ProbeProfibusHighestAddress { get; set; }
-
-    /// <summary>Forwarded only by: probe_subnet_lifecycle_mutations.</summary>
-    public string? ProbeProfibusTransmissionSpeed { get; set; }
-
-    #endregion
-
-    #region Internal Network Phase 5 IO-system qualification probe
-
-    /// <summary>Forwarded only by: probe_io_system_qualification.</summary>
-    public IoSystemQualificationProbeInfo? IoSystemQualification { get; set; }
 
     #endregion
 

@@ -320,7 +320,8 @@ records two reverse `Name` runs whose worker edit/compile succeeded but whose fi
 status failed solely on transient project-size drift, and the clean close-without-save/reopen
 result. No failed hardware compile was induced. `update_io_system` remains unshipped. The next
 public slice still needs a fresh plan from merged `main`, strict TDD, the canonical safety and
-audit gate, and its own live public-path acceptance.
+audit gate, and its own live public-path acceptance. The qualification worker route is retired;
+future IO-system work uses the preserved historical evidence rather than calling that route.
 The live Portal matrix ran at `03bf387`, not at the later branch HEAD. After
 the post-live host/test project-reference and CI changes, no `.cs` or `.ps1`
 file changed; the rebuilt dependency manifest still matched, although five
@@ -619,3 +620,16 @@ committed locally as `7e704176`. These are local branch commits, not a published
   crash, timeout, race or Portal-loss probe ran. The malformed-XML import qualifies only the
   observed two-candidate outcome, followed by targeted compiles. F28/F29 remain open observations
   above; independent reads remain necessary before retrying failed or possibly partial items.
+
+## Completed: Q1 Network qualification probe retirement (2026-11-02)
+
+Retired the worker-only `probe_network_object_attributes`, `probe_io_system_qualification`, and
+`probe_subnet_lifecycle_mutations` routes and their probe-only request/result members, services,
+and probe-specific tests. Historical acceptance reports, raw evidence inputs, and frozen review
+records remain unchanged. This supersedes Q1's earlier retention decision in
+[ADR-0011](adr/0011-fail-closed-surface-and-portal-loss.md).
+
+Public Network operations and their native execution paths are unchanged. `update_io_system`
+remains unshipped and needs its own guarded-pipeline implementation and scope-specific public-path
+live acceptance. Future IO-system work can use the retained qualification evidence; the retired
+worker routes are unavailable.

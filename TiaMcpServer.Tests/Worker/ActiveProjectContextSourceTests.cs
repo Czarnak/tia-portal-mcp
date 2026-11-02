@@ -28,17 +28,6 @@ public sealed class ActiveProjectContextSourceTests
     }
 
     [Fact]
-    public void QualificationProbes_RemainStandaloneOnly()
-    {
-        // Internal probes save or compile-and-revert a project; they are not delivered for local sessions.
-        var program = Read("Program.cs");
-        Assert.Equal(4, program.Split("session.RequireStandaloneOwner().Project").Length - 1);
-        var subnet = Method(program, "private static WorkerResponse ProbeSubnetLifecycleMutations(");
-        AssertOrdered(subnet, "WithActiveContext(request,", "SubnetLifecycleMutationProbeService.Run(",
-            "session.TiaPortal", "session.RequireStandaloneOwner().Project");
-    }
-
-    [Fact]
     public void SaveProject_DispatchesLocalSessionSaveAfterFreshIdentityCheck()
     {
         var body = Method(Read("Openness/Project/ProjectLifecycleService.cs"), "public static ProjectLifecycleResultInfo SaveProject(");

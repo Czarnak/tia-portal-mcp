@@ -9,10 +9,7 @@ namespace TiaMcpServer.OpennessWorker.Openness.Network;
 /// <summary>
 /// Production implementation of the Phase 4 subnet lifecycle operations (<c>create_subnet</c>,
 /// <c>update_subnet</c>, <c>delete_subnet</c>). Each entry point opens exactly one Openness
-/// transaction and performs every requested mutation inside it. This file is a distinct production
-/// implementation; it does not call,
-/// alias, or share code with <see cref="SubnetLifecycleMutationProbeService"/>, which remains an
-/// internal-only evidence probe.
+/// transaction and performs every requested mutation inside it.
 /// </summary>
 internal static class SubnetLifecycleService
 {

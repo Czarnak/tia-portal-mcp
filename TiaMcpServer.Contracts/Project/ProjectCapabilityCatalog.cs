@@ -53,12 +53,6 @@ public static class ProjectCapabilityCatalog
     })
     .ToArray();
 
-    /// <summary>Internal qualification probes that save or compile-and-revert; never delivered for local sessions.</summary>
-    private static readonly string[] StandaloneOnlyProbes =
-    {
-        "probe_io_system_qualification", "probe_subnet_lifecycle_mutations"
-    };
-
     private static readonly string[] NonProjectMethods =
     {
         "hello", "select_portal_project", "list_tia_portal_processes", "list_server_connections",
@@ -104,8 +98,6 @@ public static class ProjectCapabilityCatalog
             "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
             "get_basic_project_status" => "get_project_status",
             "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
-            "probe_network_object_attributes" => "network_read",
-            "probe_io_system_qualification" or "probe_subnet_lifecycle_mutations" => "network_write",
             _ => method
         };
     }
@@ -126,10 +118,9 @@ public static class ProjectCapabilityCatalog
         if (containerKind == ProjectContainerKinds.StandaloneProject)
             return Standalone.Any(item => item.Operation == mapped);
         if (containerKind == ProjectContainerKinds.LocalSession)
-            return !StandaloneOnlyProbes.Contains(operation, StringComparer.Ordinal)
-                && (BasicLocalOperations.Contains(mapped, StringComparer.Ordinal)
+            return BasicLocalOperations.Contains(mapped, StringComparer.Ordinal)
                 || ProjectContentReadOperations.Contains(mapped, StringComparer.Ordinal)
-                || ProjectContentOperations.Contains(mapped, StringComparer.Ordinal));
+                || ProjectContentOperations.Contains(mapped, StringComparer.Ordinal);
         return false;
     }
 

@@ -1008,10 +1008,6 @@ diagnostic independent for every requested name. Public values use only `null`, 
 `boolean`, `integer`, `number`, or `enum`; unsupported CLR objects become `unrepresentable` and
 are never serialized through arbitrary `ToString()` output.
 
-The worker-only `probe_network_object_attributes` method exists solely for the explicitly
-authorized Phase 3 raw-metadata acceptance mode. It is read-only and absent from
-`NetworkOperationCatalog`, the public MCP schema, and host dispatch.
-
 ### Phase 4 subnet lifecycle seam
 
 Phase 4 adds `create_subnet`, `update_subnet`, and `delete_subnet` to `network_write` without a new
@@ -1041,9 +1037,7 @@ network_write request
   production fields `SubnetName`, `SubnetNetworkType`, `SubnetHighestAddress`,
   `SubnetTransmissionSpeed` (plus the existing `SubnetId` for update/delete) are forwarded through
   three explicit typed client methods, classified `ProjectMutation` in `OperationPolicyCatalog` and
-  denied in read-only mode before any worker call. These fields are distinct from the `Probe*`
-  fields reserved for the internal mutation-probe evidence fixture; production calls never populate
-  a `Probe*` member.
+  denied in read-only mode before any worker call.
 - **`SubnetLifecycleService` transaction**
   (`TiaMcpServer.OpennessWorker/Openness/Network/SubnetLifecycleService.cs`): each of `Create`, `Update`,
   and `Delete` opens exactly one `ExclusiveAccess`/`Transaction`, performs every requested setter,
@@ -1054,11 +1048,7 @@ network_write request
   fails as `postcondition_failed` without committing the update; this catches an ignored rename
   without another native getter or worker call. Delete resolves the target once inside
   its transaction, captures a nonblank name from that same object, and only then calls `Delete()`;
-  the mutation cannot use a pre-transaction subnet object. This file is a
-  distinct production implementation from `SubnetLifecycleMutationProbeService`, the internal-only
-  evidence probe behind `probe_subnet_lifecycle_mutations` — the probe is absent from
-  `NetworkOperationCatalog`, the public MCP schema, and host dispatch, exactly like Phase 3's raw
-  metadata probe.
+  the mutation cannot use a pre-transaction subnet object.
 - **Identity and completion**: create captures the native ID before commit and returns the requested
   name; an unreadable ID is `postcondition_failed` after commit. Update returns its transaction-local
   name; delete returns the identity captured before deletion. Supported target types come from the
@@ -1085,16 +1075,11 @@ IO-system attributes, and its root count of 10 has no independent pre-Apply base
 `docs/superpowers/acceptance/reports/2026-09-21-network-phase4-current-revision-live.md` for the
 observed run.
 
-### Phase 5 temporary IO-system qualification probe
+### Phase 5 qualification evidence and retired Network probes
 
-`probe_io_system_qualification` is a temporary worker-only diagnostic, classified as a project
-mutation and absent from the public MCP schema, host dispatch, and `NetworkOperationCatalog`.
-Its `inspectOwner` mode checks that an IO system has exactly one controller interface
-`DeviceItem` owner. The effectful modes separately prove the deepest strict ancestor
-`DeviceItem` that directly hosts the unique master `PlcSoftware` through
-`SoftwareContainer` and exposes `ICompilable`; they compile that hardware item, not the
-interface owner or containing `Device`. Missing or ambiguous owner, PLC role, compiler
-service, or pre/post identity continuity stops the operation. An applied change commits before post-read and hardware compile; a known post-commit failure must not be reported as rollback.
+The worker-only `probe_network_object_attributes`, `probe_io_system_qualification`, and
+`probe_subnet_lifecycle_mutations` routes are retired. Their historical acceptance reports and
+raw evidence remain available; they do not provide a runnable worker route.
 
 The 2026-09-26 worker-only V21 matrix verified distinct owner and compiler targets for PN-B
 and DP-B, baseline hardware compiles, and bounded one-field edit/restoration evidence. It
@@ -1105,9 +1090,11 @@ committed edit made linked PN-name evidence unavailable, and excluded
 The [historical acceptance report](superpowers/acceptance/reports/2026-09-24-network-phase5-pr2-qualification.md)
 records the qualification limits and final clean reopen; the
 [qualified contract](adr/0003-network-domain-identity-and-subnet-lifecycle.md)
-is input to later public slices. This diagnostic has no public safety token or write audit,
-and `update_io_system` is not shipped. Retire the probe with the final live-harness cleanup
-after the later public acceptance work.
+is input to later public slices. `update_io_system` is not shipped and requires its own
+guarded-pipeline implementation and scope-specific public-path live acceptance. Future IO-system
+work can use the preserved evidence, but cannot call the retired qualification route. No failed
+hardware compile was induced in that qualification; a known post-commit failure must not be
+reported as rollback.
 
 ## 8. Write safety
 

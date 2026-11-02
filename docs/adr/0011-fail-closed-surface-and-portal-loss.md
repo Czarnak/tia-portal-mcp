@@ -19,7 +19,7 @@
 - **Q3, one Portal-loss mapping:** the worker boundary maps `NonRecoverableException` to `portal_lost` for every domain. An escaping `EngineeringException` maps there only when the session observed unexpected disposal of the current Portal attachment during that execution (cached event evidence, never message text or native liveness probes). Broad recovery catches use one exclusion filter so they cannot absorb fatal loss. The host invalidates binding and cursors without replay. The VCI writer keeps its outcome-bearing catch.
 - **Q5, no worker `Confirm` fence:** the shared policy catalogs already gate both processes, so the worker flag is redundant and its messages point at an argument that no longer exists. Decided; removal was left as backlog work.
 - **Q2, retire `LegacyNullOmission`:** every tool is structured, so the mechanism has no production use. Decided; retirement was left as backlog work.
-- **Q1, keep the worker-only probes** until `update_io_system` acceptance, and log their retirement rather than delete them now.
+- **Q1, original retention decision:** keep the worker-only probes until `update_io_system` acceptance, and log their retirement rather than delete them immediately. Superseded on 2026-11-02: the three Network qualification worker routes are retired, with their historical acceptance evidence preserved. `update_io_system` remains unshipped and requires its own acceptance.
 
 ## Consequences
 - One `portal_lost` vocabulary across PLC, Network, HMI, VCI, Multiuser and lifecycle; recovery is explicit (reopen, rebind), and cursors from before the loss stay rejected as `cursor_binding_mismatch`.
@@ -27,7 +27,7 @@
 - Any new broad `catch` in worker recovery code must use the shared recoverability filter, and a new domain must not invent its own loss category.
 - Classification depends on event evidence of disposal, so a loss that raises no observed disposal and no `NonRecoverableException` stays `worker_operation_failed`.
 - Live evidence is scoped: native write interruption, inventory-fault injection and the exact native exception type were never exercised live (see the B-16/Q3 report).
-- Q1, Q2 and Q5 follow-ups, and the other review workstream items, are tracked in the review plan kept under `records/`, not here.
+- The original Q1, Q2 and Q5 follow-ups, and the other review workstream items, remain in the historical review plan under `records/`. Q1's completed retirement is recorded in [IMPROVEMENT_LOG](../IMPROVEMENT_LOG.md).
 
 ## Evidence
 - In tree: [B-16/Q3 live verification](../superpowers/acceptance/reports/2026-10-20-b16-q3-worker-portal-loss-live-verification.md), which includes the final installed candidate's standalone HMI read interruption (`portal_lost`, immediate `cursor_binding_mismatch` for HMI and tree cursors, recovery by reopen and rebind with the same host and worker).

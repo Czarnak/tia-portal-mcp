@@ -47,8 +47,6 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\ActiveProjectContext.cs" Link="Project\ActiveProjectContext.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\OpenProjectContextCandidate.cs" Link="Project\OpenProjectContextCandidate.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Project\LocalSessionContextResolver.cs" Link="Project\LocalSessionContextResolver.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\IoSystemQualificationEvidence.cs"
-      Link="Network\IoSystemQualificationEvidence.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConnectionEvidenceCapture.cs"
       Link="Network\NetworkConnectionEvidenceCapture.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkPostconditionChecks.cs"

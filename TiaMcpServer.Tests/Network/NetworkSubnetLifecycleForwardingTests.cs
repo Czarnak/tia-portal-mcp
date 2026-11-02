@@ -230,7 +230,6 @@ public class NetworkSubnetLifecycleForwardingTests
         // create_subnet never forwards a target id — a new subnet's id is assigned by Openness.
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetId").ValueKind);
 
-        AssertNoProbeFieldsPopulated(root);
     }
 
     [Fact]
@@ -263,7 +262,6 @@ public class NetworkSubnetLifecycleForwardingTests
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetTransmissionSpeed").ValueKind);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetNetworkType").ValueKind);
 
-        AssertNoProbeFieldsPopulated(root);
     }
 
     [Fact]
@@ -295,7 +293,6 @@ public class NetworkSubnetLifecycleForwardingTests
         Assert.Equal("Baud93750", root.GetProperty("subnetTransmissionSpeed").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetNetworkType").ValueKind);
 
-        AssertNoProbeFieldsPopulated(root);
     }
 
     [Fact]
@@ -325,21 +322,6 @@ public class NetworkSubnetLifecycleForwardingTests
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetHighestAddress").ValueKind);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetTransmissionSpeed").ValueKind);
 
-        AssertNoProbeFieldsPopulated(root);
-    }
-
-    /// <summary>
-    /// Every production-call assertion in this file also proves the flip side of the brief's
-    /// constraint: none of the three new worker-client methods ever populates a <c>Probe*</c>
-    /// member — those stay reserved for <c>probe_subnet_lifecycle_mutations</c> alone.
-    /// </summary>
-    private static void AssertNoProbeFieldsPopulated(JsonElement root)
-    {
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("probeRunId").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("probeConnectedEthernetSubnetId").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("probeConnectedProfibusSubnetId").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("probeProfibusHighestAddress").ValueKind);
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("probeProfibusTransmissionSpeed").ValueKind);
     }
 
     #endregion

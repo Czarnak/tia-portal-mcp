@@ -424,8 +424,6 @@ public sealed class LocalSessionContextContractTests
     [InlineData("get_basic_project_status", "get_project_status")]
     [InlineData("probe_open_project_rebind", "open_project")]
     [InlineData("probe_project_status_for_lifecycle", "open_project")]
-    [InlineData("probe_network_object_attributes", "network_read")]
-    [InlineData("probe_io_system_qualification", "network_write")]
     [InlineData("hmi_list_hmi_devices", "hmi_read")]
     [InlineData("hmi_write", "hmi_write")]
     [InlineData("hmi_create_tag", "hmi_write")]
@@ -463,22 +461,14 @@ public sealed class LocalSessionContextContractTests
         => Assert.True(ProjectCapabilityCatalog.Supports(containerKind, "hmi_list_hmi_devices"));
 
     [Theory]
-    [InlineData("probe_network_object_attributes", ProjectContainerKinds.StandaloneProject, true)]
-    [InlineData("probe_io_system_qualification", ProjectContainerKinds.StandaloneProject, true)]
-    [InlineData("probe_subnet_lifecycle_mutations", ProjectContainerKinds.StandaloneProject, true)]
-    [InlineData("probe_network_object_attributes", ProjectContainerKinds.LocalSession, true)]
-    [InlineData("probe_io_system_qualification", ProjectContainerKinds.LocalSession, false)]
-    [InlineData("probe_subnet_lifecycle_mutations", ProjectContainerKinds.LocalSession, false)]
-    public void InternalNetworkProbe_CapabilityDecisionPreservesStandaloneOnlySupport(
-        string method, string containerKind, bool supported)
+    [InlineData("probe_network_object_attributes")]
+    [InlineData("probe_io_system_qualification")]
+    [InlineData("probe_subnet_lifecycle_mutations")]
+    public void RetiredNetworkProbes_AreUnsupportedInEveryContainer(string method)
     {
-        // WithSession passes these unmapped method names to this production decision.
-        Assert.Equal(supported, ProjectCapabilityCatalog.Supports(containerKind, method));
-        Assert.DoesNotContain(ProjectCapabilityCatalog.Describe(containerKind), item => item.Operation == method);
-        Assert.True(OperationPolicyCatalog.RequiresExpectedSessionIdentity(method));
-        Assert.True(OperationPolicyCatalog.IsAllowed(McpAccessMode.Full, method));
-        Assert.Equal(method == "probe_network_object_attributes",
-            OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, method));
+        foreach (var containerKind in new[] { ProjectContainerKinds.StandaloneProject,
+                     ProjectContainerKinds.LocalSession, ProjectContainerKinds.ServerProject })
+            Assert.False(ProjectCapabilityCatalog.Supports(containerKind, method));
     }
 
     [Fact]

@@ -81,6 +81,16 @@ public class AccessModeTierTests
         Assert.False(OperationPolicyCatalog.IsAllowed((McpAccessMode)999, "get_project_status"));
     }
 
+    [Theory]
+    [InlineData("probe_network_object_attributes")]
+    [InlineData("probe_io_system_qualification")]
+    [InlineData("probe_subnet_lifecycle_mutations")]
+    public void RetiredNetworkProbes_AreDeniedInEveryMode(string operation)
+    {
+        foreach (var mode in new[] { McpAccessMode.ReadOnly, McpAccessMode.ReadWrite, Full })
+            Assert.False(OperationPolicyCatalog.IsAllowed(mode, operation));
+    }
+
     [Fact]
     public void SessionSelection_NoExpectedIdentity()
     {

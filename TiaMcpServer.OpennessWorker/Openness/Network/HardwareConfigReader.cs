@@ -10,12 +10,6 @@ namespace TiaMcpServer.OpennessWorker.Openness.Network;
 
 public static class HardwareConfigReader
 {
-    /// <summary>
-    /// Ordinary unfiltered hardware read, including exact relationship evidence, without I/O maps.
-    /// </summary>
-    public static HardwareConfigInfo Read(ProjectBase project)
-        => Read(project, deviceName: null, plcName: null, includeIoDetails: false, includeTagMatches: false);
-
     public static HardwareConfigInfo Read(
         ProjectBase project,
         string? deviceName,
