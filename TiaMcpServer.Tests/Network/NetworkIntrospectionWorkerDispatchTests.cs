@@ -1,7 +1,6 @@
 namespace TiaMcpServer.Tests.Network;
 
 using System.Text.Json;
-using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
@@ -31,13 +30,11 @@ public class NetworkIntrospectionWorkerDispatchTests
         var payload = WorkerSerializationHarness.Serialize(new NetworkObjectListInfo()).Payload!;
         using var json = JsonDocument.Parse(payload);
 
-        Assert.False(WorkerJson.OmitsNullMembers(typeof(NetworkObjectListInfo)));
         Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("nextCursor").ValueKind);
     }
 
     // A successfully read CLR null is a typed value of kind "null", and the host contract requires
-    // its "value" member. The inspection payload still omits other null members, so the real
-    // worker's bytes must keep this one explicit or every inspection with a null attribute fails.
+    // its "value" member, so the worker's bytes must keep it explicit for the host to decode it.
     [Fact]
     public void WorkerProgram_InspectionWithANullAttributeValue_PassesTheHostPayloadContract()
     {

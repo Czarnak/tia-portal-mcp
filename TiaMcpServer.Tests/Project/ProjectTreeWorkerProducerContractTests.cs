@@ -190,7 +190,7 @@ public class ProjectTreeWorkerProducerContractTests
     }
 
     [Fact]
-    public void UnmarkedPayloadContracts_WriteNullMembers()
+    public void PayloadContracts_WriteNullMembers()
     {
         Assert.Equal(
             """{"name":"unchanged","optional":null}""",
@@ -200,8 +200,6 @@ public class ProjectTreeWorkerProducerContractTests
             """{"success":true,"operation":"save_project","projectPath":null,"project":null}""",
             WorkerSerializationHarness.Serialize(new ProjectLifecycleResultInfo { Operation = "save_project" }).Payload);
 
-        // CatalogEntryInfo no longer carries [LegacyNullOmission(RequiredMemberEnforcement)]
-        // (Task 3): its null members are now written explicitly, like any unmarked contract.
         Assert.Equal(
             """[{"typeName":"CPU","articleNumber":null,"version":null,"typeIdentifier":"OrderNumber:X","typeIdentifierNormalized":null,"catalogPath":null,"description":null}]""",
             WorkerSerializationHarness.Serialize(new List<CatalogEntryInfo>

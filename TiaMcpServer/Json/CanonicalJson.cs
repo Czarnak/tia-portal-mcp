@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using TiaMcpServer.Contracts.Json;
 
 namespace TiaMcpServer.Json;
 
@@ -51,16 +50,9 @@ public static class CanonicalJson
     /// <typeparamref name="T"/> (including inside nested objects and array elements) is required,
     /// unless it is declared conditional with
     /// <see cref="JsonIgnoreAttribute"/>'s <see cref="JsonIgnoreCondition.WhenWritingNull"/>.
-    /// Throws <see cref="InvalidOperationException"/> when <typeparamref name="T"/>'s contract
-    /// still omits null members on the wire (<see cref="WorkerJson.OmitsNullMembers"/>) — such a
-    /// contract cannot yet distinguish an absent member from an explicit null, so it cannot use
-    /// this reader.
     /// </summary>
     public static T DeserializeWorkerPayload<T>(string json)
-    {
-        RefuseLegacyNullOmittingPayload(typeof(T));
-        return DeserializeUsing<T>(json, WorkerPayloadRead);
-    }
+        => DeserializeUsing<T>(json, WorkerPayloadRead);
 
     /// <summary>Renders <paramref name="value"/> as canonical JSON text.</summary>
     public static string Serialize<T>(T value)
@@ -107,8 +99,7 @@ public static class CanonicalJson
     /// <summary>
     /// <see cref="DeserializeWorkerPayload{T}"/>, then the same canonical-text and validator
     /// pipeline as <see cref="Normalize{T}"/> — one round trip, three representations that cannot
-    /// drift apart. Throws <see cref="InvalidOperationException"/> under the same condition as
-    /// <see cref="DeserializeWorkerPayload{T}"/>.
+    /// drift apart.
     /// </summary>
     public static (T Value, string Text, JsonElement Element) NormalizeWorkerPayload<T>(
         string json,
@@ -133,17 +124,6 @@ public static class CanonicalJson
         RejectDuplicateProperties(document.RootElement);
         return document.Deserialize<T>(options)
             ?? throw new JsonException($"Expected a {typeof(T).Name} value but the JSON was null.");
-    }
-
-    private static void RefuseLegacyNullOmittingPayload(Type payloadType)
-    {
-        if (WorkerJson.OmitsNullMembers(payloadType))
-        {
-            throw new InvalidOperationException(
-                $"'{payloadType}' still omits null members on the wire (see " +
-                $"{nameof(WorkerJson)}.{nameof(WorkerJson.OmitsNullMembers)}) and cannot use the " +
-                "worker payload reader until its LegacyNullOmissionAttribute is removed.");
-        }
     }
 
     private static JsonElement Detach(string canonicalText)

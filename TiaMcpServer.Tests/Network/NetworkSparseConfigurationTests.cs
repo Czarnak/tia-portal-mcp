@@ -30,7 +30,7 @@ public class NetworkSparseConfigurationTests
     {
         var item = NetworkPayloadContract.Project(Configure("configure"), WorkerCallResult.Ok(PartialPayload));
         var result = JsonSerializer.Deserialize<ConfigureNetworkDeviceResultInfo>(
-            item.Result!.Value, WorkerJson.PayloadOptionsFor(typeof(ConfigureNetworkDeviceResultInfo)))!;
+            item.Result!.Value, WorkerJson.ExplicitNullPayload)!;
         var applied = result.AppliedSettings;
 
         Assert.Equal(new[] { "Address" }, applied.Keys);
@@ -59,7 +59,7 @@ public class NetworkSparseConfigurationTests
         Assert.Null(item.Failure);
         Assert.NotNull(item.Result);
         var result = JsonSerializer.Deserialize<ConfigureNetworkDeviceResultInfo>(
-            item.Result.Value, WorkerJson.PayloadOptionsFor(typeof(ConfigureNetworkDeviceResultInfo)))!;
+            item.Result.Value, WorkerJson.ExplicitNullPayload)!;
         Assert.Equal("PLC_1", result.DeviceName);
         Assert.Empty(result.AppliedSettings);
         Assert.Empty(result.Messages);

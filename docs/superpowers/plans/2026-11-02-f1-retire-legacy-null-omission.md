@@ -39,14 +39,22 @@ Neither requires live TIA testing at this scope: no Siemens calls, operation han
 
 **Interfaces:** Keep `SerializePayload<T>(T payload)` and `ExplicitNullPayload`. Remove `LegacyNullOmittingPayload`, `PayloadOptionsFor`, `OmitsNullMembers`, `ContractType`, marker/enum and `RefuseLegacyNullOmittingPayload`.
 
-- [ ] Inventory all references; confirm no production marker applications.
-- [ ] Run focused existing serializer/decoder tests before production edits. Use characterization for behavior-preserving deletion rather than inventing a failing behavioral requirement.
-- [ ] Preserve coverage of explicit-null roots, runtime-type roots, arrays/lists, conditional fields, strict decoding and request/envelope policies.
-- [ ] Remove unused policy, empty register and legacy-only fixtures/assertions. Replace test `PayloadOptionsFor` calls with `ExplicitNullPayload`.
-- [ ] Update maintained guidance and stale comments; leave frozen historical records intact.
-- [ ] Run focused tests, serial solution build and full non-Packaging suite with repository coverage settings. Meet repository threshold. Run Packaging only if documented trigger files change.
-- [ ] Run docs verifier and `git diff --check`, obtain independent review and resolve findings.
-- [ ] Commit as `refactor: retire legacy worker payload null omission`.
+- [x] Inventory all references; confirm no production marker applications.
+- [x] Run focused existing serializer/decoder tests before production edits. Use characterization for behavior-preserving deletion rather than inventing a failing behavioral requirement.
+- [x] Preserve coverage of explicit-null roots, runtime-type roots, arrays/lists, conditional fields, strict decoding and request/envelope policies.
+- [x] Remove unused policy, empty register and legacy-only fixtures/assertions. Replace test `PayloadOptionsFor` calls with `ExplicitNullPayload`.
+- [x] Update maintained guidance and stale comments; leave frozen historical records intact.
+- [x] Run focused tests, serial solution build and full non-Packaging suite with repository coverage settings. Meet repository threshold. Run Packaging only if documented trigger files change.
+- [x] Run docs verifier and `git diff --check`, obtain independent review and resolve findings.
+- [x] Commit as `refactor: retire legacy worker payload null omission`.
+
+## Offline verification results
+
+- Pre-change characterization: 78 passed, zero failed/skipped; post-change focused serializer/decoder tests: 27 passed, zero failed/skipped.
+- Serial reference-stub solution build: zero errors; nine warnings match the baseline exactly.
+- Full non-Packaging suite: 7,586 passed, zero failed/skipped. Four legacy-only cases retired; scoped line coverage 94.81%, above the 80% gate.
+- Independent whole-branch review: no correctness or scope findings. Documentation verifier: zero errors, with the expected retained-plan warning. Whitespace checks passed.
+- No Packaging trigger files changed. No live TIA operations or remote writes performed.
 
 ## Coordination and closeout
 

@@ -6,45 +6,36 @@ using Xunit;
 namespace TiaMcpServer.Tests.Worker;
 
 /// <summary>
-/// WorkerJson is the only worker-wire serializer policy. A payload contract writes null members
-/// unless it carries <see cref="LegacyNullOmissionAttribute"/>; a collection payload follows its
-/// element contract; the envelope reads case-insensitively and omits null members.
+/// WorkerJson is the only worker-wire serializer policy. Payloads write null members unless a
+/// member is explicitly conditional; the envelope reads case-insensitively and omits null members.
 /// </summary>
 public sealed class WorkerJsonTests
 {
     [Fact]
-    public void SerializePayload_WritesNullMembersOfAnUnmarkedContract()
+    public void SerializePayload_WritesNullMembers()
     {
-        var json = WorkerJson.SerializePayload(new UnmarkedPayload { Name = "a" });
+        var json = WorkerJson.SerializePayload(new Payload { Name = "a" });
 
         Assert.Equal("""{"name":"a","optional":null}""", json);
     }
 
     [Fact]
-    public void SerializePayload_OmitsNullMembersOfAMarkedContract()
+    public void SerializePayload_WritesNullMembersInArraysAndLists()
     {
-        var json = WorkerJson.SerializePayload(new MarkedPayload { Name = "a" });
-
-        Assert.Equal("""{"name":"a"}""", json);
-    }
-
-    [Fact]
-    public void SerializePayload_AppliesTheElementPolicyToCollections()
-    {
-        Assert.Equal(
-            """[{"name":"a"}]""",
-            WorkerJson.SerializePayload(new List<MarkedPayload> { new() { Name = "a" } }));
         Assert.Equal(
             """[{"name":"a","optional":null}]""",
-            WorkerJson.SerializePayload(new[] { new UnmarkedPayload { Name = "a" } }));
+            WorkerJson.SerializePayload(new List<Payload> { new() { Name = "a" } }));
+        Assert.Equal(
+            """[{"name":"a","optional":null}]""",
+            WorkerJson.SerializePayload(new[] { new Payload { Name = "a" } }));
     }
 
     [Fact]
     public void SerializePayload_UsesTheRuntimeTypeOfTheRoot()
     {
-        object payload = new MarkedPayload { Name = "a" };
+        object payload = new Payload { Name = "a" };
 
-        Assert.Equal("""{"name":"a"}""", WorkerJson.SerializePayload(payload));
+        Assert.Equal("""{"name":"a","optional":null}""", WorkerJson.SerializePayload(payload));
     }
 
     [Fact]
@@ -81,15 +72,7 @@ public sealed class WorkerJsonTests
             property => property.Name.Equals("confirm", StringComparison.OrdinalIgnoreCase));
     }
 
-    private sealed class UnmarkedPayload
-    {
-        public string Name { get; set; } = string.Empty;
-
-        public string? Optional { get; set; }
-    }
-
-    [LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
-    private sealed class MarkedPayload
+    private sealed class Payload
     {
         public string Name { get; set; } = string.Empty;
 

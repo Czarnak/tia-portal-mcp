@@ -30,7 +30,6 @@ public sealed class VciContractDecodeTests
         var type = ResultType(typeName);
         var normalized = Normalize(type, json);
         var decoded = JsonSerializer.Deserialize(normalized, type, WorkerJson.ExplicitNullPayload)!;
-        Assert.False(WorkerJson.OmitsNullMembers(type));
         Assert.True(JsonNode.DeepEquals(JsonNode.Parse(json), JsonNode.Parse(WorkerJson.SerializePayload(decoded))));
     }
 

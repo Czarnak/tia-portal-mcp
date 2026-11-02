@@ -17,7 +17,7 @@ namespace TiaMcpServer.Tests.Project;
 [Collection(RealWorkerProcessCollection.Name)]
 public class ProjectMetadataTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = WorkerJson.PayloadOptionsFor(typeof(ProjectLifecycleResultInfo));
+    private static readonly JsonSerializerOptions JsonOptions = WorkerJson.ExplicitNullPayload;
 
     private static OpennessWorkerClient CreateClient(string workerPath)
         => new(

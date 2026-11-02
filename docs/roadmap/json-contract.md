@@ -92,12 +92,10 @@ removed with the batch tools.
 
 Below the tool surface, the host and worker also disagree about JSON:
 
-- Null handling is declared per worker payload contract (Phase 1a). `WorkerJson.SerializePayload`
-  (`TiaMcpServer.Contracts/Json/WorkerJson.cs`) writes null members unless the payload root carries
-  `[LegacyNullOmission(reason)]`. The network payload roots, `ProjectTreeBrowseResultInfo` and
-  `ProjectRebindStateInfo` write explicit nulls (Phase 1b removed the network markers). No
-  production payload root carries the marker any more; the batch-only roots went with the batch
-  tools. Lifecycle/basic-status roots now
+- `WorkerJson.SerializePayload` (`TiaMcpServer.Contracts/Json/WorkerJson.cs`) uses
+  `ExplicitNullPayload`: null members are written except those declared conditional with
+  `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. The unused payload-wide
+  omission policy and its empty marker register are retired. Lifecycle/basic-status roots
   write explicit nulls and decode through the worker-payload reader. The worker,
   `PersistentWorkerTransport` and the FakeWorker all render through `WorkerJson`, so IPC tests see
   the production shape.
@@ -211,12 +209,13 @@ Not visible to clients unless noted. Decisions (2026-09-28):
 
 - One wire definition, `TiaMcpServer.Contracts/Json/WorkerJson.cs`: `Envelope` for reading both
   directions and writing responses, `Request` for writing requests (null members kept), and
-  `SerializePayload`, which writes null members unless the payload root carries
-  `[LegacyNullOmission(reason)]`. The worker, `PersistentWorkerTransport` and the FakeWorker use
+  `SerializePayload`, which writes null members except explicitly conditional members.
+  The worker, `PersistentWorkerTransport` and the FakeWorker use
   it; the worker's hard-coded per-type switch and every copied options block in the tests are
   gone.
-- Every payload root that omitted nulls before carries the marker with its reason, and
-  `WorkerPayloadNullPolicyRegisterTests` pins the marked set. The register only shrinks.
+- Payload-wide omission markers originally kept unmigrated tool output stable. All production
+  markers were later removed or retired with their tools; the unused policy and empty register
+  are now retired too.
 - The FakeWorker renders its DTO fixtures through the production policy, so IPC tests no longer
   see explicit nulls that the real worker omits (`FakeWorkerWireParityTests`).
 - `probe_open_project_rebind` payloads decode through one strict typed contract,
@@ -238,17 +237,15 @@ which Phase 3 migrates to explicit nulls and strict required-member decoding.
 - One worker-payload reader in `TiaMcpServer/Json/CanonicalJson.cs`: `DeserializeWorkerPayload<T>`
   and `NormalizeWorkerPayload<T>`. It uses the strict read settings plus `RespectNullableAnnotations`
   and a type-info modifier that marks every settable member required, except members declared
-  `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. It refuses a root type (or an
-  array root's element type) carrying `[LegacyNullOmission]`, because such a payload omits nulls.
-  It does not check collection elements, dictionary values or generic arguments, so the typed
-  validators keep their null-element checks.
+  `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. Required-member checks also
+  apply inside nested objects and collection elements. Nullable annotation enforcement does not
+  check collection elements, dictionary values or generic arguments, so the typed validators keep
+  their null-element checks.
 - The network, hardware-page, project-tree and rebind-state decoders read through it. The
   hand-written JSON-shape layers (`RequireMembers`, `ValidateRequiredJsonShape` and friends) are
   deleted; the typed validators keep only semantic rules and null-element checks. The contracts
   stay classes: nothing was converted to records.
-- The network `[LegacyNullOmission]` markers are removed in the same change, so the network
-  payloads write explicit nulls together with the decoders that read them. The reasons went from
-  three to two (`RequiredMemberEnforcement` is gone).
+- The network payloads switched to explicit nulls together with the decoders that read them.
 - The conditional members are `DeviceItemInfo.IoDetails`, `HardwareConfigInfo.Pagination`,
   `HardwarePaginationInfo.NextCursor` and `WorkerResponse.BlockImportOutcome`, each described by
   when it appears and pinned by `ConditionalMemberRegisterTests`.

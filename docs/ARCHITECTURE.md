@@ -398,11 +398,10 @@ format, used by the worker, `PersistentWorkerTransport`, and the FakeWorker.
 `WorkerJson.Envelope` reads `WorkerRequest` and `WorkerResponse` (camelCase,
 case-insensitive) and writes responses with null members omitted;
 `WorkerJson.Request` writes requests with every member, null or not.
-`WorkerJson.SerializePayload` renders the `payload` document and writes null
-members unless the payload root carries `[LegacyNullOmission(reason)]`; a
-collection payload follows its element type. The marked set, and the reason each
-type has not switched yet, is pinned by `WorkerPayloadNullPolicyRegisterTests`
-(see [the JSON contract roadmap](roadmap/json-contract.md)).
+`WorkerJson.SerializePayload` renders the `payload` document with `ExplicitNullPayload`,
+writing null members except those explicitly declared conditional with
+`[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. This applies to
+object roots and collection elements alike (see [the JSON contract roadmap](roadmap/json-contract.md)).
 
 Before the permissive envelope decode, `PersistentWorkerTransport` calls
 `NetworkPayloadContract.ValidateEnvelopeOutcome` on raw `configureNetworkDeviceOutcome` JSON.
@@ -530,12 +529,10 @@ registered tool is now structured; the three batch tools were removed rather tha
   runs an optional semantic validator). It applies the strict rules above plus
   `RespectNullableAnnotations` and a rule that every settable member is required, except a member
   declared `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`. A rejected payload
-  throws `JsonException`, which the decoders turn into `protocol_error`. The rule applies to a
-  payload whose root writes explicit nulls, so the reader refuses (`InvalidOperationException`) a
-  root type, or an array root's element type, that carries `[LegacyNullOmission]`: that payload
-  omits nulls on the wire and cannot be read with required members. The reader does not check
-  collection elements, dictionary values or generic arguments, so the typed validators keep their
-  null-element checks alongside their semantic rules.
+  throws `JsonException`, which the decoders turn into `protocol_error`. Required-member checks
+  also apply inside nested objects and collection elements. Nullable annotation enforcement does
+  not check collection elements, dictionary values or generic arguments, so the typed validators
+  keep their null-element checks alongside their semantic rules.
 - A member the worker legitimately omits is conditional, marked `WhenWritingNull` and described
   in `ConditionalMemberRegisterTests`. This includes optional I/O/pagination and Network connection
   evidence, and the carried partial `ConfigureNetworkDeviceOutcome` and `HmiWriteOutcome`;
