@@ -54,7 +54,7 @@ Create, save-as, archive and close stay standalone-only.
 | Project | TFM | Role |
 | --------- | ----- | ------ |
 | `TiaMcpServer` | net10.0 | MCP stdio server, tool registration, guarded write pipeline, structured batch engine, CLI (doctor) |
-| `TiaMcpServer.Contracts` | netstandard2.0 | Shared DTOs (`WorkerRequest`, `WorkerResponse`, all info/result types) |
+| `TiaMcpServer.Contracts` | netstandard2.0 | Shared contracts, catalogs and Siemens-free logic (`WorkerRequest`, `WorkerResponse`, all info/result types) |
 | `TiaMcpServer.OpennessWorker` | net48 | Worker that loads `Siemens.Engineering.*`, handles all TIA Portal operations |
 | `TiaMcpServer.Tests` | net10.0 | xunit tests; links host source files directly via `<Compile Include>` (not a project reference) |
 | `TiaMcpServer.FakeWorker` | net10.0 | Scripted worker stand-in for IPC integration tests |
