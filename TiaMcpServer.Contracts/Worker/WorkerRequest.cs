@@ -24,7 +24,7 @@ public class WorkerRequest
 {
     public HmiWriteRequestInfo? HmiWrite { get; set; }
 
-    #region Common — dispatch and write-confirmation flags
+    #region Common — dispatch and project identity
 
     /// <summary>Operation name, dispatched by the worker's switch in Program.cs.</summary>
     public string Method { get; set; } = string.Empty;
@@ -46,11 +46,6 @@ public class WorkerRequest
     /// a content read.
     /// </summary>
     public WorkerSessionIdentity? ExpectedSessionIdentity { get; set; }
-
-    /// <summary>
-    /// Set by write operations except update_block_logic and update_type_content. Never set by reads.
-    /// </summary>
-    public bool Confirm { get; set; }
 
     #endregion
 

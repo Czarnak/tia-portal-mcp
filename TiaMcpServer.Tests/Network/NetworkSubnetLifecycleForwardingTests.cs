@@ -225,7 +225,6 @@ public class NetworkSubnetLifecycleForwardingTests
         Assert.Equal(SubnetLifecycleContract.Profibus, root.GetProperty("subnetNetworkType").GetString());
         Assert.Equal(31, root.GetProperty("subnetHighestAddress").GetInt32());
         Assert.Equal("Baud1500000", root.GetProperty("subnetTransmissionSpeed").GetString());
-        Assert.True(root.GetProperty("confirm").GetBoolean());
 
         // create_subnet never forwards a target id — a new subnet's id is assigned by Openness.
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetId").ValueKind);
@@ -254,7 +253,6 @@ public class NetworkSubnetLifecycleForwardingTests
         Assert.Equal(EchoProjectPath, root.GetProperty("projectPath").GetString());
         Assert.Equal("subnet-42", root.GetProperty("subnetId").GetString());
         Assert.Equal("Renamed", root.GetProperty("subnetName").GetString());
-        Assert.True(root.GetProperty("confirm").GetBoolean());
 
         // Only 'name' was requested; the other two change fields and the (not-updatable) network
         // type must stay unset.
@@ -315,7 +313,6 @@ public class NetworkSubnetLifecycleForwardingTests
         Assert.Equal("delete_subnet", root.GetProperty("method").GetString());
         Assert.Equal(EchoProjectPath, root.GetProperty("projectPath").GetString());
         Assert.Equal("subnet-7", root.GetProperty("subnetId").GetString());
-        Assert.True(root.GetProperty("confirm").GetBoolean());
 
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetName").ValueKind);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("subnetNetworkType").ValueKind);

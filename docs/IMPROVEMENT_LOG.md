@@ -633,3 +633,18 @@ Public Network operations and their native execution paths are unchanged. `updat
 remains unshipped and needs its own guarded-pipeline implementation and scope-specific public-path
 live acceptance. Future IO-system work can use the retained qualification evidence; the retired
 worker routes are unavailable.
+
+## Completed: Q5 redundant worker confirmation removal (2026-11-02)
+
+Removed `WorkerRequest.Confirm`, the host's constant assignments, and the worker's
+Network, PLC and lifecycle confirmation fences, including the obsolete
+"Set confirm=true" diagnostics. Worker requests no longer carry a confirmation flag.
+Host and worker access-policy authorization, project-binding checks, native Portal
+confirmation handling and lifecycle user confirmation in the guarded host pipeline remain.
+
+The request-serialization regression covers the retired wire member; existing access-policy,
+Multiuser selector, public-schema and lifecycle confirmation tests cover the retained boundaries.
+Obsolete subnet fence/forwarding assertions, the fake-worker confirmation fence and the retired
+Multiuser selector case were removed. Qualification is offline because this removes a constant
+internal gate without changing native engineering calls.
+The frozen simplification review remains a historical record.

@@ -923,7 +923,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TypeIdentifier = typeIdentifier;
                 request.DeviceName = deviceName;
                 request.DeviceItemName = deviceItemName;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -949,7 +948,6 @@ public class OpennessWorkerClient : IDisposable
                 request.SubnetId = subnetId;
                 request.IoSystemSubnetId = ioSystemSubnetId;
                 request.IoSystemNumber = ioSystemNumber;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -973,7 +971,6 @@ public class OpennessWorkerClient : IDisposable
                 request.SubnetNetworkType = networkType;
                 request.SubnetHighestAddress = highestAddress;
                 request.SubnetTransmissionSpeed = transmissionSpeed;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -999,7 +996,6 @@ public class OpennessWorkerClient : IDisposable
                 request.SubnetName = name;
                 request.SubnetHighestAddress = highestAddress;
                 request.SubnetTransmissionSpeed = transmissionSpeed;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1016,7 +1012,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.SubnetId = subnetId;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1224,7 +1219,6 @@ public class OpennessWorkerClient : IDisposable
                 request.PlcName = plcName;
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1242,7 +1236,6 @@ public class OpennessWorkerClient : IDisposable
                 request.PlcName = plcName;
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1266,7 +1259,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Name = name;
                 request.DataType = dataType;
                 request.LogicalAddress = logicalAddress;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1298,7 +1290,6 @@ public class OpennessWorkerClient : IDisposable
                 request.ExternalAccessible = externalAccessible;
                 request.ExternalVisible = externalVisible;
                 request.ExternalWritable = externalWritable;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1318,7 +1309,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
                 request.Name = name;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1342,7 +1332,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Name = name;
                 request.DataType = dataType;
                 request.Value = value;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1366,7 +1355,6 @@ public class OpennessWorkerClient : IDisposable
                 request.Name = name;
                 request.DataType = dataType;
                 request.Value = value;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1386,7 +1374,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TableName = tableName;
                 request.FolderPath = folderPath;
                 request.Name = name;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1406,7 +1393,6 @@ public class OpennessWorkerClient : IDisposable
                 request.BlockType = blockType;
                 request.Language = language;
                 request.OBEventClass = obEventClass;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1419,7 +1405,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.BlockPath = blockPath;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1432,7 +1417,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.BlockPath = blockPath;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1445,7 +1429,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.BlockPath = blockPath;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1598,7 +1581,6 @@ public class OpennessWorkerClient : IDisposable
                 Method = "open_project",
                 ProjectPath = projectPath,
                 ExpectedSessionIdentity = emptyIdentity ?? bindingBeforeCall.ToWorkerIdentity(),
-                Confirm = true,
             }).ConfigureAwait(false);
 
         if (!result.Success)
@@ -1692,7 +1674,6 @@ public class OpennessWorkerClient : IDisposable
                 ProjectName = projectName,
                 Author = author,
                 Comment = comment,
-                Confirm = true,
             }).ConfigureAwait(false);
 
         if (!result.Success)
@@ -1722,10 +1703,7 @@ public class OpennessWorkerClient : IDisposable
         return SendBoundProjectRequestAsync(
             "save_project",
             null,
-            request =>
-            {
-                request.Confirm = true;
-            },
+            _ => { },
             "{}");
     }
 
@@ -1764,7 +1742,6 @@ public class OpennessWorkerClient : IDisposable
                 request.TargetDirectory = targetDirectory;
                 request.TargetName = targetName;
                 request.Rebind = true;
-                request.Confirm = true;
             },
             "{}",
             BindingTransition.BindResolvedPath);
@@ -1790,7 +1767,6 @@ public class OpennessWorkerClient : IDisposable
                 request.ArchiveName = archiveName;
                 request.ArchiveMode = normalizedMode;
                 request.SaveBeforeArchive = saveBeforeArchive;
-                request.Confirm = true;
             },
             "{}");
     }
@@ -1803,7 +1779,6 @@ public class OpennessWorkerClient : IDisposable
             request =>
             {
                 request.SaveBeforeClose = saveBeforeClose;
-                request.Confirm = true;
             },
             "{}",
             BindingTransition.Clear);

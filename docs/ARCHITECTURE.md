@@ -415,6 +415,9 @@ leaves applied state unknown. Request/subset equality is checked later during ty
 `OpennessWorkerClient` is the typed host facade. It constructs `WorkerRequest`
 objects, performs host authorization, invokes the transport, normalizes failure
 categories, caps warning output, and applies project-binding transitions.
+Both host and worker authorize operations through `OperationPolicyCatalog`;
+worker requests carry no confirmation flag. Lifecycle user confirmation stays in
+the host's guarded pipeline before dispatch.
 
 The worker dispatch loop maps every method name to a focused Siemens operation.
 `Program.Execute` delegates exception mapping to `WorkerExecution` and retains response stamping. The actual

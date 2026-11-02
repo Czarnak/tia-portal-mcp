@@ -71,6 +71,16 @@ public sealed class WorkerJsonTests
         Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("projectPath").ValueKind);
     }
 
+    [Fact]
+    public void Request_OmitsRetiredConfirmMember()
+    {
+        var json = JsonSerializer.Serialize(new WorkerRequest { Method = "save_project" }, WorkerJson.Request);
+
+        using var document = JsonDocument.Parse(json);
+        Assert.DoesNotContain(document.RootElement.EnumerateObject(),
+            property => property.Name.Equals("confirm", StringComparison.OrdinalIgnoreCase));
+    }
+
     private sealed class UnmarkedPayload
     {
         public string Name { get; set; } = string.Empty;
