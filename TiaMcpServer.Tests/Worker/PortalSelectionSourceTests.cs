@@ -33,7 +33,7 @@ public sealed class PortalSelectionSourceTests
     public void ListingRequestMatchesCatalogAndBothWorkerDispatches()
     {
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        var host = File.ReadAllText(Path.Combine(root, "TiaMcpServer/Worker/OpennessWorkerClient.cs"));
+        var host = File.ReadAllText(Path.Combine(root, "TiaMcpServer/Worker/OpennessWorkerClient.Binding.cs"));
         var list = Method(host, "async Task<WorkerCallResult?> List()");
         var request = Regex.Match(list, "Method = \"([^\"]+)\"");
         Assert.True(request.Success);
