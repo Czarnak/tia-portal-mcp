@@ -26,9 +26,6 @@ public class PortalSelectionPayloadContractsTests
         Assert.Equal(JsonValueKind.Null, selectionJson.RootElement.GetProperty("previousProcessId").ValueKind);
         Assert.Equal(JsonValueKind.Null, selectionJson.RootElement.GetProperty("previousProjectPath").ValueKind);
         Assert.Equal(JsonValueKind.Null, selectionJson.RootElement.GetProperty("previousProjectIsModified").ValueKind);
-        Assert.False(WorkerJson.OmitsNullMembers(typeof(TiaPortalProcessListInfo)));
-        Assert.False(WorkerJson.OmitsNullMembers(typeof(TiaPortalProcessInfo)));
-        Assert.False(WorkerJson.OmitsNullMembers(typeof(PortalProjectSelectionInfo)));
         Assert.NotNull(CanonicalJson.DeserializeWorkerPayload<TiaPortalProcessListInfo>(listJson.RootElement.GetRawText()));
         Assert.NotNull(CanonicalJson.DeserializeWorkerPayload<TiaPortalProcessInfo>(processJson.RootElement.GetRawText()));
         Assert.NotNull(CanonicalJson.DeserializeWorkerPayload<PortalProjectSelectionInfo>(selectionJson.RootElement.GetRawText()));

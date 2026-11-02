@@ -8,7 +8,7 @@ namespace TiaMcpServer.Tests.Block;
 
 public class CompileCheckInfoTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = WorkerJson.PayloadOptionsFor(typeof(CompileCheckReport));
+    private static readonly JsonSerializerOptions JsonOptions = WorkerJson.ExplicitNullPayload;
 
     [Fact]
     public void EmptyReportSerializesWithDefaultValues()

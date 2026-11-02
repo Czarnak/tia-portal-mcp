@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Json;
 using Xunit;
@@ -11,8 +10,7 @@ namespace TiaMcpServer.Tests.Json;
 /// Contract tests for the worker-payload reader: the same strict pipeline as
 /// <see cref="CanonicalJson.Deserialize{T}"/>/<see cref="CanonicalJson.Normalize{T}"/>, plus every
 /// settable member required unless declared conditional with
-/// <see cref="JsonIgnoreCondition.WhenWritingNull"/>, and a refusal of any root that still omits
-/// null members on the wire (<see cref="WorkerJson.OmitsNullMembers"/>).
+/// <see cref="JsonIgnoreCondition.WhenWritingNull"/>.
 /// </summary>
 public class CanonicalJsonWorkerPayloadTests
 {
@@ -43,18 +41,6 @@ public class CanonicalJsonWorkerPayloadTests
         public string TypeName { get; set; } = string.Empty;
 
         public string TypeIdentifier { get; set; } = string.Empty;
-    }
-
-    [LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
-    private sealed class RefusedDto
-    {
-        public string Value { get; set; } = string.Empty;
-    }
-
-    [LegacyNullOmission(LegacyNullOmissionReason.ToolMigration)]
-    private sealed class RefusedArrayElementDto
-    {
-        public string Value { get; set; } = string.Empty;
     }
 
     private const string ValidTopLevelJson =
@@ -148,12 +134,6 @@ public class CanonicalJsonWorkerPayloadTests
     [Fact]
     public void DeserializeWorkerPayload_RejectsArrayRootElementMissingAMember()
     {
-        // Replaces a brief-named CatalogEntryInfo[] fixture: CatalogEntryInfo still carries
-        // [LegacyNullOmission(RequiredMemberEnforcement)] until Task 3 removes it, so
-        // DeserializeWorkerPayload<CatalogEntryInfo[]> would refuse this input (and any input)
-        // before ever reaching element validation. This test-local, unmarked element type proves
-        // the same "array root -> per-element required members" behavior without that conflict.
-        // The real CatalogEntryInfo[] pair moves to Task 3.
         const string json = """[{"typeName":"A","typeIdentifier":"1"},{"typeName":"B"}]""";
 
         Assert.Throws<JsonException>(
@@ -163,10 +143,7 @@ public class CanonicalJsonWorkerPayloadTests
     [Fact]
     public void DeserializeWorkerPayload_RejectsCatalogEntryInfoArrayRootElementMissingAMember()
     {
-        // Carry-over from Task 2: CatalogEntryInfo no longer carries
-        // [LegacyNullOmission(RequiredMemberEnforcement)] (removed in Task 3), so the real
-        // CatalogEntryInfo[] root can now be exercised directly instead of the unmarked
-        // ArrayElementDto stand-in above. Second element is missing "description".
+        // The second element is missing "description", which is nullable but required.
         const string json =
             """[{"typeName":"A","articleNumber":"6ES7 123-4BB00","version":"V1.0","typeIdentifier":"1","typeIdentifierNormalized":"1-normalized","catalogPath":"TypeCatalog/A","description":"Desc A"},{"typeName":"B","articleNumber":null,"version":null,"typeIdentifier":"2","typeIdentifierNormalized":null,"catalogPath":null}]""";
 
@@ -227,9 +204,8 @@ public class CanonicalJsonWorkerPayloadTests
     }
 
     [Fact]
-    public void DeserializeWorkerPayload_AcceptsArrayRootOfUnmarkedElementType()
+    public void DeserializeWorkerPayload_AcceptsArrayRoot()
     {
-        // Replaces a brief-named CatalogEntryInfo[] fixture; see the rejection test above for why.
         const string json = """[{"typeName":"A","typeIdentifier":"1"},{"typeName":"B","typeIdentifier":"2"}]""";
 
         var value = CanonicalJson.DeserializeWorkerPayload<ArrayElementDto[]>(json);
@@ -242,8 +218,6 @@ public class CanonicalJsonWorkerPayloadTests
     [Fact]
     public void DeserializeWorkerPayload_AcceptsCatalogEntryInfoArrayRoot()
     {
-        // Carry-over from Task 2: exercises the reader on the real CatalogEntryInfo[] root now
-        // that Task 3 removed its [LegacyNullOmission(RequiredMemberEnforcement)] marker.
         const string json =
             """[{"typeName":"A","articleNumber":"6ES7 123-4BB00","version":"V1.0","typeIdentifier":"1","typeIdentifierNormalized":"1-normalized","catalogPath":"TypeCatalog/A","description":"Desc A"},{"typeName":"B","articleNumber":null,"version":null,"typeIdentifier":"2","typeIdentifierNormalized":null,"catalogPath":null,"description":null}]""";
 
@@ -252,32 +226,6 @@ public class CanonicalJsonWorkerPayloadTests
         Assert.Equal(2, value.Length);
         Assert.Equal("A", value[0].TypeName);
         Assert.Null(value[1].ArticleNumber);
-    }
-
-    // --- Refused --------------------------------------------------------------------------------
-
-    [Fact]
-    public void DeserializeWorkerPayload_AndNormalizeWorkerPayload_RefuseLegacyNullOmittingPayload()
-    {
-        const string json = """{"value":"a"}""";
-
-        Assert.Throws<InvalidOperationException>(
-            () => CanonicalJson.DeserializeWorkerPayload<RefusedDto>(json));
-        Assert.Throws<InvalidOperationException>(
-            () => CanonicalJson.NormalizeWorkerPayload<RefusedDto>(json));
-    }
-
-    [Fact]
-    public void DeserializeWorkerPayload_AndNormalizeWorkerPayload_RefuseArrayRootOfLegacyNullOmittingElement()
-    {
-        // Pins that the refusal unwraps an array root the same way WorkerJson.OmitsNullMembers
-        // does, so a marked element type refuses the whole array root, not just its elements.
-        const string json = """[{"value":"a"}]""";
-
-        Assert.Throws<InvalidOperationException>(
-            () => CanonicalJson.DeserializeWorkerPayload<RefusedArrayElementDto[]>(json));
-        Assert.Throws<InvalidOperationException>(
-            () => CanonicalJson.NormalizeWorkerPayload<RefusedArrayElementDto[]>(json));
     }
 
     // --- Normalize output -------------------------------------------------------------------
