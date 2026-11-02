@@ -4,26 +4,27 @@ using Xunit;
 
 /// <summary>
 /// Task 5, Step 1: source-contract tests for the worker's dispatch of the three Phase 4 subnet
-/// lifecycle operations in <c>TiaMcpServer.OpennessWorker/Program.cs</c>. Reads the production
+/// lifecycle operations in <c>Program.NetworkDispatch.cs</c>. Reads the production
 /// source text rather than exercising the dispatch switch at runtime, for the same reason given on
 /// <see cref="NetworkSubnetLifecycleWorkerServiceContractTests"/>.
 /// </summary>
 public class NetworkSubnetLifecycleWorkerDispatchTests
 {
     private static string ProgramSource => File.ReadAllText(
-        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"))
+        + File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"));
 
     [Fact]
     public void WorkerProgram_DispatchesAllThreeSubnetLifecycleOperationsToTheirOwnHandlers()
     {
         var source = ProgramSource;
-        Assert.Contains("\"create_subnet\" => CreateSubnet(request),", source, StringComparison.Ordinal);
-        Assert.Contains("\"update_subnet\" => UpdateSubnet(request),", source, StringComparison.Ordinal);
-        Assert.Contains("\"delete_subnet\" => DeleteSubnet(request),", source, StringComparison.Ordinal);
+        Assert.Contains("\"create_subnet\" => NetworkWorkerDispatch.CreateSubnet(request),", source, StringComparison.Ordinal);
+        Assert.Contains("\"update_subnet\" => NetworkWorkerDispatch.UpdateSubnet(request),", source, StringComparison.Ordinal);
+        Assert.Contains("\"delete_subnet\" => NetworkWorkerDispatch.DeleteSubnet(request),", source, StringComparison.Ordinal);
 
-        Assert.Contains("private static WorkerResponse CreateSubnet(WorkerRequest request)", source, StringComparison.Ordinal);
-        Assert.Contains("private static WorkerResponse UpdateSubnet(WorkerRequest request)", source, StringComparison.Ordinal);
-        Assert.Contains("private static WorkerResponse DeleteSubnet(WorkerRequest request)", source, StringComparison.Ordinal);
+        Assert.Contains("public static WorkerResponse CreateSubnet(WorkerRequest request)", source, StringComparison.Ordinal);
+        Assert.Contains("public static WorkerResponse UpdateSubnet(WorkerRequest request)", source, StringComparison.Ordinal);
+        Assert.Contains("public static WorkerResponse DeleteSubnet(WorkerRequest request)", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -115,7 +116,7 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
     }
 
     /// <summary>
-    /// Extracts the body of a private static method named <paramref name="methodName"/> by finding
+    /// Extracts the body of a static dispatch or shared helper method named <paramref name="methodName"/> by finding
     /// its declaration and the next top-level method declaration (or class-closing brace region)
     /// after it. Good enough for these structural assertions without a full C# parser.
     /// </summary>
@@ -128,9 +129,10 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
         // ("MethodName(someArg);"), which share the same "MethodName(" substring.
         var declarationIndex = -1;
         var markerLength = 0;
+        foreach (var prefix in new[] { "private", "public" })
         foreach (var returnType in KnownReturnTypes)
         {
-            var marker = $"private static {returnType} {methodName}(";
+            var marker = $"{prefix} static {returnType} {methodName}(";
             var candidateIndex = source.IndexOf(marker, StringComparison.Ordinal);
             if (candidateIndex >= 0)
             {
@@ -140,13 +142,13 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
             }
         }
 
-        Assert.True(declarationIndex >= 0, $"Expected a declaration of '{methodName}' in Program.cs.");
+        Assert.True(declarationIndex >= 0, $"Expected a declaration of '{methodName}' in the worker dispatch source.");
 
-        var nextMethodIndex = source.IndexOf(
-            "\n    private static",
-            declarationIndex + markerLength,
-            StringComparison.Ordinal);
-        var end = nextMethodIndex >= 0 ? nextMethodIndex : source.Length;
+        var nextMethod = System.Text.RegularExpressions.Regex.Match(
+            source[(declarationIndex + markerLength)..], @"\n +(?:private|public) static");
+        var end = nextMethod.Success
+            ? declarationIndex + markerLength + nextMethod.Index
+            : source.Length;
 
         return source[declarationIndex..end];
     }

@@ -15,11 +15,11 @@ public class HardwarePaginationWorkerSourceContractTests
     {
         var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.cs");
         var handler = ExtractMethod(
-            source,
-            "private static WorkerResponse ReadHardwarePageCandidates(WorkerRequest request)",
-            "private static WorkerResponse ListNetworkObjects(WorkerRequest request)");
+            ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"),
+            "public static WorkerResponse ReadHardwarePageCandidates(WorkerRequest request)",
+            "public static WorkerResponse ListNetworkObjects(WorkerRequest request)");
 
-        Assert.Contains($"\"{WorkerMethod}\" => ReadHardwarePageCandidates(request)", source, StringComparison.Ordinal);
+        Assert.Contains($"\"{WorkerMethod}\" => NetworkWorkerDispatch.ReadHardwarePageCandidates(request)", source, StringComparison.Ordinal);
         Assert.Contains("WithEngineeringRoot(request", handler, StringComparison.Ordinal);
         AssertBefore(
             handler,

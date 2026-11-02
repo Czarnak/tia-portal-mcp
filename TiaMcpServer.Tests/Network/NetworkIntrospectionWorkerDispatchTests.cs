@@ -14,10 +14,11 @@ public class NetworkIntrospectionWorkerDispatchTests
     [Fact]
     public void WorkerProgram_DispatchesListNetworkObjectsToTheNarrowHandler()
     {
-        var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"))
+            + File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"));
 
-        Assert.Contains("\"list_network_objects\" => ListNetworkObjects(request)", source);
-        Assert.Contains("private static WorkerResponse ListNetworkObjects(WorkerRequest request)", source);
+        Assert.Contains("\"list_network_objects\" => NetworkWorkerDispatch.ListNetworkObjects(request)", source);
+        Assert.Contains("public static WorkerResponse ListNetworkObjects(WorkerRequest request)", source);
         Assert.Contains("NetworkObjectIndexReader", source);
         Assert.Contains("ValidateListNetworkObjectsRequest(request)", source);
         Assert.Contains("NetworkObjectKinds.Subnet", source);
@@ -70,10 +71,11 @@ public class NetworkIntrospectionWorkerDispatchTests
     [Fact]
     public void WorkerProgram_DispatchesInspectNetworkObjectThroughResolverAndInspector()
     {
-        var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        var source = File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"))
+            + File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"));
 
-        Assert.Contains("\"inspect_network_object\" => InspectNetworkObject(request)", source);
-        Assert.Contains("private static WorkerResponse InspectNetworkObject(WorkerRequest request)", source);
+        Assert.Contains("\"inspect_network_object\" => NetworkWorkerDispatch.InspectNetworkObject(request)", source);
+        Assert.Contains("public static WorkerResponse InspectNetworkObject(WorkerRequest request)", source);
         Assert.Contains("NetworkObjectSelectorResolver.Resolve", source);
         Assert.Contains("NetworkObjectInspector.Inspect", source);
     }
