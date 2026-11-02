@@ -1,10 +1,85 @@
-> Kept verbatim; frozen 2026-10-30; not current documentation. Links to removed siblings point at tag docs-archive-2026-10-30.
+> Historical review and execution notes frozen 2026-10-30, retained verbatim below the status reconciliation added 2026-11-02. Links to removed siblings point at tag docs-archive-2026-10-30. Current behavior belongs in the operation references and architecture documentation.
 
 # Codebase review 2026-10-17: simplification and consistency plan
 
 Baseline: `main` @ `f0c79f8` (after the VCI tools merge). This was a static review: 8 area reviewers, each followed by an adversarial verifier. No builds, tests or live runs. Full evidence for every ID is in the [findings appendix](2026-10-17-codebase-simplification-review-findings.md). All decisions Q1–Q6 below were agreed with the maintainer on 2026-10-17.
 
 **Result:** 116 findings. 61 confirmed, 53 partly confirmed (the verifier corrected the scope or the fix; the corrected version is used here), 2 refuted (TOOLS-15, WORKERDOMAINS-15). After merging cross-area duplicates there are about 85 distinct items. They fall into six workstreams (A–F). Order A → B → C keeps each PR small and leaves contract changes for last.
+
+## Status reconciliation (2026-11-02)
+
+Checked the existing findings against current source and local Git history on `main` at `8b41877f`. This is a status update, not an additional code review. No builds, tests or live runs were performed for this reconciliation. **Implemented** means the recorded scope is present in the integrated source; it does not extend the candidate-specific qualification recorded below.
+
+This ledger is the current status. The remaining sections preserve the original finding descriptions, decisions and execution notes; their proposed ordering, source line numbers and statements about then-current behavior are historical.
+
+### Decisions
+
+| Decision | Status |
+|---|---|
+| Q1: temporary worker probes | **Implemented:** retired in `6ab052f2`, PR #208 (merge `07bad2db`). The original instruction to retain them is superseded. |
+| Q2: legacy null omission | **Implemented:** retired in `4812ae74`, PR #213; see F-1. |
+| Q3: worker-wide Portal loss | **Implemented:** PR #144 (merge `7acc7345`); `WorkerExecution` and `OpennessExceptions.IsRecoverable` retain the shared classification/filtering. Existing scoped live acceptance and untested fault locations remain as recorded under B-16. |
+| Q4: canonical argument rejection | **Implemented:** C-1 and its null/diagnostic follow-ups are integrated. |
+| Q5: worker `Confirm` fence | **Implemented:** request field, fences and related messages removed in `eaf986ae`, PR #209 (merge `6cc3e918`). Lifecycle user confirmation remains a separate host policy. |
+| Q6: bound-project-only content | **Implemented:** C-0 and the worker-identity/unbound-resolution follow-ups are integrated. |
+
+### A: mostly implemented, with three partial areas
+
+| Original item | Status and source/history evidence |
+|---|---|
+| Dead wire fields | **Implemented:** `AllowTiaConfirmations` and worker `ForceRebind` removed in `a5fa060e`. The host lifecycle's separate rebinding state remains intentional. |
+| Generic batch leftovers | **Implemented with an adjusted solution:** `ApplyWritesAsync` removed and tests moved in `f260bf81`. Skipped-item construction remains private to `WriteRun`; the proposed `StructuredOperationItem.Skipped` factory was not introduced. |
+| Legacy text contract and safety snapshot | **Implemented:** text projections/formatter removed in `38f0c173`; safety-export branches removed in `b38f619f`. `TiaJson` remains. |
+| Test-only overloads/readers | **Resolved:** Block overloads (`245776af`), old binding members (`1509e280`), executable resolver (`b26b04cc`) and `IoTagMatcher` (`8f57d7aa`) removed. `TagTableReader.ReadAll` remains as an inventory-backed reader with diagnostics (`5268b615`), resolving the lossy traversal without deleting its API. |
+| Overwritten selectors, `NodeAt`, access-policy fallback | **Implemented:** `a9c7fb16`, `f5baed55` and `b5257969`, respectively. |
+| MiMoCode branch and exit codes (HOSTCLI-6) | **Partial:** unreachable branch removed in `c883fde5`; `InstallCommand` still classifies parser errors by message text, and the stale executable comment remains. |
+| Block null branches, duplicate lookup and coordinator (WORKERDOMAINS-18) | **Partial:** null branches and duplicate PLC lookup removed in `e2b4fb7d`; `BlockCreationCoordinator` and its pass-through call remain. |
+| Smaller HOSTCORE-8 / HOSTDOMAINS-7 / CONTRACTS-10 / CONTRACTS-14 | **Partial overall:** approved HOSTCORE-8 cleanup (`b5257969`), unused scenario removal (`327494c1`) and catalog cleanup (`416338de`) are implemented. HOSTDOMAINS-7 still retains the unmarked `TryGetSpec`/`TryGetWriteFields` test seams and the PLC/HMI invoker token parameters. |
+| Stale removed-feature docs/messages | **Implemented for the identified wording:** `963b8214`. |
+
+### B and C: implemented within the recorded scope
+
+| Items | Status and source/history evidence |
+|---|---|
+| B-1 | **Implemented:** doctor shares `AccessModeParser.Parse`, including invalid environment values (`f8ada500`, PR #135). |
+| B-2 | **Implemented:** compile uses `FindUnique`/`FindEveryPlc` (`733b65f5`, `cf47108a`); `FindAll` removed in `7b9f7c64`, PR #139. `00ef7178` records grouped-PLC live compilation/block/tag-selection coverage; type writes were not exercised. |
+| B-3 | **Implemented:** installers and MiMoCode guidance consume `spec.Arguments` (`164f2c31`, PR #140). |
+| B-4 through B-16 | **Implemented:** detailed execution evidence is already recorded below. B-13 retains the agreed non-disposal of semaphores during shutdown. B-15's recorded checks establish configuration/local validation, not hosted release execution. |
+| Later B-7 / B-9 evolution | B-7's category-preserving wrapper remains; later native-rejection work adds `engineering_rejected` for eligible typed Siemens failures, superseding the historical blanket `worker_operation_failed` wording. B-9's original path forwarding (`2a4c12ff`) was superseded by C-0's bound-project-only dispatch (`240bb786`); it is not an outstanding path-forwarding task. |
+| C-0 through C-10 | **Implemented for the agreed scope**, including the already-recorded follow-ups. C-9's short-term defaults and paging matrix are complete (PR #173, `0bd41d4f`); parameter renaming remains deferred to a major contract change. C-7 still does not interrupt an in-flight worker call. |
+| Later C-3 evolution | Shared failure-category policy remains in `TrustedWriteVerifier`; native-rejection work subsequently replaced the old domain verifiers/VCI whole-batch verification (`f02a9845`). The original instruction to retain that verification implementation is historical. |
+
+### D: D-1 through D-6 implemented; smaller consolidations remain
+
+| Items | Status and source/history evidence |
+|---|---|
+| D-1 through D-5 | **Implemented:** shared read runner, budget, records, failure projection and Network executor injection remain in use; execution evidence is recorded below. `WriteCall.FromItems` was deliberately omitted. VCI later introduced `VciPlanResult` for dependent-workspace planning (`d57284fe`), retaining shared internal replan records. |
+| D-6 | **Implemented:** `d3ddf1bd`, PR #210 (merge `786e427c`), split `OpennessWorkerClient` into binding, invocation, lifecycle and domain partials. `CheckPinnedBinding` and `GroundConfiguredProjectAsync` centralize the checks. The historical “after preview” message was retained. |
+| D-7: standalone dispatch, lifecycle type check, transport parsing, audit literals, hashes | **Open:** string/type dispatch in `StructuredStandaloneResult`, the `LifecycleEffects` check in `WriteRun`, repeated transport parsing with domain validation, bare provenance literals and duplicated lower-hex SHA-256 helpers remain. |
+| D-7: large Network files | **Partial:** selector/vocabulary sharing and removal of `NetworkWriteVerifier` (`ed852881`, `85fddc3b`, `f835ebbe`, `8456ae67`) reduced duplication. `NetworkPayloadContract` and `NetworkOperationCatalog` remain large combined implementations. |
+| D-8: CLI | **Open for all six original sub-bullets:** shared startup/flag parsing, installer profile table, COMSPEC consolidation, doctor discovery/root-cause consolidation, companion-file list and boolean formatting. The existing installer/path/error fixes do not complete these structural items. |
+
+### E: E-1 through E-6 implemented; domain/session helpers remain
+
+| Items | Status and source/history evidence |
+|---|---|
+| E-1 through E-4 | **Implemented:** central open gate (`d4637435`), active-context wrapper (`4f9c3a1f`), shared Network reads (`c9700e59`) and typed V21 connections/reference pinning (`f2245465`, `c945b9fb`). Existing qualification limits remain below. |
+| E-5 | **Implemented, with later retirement:** shared settings/subnet vocabulary remains (`85fddc3b`, `f835ebbe`). `NetworkVerificationStatuses` was subsequently removed with worker verification (`a353ab81`). |
+| E-6 | **Implemented:** `c38d095b`, PR #211 (merge `46a22865`), extracted `Program.NetworkDispatch.cs` and `Program.PlcDispatch.cs`; the PLC dispatch shares `NormalizeFormat(format, fallback)`. The proposed class names are nested dispatch classes rather than separate top-level services. |
+| E-7: discovery, unit/group walks, tag helpers, block node mapping, compile constants/options | **Open:** separate strict/lenient software walkers, copied Block/PlcType and tag-resolution helpers, three block-node mappings, and duplicate compile limits/options remain. CrossReferences and ProjectTree still use the sinkless lenient discovery path. |
+| E-7: VCI writer | **Partial:** redundant exception wrapping was reduced in `70dddf5f`; `VciWriter.Write` remains a monolithic operation dispatcher. |
+| E-7: optional HMI alignment | **Open:** composition `Find` versus guarded ordinal group walks remains. The appendix's correction still applies: do not revive the refuted update/delete `groupPath` defect. |
+| E-8: session, Multiuser and hygiene | **Open:** session overload/connect duplication, repeated inventory validation/connection checks, double access-mode parsing, identical writable policy arms and the non-English comment remain. Multiuser performs one attachment plus repeated liveness/identity checks, not three independent attachments; duplicate stderr/error reporting was intentional in the verified finding. |
+| E-8: large Network files | **Partial:** E-3 extracted common reads, but `HardwareConfigReader` retains identity helpers and `NetworkObjectSelectorResolver` retains its long connection resolver. |
+
+### F: implemented
+
+| Item | Status and source/history evidence |
+|---|---|
+| F-1 | **Implemented:** `4812ae74`, PR #213 (merge `1cdf2270`); worker payload serialization uses explicit-null options without the legacy mechanism. |
+| F-2 | **Implemented:** `d2f909e5`, PR #214 (merge `77fea02c`); binding state lives in `TiaMcpServer/Worker/ProjectSessionBinding.cs`, tests link the host source, and the Contracts description was corrected. The existing namespace was intentionally retained. |
+| F-3 | **Implemented:** `1ba87359`, PR #212 (merge `f4e48f67`); Network, Lifecycle and Block scenario families were extracted with common `ScenarioSupport` response helpers. This does not mean every response uses one literal serializer method. |
+| F-4 | **Implemented:** `79d1b5dc`, PR #215 (merge `8b41877f`); `RepositoryFiles`, `CanonicalToolDocument` and `FakeWorkerClients` consolidate the shared infrastructure. Utilities/doubles are under `TestSupport`, and `FakeWorkerLocator` selects the running test configuration. |
 
 ## Decisions needed before execution
 
