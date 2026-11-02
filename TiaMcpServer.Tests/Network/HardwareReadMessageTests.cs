@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.OpennessWorker.Openness.Network;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -88,19 +89,5 @@ public sealed class HardwareReadMessageTests
     }
 
     private static string ReadWorkerSource(string file)
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current))
-        {
-            var candidate = Path.Combine(current, "TiaMcpServer.OpennessWorker", "Openness", "Network", file);
-            if (File.Exists(candidate))
-            {
-                return File.ReadAllText(candidate).Replace("\r\n", "\n");
-            }
-
-            current = Path.GetDirectoryName(current);
-        }
-
-        throw new FileNotFoundException($"Could not find worker source '{file}'.");
-    }
+        => RepositoryFiles.ReadSource("TiaMcpServer.OpennessWorker", "Openness", "Network", file);
 }

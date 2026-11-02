@@ -11,22 +11,14 @@ namespace TiaMcpServer.Tests.Project;
 [Collection(RealWorkerProcessCollection.Name)]
 public sealed class StandaloneStatusToolTests
 {
-    internal static JsonElement Document(object response)
-    {
-        var result = Assert.IsType<CallToolResult>(response);
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        var structured = Assert.IsType<JsonElement>(result.StructuredContent);
-        Assert.Equal(text, structured.GetRawText());
-        return structured;
-    }
 
     [Fact]
     public async Task NoProject_StatusIsStructured_WithoutBindingAnUnboundSession()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-no-project");
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
-        var root = Document(await ProjectReadTools.GetProjectStatus(client));
+        using var client = FakeWorkerClients.Create(binding: binding);
+        var root = CanonicalToolDocument.Read(await ProjectReadTools.GetProjectStatus(client));
         Assert.Equal("get_project_status", root.GetProperty("tool").GetString());
         Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
         Assert.True(root.GetProperty("success").GetBoolean());
@@ -43,10 +35,9 @@ public sealed class StandaloneStatusToolTests
     public async Task StatusOversize_IsWholeValueOmission()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-oversized");
-        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: new ProjectSessionBinding(null));
         var response = await ProjectReadTools.GetProjectStatus(client);
-        var root = Document(response);
+        var root = CanonicalToolDocument.Read(response);
         Assert.False(((CallToolResult)(object)response).IsError);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);

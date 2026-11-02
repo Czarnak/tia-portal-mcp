@@ -34,19 +34,13 @@ public class NetworkSubnetLifecycleFakeWorkerTests
     private const string PostconditionFailedScenario = "network-subnet-lifecycle-postcondition-failed";
     private const string SecondItemFailureScenario = "network-subnet-lifecycle-second-item-failure";
 
-    private static OpennessWorkerClient CreateClient(ProjectSessionBinding? binding = null)
-        => new(
-            binding ?? new ProjectSessionBinding(null),
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
-
     private static OpennessWorkerClient CreateWriteClient(
         TempAuditDirectory audit,
         out WriteExecution safety,
         string projectPath = Scenario)
     {
         var binding = new ProjectSessionBinding(null);
-        var client = CreateClient(binding);
+        var client = FakeWorkerClients.Create(binding: binding);
         NetworkVerifiedWriteFixture.VerifyAsync(client, binding, projectPath).GetAwaiter().GetResult();
         safety = NetworkGuardedWriteFixture.CreateRunner(client, audit.Path);
         return client;
@@ -103,26 +97,14 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         bool dryRun = true)
         => await NetworkWriteTools.NetworkWrite(client, safety, operations, dryRun, CancellationToken.None);
 
-    private static JsonElement Structured(CallToolResult result)
-        => Assert.IsType<JsonElement>(result.StructuredContent);
 
     private static string Text(CallToolResult result)
         => Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
 
 
-    /// <summary>Asserts the text block and structuredContent are byte-for-byte the same document.</summary>
-    private static JsonElement AssertOneCanonicalDocument(CallToolResult result)
-    {
-        var structured = Structured(result);
-        var text = Text(result);
-        Assert.Equal(CanonicalJson.Serialize(structured), text);
-        using var textDocument = JsonDocument.Parse(text);
-        Assert.True(JsonElement.DeepEquals(structured, textDocument.RootElement));
-        return structured;
-    }
 
     private static JsonElement FirstOperationResult(CallToolResult applied)
-        => Structured(applied).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        => CanonicalToolDocument.Read(applied).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
 
     /// <summary>Asserts the subnet mutation result has only identity and name.</summary>
     private static void AssertSubnetResult(JsonElement result)
@@ -163,7 +145,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         await PreviewAndApply(client, safety, operations, applied =>
         {
             Assert.False(applied.IsError, Text(applied));
-            var root = Structured(applied);
+            var root = CanonicalToolDocument.Read(applied);
             Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
             var result = FirstOperationResult(applied);
             AssertSubnetResult(result);
@@ -176,7 +158,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         // Post-read identity: the SAME subnetId now shows up in a fresh hardware read, with the
         // requested name, and the root device count is still 2.
         var read = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("post-read") });
-        var hardware = Structured(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        var hardware = CanonicalToolDocument.Read(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         Assert.Equal(2, hardware.GetProperty("devices").GetArrayLength());
         var createdSubnet = hardware.GetProperty("subnets").EnumerateArray()
             .First(subnet => subnet.GetProperty("subnetId").GetString() == createdSubnetId);
@@ -202,7 +184,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         await PreviewAndApply(client, safety, operations, applied =>
         {
             Assert.False(applied.IsError, Text(applied));
-            Assert.True(Structured(applied).GetProperty("success").GetBoolean(), Text(applied));
+            Assert.True(CanonicalToolDocument.Read(applied).GetProperty("success").GetBoolean(), Text(applied));
             var result = FirstOperationResult(applied);
             AssertSubnetResult(result);
             Assert.Equal("NewProfibusSubnet", result.GetProperty("name").GetString());
@@ -233,7 +215,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         });
 
         var read = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("post-read") });
-        var subnets = Structured(read).GetProperty("batch").GetProperty("operations")[0]
+        var subnets = CanonicalToolDocument.Read(read).GetProperty("batch").GetProperty("operations")[0]
             .GetProperty("result").GetProperty("subnets");
         var renamed = subnets.EnumerateArray().First(s => s.GetProperty("subnetId").GetString() == "subnet-eth-1");
         Assert.Equal("RenamedEthernet", renamed.GetProperty("name").GetString());
@@ -273,7 +255,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         });
 
         var read = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("post-read") });
-        var subnets = Structured(read).GetProperty("batch").GetProperty("operations")[0]
+        var subnets = CanonicalToolDocument.Read(read).GetProperty("batch").GetProperty("operations")[0]
             .GetProperty("result").GetProperty("subnets");
         var untouched = subnets.EnumerateArray().First(s => s.GetProperty("subnetId").GetString() == "subnet-eth-1");
         Assert.Equal("PN/IE_1", untouched.GetProperty("name").GetString());
@@ -309,7 +291,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             });
 
         var read = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("post-read") });
-        var hardware = Structured(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        var hardware = CanonicalToolDocument.Read(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         Assert.Equal(2, hardware.GetProperty("devices").GetArrayLength());
         Assert.DoesNotContain(
             hardware.GetProperty("subnets").EnumerateArray(),
@@ -337,7 +319,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             });
 
         var read = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("post-read") });
-        var hardware = Structured(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        var hardware = CanonicalToolDocument.Read(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         Assert.Equal(2, hardware.GetProperty("devices").GetArrayLength());
         Assert.DoesNotContain(
             hardware.GetProperty("subnets").EnumerateArray(),
@@ -365,7 +347,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
             });
 
         var read = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("post-read") });
-        var hardware = Structured(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        var hardware = CanonicalToolDocument.Read(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         Assert.Equal(2, hardware.GetProperty("devices").GetArrayLength());
         Assert.DoesNotContain(
             hardware.GetProperty("subnets").EnumerateArray(),
@@ -382,10 +364,10 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         var operations = new[] { CreateSubnetOp("create", "CanonicalSubnet", SubnetLifecycleContract.Ethernet) };
 
         var preview = await NetworkWrite(client, safety, operations);
-        AssertOneCanonicalDocument(preview);
+        CanonicalToolDocument.Read(preview);
 
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
-        AssertOneCanonicalDocument(applied);
+        CanonicalToolDocument.Read(applied);
     }
 
     [Fact]
@@ -396,7 +378,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         var operations = new[] { DeleteSubnetOp("delete", "subnet-eth-1") };
 
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
-        var root = Structured(applied);
+        var root = CanonicalToolDocument.Read(applied);
         Assert.False(applied.IsError, Text(applied));
 
         var auditFile = Assert.Single(Directory.GetFiles(audit.Path, "*.jsonl"));
@@ -419,7 +401,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
 
         Assert.False(applied.IsError, Text(applied));
-        var root = Structured(applied);
+        var root = CanonicalToolDocument.Read(applied);
         Assert.False(root.GetProperty("success").GetBoolean());
         var item = root.GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("failed", item.GetProperty("status").GetString());
@@ -443,7 +425,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
 
         Assert.False(applied.IsError, Text(applied));
-        var item = Structured(applied).GetProperty("batch").GetProperty("operations")[0];
+        var item = CanonicalToolDocument.Read(applied).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("failed", item.GetProperty("status").GetString());
         Assert.Equal(
             WorkerFailureCategories.ProtocolError,
@@ -475,7 +457,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
 
         Assert.False(applied.IsError, Text(applied));
-        var root = Structured(applied);
+        var root = CanonicalToolDocument.Read(applied);
         Assert.False(root.GetProperty("success").GetBoolean());
         var items = root.GetProperty("batch").GetProperty("operations");
         Assert.Equal(2, items.GetArrayLength());
@@ -496,7 +478,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         // Proves the earlier success was NOT rolled back: a fresh read against the same scenario
         // (same process, shared mutable state) still reports the created subnet.
         var read = await NetworkReadTools.NetworkRead(client, executor, new[] { ReadHardware("post-read") });
-        var hardware = Structured(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        var hardware = CanonicalToolDocument.Read(read).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         Assert.Contains(
             hardware.GetProperty("subnets").EnumerateArray(),
             subnet => subnet.GetProperty("subnetId").GetString() == createdSubnetId);
@@ -523,7 +505,7 @@ public class NetworkSubnetLifecycleFakeWorkerTests
         var applied = await NetworkWrite(client, safety, operations, dryRun: false);
 
         Assert.False(applied.IsError, Text(applied));
-        var root = Structured(applied);
+        var root = CanonicalToolDocument.Read(applied);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         var items = root.GetProperty("batch").GetProperty("operations");
 

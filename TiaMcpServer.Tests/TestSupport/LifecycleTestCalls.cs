@@ -2,11 +2,10 @@ using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.ProjectLifecycle;
 using TiaMcpServer.Safety.Pipeline;
-using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 
-namespace TiaMcpServer.Tests.TestUtilities;
+namespace TiaMcpServer.Tests.TestSupport;
 
 internal static class LifecycleTestCalls
 {
@@ -14,17 +13,9 @@ internal static class LifecycleTestCalls
         => new(new OpennessWriteBindingGate(client), new JsonlWriteAuditSink(audit.Path),
             LifecycleWriteDomain.Catalog, TimeProvider.System);
 
-    internal static JsonElement Document(CallToolResult result)
-    {
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        using var document = JsonDocument.Parse(text);
-        Assert.Equal(document.RootElement.GetRawText(), result.StructuredContent!.Value.GetRawText());
-        return document.RootElement.Clone();
-    }
-
     internal static void Rejected(CallToolResult result, string category)
     {
-        var document = Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError, document.GetRawText());
         Assert.False(document.GetProperty("success").GetBoolean());
         Assert.Equal(category, document.GetProperty("error").GetProperty("category").GetString());

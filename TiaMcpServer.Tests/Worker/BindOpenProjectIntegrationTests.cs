@@ -30,8 +30,7 @@ public sealed class BindOpenProjectIntegrationTests
             ui = new FakeWorkerUiOpenProject(initial);
             Log = new FakeWorkerRequestLog(directory);
             Binding = new ProjectSessionBinding(configured);
-            Client = new OpennessWorkerClient(Binding, workerExecutablePath: FakeWorkerLocator.Locate(),
-                requestTimeout: timeout ?? TimeSpan.FromSeconds(5), accessPolicy: new OperationAccessPolicy(mode));
+            Client = FakeWorkerClients.Create(mode, binding: Binding, requestTimeout: timeout ?? TimeSpan.FromSeconds(5));
         }
         public FakeWorkerRequestLog Log { get; }
         public string[] Methods() => Log.Methods().Where(m => m != "hello").ToArray();

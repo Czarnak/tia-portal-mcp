@@ -23,14 +23,6 @@ public class IoMapFieldForwardingTests : IDisposable
 
     public void Dispose() => _uiOpen.Dispose();
 
-    private static async Task<OpennessWorkerClient> CreateClientAsync()
-    {
-        var binding = new ProjectSessionBinding(null);
-        var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
-        return client;
-    }
-
     [Fact]
     public async Task ReadHardwareConfig_ForwardsEveryIoMapFieldExactlyOnce()
     {
@@ -44,7 +36,7 @@ public class IoMapFieldForwardingTests : IDisposable
             IncludeTagMatches = true,
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync("echo");
         var result = await NetworkWorkerInvoker.InvokeReadAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -71,7 +63,7 @@ public class IoMapFieldForwardingTests : IDisposable
             Operation = "read_hardware_config",
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync("echo");
         var result = await NetworkWorkerInvoker.InvokeReadAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -93,7 +85,7 @@ public class IoMapFieldForwardingTests : IDisposable
     [Fact]
     public async Task SnapshotDefaultRead_ForwardsOnlyDefaultNarrowingAndIoMapFields()
     {
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync("echo");
         var result = await client.ReadHardwareConfigAsync();
 
         Assert.True(result.Success, result.Error);

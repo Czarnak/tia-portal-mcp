@@ -24,25 +24,6 @@ public class NetworkSubnetLifecycleForwardingTests
 {
     private static readonly string EchoProjectPath = ProjectPathNormalization.Canonicalize("echo")!;
 
-    private static async Task<OpennessWorkerClient> CreateClientAsync()
-    {
-        var binding = new ProjectSessionBinding(null);
-        var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
-        try
-        {
-            await FakeWorkerBinding.BindVerifiedAsync(client, binding, EchoProjectPath);
-            return client;
-        }
-        catch
-        {
-            client.Dispose();
-            throw;
-        }
-    }
-
     #region Step 1: Access classification
 
     [Theory]
@@ -150,7 +131,7 @@ public class NetworkSubnetLifecycleForwardingTests
             },
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(EchoProjectPath);
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -168,7 +149,7 @@ public class NetworkSubnetLifecycleForwardingTests
             SubnetChanges = new NetworkSubnetChanges { Name = "Renamed" },
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(EchoProjectPath);
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -185,7 +166,7 @@ public class NetworkSubnetLifecycleForwardingTests
             Target = new NetworkObjectTarget { SubnetId = "subnet-7" },
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(EchoProjectPath);
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -212,7 +193,7 @@ public class NetworkSubnetLifecycleForwardingTests
             },
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(EchoProjectPath);
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -242,7 +223,7 @@ public class NetworkSubnetLifecycleForwardingTests
             SubnetChanges = new NetworkSubnetChanges { Name = "Renamed" },
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(EchoProjectPath);
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -278,7 +259,7 @@ public class NetworkSubnetLifecycleForwardingTests
             },
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(EchoProjectPath);
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);
@@ -303,7 +284,7 @@ public class NetworkSubnetLifecycleForwardingTests
             Target = new NetworkObjectTarget { SubnetId = "subnet-7" },
         };
 
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(EchoProjectPath);
         var result = await NetworkWorkerInvoker.InvokeWriteAsync(client, operation);
 
         Assert.True(result.Success, result.Error);

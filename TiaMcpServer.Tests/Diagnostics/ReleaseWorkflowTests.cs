@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -43,14 +44,9 @@ public class ReleaseWorkflowTests
     [Fact]
     public void NuGetToolProject_UsesNet10FrameworkDependentToolLayout()
     {
-        var projectPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
+        var projectPath = RepositoryFiles.Path(
             "TiaMcpServer",
-            "TiaMcpServer.csproj"));
+            "TiaMcpServer.csproj");
         var project = XDocument.Load(projectPath);
         var properties = project.Root?.Element("PropertyGroup");
 
@@ -61,15 +57,10 @@ public class ReleaseWorkflowTests
 
     private static string ReadWorkflowStep(string stepName, string followingStepName)
     {
-        var workflowPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
+        var workflowPath = RepositoryFiles.Path(
             ".github",
             "workflows",
-            "publish.yml"));
+            "publish.yml");
         var workflow = File.ReadAllText(workflowPath);
         var stepStart = workflow.IndexOf($"- name: {stepName}", StringComparison.Ordinal);
         var stepEnd = workflow.IndexOf($"- name: {followingStepName}", stepStart, StringComparison.Ordinal);

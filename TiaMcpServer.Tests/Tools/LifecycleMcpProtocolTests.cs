@@ -67,7 +67,7 @@ public sealed class LifecycleMcpProtocolTests
             mode, audit.Path, tool is "open_project" or "create_project" ? null : fixture.SourcePath, clientOptions: options);
         var before = harness.WorkerClient.BindingSnapshot;
         var result = await harness.Client.CallToolAsync(tool, fixture.Arguments(tool));
-        var document = Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.Equal(mode == McpAccessMode.ReadWrite && action is not null ? 1 : 0, prompts);
         Assert.Equal(applies, document.GetProperty("success").GetBoolean());
         Assert.Equal(!applies, result.IsError == true);
@@ -115,11 +115,11 @@ public sealed class LifecycleMcpProtocolTests
         var before = await harness.Client.CallToolAsync("compile_check", new Dictionary<string, object?>());
         Assert.Equal("binding_conflict", before.StructuredContent!.Value.GetProperty("error").GetProperty("category").GetString());
         var opened = await harness.Client.CallToolAsync("open_project", fixture.Arguments("open_project"));
-        Assert.True(Document(opened).GetProperty("success").GetBoolean());
+        Assert.True(CanonicalToolDocument.Read(opened).GetProperty("success").GetBoolean());
         Assert.True(harness.WorkerClient.BindingSnapshot.IsVerified);
         Assert.Equal(fixture.DestinationPath, harness.WorkerClient.BindingSnapshot.ProjectPath);
         var saved = await harness.Client.CallToolAsync("save_project", fixture.Arguments("save_project"));
-        Assert.True(Document(saved).GetProperty("success").GetBoolean());
+        Assert.True(CanonicalToolDocument.Read(saved).GetProperty("success").GetBoolean());
         Assert.Equal(2, prompts);
     }
 
@@ -242,7 +242,7 @@ public sealed class LifecycleMcpProtocolTests
         });
 
         Assert.Single(prompts);
-        var document = Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.Equal(applied, document.GetProperty("success").GetBoolean());
         Assert.Equal(!applied, result.IsError == true);
         Assert.Equal(applied ? "applied" : "blocked", document.GetProperty("phase").GetString());
@@ -268,7 +268,7 @@ public sealed class LifecycleMcpProtocolTests
         });
 
         Assert.False(result.IsError == true);
-        Assert.True(Document(result).GetProperty("success").GetBoolean());
+        Assert.True(CanonicalToolDocument.Read(result).GetProperty("success").GetBoolean());
         Assert.Equal(ProjectBindingSnapshot.UnboundState, harness.WorkerClient.BindingSnapshot.State);
         AssertAudit(audit.Path, result, "policy");
     }
@@ -309,7 +309,7 @@ public sealed class LifecycleMcpProtocolTests
             ["saveBeforeClose"] = false
         });
 
-        var document = Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.Equal(0, prompts);
         Assert.True(result.IsError == true);
         Assert.False(document.GetProperty("success").GetBoolean());
@@ -361,7 +361,7 @@ public sealed class LifecycleMcpProtocolTests
         });
         Assert.Equal(0, prompts);
         Assert.False(result.IsError == true);
-        Assert.True(Document(result).GetProperty("success").GetBoolean());
+        Assert.True(CanonicalToolDocument.Read(result).GetProperty("success").GetBoolean());
         Assert.Equal(ProjectBindingSnapshot.UnboundState, harness.WorkerClient.BindingSnapshot.State);
         AssertAudit(audit.Path, result, "policy");
     }
@@ -385,7 +385,7 @@ public sealed class LifecycleMcpProtocolTests
             ["saveBeforeClose"] = false, ["dryRun"] = true
         });
 
-        var document = Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.Equal(0, prompts);
         Assert.Equal("preview", document.GetProperty("phase").GetString());
         Assert.True(document.GetProperty("success").GetBoolean());
@@ -410,7 +410,7 @@ public sealed class LifecycleMcpProtocolTests
             ["saveBeforeClose"] = false
         });
         Assert.False(result.IsError == true);
-        Assert.True(Document(result).GetProperty("success").GetBoolean());
+        Assert.True(CanonicalToolDocument.Read(result).GetProperty("success").GetBoolean());
         AssertAudit(audit.Path, result, "policy");
     }
 
@@ -427,7 +427,7 @@ public sealed class LifecycleMcpProtocolTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(
             McpAccessMode.Full, audit.Path, fixture.SourcePath);
         var result = await harness.Client.CallToolAsync("save_project", fixture.Arguments("save_project"));
-        var document = Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.False(result.IsError == true);
         Assert.False(document.GetProperty("success").GetBoolean());
         Assert.Equal("applied", document.GetProperty("phase").GetString());
@@ -463,7 +463,7 @@ public sealed class LifecycleMcpProtocolTests
         arguments["dryRun"] = true;
         if (tool == "open_project") arguments["forceRebind"] = true;
         var result = await harness.Client.CallToolAsync(tool, arguments);
-        var document = Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.False(result.IsError == true);
         Assert.Equal("preview", document.GetProperty("phase").GetString());
         Assert.True(document.GetProperty("success").GetBoolean(), document.GetRawText());
@@ -489,11 +489,6 @@ public sealed class LifecycleMcpProtocolTests
         }
     };
 
-    private static JsonElement Document(CallToolResult result)
-    {
-        using var document = JsonDocument.Parse(Assert.Single(result.Content.OfType<TextContentBlock>()).Text);
-        return document.RootElement.Clone();
-    }
 
     private static void AssertAudit(string directory, CallToolResult result, string? satisfaction, bool checkGuard = true,
         string? confirmationBy = null, string? confirmationOutcome = null)
@@ -506,7 +501,7 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(text), record.RootElement.GetProperty("responseHash").GetString());
         Assert.Equal(2, record.RootElement.GetProperty("recordVersion").GetInt32());
         var confirmation = record.RootElement.GetProperty("confirmation");
-        Assert.Equal(confirmationBy ?? (Document(result).GetProperty("phase").GetString() == "preview" ? "none" : "policy"), confirmation.GetProperty("by").GetString());
+        Assert.Equal(confirmationBy ?? (CanonicalToolDocument.Read(result).GetProperty("phase").GetString() == "preview" ? "none" : "policy"), confirmation.GetProperty("by").GetString());
         Assert.Equal(confirmationOutcome ?? "not_requested", confirmation.GetProperty("outcome").GetString());
         if (checkGuard)
         {

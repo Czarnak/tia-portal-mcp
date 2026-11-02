@@ -9,7 +9,6 @@ using TiaMcpServer.Network;
 using TiaMcpServer.OpennessWorker.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
-using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -433,10 +432,7 @@ public class ReadOnlyModeTests
     public async Task OpennessWorkerClient_ReadOnly_DeniesRebindProbeWithVerifiedRuntimeBinding()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
         var bindingBefore = binding.CaptureSnapshot();
         var sourceProjectPath = Assert.IsType<string>(bindingBefore.ProjectPath);

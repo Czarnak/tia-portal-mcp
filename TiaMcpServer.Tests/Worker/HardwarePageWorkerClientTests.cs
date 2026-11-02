@@ -17,7 +17,7 @@ public sealed class HardwarePageWorkerClientTests
     public async Task FirstPage_CapturesHostSnapshotAfterEnteringTheSerializedBindingOperation()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateFakeWorkerClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding, requestTimeout: TimeSpan.FromSeconds(5));
         var bootstrap = await BoundFirstPageAsync(client, binding, "hardware-pagination");
         var identity = AssertCompleteIdentity(bootstrap.WorkerResult);
         var before = binding.CaptureSnapshot();
@@ -65,7 +65,7 @@ public sealed class HardwarePageWorkerClientTests
         Directory.CreateDirectory(directory.Path);
         using var requests = new FakeWorkerRequestLog(directory.Path);
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateFakeWorkerClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding, requestTimeout: TimeSpan.FromSeconds(5));
 
         var call = await FirstPageAsync(client, ProjectPath);
 
@@ -83,7 +83,7 @@ public sealed class HardwarePageWorkerClientTests
         Directory.CreateDirectory(directory.Path);
         using var requests = new FakeWorkerRequestLog(directory.Path);
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateFakeWorkerClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding, requestTimeout: TimeSpan.FromSeconds(5));
         var first = await BoundFirstPageAsync(client, binding, ProjectPath);
         var expectedIdentity = AssertCompleteIdentity(first.WorkerResult);
         Assert.True(binding.Clear(null, out var clearError), clearError);
@@ -110,7 +110,7 @@ public sealed class HardwarePageWorkerClientTests
     public async Task Continuation_SendsTheBoundPathAndCursorIdentity()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateFakeWorkerClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding, requestTimeout: TimeSpan.FromSeconds(5));
         var first = await BoundFirstPageAsync(client, binding, ProjectPath);
         var expectedIdentity = AssertCompleteIdentity(first.WorkerResult);
 
@@ -240,7 +240,7 @@ public sealed class HardwarePageWorkerClientTests
         string expectedCategory)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateFakeWorkerClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding, requestTimeout: TimeSpan.FromSeconds(5));
         var first = await BoundFirstPageAsync(client, binding, scenario);
         var identity = AssertCompleteIdentity(first.WorkerResult);
 
@@ -262,7 +262,7 @@ public sealed class HardwarePageWorkerClientTests
     public async Task SuccessfulFirstPage_DoesNotAcceptPayloadIdentityWhenEnvelopeIdentityIsMissing()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateFakeWorkerClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding, requestTimeout: TimeSpan.FromSeconds(5));
 
         var call = await BoundFirstPageAsync(client, binding, "hardware-pagination-payload-only-identity");
 
@@ -274,20 +274,13 @@ public sealed class HardwarePageWorkerClientTests
     public async Task FirstPageFailure_RetainsItsOriginalFailureCategory()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateFakeWorkerClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding, requestTimeout: TimeSpan.FromSeconds(5));
 
         var call = await BoundFirstPageAsync(client, binding, "worker-error-with-category");
 
         Assert.False(call.WorkerResult.Success);
         Assert.Equal(WorkerFailureCategories.ValidationError, call.WorkerResult.FailureCategory);
     }
-
-    private static OpennessWorkerClient CreateFakeWorkerClient(ProjectSessionBinding binding)
-        => new(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            requestTimeout: TimeSpan.FromSeconds(5));
 
     private static async Task<HardwarePageWorkerCallResult> BoundFirstPageAsync(
         OpennessWorkerClient client,

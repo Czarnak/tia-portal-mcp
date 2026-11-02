@@ -1,39 +1,17 @@
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Json;
 using TiaMcpServer.OpennessWorker.Openness.Network;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
 
 public class HardwareDeviceSelectionTests
 {
-    private static string FindRepositoryFile(params string[] pathSegments)
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current))
-        {
-            var candidate = Path.Combine(new[] { current }.Concat(pathSegments).ToArray());
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            current = Path.GetDirectoryName(current);
-        }
-
-        throw new FileNotFoundException(
-            $"Could not find repository file '{Path.Combine(pathSegments)}' from '{AppContext.BaseDirectory}'.");
-    }
-
-    private static string ReadRepositorySource(params string[] pathSegments)
-    {
-        return File.ReadAllText(FindRepositoryFile(pathSegments)).Replace("\r\n", "\n");
-    }
-
     [Fact]
     public void HardwareConfigReader_SelectDevices_ReadsNameOnceIntoEvidence()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         // Name evidence is read once in SelectDevices using ReadTypedIdentityString
@@ -58,7 +36,7 @@ public class HardwareDeviceSelectionTests
         Assert.Null(failure);
 
         // ReadDevice preserves unreadable device with Name = null and emits degradation message
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
         Assert.Contains("Name = deviceName.IsUsable ? deviceName.Value : null,", source, StringComparison.Ordinal);
         Assert.Contains("NetworkObjectDiscoveryEvidence.AddReadMessage(messages, deviceName);", source, StringComparison.Ordinal);
@@ -101,7 +79,7 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareConfigReader_DelegatesIoMapAndTagIndexToFocusedComponents()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         Assert.Contains("HardwareIoMapReader.Read(item, itemDescription, messages, tagIndex)", source, StringComparison.Ordinal);
@@ -116,9 +94,9 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareIoMapReader_And_HardwareTagIndexResolver_RemainFocusedUnderSizeThresholds()
     {
-        var ioMapSource = ReadRepositorySource(
+        var ioMapSource = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareIoMapReader.cs");
-        var tagIndexSource = ReadRepositorySource(
+        var tagIndexSource = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareTagIndexResolver.cs");
 
         var ioMapLines = ioMapSource.Split('\n').Length;
@@ -131,7 +109,7 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareConfigReader_TagIndexFailureIsNonFatalOptionalEnrichment()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         Assert.Contains("private static IoTagIndex? ResolveTagIndex(", source, StringComparison.Ordinal);
@@ -143,7 +121,7 @@ public class HardwareDeviceSelectionTests
     [Fact]
     public void HardwareIoMapReader_EnumerationFailuresStayInsideOptionalIoDetails()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareIoMapReader.cs");
 
         Assert.Contains("try\n        {\n            foreach (Address address in item.Addresses)", source, StringComparison.Ordinal);

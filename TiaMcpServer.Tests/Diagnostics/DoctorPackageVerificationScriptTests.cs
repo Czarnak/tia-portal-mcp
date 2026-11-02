@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -467,7 +468,7 @@ public class DoctorPackageVerificationScriptTests
 
     private static string FindBuiltWorkerOutput()
     {
-        var repositoryRoot = GetRepositoryRoot();
+        var repositoryRoot = RepositoryFiles.Root;
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
         Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
 
@@ -485,7 +486,7 @@ public class DoctorPackageVerificationScriptTests
 
     private static ScriptResult RunVerifier(string packagePath)
     {
-        var scriptPath = Path.Combine(GetRepositoryRoot(), "scripts", "verify-doctor-package.ps1");
+        var scriptPath = Path.Combine(RepositoryFiles.Root, "scripts", "verify-doctor-package.ps1");
         var startInfo = new ProcessStartInfo
         {
             FileName = "pwsh",
@@ -505,7 +506,7 @@ public class DoctorPackageVerificationScriptTests
 
     private static ScriptResult RunCopyTarget(string outputPath)
     {
-        var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
+        var projectPath = Path.Combine(RepositoryFiles.Root, "TiaMcpServer", "TiaMcpServer.csproj");
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
         Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
 
@@ -533,7 +534,7 @@ public class DoctorPackageVerificationScriptTests
     private static ScriptResult RunWorkerBuild(string outputPath)
     {
         var projectPath = Path.Combine(
-            GetRepositoryRoot(),
+            RepositoryFiles.Root,
             "TiaMcpServer.OpennessWorker",
             "TiaMcpServer.OpennessWorker.csproj");
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
@@ -554,7 +555,7 @@ public class DoctorPackageVerificationScriptTests
 
     private static ScriptResult RunBuild(string outputPath, string? workingDirectory = null)
     {
-        var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
+        var projectPath = Path.Combine(RepositoryFiles.Root, "TiaMcpServer", "TiaMcpServer.csproj");
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
         Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
 
@@ -574,7 +575,7 @@ public class DoctorPackageVerificationScriptTests
     private static ScriptResult RunWorkerRestore(string? workingDirectory = null)
     {
         var workerProjectPath = Path.Combine(
-            GetRepositoryRoot(),
+            RepositoryFiles.Root,
             "TiaMcpServer.OpennessWorker",
             "TiaMcpServer.OpennessWorker.csproj");
         var startInfo = CreateDotnetStartInfo(workingDirectory);
@@ -595,7 +596,7 @@ public class DoctorPackageVerificationScriptTests
         bool noBuild,
         string? workingDirectory = null)
     {
-        var projectPath = Path.Combine(GetRepositoryRoot(), "TiaMcpServer", "TiaMcpServer.csproj");
+        var projectPath = Path.Combine(RepositoryFiles.Root, "TiaMcpServer", "TiaMcpServer.csproj");
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
         Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
 
@@ -652,7 +653,7 @@ public class DoctorPackageVerificationScriptTests
     private static string FindGlobalPackagesDirectory()
     {
         var assetsPath = Path.Combine(
-            GetRepositoryRoot(),
+            RepositoryFiles.Root,
             "TiaMcpServer.OpennessWorker",
             "obj",
             "project.assets.json");
@@ -782,16 +783,6 @@ public class DoctorPackageVerificationScriptTests
             .Where(path => path.Length > 0)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-    }
-
-    private static string GetRepositoryRoot()
-    {
-        return Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            ".."));
     }
 
     private sealed record ScriptResult(int ExitCode, string StandardOutput, string StandardError);

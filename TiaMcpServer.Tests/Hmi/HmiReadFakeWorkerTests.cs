@@ -16,18 +16,6 @@ public class HmiReadFakeWorkerTests
 {
     private const string Scenario = "hmi-read-roundtrip";
 
-    private static async Task<OpennessWorkerClient> CreateClientAsync(string scenario = Scenario)
-    {
-        var binding = new ProjectSessionBinding(null);
-        var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
-        return client;
-    }
-
     private static HmiOperationRequest Op(string id, string operation, Action<HmiOperationRequest>? configure = null)
     {
         var request = new HmiOperationRequest { OperationId = id, Operation = operation};
@@ -36,12 +24,12 @@ public class HmiReadFakeWorkerTests
     }
 
     private static JsonElement Items(CallToolResult result)
-        => Assert.IsType<JsonElement>(result.StructuredContent).GetProperty("batch").GetProperty("operations");
+        => CanonicalToolDocument.Read(result).GetProperty("batch").GetProperty("operations");
 
     [Fact]
     public async Task MixedBatchRoundTripsTypedItemsAndOneFailure()
     {
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario, McpAccessMode.ReadOnly);
 
         var result = await HmiReadTools.HmiRead(client, new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped()), new[]
         {
@@ -51,7 +39,7 @@ public class HmiReadFakeWorkerTests
         });
 
         Assert.False(result.IsError);
-        var root = Assert.IsType<JsonElement>(result.StructuredContent);
+        var root = CanonicalToolDocument.Read(result);
         Assert.False(root.GetProperty("success").GetBoolean());
         var items = Items(result);
         Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
@@ -70,7 +58,7 @@ public class HmiReadFakeWorkerTests
         Environment.SetEnvironmentVariable("TIA_MCP_FAKE_WORKER_REQUEST_LOG", log);
         try
         {
-            using var client = await CreateClientAsync();
+            using var client = await FakeWorkerClients.CreateBoundAsync(Scenario, McpAccessMode.ReadOnly);
 
             var result = await HmiReadTools.HmiRead(client, new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped()), new[]
             {
@@ -111,7 +99,7 @@ public class HmiReadFakeWorkerTests
     [Fact]
     public async Task Paged_FirstContinuationLast_FollowsCursor()
     {
-        using var client = await CreateClientAsync(PagedScenario);
+        using var client = await FakeWorkerClients.CreateBoundAsync(PagedScenario, McpAccessMode.ReadOnly);
         var codec = new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped());
 
         var first = await PageAsync(client, codec);
@@ -127,7 +115,7 @@ public class HmiReadFakeWorkerTests
     [Fact]
     public async Task Paged_UnknownSnapshot_IsSnapshotUnavailable()
     {
-        using var client = await CreateClientAsync(PagedScenario);
+        using var client = await FakeWorkerClients.CreateBoundAsync(PagedScenario, McpAccessMode.ReadOnly);
         var codec = new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped());
 
         var first = await PageAsync(client, codec);
@@ -143,7 +131,7 @@ public class HmiReadFakeWorkerTests
     [Fact]
     public async Task ProtocolMismatchPayloadIsProtocolError()
     {
-        using var client = await CreateClientAsync();
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario, McpAccessMode.ReadOnly);
 
         var result = await HmiReadTools.HmiRead(client, new HmiPageCursorCodec(TiaMcpServer.Cursors.AuthenticatedCursorProtector.CreateProcessScoped()), new[] { Op("sys", "list_system_tags", r => r.HmiName = "HMI_1") });
 

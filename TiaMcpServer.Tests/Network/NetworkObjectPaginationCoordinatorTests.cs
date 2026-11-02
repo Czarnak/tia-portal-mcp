@@ -244,7 +244,7 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         var result = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { Operation(), Operation(id: "later") });
 
         Assert.False(result.IsError);
-        var items = AssertCanonical(result).GetProperty("batch").GetProperty("operations");
+        var items = CanonicalToolDocument.Read(result).GetProperty("batch").GetProperty("operations");
         Assert.Equal(2, items.GetArrayLength());
         Assert.Equal("failed", items[0].GetProperty("status").GetString());
         Assert.Equal(WorkerFailureCategories.ProtocolError,
@@ -267,7 +267,7 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         var expectedSize = Assert.IsType<AuthenticatedCursorSizeException>(
             Assert.Throws<CursorException>(() => fixture.Codec.Encode(fixture.State())).InnerException);
         var result = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { Operation(), Operation(id: "later") });
-        var document = AssertCanonical(result);
+        var document = CanonicalToolDocument.Read(result);
         var items = document.GetProperty("batch").GetProperty("operations");
         var item = items[0];
         Assert.Equal("omitted", item.GetProperty("status").GetString());
@@ -292,7 +292,7 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         var path = @"C:\Projects\" + new string('a', 1800) + @"\Demo.ap21";
         using var fixture = new Fixture(path, Page(path: path, terminal: true));
         var result = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { Operation() });
-        var item = AssertCanonical(result).GetProperty("batch").GetProperty("operations")[0];
+        var item = CanonicalToolDocument.Read(result).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", item.GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Null, item.GetProperty("result").GetProperty("nextCursor").ValueKind);
         Assert.Single(fixture.InventoryRequests);
@@ -304,23 +304,17 @@ public sealed class NetworkObjectPaginationCoordinatorTests
         using var fixture = new Fixture();
         var badCursor = Operation("unsigned");
         var itemResult = await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor });
-        var item = AssertCanonical(itemResult).GetProperty("batch").GetProperty("operations")[0];
+        var item = CanonicalToolDocument.Read(itemResult).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal(WorkerFailureCategories.InvalidCursor, item.GetProperty("failure").GetProperty("category").GetString());
         Assert.True(fixture.Binding.Clear(null, out _));
-        var unbound = AssertCanonical(await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor }));
+        var unbound = CanonicalToolDocument.Read(await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor }));
         Assert.Equal(WorkerFailureCategories.BindingConflict, unbound.GetProperty("error").GetProperty("category").GetString());
         badCursor.PageSize = 0;
-        var invalid = AssertCanonical(await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor }));
+        var invalid = CanonicalToolDocument.Read(await NetworkReadTools.NetworkRead(fixture.Client, fixture.Executor, new[] { badCursor }));
         Assert.Equal(WorkerFailureCategories.ValidationError, invalid.GetProperty("error").GetProperty("category").GetString());
         Assert.Empty(fixture.Requests);
     }
 
-    private static JsonElement AssertCanonical(CallToolResult result)
-    {
-        var document = Assert.IsType<JsonElement>(result.StructuredContent);
-        Assert.Equal(Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text, CanonicalJson.Serialize(document));
-        return document;
-    }
 
     private static NetworkOperationRequest Operation(string? cursor = null, string id = "objects") => new()
     {

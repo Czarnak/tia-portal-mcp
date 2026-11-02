@@ -1,5 +1,6 @@
-using TiaMcpServer.Diagnostics;
 using TiaMcpServer.Diagnostics.Checks;
+using TiaMcpServer.Diagnostics;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -161,9 +162,7 @@ public class OpennessWorkerCheckTests
 
     private static string FindBuiltWorkerOutput()
     {
-        var repositoryRoot = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", ".."));
+        var repositoryRoot = RepositoryFiles.Root;
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name;
         Assert.False(string.IsNullOrEmpty(configuration), "Test build configuration could not be determined.");
 
@@ -178,5 +177,4 @@ public class OpennessWorkerCheckTests
             $"No built net48 output found under {outputDir}. Build TiaMcpServer.OpennessWorker before running this test.");
         return outputDir;
     }
-
 }

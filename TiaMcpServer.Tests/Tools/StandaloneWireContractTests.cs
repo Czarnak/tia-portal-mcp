@@ -15,8 +15,7 @@ public sealed class StandaloneWireContractTests
     [Fact]
     public async Task DirectStatusPayload_WritesExplicitNulls_ForNoProject()
     {
-        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: new ProjectSessionBinding(null));
         var result = await client.GetProjectStatusAsync(null);
         Assert.True(result.Success, result.Error);
         using var direct = JsonDocument.Parse(result.Payload);

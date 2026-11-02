@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -11,7 +12,7 @@ public class OpennessReferenceProbeContractTests
     [Fact]
     public void ProbeIsCompileOnlyAndReferencesExactlyBaseAndStep7()
     {
-        var path = RepositoryPath(ProbeDirectory, "TiaMcpServer.OpennessReferenceProbe.csproj");
+        var path = RepositoryFiles.Path(ProbeDirectory, "TiaMcpServer.OpennessReferenceProbe.csproj");
         Assert.True(File.Exists(path), $"Expected compile-only reference probe project at {path}");
         var project = XDocument.Load(path);
         var properties = project.Root!.Elements("PropertyGroup").Elements().ToArray();
@@ -38,7 +39,7 @@ public class OpennessReferenceProbeContractTests
     [Fact]
     public void ProbeLocksOnlyTheFoundationMultiuserSurface()
     {
-        var path = RepositoryPath(ProbeDirectory, "MultiuserReferenceSurface.cs");
+        var path = RepositoryFiles.Path(ProbeDirectory, "MultiuserReferenceSurface.cs");
         Assert.True(File.Exists(path), $"Expected compile-only Multiuser reference source at {path}");
         var source = File.ReadAllText(path);
         var code = Regex.Replace(source, @"/\*[\s\S]*?\*/|//[^\r\n]*", string.Empty);
@@ -76,7 +77,7 @@ public class OpennessReferenceProbeContractTests
     [Fact]
     public void ProbeLocksUncalledTypedIoSystemSubnetCompatibilityCheck()
     {
-        var source = File.ReadAllText(RepositoryPath(ProbeDirectory, "MultiuserReferenceSurface.cs"));
+        var source = File.ReadAllText(RepositoryFiles.Path(ProbeDirectory, "MultiuserReferenceSurface.cs"));
         var code = Regex.Replace(source, @"/\*[\s\S]*?\*/|//[^\r\n]*", string.Empty);
 
         Assert.Contains("using Siemens.Engineering.HW;", code, StringComparison.Ordinal);
@@ -86,10 +87,5 @@ public class OpennessReferenceProbeContractTests
         Assert.DoesNotMatch(@"\.\s*\w+\s*\(", code);
         Assert.DoesNotMatch(@"\bnew\s+", code);
         Assert.DoesNotMatch(@"\bMain\b|\bstatic\s+MultiuserReferenceSurface\s*\(", code);
-    }
-    private static string RepositoryPath(params string[] segments)
-    {
-        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        return Path.Combine(new[] { root }.Concat(segments).ToArray());
     }
 }

@@ -26,8 +26,8 @@ public sealed class ProjectBindingInspectionClientTests
             ui = new(open ? Project : null);
             Log = new(directory.Path);
             Binding = new(configured);
-            Client = new(Binding, workerExecutablePath: FakeWorkerLocator.Locate(),
-                requestTimeout: timeout ?? TimeSpan.FromSeconds(5), accessPolicy: new(McpAccessMode.ReadOnly));
+            Client = FakeWorkerClients.Create(McpAccessMode.ReadOnly, binding: Binding,
+                requestTimeout: timeout ?? TimeSpan.FromSeconds(5));
         }
         public FakeWorkerRequestLog Log { get; }
         public ProjectSessionBinding Binding { get; }
@@ -215,7 +215,7 @@ public sealed class ProjectBindingInspectionClientTests
             new FakeWorkerPortals.Entry(43, loss ? "C:/Projects/discovery-project-closed.ap21" : null));
         using var ui = FakeWorkerUiOpenProject.ForWorkerRelativePath(scenario);
         var binding = new ProjectSessionBinding(path);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.ReadOnly));
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly, binding: binding);
         var codec = new ProjectTreeCursorCodec(new AuthenticatedCursorProtector(Enumerable.Range(0, 32).Select(x => (byte)x).ToArray(), "inspection-test"));
         using var store = new ProjectTreeSnapshotStore();
         var coordinator = new ProjectTreeBrowseCoordinator(client, codec, store, new ProjectTreePageProjector(codec), TimeProvider.System);

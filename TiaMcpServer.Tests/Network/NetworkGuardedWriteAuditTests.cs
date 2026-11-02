@@ -43,7 +43,7 @@ public sealed class NetworkGuardedWriteAuditTests
             args["operations"] = new[] { partial, NetworkGuardedWriteFixture.Delete() };
         }
         var reply = await harness.Client.CallToolAsync("network_write", args);
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.Equal(phase, root.GetProperty("phase").GetString());
         Assert.Equal(phase is "blocked" or "error", reply.IsError == true);
         if (preflightFailure)

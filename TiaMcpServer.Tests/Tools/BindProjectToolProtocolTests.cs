@@ -44,7 +44,7 @@ public sealed class BindProjectToolProtocolTests
     private static JsonElement Document(CallToolResult response)
     {
         Assert.Empty(StructuredContractInspector.FindViolations(response));
-        return response.StructuredContent!.Value;
+        return CanonicalToolDocument.Read(response);
     }
 
     private static JsonElement Value(CallToolResult response, string transition)

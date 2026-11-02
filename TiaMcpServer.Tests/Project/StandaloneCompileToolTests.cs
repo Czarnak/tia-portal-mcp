@@ -23,10 +23,10 @@ public sealed class StandaloneCompileToolTests
     {
         using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
-        using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: binding);
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
         var response = await ProjectEngineeringTools.CompileCheck(client);
-        var root = StandaloneStatusToolTests.Document(response);
+        var root = CanonicalToolDocument.Read(response);
         Assert.False(((CallToolResult)(object)response).IsError);
         Assert.Equal(passed, root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
@@ -46,10 +46,10 @@ public sealed class StandaloneCompileToolTests
     {
         using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
-        using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: binding);
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
         var response = await ProjectEngineeringTools.CompileCheck(client);
-        var root = StandaloneStatusToolTests.Document(response);
+        var root = CanonicalToolDocument.Read(response);
         Assert.False(((CallToolResult)(object)response).IsError);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
@@ -69,7 +69,7 @@ public sealed class StandaloneCompileToolTests
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), null,
             workerExecutablePath: "worker-must-not-start.exe", accessPolicy: new OperationAccessPolicy(mode));
         var response = await ProjectEngineeringTools.CompileCheck(client);
-        var root = StandaloneStatusToolTests.Document(response);
+        var root = CanonicalToolDocument.Read(response);
         Assert.True(((CallToolResult)(object)response).IsError);
         Assert.Equal(category, root.GetProperty("error").GetProperty("category").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("result").ValueKind);
@@ -81,10 +81,10 @@ public sealed class StandaloneCompileToolTests
         const string scenario = "compile-identity-drift";
         using var uiOpen = new FakeWorkerUiOpenProject(scenario);
         var binding = new ProjectSessionBinding(scenario);
-        using var client = new OpennessWorkerClient(binding, null, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: binding);
         Assert.True((await client.GetProjectStatusAsync(scenario)).Success);
         var response = await ProjectEngineeringTools.CompileCheck(client);
-        var root = StandaloneStatusToolTests.Document(response);
+        var root = CanonicalToolDocument.Read(response);
         Assert.False(response.IsError);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);

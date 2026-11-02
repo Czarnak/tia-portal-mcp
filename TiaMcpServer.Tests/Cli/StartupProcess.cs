@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using TiaMcpServer.Tests.TestSupport;
 
 namespace TiaMcpServer.Tests.Cli;
 
@@ -6,7 +7,7 @@ internal static class StartupProcess
 {
     internal static async Task<StartupResult> RunAsync(IReadOnlyDictionary<string, string>? environment, params string[] args)
     {
-        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var repositoryRoot = RepositoryFiles.Root;
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
         var startInfo = new ProcessStartInfo("dotnet")
         {

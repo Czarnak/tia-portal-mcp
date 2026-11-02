@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Vci;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Vci;
@@ -179,9 +180,7 @@ public sealed class VciMirroredPathTests
     public void FirstProblem_NeverUsesPathCombineOrGetFullPath()
     {
         // net10 does not throw on '"<>|', so the behavioural test cannot catch a regression to those APIs.
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (!File.Exists(Path.Combine(dir.FullName, "TiaMcpServer.slnx"))) dir = dir.Parent!;
-        var source = File.ReadAllText(Path.Combine(dir.FullName, "TiaMcpServer.Contracts", "Vci", "VciMirroredPath.cs"));
+        var source = File.ReadAllText(RepositoryFiles.Path("TiaMcpServer.Contracts", "Vci", "VciMirroredPath.cs"));
         var start = source.IndexOf("public static string? FirstProblem", StringComparison.Ordinal);
         var end = source.IndexOf("LeafBoundaryChars =", start, StringComparison.Ordinal);
         var body = string.Join("\n", source.Substring(start, end - start).Split('\n').Where(l => !l.TrimStart().StartsWith("//")));

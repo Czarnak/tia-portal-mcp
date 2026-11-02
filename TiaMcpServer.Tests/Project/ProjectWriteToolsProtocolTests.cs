@@ -1,7 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Tests.TestSupport;
-using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Tools;
 using Xunit;
 
@@ -49,7 +48,7 @@ public sealed class ProjectWriteToolsProtocolTests
                 ["dryRun"] = true
             });
 
-        var document = LifecycleTestCalls.Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.False(result.IsError == true);
         LifecycleTestCalls.Succeeded(document);
         LifecycleTestCalls.Phase(document, "preview");

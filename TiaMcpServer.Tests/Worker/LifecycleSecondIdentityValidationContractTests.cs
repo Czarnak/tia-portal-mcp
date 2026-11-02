@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -11,10 +12,10 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class LifecycleSecondIdentityValidationContractTests
 {
     private static string ProgramSource => File.ReadAllText(
-        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"));
+        RepositoryFiles.Path("TiaMcpServer.OpennessWorker", "Program.cs"));
 
     private static string LifecycleServiceSource => File.ReadAllText(
-        FindRepositoryFile(
+        RepositoryFiles.Path(
             "TiaMcpServer.OpennessWorker",
             "Openness",
             "Project",
@@ -193,24 +194,5 @@ public sealed class LifecycleSecondIdentityValidationContractTests
         }
 
         throw new Xunit.Sdk.XunitException($"Method '{declaration}' has an unbalanced body.");
-    }
-
-    private static string FindRepositoryFile(params string[] relativeSegments)
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            var candidate = Path.Combine(
-                new[] { directory.FullName }.Concat(relativeSegments).ToArray());
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new FileNotFoundException(
-            $"Could not locate repository file '{Path.Combine(relativeSegments)}'.");
     }
 }

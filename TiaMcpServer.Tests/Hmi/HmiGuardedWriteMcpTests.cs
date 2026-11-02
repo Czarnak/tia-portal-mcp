@@ -35,8 +35,8 @@ public class HmiGuardedWriteMcpTests
             Capabilities = new() { Elicitation = new() { Form = new() } },
             Handlers = new() { ElicitationHandler = (_, _) => { prompts++; return ValueTask.FromResult(new ElicitResult { Action = "decline" }); } },
         });
-        var preview = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence(), ["dryRun"] = true }));
-        var applied = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence() }));
+        var preview = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence(), ["dryRun"] = true }));
+        var applied = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence() }));
         Assert.True(preview.GetProperty("success").GetBoolean(), preview.GetRawText());
         Assert.True(applied.GetProperty("success").GetBoolean(), applied.GetRawText());
         Assert.Equal(preview.GetProperty("effects").GetRawText(), applied.GetProperty("effects").GetRawText());
@@ -59,7 +59,7 @@ public class HmiGuardedWriteMcpTests
             new { operationId = "bad", operation = "create_tag", tableName = "NewTable", tagName = "BadTag", connection = "Connection", plcTag = "Missing" },
             new { operationId = "last", operation = "create_tag_table", tableName = "NeverCreated" },
         } });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
@@ -70,7 +70,7 @@ public class HmiGuardedWriteMcpTests
         Assert.Equal("PlcTag", result.GetProperty("failedProperty").GetString());
         Assert.Equal(new[] { "Name", "Connection" }, result.GetProperty("appliedProperties").EnumerateArray().Select(p => p.GetString()));
         Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean(), root.GetRawText());
-        var repeat = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { Sequence()[0] } }));
+        var repeat = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { Sequence()[0] } }));
         Assert.Equal("applied", repeat.GetProperty("phase").GetString());
         var rejected = repeat.GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("engineering_rejected", rejected.GetProperty("failure").GetProperty("category").GetString());
@@ -99,9 +99,9 @@ public class HmiGuardedWriteMcpTests
             "discrete" => new { operationId = "x", operation = "create_alarm", alarmName = "Twice", alarmKind = kind, triggerTag = "T" },
             _ => new { operationId = "x", operation = "create_alarm", alarmName = "Twice", alarmKind = kind, triggerTag = "T", condition = "UpperLimit", conditionValue = 1 },
         };
-        var first = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { create } }));
+        var first = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { create } }));
         Assert.True(first.GetProperty("success").GetBoolean(), first.GetRawText());
-        var again = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { create } }));
+        var again = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[] { create } }));
         var expected = kind switch { "tag" => NativeDuplicateTagMessage, "discrete" => NativeDuplicateDiscreteAlarmMessage, _ => NativeDuplicateAnalogAlarmMessage };
         Assert.Equal(expected, again.GetProperty("batch").GetProperty("operations")[0].GetProperty("failure").GetProperty("engineeringError").GetProperty("message").GetString());
     }
@@ -114,7 +114,7 @@ public class HmiGuardedWriteMcpTests
         Directory.CreateDirectory(audit.Path);
         using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
-        var setup = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
+        var setup = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
         { ["operations"] = new[] { new { operationId = "fixture", operation = "create_tag", tableName = "Existing", tagName = "CP1029_TagA", dataType = "Int" } } }));
         Assert.True(setup.GetProperty("success").GetBoolean());
         var auditBefore = NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Length;
@@ -125,7 +125,7 @@ public class HmiGuardedWriteMcpTests
             new { operationId = "p4", operation = "create_tag", tableName = "Existing", tagName = "CP1029_TagA", dataType = "Bool",
                 comment = new[] { new { culture = "zu-ZA", text = "Checkpoint missing culture" } } }
         } });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal("applied", root.GetProperty("phase").GetString());
@@ -137,7 +137,7 @@ public class HmiGuardedWriteMcpTests
         Assert.DoesNotContain(requests.Methods().Skip(methodsBefore), m => m.StartsWith("hmi_delete_", StringComparison.Ordinal));
         AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Skip(auditBefore)));
 
-        var read = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_read", new Dictionary<string, object?>
+        var read = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_read", new Dictionary<string, object?>
         { ["operations"] = new[] { new { operationId = "original", operation = "get_tag", tagName = "CP1029_TagA" } } }));
         Assert.Equal("Int", read.GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("tag").GetProperty("dataType").GetString());
     }
@@ -149,7 +149,7 @@ public class HmiGuardedWriteMcpTests
         Directory.CreateDirectory(audit.Path);
         using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
-        var setup = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
+        var setup = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
         { ["operations"] = new[] { new { operationId = "fixture", operation = "create_tag", tableName = "Existing", tagName = "CP1029_TagA", dataType = "Int" } } }));
         Assert.True(setup.GetProperty("success").GetBoolean());
         var auditBefore = NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Length;
@@ -170,7 +170,7 @@ public class HmiGuardedWriteMcpTests
             new { operationId = "l1-tag-delete", operation = "delete_tag", tagName = "L1030_TagB" },
             new { operationId = "l1-table-delete", operation = "delete_tag_table", tableName = "L1030_TableR" },
         } });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal("applied", root.GetProperty("phase").GetString());
@@ -225,7 +225,7 @@ public class HmiGuardedWriteMcpTests
             new { operationId = "duplicate", operation = "create_tag_table", tableName = "existing" },
             new { operationId = "last", operation = "create_tag_table", tableName = "NeverCreated" },
         } });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
@@ -252,13 +252,13 @@ public class HmiGuardedWriteMcpTests
     {
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
-        var bound = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        var bound = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "bound", operation = "create_tag", tableName = "Existing", tagName = "Bound", connection = "Connection", plcTag = "Motor" } } }));
         Assert.True(bound.GetProperty("success").GetBoolean(), bound.GetRawText());
         var auditBefore = NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Length;
         var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "retype", operation = "update_tag", tagName = "Bound", newName = "Renamed", dataType = "Int" } } });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
         var item = root.GetProperty("batch").GetProperty("operations")[0];
@@ -277,13 +277,13 @@ public class HmiGuardedWriteMcpTests
     {
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
-        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        var root = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "bound", operation = "create_tag", tableName = "Existing", tagName = "Bound", connection = "Connection", plcTag = "Motor", dataType = "Int" } } }));
         var item = root.GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("engineering_rejected", item.GetProperty("failure").GetProperty("category").GetString());
         Assert.Equal("DataType", item.GetProperty("result").GetProperty("failedProperty").GetString());
         Assert.Equal("deleted", item.GetProperty("result").GetProperty("cleanup").GetString());
-        var retry = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        var retry = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "plain", operation = "create_tag", tableName = "Existing", tagName = "Bound", dataType = "Int" } } }));
         Assert.True(retry.GetProperty("success").GetBoolean(), retry.GetRawText());
     }
@@ -295,7 +295,7 @@ public class HmiGuardedWriteMcpTests
         Directory.CreateDirectory(audit.Path);
         using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
-        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence() }));
+        var root = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence() }));
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         var methods = requests.Methods().ToArray();
         var first = Array.FindIndex(methods, m => m.StartsWith("hmi_create_", StringComparison.Ordinal));
@@ -311,7 +311,7 @@ public class HmiGuardedWriteMcpTests
         Directory.CreateDirectory(audit.Path);
         using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
-        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        var root = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "alarm", operation = "create_alarm", alarmName = "Orphan", alarmKind = "discrete", triggerTag = "MissingTag" } } }));
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         var check = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
@@ -327,7 +327,7 @@ public class HmiGuardedWriteMcpTests
         using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
         var twice = new object[] { Sequence()[0], new { operationId = "again", operation = "create_tag_table", tableName = "NewTable" } };
-        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = twice }));
+        var root = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = twice }));
         Assert.Equal(2, requests.Methods().Count(m => m == "hmi_create_tag_table"));
         Assert.DoesNotContain(root.GetProperty("guards").EnumerateArray(), g => g.GetProperty("id").GetString() == "hmi_name_collision");
     }
@@ -340,7 +340,7 @@ public class HmiGuardedWriteMcpTests
         using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
         var operations = Sequence().Append(new { operationId = "delete", operation = "delete_tag_table", tableName = "Existing" }).ToArray();
-        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations, ["dryRun"] = true }));
+        var root = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations, ["dryRun"] = true }));
         Assert.Equal("preview", root.GetProperty("phase").GetString());
         var hmi = requests.Methods().Where(m => m.StartsWith("hmi_", StringComparison.Ordinal) || m == "read_cross_references").ToArray();
         Assert.Equal(["hmi_list_hmi_devices", "hmi_list_tag_tables", "hmi_list_alarms", "hmi_list_tags"], hmi);
@@ -353,12 +353,12 @@ public class HmiGuardedWriteMcpTests
         Directory.CreateDirectory(audit.Path);
         using var requests = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
-        var seed = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        var seed = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "seed", operation = "create_tag", tableName = "Existing", tagName = "Seed", dataType = "Bool" } } }));
         Assert.True(seed.GetProperty("success").GetBoolean(), seed.GetRawText());
         static bool Hmi(string m) => m.StartsWith("hmi_", StringComparison.Ordinal) || m == "read_cross_references";
         var before = requests.Methods().Count(Hmi);
-        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
+        var root = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "delete", operation = "delete_tag", tagName = "Seed" } }, ["dryRun"] = true }));
         Assert.Equal("preview", root.GetProperty("phase").GetString());
         Assert.Equal(["hmi_list_hmi_devices", "hmi_list_tag_tables", "hmi_get_tag", "hmi_list_alarms", "read_cross_references"], requests.Methods().Where(Hmi).Skip(before));
@@ -392,7 +392,7 @@ public class HmiGuardedWriteMcpTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
         var before = requests.Methods();
         var result = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Enumerable.Range(0, 50).Select(i => new { operationId = new string('\u0001', 253) + i.ToString("D3"), operation = "create_tag_table", tableName = "T" + i }).ToArray() });
-        var root = NetworkGuardedWriteMcpTests.Document(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError);
         Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
         Assert.Equal(before, requests.Methods());
@@ -408,7 +408,7 @@ public class HmiGuardedWriteMcpTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
         var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "a", operation = "create_tag", tableName = "Existing", tagName = "Bad", connection = "Connection", plcTag } } });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(cleanup, root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("cleanup").GetString());
         Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean());
@@ -422,7 +422,7 @@ public class HmiGuardedWriteMcpTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
         var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = new[]
         { new { operationId = "a", operation = "create_tag", tableName = "Existing", tagName = "Big", dataType = "Bool", comment = new[] { new { culture = "en-US", text = new string('x', 61000) } } } } });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal("succeeded", root.GetProperty("batch").GetProperty("operations")[0].GetProperty("status").GetString());
@@ -439,7 +439,7 @@ public class HmiGuardedWriteMcpTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
         var operations = new[] { new { operationId = "a", operation = "create_tag", tableName = "Existing", tagName = "Malformed", connection = "Connection", plcTag = "MalformedOutcome", comment = new[] { new { culture = "en-US", text = new string('x', 61000) } } } };
         var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations });
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal("applied", root.GetProperty("phase").GetString());
@@ -452,7 +452,7 @@ public class HmiGuardedWriteMcpTests
         Assert.DoesNotContain("malformed evidence", root.GetRawText());
         Assert.True(CanonicalJson.Serialize(root).Length <= 180000);
         AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
-        var after = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations, ["dryRun"] = true }));
+        var after = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations, ["dryRun"] = true }));
         Assert.Equal("preview", after.GetProperty("phase").GetString());
     }
 
@@ -467,7 +467,7 @@ public class HmiGuardedWriteMcpTests
             new { operationId = "b", operation = "create_tag", tableName = "Existing", tagName = "B", connection = "Connection", plcTag = "PortalLost" },
             new { operationId = "c", operation = "create_tag", tableName = "Existing", tagName = "C", dataType = "Bool" },
         };
-        var root = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations }));
+        var root = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = operations }));
         var items = root.GetProperty("batch").GetProperty("operations");
         Assert.Equal("succeeded", items[0].GetProperty("status").GetString());
         Assert.Equal("failed", items[1].GetProperty("status").GetString());
@@ -499,7 +499,7 @@ public class HmiGuardedWriteMcpTests
             new { operationId = "deleteTag", operation = "delete_tag", tagName = "RenamedTag" },
             new { operationId = "deleteTable", operation = "delete_tag_table", tableName = "RenamedTable" },
         }).ToArray() });
-        var root = NetworkGuardedWriteMcpTests.Document(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.All(root.GetProperty("batch").GetProperty("operations").EnumerateArray(), i => Assert.Equal("succeeded", i.GetProperty("status").GetString()));
         AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
@@ -525,14 +525,14 @@ public class HmiGuardedWriteMcpTests
     {
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
-        var tag = NetworkGuardedWriteMcpTests.Document(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
+        var tag = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
         { ["operations"] = new[] { new { operationId = "tag", operation = "create_tag", tableName = "Existing", tagName = "Signal", dataType = "Int" } } }));
         Assert.True(tag.GetProperty("success").GetBoolean(), tag.GetRawText());
         foreach (var (operation, input) in new[] { ("create_alarm", created), ("update_alarm", updated) })
         {
             var reply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?>
             { ["operations"] = new[] { new { operationId = "alarm", operation, alarmKind = "analog", alarmName = "Analog", triggerTag = "Signal", condition = "UpperLimit", conditionValue = JsonSerializer.Deserialize<JsonElement>(input) } } });
-            var root = NetworkGuardedWriteMcpTests.Document(reply);
+            var root = CanonicalToolDocument.Read(reply);
             Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
             var check = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
             Assert.Equal("trusted", check.GetProperty("check").GetString());
@@ -559,7 +559,7 @@ public class HmiGuardedWriteMcpTests
         using var audit = new TempAuditDirectory();
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, Scenario);
         var result = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["dryRun"] = true, ["operations"] = Enumerable.Range(0, 50).Select(i => new { operationId = new string('x', 253) + i.ToString("D3"), operation = "create_tag_table", tableName = "Table" + i }).ToArray() });
-        var root = NetworkGuardedWriteMcpTests.Document(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.Equal(50, root.GetProperty("effects").GetArrayLength());
         AssertAudit(root, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));

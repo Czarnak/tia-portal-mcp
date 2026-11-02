@@ -15,13 +15,14 @@ namespace TiaMcpServer.Tests.TestSupport;
 public sealed class ProcessEnvironmentIsolationTests
 {
     /// <summary>
-    /// Helpers that change the environment only on one path. The harness binds a startup project
-    /// through FakeWorkerBinding only when the caller passes the named argument.
+    /// Helpers that change the environment only on one path. Require that path's call marker
+    /// before propagating the environment change to callers.
     /// </summary>
     // ponytail: matches the named argument only; a positional startup path is not detected.
     private static readonly Dictionary<string, string> ConditionalHelpers = new()
     {
         [nameof(McpProtocolTestHarness)] = "startupProjectPath:",
+        [nameof(FakeWorkerClients)] = nameof(FakeWorkerClients.CreateBoundAsync),
     };
 
     [Fact]
@@ -83,13 +84,7 @@ public sealed class ProcessEnvironmentIsolationTests
 
     private static Source[] ReadTestSources()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "TiaMcpServer.slnx")))
-            root = root.Parent;
-        if (root is null)
-            throw new DirectoryNotFoundException("Could not locate the repository root.");
-
-        var testsRoot = Path.Combine(root.FullName, "TiaMcpServer.Tests");
+        var testsRoot = RepositoryFiles.Path("TiaMcpServer.Tests");
         return Directory.EnumerateFiles(testsRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !Path.GetRelativePath(testsRoot, path).Split(Path.DirectorySeparatorChar)
                 .Any(segment => segment is "bin" or "obj"))

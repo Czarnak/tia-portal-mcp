@@ -16,11 +16,7 @@ public sealed class ProjectTreeWorkerProtocolTests
     public async Task BrowseProjectTreeV3Snapshot_SendsTypedSelectorAndReturnsTypedTreeResult()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "project-tree-v3-snapshot");
 
         var call = await client.BrowseProjectTreeV3SnapshotAsync(

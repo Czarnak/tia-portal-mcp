@@ -6,7 +6,6 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
-using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -22,23 +21,11 @@ namespace TiaMcpServer.Tests.Worker;
 [Collection(RealWorkerProcessCollection.Name)]
 public class OpennessWorkerClientIntegrationTests
 {
-    private static OpennessWorkerClient CreateClient(
-        string? workerPath = null,
-        TimeSpan? requestTimeout = null,
-        ProjectSessionBinding? binding = null,
-        OperationAccessPolicy? accessPolicy = null)
-        => new(
-            binding ?? new ProjectSessionBinding(null),
-            logger: null,
-            workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(),
-            requestTimeout: requestTimeout,
-            accessPolicy: accessPolicy ?? new OperationAccessPolicy(McpAccessMode.Full));
-
     [Fact]
     public async Task QualifiedConfiguration_FreezesSelectorBeforeAsynchronousIpc()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
         var selector = new NetworkObjectSelectorInfo { Kind = "node", DeviceName = "Station", NodeId = "E1", InterfaceName = "X1", NodeIndex = 0,
             InterfacePath = new() { new() { Name = "X1", PositionNumber = 32768, TypeIdentifier = "type" } } };
@@ -109,7 +96,7 @@ public class OpennessWorkerClientIntegrationTests
         using var requests = new FakeWorkerRequestLog(directory.Path);
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await BindVerifiedAsync(client, binding);
         client.Dispose();
         var sentBefore = requests.Methods().Length;
@@ -130,7 +117,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task ReadHardwarePageCandidatesAsync_ForwardsTheDedicatedInternalRequest()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var call = await client.ReadHardwarePageCandidatesAsync(
@@ -184,7 +171,7 @@ public class OpennessWorkerClientIntegrationTests
             forceRebind: true,
             out _));
 
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         var invoked = false;
 
         var execution = await client.ExecuteWithPinnedBindingAsync(
@@ -207,7 +194,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task PinnedBindingLease_BlocksConcurrentRebindAndKeepsNestedReadsOnThePinnedProject()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var openedA = await client.OpenProjectAsync("C:\\stable\\Project.ap21", forceRebind: false);
         Assert.True(openedA.Success, openedA.Error);
@@ -271,7 +258,7 @@ public class OpennessWorkerClientIntegrationTests
         // get_project_status call that promoted the configured startup path to Verified.
         var binding = new ProjectSessionBinding("ok");
         var policy = new OperationAccessPolicy(McpAccessMode.ReadWrite);
-        using var client = CreateClient(binding: binding, accessPolicy: policy);
+        using var client = FakeWorkerClients.Create(policy.Mode, binding: binding);
 
         var call = await client.BrowseProjectTreeV3SnapshotAsync();
         var result = call.WorkerResult;
@@ -290,17 +277,17 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         var execution = LifecycleTestCalls.Execution(client, audit);
         using var fixture = new LifecycleProtocolFixture();
         var path = fixture.DestinationPath;
 
         var preview = await ProjectWriteTools.OpenProject(client, execution, path, dryRun: true);
-        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+        LifecycleTestCalls.Phase(CanonicalToolDocument.Read(preview), "preview");
         Assert.False(binding.IsVerified);
 
         var applied = await ProjectWriteTools.OpenProject(client, execution, path);
-        var document = LifecycleTestCalls.Document(applied);
+        var document = CanonicalToolDocument.Read(applied);
         Assert.Equal("open_project", document.GetProperty("tool").GetString());
         LifecycleTestCalls.Succeeded(document);
         Assert.Equal(path, binding.CaptureSnapshot().ProjectPath);
@@ -310,14 +297,14 @@ public class OpennessWorkerClientIntegrationTests
     public async Task GuardedOpenProject_WorkerFailureHasTypedFailureAndNoTopLevelRejection()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
 
         Directory.CreateDirectory(audit.Path);
         var path = Path.Combine(audit.Path, "worker-error-with-category.ap21");
         File.WriteAllText(path, "scripted fixture");
         var applied = await ProjectWriteTools.OpenProject(client,
             LifecycleTestCalls.Execution(client, audit), path);
-        var document = LifecycleTestCalls.Document(applied);
+        var document = CanonicalToolDocument.Read(applied);
 
         Assert.False(applied.IsError);
         Assert.False(document.GetProperty("success").GetBoolean());
@@ -335,7 +322,7 @@ public class OpennessWorkerClientIntegrationTests
         const string source = @"C:\FakeWorker\lifecycle-rebind-probe.ap21";
         const string destination = @"C:\Lifecycle\B.ap21";
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         binding.Invalidate("Simulated stale binding");
         var invalidated = binding.CaptureSnapshot();
@@ -375,7 +362,7 @@ public class OpennessWorkerClientIntegrationTests
         var binding = new ProjectSessionBinding(source);
         binding.Invalidate("Simulated stale binding");
         var invalidated = binding.CaptureSnapshot();
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var recovered = await client.RegroundInvalidatedSourceForOpenAsync(forceRebind: true);
 
@@ -402,7 +389,7 @@ public class OpennessWorkerClientIntegrationTests
         using var ui = new FakeWorkerUiOpenProject(source);
         using var log = new FakeWorkerRequestLog(audit.Path);
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         await client.InspectPortalAsync(new WorkerRequest { Method = "list_tia_portal_processes" });
         Assert.Equal(ProjectBindingSnapshot.InvalidatedState, binding.CaptureSnapshot().State);
@@ -434,7 +421,7 @@ public class OpennessWorkerClientIntegrationTests
         var binding = new ProjectSessionBinding(source);
         binding.Invalidate("Simulated stale binding");
         var invalidated = binding.CaptureSnapshot();
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var recovered = await client.RegroundInvalidatedSourceForOpenAsync(forceRebind: false);
 
@@ -450,7 +437,7 @@ public class OpennessWorkerClientIntegrationTests
         binding.Invalidate("Simulated stale binding without a source");
         var invalidated = binding.CaptureSnapshot();
         var absentExecutable = Path.Combine(Path.GetTempPath(), $"tia-absent-{Guid.NewGuid():N}.exe");
-        using var client = CreateClient(workerPath: absentExecutable, binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, workerPath: absentExecutable, binding: binding);
 
         var recovered = await client.RegroundInvalidatedSourceForOpenAsync(forceRebind: true);
 
@@ -462,7 +449,7 @@ public class OpennessWorkerClientIntegrationTests
     [Fact]
     public async Task OpenProject_BlankProjectPath_IsValidationErrorNotBindingConflict()
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
 
         // CanBind's single out-string covers two distinct reasons ("Project path is required."
         // and an already-bound conflict); a blank path must be categorized as caller input error,
@@ -478,7 +465,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task Success_ReturnsStructuredPayload()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.True(result.Success);
@@ -491,7 +478,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task PersistentWorker_ReusesOneProcessAcrossRequests()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
 
         var first = await client.GetProjectStatusAsync(null);
         var second = await client.GetProjectStatusAsync(null);
@@ -505,7 +492,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task HangingSafeRead_ReturnsWorkerTimeout_AndIsIssuedOnce()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
-        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, requestTimeout: TimeSpan.FromSeconds(2));
 
         var timedOut = await InvokeRawAsync(client,
             new WorkerRequest { Method = "get_project_status", ProjectDirectory = "hang" });
@@ -531,7 +518,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task UncertainSafeRead_IssuesFailedRequestOnce_ThenRestartedWorkerServesTheNextRequests(string scenario)
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
-        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, requestTimeout: TimeSpan.FromSeconds(2));
 
         var failed = await InvokeRawAsync(client,
             new WorkerRequest { Method = "get_project_status", ProjectDirectory = scenario });
@@ -564,7 +551,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task LostSafeRead_ReturnsWorkerCrashed_AndIsIssuedOnce(string scenario)
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
 
         var lost = await InvokeRawAsync(client,
             new WorkerRequest { Method = "get_project_status", ProjectDirectory = scenario });
@@ -598,7 +585,7 @@ public class OpennessWorkerClientIntegrationTests
         Directory.CreateDirectory(directory.Path);
         using var log = new FakeWorkerRequestLog(directory.Path);
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, Path.Combine(directory.Path, disposed ? "portal-disposed.ap21" : "portal-lost.ap21"));
         var before = binding.CaptureSnapshot();
         Assert.Equal(ProjectBindingSnapshot.VerifiedState, before.State);
@@ -630,7 +617,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
         await BindVerifiedAsync(client, binding);
 
         var result = await InvokeRawAsync(
@@ -649,7 +636,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await BindVerifiedAsync(client, binding);
 
         var result = await InvokeRawAsync(
@@ -673,7 +660,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
         await BindVerifiedAsync(client, binding);
 
         var result = await InvokeRawAsync(
@@ -696,7 +683,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await BindVerifiedAsync(client, binding);
 
         var result = await InvokeRawAsync(
@@ -719,7 +706,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, requestTimeout: TimeSpan.FromSeconds(2), binding: binding);
         await BindVerifiedAsync(client, binding);
 
         var request = new WorkerRequest
@@ -748,7 +735,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task ResponseWarnings_SurfaceOnTheResult()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok-with-warnings");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.True(result.Success);
@@ -761,7 +748,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         const string projectPath = "update-block-postcondition-failed";
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var result = await client.UpdateBlockLogicAsync(
@@ -789,7 +776,7 @@ public class OpennessWorkerClientIntegrationTests
         string? expectedCategory)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
 
         var result = await client.UpdateBlockLogicAsync(
@@ -824,7 +811,7 @@ public class OpennessWorkerClientIntegrationTests
         string expectedCategory)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
 
         var result = await client.UpdateBlockLogicAsync(
@@ -847,7 +834,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task UpdateBlockLogic_MissingOrInvalidReceivedOutcome_FailsClosedWithoutEcho(string scenario)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, scenario);
 
         var result = await client.UpdateBlockLogicAsync(
@@ -873,7 +860,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         const string projectPath = "create-block-postcondition-failed";
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
 
         var result = await client.CreateBlockAsync(
@@ -893,7 +880,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task OrphanStderr_DoesNotBecomeWarnings()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok-with-stderr");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.True(result.Success);
@@ -904,7 +891,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task PayloadStartingWithErrorPrefix_IsNotMisclassified()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("error-prefix-payload");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.True(result.Success);
@@ -915,7 +902,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task WorkerReportedError_IsStructuredFailure()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("worker-error");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.False(result.Success);
@@ -928,7 +915,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task WorkerReportedTargetNotFoundCategory_PreservesIt()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("worker-error-with-target-not-found-category");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
         var result = await client.GetProjectStatusAsync(null);
 
         Assert.False(result.Success);
@@ -940,7 +927,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task FailedFirstWorkerResponse_DoesNotBindTheSession()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
 
         var failed = await InvokeRawAsync(client,
             new WorkerRequest { Method = "get_project_status", ProjectDirectory = "worker-error" });
@@ -963,7 +950,7 @@ public class OpennessWorkerClientIntegrationTests
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
         var before = binding.CaptureSnapshot();
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var result = await (method switch
         {
@@ -1005,7 +992,7 @@ public class OpennessWorkerClientIntegrationTests
         using var requests = new FakeWorkerRequestLog(directory.Path);
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var result = await call(client);
 
@@ -1028,7 +1015,7 @@ public class OpennessWorkerClientIntegrationTests
         using var requests = new FakeWorkerRequestLog(directory.Path);
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var execution = await client.ExecuteWithPinnedBindingAsync(
             binding.CaptureSnapshot(),
@@ -1050,7 +1037,7 @@ public class OpennessWorkerClientIntegrationTests
         using var requests = new FakeWorkerRequestLog(directory.Path);
         using var uiOpen = new FakeWorkerUiOpenProject("ok");
         var binding = new ProjectSessionBinding("ok");
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var result = await client.ListTagTablesAsync(plcName: null);
 
@@ -1067,7 +1054,7 @@ public class OpennessWorkerClientIntegrationTests
         using var requests = new FakeWorkerRequestLog(directory.Path);
         using var uiOpen = new FakeWorkerUiOpenProject("worker-error");
         var binding = new ProjectSessionBinding("worker-error");
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var result = await client.ListTagTablesAsync(plcName: null);
 
@@ -1085,10 +1072,7 @@ public class OpennessWorkerClientIntegrationTests
         // The direct status read must never bind an unbound session, even when the worker
         // reports a resolved project path.
         var binding = new ProjectSessionBinding(null);
-        using var boundClient = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var boundClient = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var result = await boundClient.GetProjectStatusAsync(null);
 
@@ -1101,10 +1085,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("worker-error");
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var result = await client.GetProjectStatusAsync(null);
 
@@ -1116,10 +1097,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task SuccessfulCallWithoutAResolvedPath_LeavesTheSessionUnbound()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var result = await client.GetProjectStatusAsync(null);
 
@@ -1133,10 +1111,7 @@ public class OpennessWorkerClientIntegrationTests
         using var uiOpen = new FakeWorkerUiOpenProject(@"C:\actual\Other.ap21");
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // The worker rejects the configured path against its actual UI-open source before
         // returning any successful identity, so the host has no identity to invalidate.
@@ -1156,7 +1131,7 @@ public class OpennessWorkerClientIntegrationTests
         const string source = @"C:\bound\Session.ap21";
         const string divergent = @"C:\actual\Other.ap21";
         var binding = new ProjectSessionBinding(source);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         using var transport = new ScriptedStatusTransport(client,
             ScriptedStatusTransport.Success(divergent), ScriptedStatusTransport.Success(source));
 
@@ -1191,10 +1166,7 @@ public class OpennessWorkerClientIntegrationTests
         using var uiOpen = new FakeWorkerUiOpenProject(@"C:\stable\Project.ap21");
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\stable\\Project.ap21", forceRebind: false, out _));
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // Bound path equals the FakeWorker "C:\\stable\\Project.ap21" scenario key, and that
         // scenario reports the identical resolvedProjectPath back - no divergence.
@@ -1212,10 +1184,7 @@ public class OpennessWorkerClientIntegrationTests
         using var uiOpen = new FakeWorkerUiOpenProject(@"C:\equivalent\Project.ap21");
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\equivalent\\Project.ap21", forceRebind: false, out _));
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // Finding 2 regression: the divergence check used a raw string.Equals, which would treat
         // a forward-vs-back-slash spelling of the identical path as a different project and warn
@@ -1233,10 +1202,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task RestartedWorkerInvalidatesVerifiedBindingEvenWhenProjectPathIsUnchanged()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         var opened = await client.OpenProjectAsync("C:\\stable\\Project.ap21", forceRebind: false);
         Assert.True(opened.Success, opened.Error);
@@ -1259,10 +1225,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // Retain the fake process's exact worker identity, matching the verified binding an
         // explicit open would have established. This scenario reports a genuinely
@@ -1287,7 +1250,7 @@ public class OpennessWorkerClientIntegrationTests
         await File.WriteAllTextAsync(bogus, "not an executable");
         try
         {
-            using var client = CreateClient(workerPath: bogus);
+            using var client = FakeWorkerClients.Create(McpAccessMode.Full, workerPath: bogus);
             var result = await client.GetProjectStatusAsync(null);
 
             Assert.False(result.Success);
@@ -1313,7 +1276,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task GetProjectStatusAsync_SendsGetProjectStatusOperationOnly()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("echo");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
 
         var result = await client.GetProjectStatusAsync(null);
 
@@ -1325,7 +1288,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task ProbeProjectStatusForLifecycleAsync_SendsProbeOperationOnly()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
 
         var result = await client.ProbeProjectStatusForLifecycleAsync("echo");
@@ -1338,7 +1301,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task DirectGetProjectStatus_UsesGetProjectStatusOperationOnly()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "direct-status-only");
 
         // "direct-status-only" fails the call unless the worker request's method is exactly
@@ -1354,7 +1317,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task NoProjectOpen_DirectStatusReturnsIsOpenFalse()
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-no-project");
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full);
 
         var result = await ProjectReadTools.GetProjectStatus(client);
         using var doc = System.Text.Json.JsonDocument.Parse(((System.Text.Json.JsonElement)result.StructuredContent!).GetRawText());
@@ -1369,17 +1332,17 @@ public class OpennessWorkerClientIntegrationTests
         using var audit = new TempAuditDirectory();
         using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
         Directory.CreateDirectory(audit.Path);
 
         var preview = await ProjectWriteTools.SaveProject(client, execution, dryRun: true);
-        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+        LifecycleTestCalls.Phase(CanonicalToolDocument.Read(preview), "preview");
 
         var applied = await ProjectWriteTools.SaveProject(client, execution);
-        LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
+        LifecycleTestCalls.Succeeded(CanonicalToolDocument.Read(applied));
         Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
     }
 
@@ -1389,13 +1352,13 @@ public class OpennessWorkerClientIntegrationTests
         using var audit = new TempAuditDirectory();
         using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
 
         var applied = await ProjectWriteTools.SaveProject(client, execution);
-        var document = LifecycleTestCalls.Document(applied);
+        var document = CanonicalToolDocument.Read(applied);
         LifecycleTestCalls.Succeeded(document);
 
         // This fixture rejects the extended metadata read, so successful basic verification
@@ -1414,18 +1377,18 @@ public class OpennessWorkerClientIntegrationTests
         using var audit = new TempAuditDirectory();
         using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
 
         var preview = await ProjectWriteTools.SaveProjectAs(client, execution,
             targetDirectory: Directory.CreateDirectory(audit.Path).FullName, targetName: "Copy", dryRun: true);
-        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+        LifecycleTestCalls.Phase(CanonicalToolDocument.Read(preview), "preview");
 
         var applied = await ProjectWriteTools.SaveProjectAs(client, execution,
             targetDirectory: audit.Path, targetName: "Copy");
-        LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
+        LifecycleTestCalls.Succeeded(CanonicalToolDocument.Read(applied));
         Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
     }
 
@@ -1462,10 +1425,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = new FakeWorkerUiOpenProject("ok-with-resolved-path");
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(
             client,
             binding,
@@ -1491,10 +1451,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\FailingSave.ap21", forceRebind: false, out _));
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(
             client,
             binding,
@@ -1515,10 +1472,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task SaveProjectAs_MissingCopiedPath_IsPostconditionFailedWithUncertainStateWarning()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(
             client,
             binding,
@@ -1547,7 +1501,7 @@ public class OpennessWorkerClientIntegrationTests
         using var audit = new TempAuditDirectory();
         using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
@@ -1557,11 +1511,11 @@ public class OpennessWorkerClientIntegrationTests
         {
             var preview = await ProjectWriteTools.ArchiveProject(client, execution,
                 archiveDirectory, "Backup", dryRun: true);
-            LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+            LifecycleTestCalls.Phase(CanonicalToolDocument.Read(preview), "preview");
 
             var applied = await ProjectWriteTools.ArchiveProject(client, execution,
                 archiveDirectory, "Backup");
-            LifecycleTestCalls.Succeeded(LifecycleTestCalls.Document(applied));
+            LifecycleTestCalls.Succeeded(CanonicalToolDocument.Read(applied));
         }
         finally { if (Directory.Exists(archiveDirectory)) Directory.Delete(archiveDirectory, recursive: true); }
     }
@@ -1571,7 +1525,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         const string projectPath = @"C:\Projects\SimpleProject\SimpleProject.ap21";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var archiveDirectory = $@"C:\Projects\SimpleProject\Missing-{Guid.NewGuid():N}";
@@ -1582,7 +1536,7 @@ public class OpennessWorkerClientIntegrationTests
             archiveDirectory, "Backup", mode: "Compressed", dryRun: true);
 
         LifecycleTestCalls.Rejected(result, WorkerFailureCategories.ValidationError);
-        var document = LifecycleTestCalls.Document(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.Contains("archive directory must already exist",
             document.GetProperty("error").GetProperty("message").GetString());
         Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
@@ -1594,16 +1548,16 @@ public class OpennessWorkerClientIntegrationTests
         using var audit = new TempAuditDirectory();
         using var uiOpen = new FakeWorkerUiOpenProject("lifecycle-probe-only");
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding: binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         const string projectPath = "lifecycle-probe-only";
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         var execution = LifecycleTestCalls.Execution(client, audit);
 
         var preview = await ProjectWriteTools.CloseProject(client, execution, dryRun: true);
-        LifecycleTestCalls.Phase(LifecycleTestCalls.Document(preview), "preview");
+        LifecycleTestCalls.Phase(CanonicalToolDocument.Read(preview), "preview");
 
         var applied = await ProjectWriteTools.CloseProject(client, execution);
-        var document = LifecycleTestCalls.Document(applied);
+        var document = CanonicalToolDocument.Read(applied);
         LifecycleTestCalls.Succeeded(document);
         Assert.False(document.GetProperty("verification").GetProperty("value").GetProperty("isOpen").GetBoolean());
         Assert.Null(binding.CaptureSnapshot().ProjectPath);
@@ -1616,10 +1570,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // A lifecycle call (open, forceRebind so it clears the CanBind gate) that fails at the
         // worker must leave the existing binding exactly as it was - no partial rebind.
@@ -1634,10 +1585,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("ok-with-resolved-path");
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // Direct status is BindingTransition.None: even a success carrying a resolvedProjectPath
         // must not bind an unbound session.
@@ -1651,10 +1599,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task OpenSuccess_BindsWorkerResolvedPath_NotCallerPath()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // Caller asks for "open-resolved-differs"; the worker reports it actually opened
         // "C:\\worker\\Ground.ap21". The session must bind the worker's ground truth, never the
@@ -1670,10 +1615,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task CreateSuccess_BindsWorkerResolvedPath_NotCallerPath()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // Caller supplies directory "create-resolved-differs" and name "Line"; the worker reports
         // it created "C:\\worker\\Created.ap21". The session must bind the worker's ground truth,
@@ -1694,10 +1636,7 @@ public class OpennessWorkerClientIntegrationTests
     public async Task RequiredResolvedPathMissing_ReturnsPostconditionFailed()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // The fake succeeds but omits sessionIdentity. Open requires a complete worker/Portal/
         // project identity to bind, so this is a broken postcondition - never a silent fallback to
@@ -1714,10 +1653,7 @@ public class OpennessWorkerClientIntegrationTests
     {
         using var uiOpen = new FakeWorkerUiOpenProject(@"C:\stable\Project.ap21");
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
 
         // Close is BindingTransition.Clear: a successful close leaves the session with nothing
         // bound. First retain the exact identity reported by this persistent fake worker so the

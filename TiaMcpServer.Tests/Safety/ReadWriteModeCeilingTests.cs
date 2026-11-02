@@ -7,7 +7,6 @@ using TiaMcpServer.OpennessWorker.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.TestSupport;
-using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Tests.Worker;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
@@ -23,9 +22,6 @@ public class ReadWriteModeCeilingTests
         "start_plc", "stop_plc"
     }.Select(operation => new object[] { operation });
 
-    private static OpennessWorkerClient CreateClient(ProjectSessionBinding binding, string path, McpAccessMode mode)
-        => new(binding, workerExecutablePath: path, accessPolicy: new OperationAccessPolicy(mode));
-
     private static Task<WorkerCallResult> InvokeRaw(OpennessWorkerClient client, string operation)
         => (Task<WorkerCallResult>)typeof(OpennessWorkerClient)
             .GetMethod("InvokeWorkerAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -39,7 +35,7 @@ public class ReadWriteModeCeilingTests
     public async Task ReadWrite_DeniesRetiredOnlineControlBeforeTransport(string operation)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadWrite);
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadWrite, binding: binding, workerPath: "worker-must-not-start.exe");
         var result = await InvokeRaw(client, operation);
         Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
         Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
@@ -57,7 +53,7 @@ public class ReadWriteModeCeilingTests
         var binding = new ProjectSessionBinding(@"C:\Fixture\Line.ap21");
         if (invalidated) binding.Invalidate("test invalidation");
         var before = binding.CaptureSnapshot();
-        using var client = CreateClient(binding, "worker-must-not-start.exe", McpAccessMode.ReadOnly);
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly, binding: binding, workerPath: "worker-must-not-start.exe");
         var execution = LifecycleTestCalls.Execution(client, audit);
         var calls = new Func<Task<ModelContextProtocol.Protocol.CallToolResult>>[]
         {
@@ -116,7 +112,7 @@ public class ReadWriteModeCeilingTests
         using var uiOpen = new FakeWorkerUiOpenProject(project);
         var openPath = ProjectPathNormalization.Canonicalize(project)!;
         var binding = new ProjectSessionBinding(startupPath ? project : null);
-        using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadWrite, binding: binding);
         var observed = await client.GetProjectStatusAsync(null);
         Assert.True(observed.Success, observed.Error);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, project);
@@ -135,7 +131,7 @@ public class ReadWriteModeCeilingTests
     {
         using var uiOpen = new FakeWorkerUiOpenProject(null);
         var binding = new ProjectSessionBinding("ok");
-        using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.ReadWrite);
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadWrite, binding: binding);
 
         var observed = await client.GetProjectStatusAsync("ok");
 
@@ -156,7 +152,7 @@ public class ReadWriteModeCeilingTests
         {
             Environment.SetEnvironmentVariable("TIA_MCP_FAKE_WORKER_LAUNCH_LOG", log);
             var binding = new ProjectSessionBinding(null);
-            using var client = CreateClient(binding, FakeWorkerLocator.Locate(), McpAccessMode.Full);
+            using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
             await FakeWorkerBinding.BindVerifiedAsync(client, binding, "ok");
             var crash = await InvokeRawCrash(client);
             Assert.Equal(WorkerFailureCategories.WorkerCrashed, crash.FailureCategory);

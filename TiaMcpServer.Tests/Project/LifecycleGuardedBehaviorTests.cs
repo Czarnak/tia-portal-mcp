@@ -172,8 +172,8 @@ public sealed class LifecycleGuardedBehaviorTests
             File.WriteAllText(_source, "fixture");
             File.WriteAllText(_destination, "fixture");
             _uiOpen = new FakeWorkerUiOpenProject(configured ? _source : null);
-            Client = new(new ProjectSessionBinding(configured ? _source : null), logger: null,
-                workerExecutablePath: workerPath ?? FakeWorkerLocator.Locate(), accessPolicy: new(McpAccessMode.Full));
+            Client = FakeWorkerClients.Create(McpAccessMode.Full,
+                binding: new ProjectSessionBinding(configured ? _source : null), workerPath: workerPath);
             Execution = new(new OpennessWriteBindingGate(Client), Audit, LifecycleWriteDomain.Catalog, TimeProvider.System);
         }
 

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -63,7 +64,7 @@ public class ReferenceStubVerificationScriptTests
         File.WriteAllText(Path.Combine(fixture.Target, "unrelated.dll"), "preserved");
         var result = fixture.Run(update: true);
         Assert.True(result.ExitCode == 0, result.Output);
-        Assert.Equal(3, result.Output.Split("Replaced ", StringSplitOptions.None).Length - 1);
+        Assert.Equal(3, RepositoryFiles.CountOccurrences(result.Output, "Replaced "));
         foreach (var name in Fixture.Names)
             Assert.Equal(File.ReadAllBytes(Path.Combine(fixture.Generated, name)), File.ReadAllBytes(Path.Combine(fixture.Target, name)));
         Assert.Equal("preserved", File.ReadAllText(Path.Combine(fixture.Target, "unrelated.dll")));
@@ -120,20 +121,20 @@ public class ReferenceStubVerificationScriptTests
             try
             {
                 Directory.CreateDirectory(Path.Combine(root, "scripts"));
-                var script = Path.Combine(ReferenceStubArtifactTests.RepositoryRoot, "scripts", "verify-reference-stubs.ps1");
+                var script = Path.Combine(RepositoryFiles.Root, "scripts", "verify-reference-stubs.ps1");
                 Assert.True(File.Exists(script), "Reference stub verifier is absent: " + script);
                 File.Copy(script, Path.Combine(root, "scripts", "verify-reference-stubs.ps1"));
-                foreach (var relative in ReferenceStubArtifactTests.SourceFiles(ReferenceStubArtifactTests.RepositoryRoot))
+                foreach (var relative in ReferenceStubArtifactTests.SourceFiles(RepositoryFiles.Root))
                 {
                     var destination = Path.Combine(root, relative);
                     Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                    File.Copy(Path.Combine(ReferenceStubArtifactTests.RepositoryRoot, relative), destination);
+                    File.Copy(Path.Combine(RepositoryFiles.Root, relative), destination);
                 }
                 Directory.CreateDirectory(Generated);
                 Directory.CreateDirectory(Target);
                 foreach (var name in Names)
                 {
-                    File.Copy(Path.Combine(ReferenceStubArtifactTests.RepositoryRoot, "ref", name), Path.Combine(Generated, name));
+                    File.Copy(Path.Combine(RepositoryFiles.Root, "ref", name), Path.Combine(Generated, name));
                     File.Copy(Path.Combine(Generated, name), Path.Combine(Target, name));
                 }
             }

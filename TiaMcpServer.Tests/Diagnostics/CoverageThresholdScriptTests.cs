@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -89,7 +90,7 @@ public class CoverageThresholdScriptTests
 
     private static ScriptResult RunScript(string coveragePath, string minimumLineRate)
     {
-        var scriptPath = Path.Combine(GetRepositoryRoot(), "scripts", "verify-coverage-threshold.ps1");
+        var scriptPath = Path.Combine(RepositoryFiles.Root, "scripts", "verify-coverage-threshold.ps1");
 
         var startInfo = new ProcessStartInfo
         {
@@ -115,16 +116,6 @@ public class CoverageThresholdScriptTests
         process.WaitForExit();
 
         return new ScriptResult(process.ExitCode, standardOutput, standardError);
-    }
-
-    private static string GetRepositoryRoot()
-    {
-        return Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            ".."));
     }
 
     private sealed record ScriptResult(int ExitCode, string StandardOutput, string StandardError);

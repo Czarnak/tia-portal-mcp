@@ -1,3 +1,4 @@
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -5,7 +6,7 @@ namespace TiaMcpServer.Tests.Worker;
 // Dispatch/lifecycle code remains net48 Siemens-facing; these guards complement session behavior tests.
 public sealed class ActiveProjectContextSourceTests
 {
-    private static readonly string Root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    private static readonly string Root = RepositoryFiles.Root;
     private static string Read(string path) => File.ReadAllText(Path.Combine(Root, "TiaMcpServer.OpennessWorker", path));
 
     private static string DispatchSource => string.Join("\n",
@@ -85,7 +86,7 @@ public sealed class ActiveProjectContextSourceTests
                 Assert.DoesNotContain("LocalSession.Save(", source);
         }
         var lifecycle = Read("Openness/Project/ProjectLifecycleService.cs");
-        Assert.Equal(1, lifecycle.Split("LocalSession.Save(").Length - 1);
+        Assert.Equal(1, RepositoryFiles.CountOccurrences(lifecycle, "LocalSession.Save("));
         Assert.Contains("LocalSession.Save(", Method(lifecycle, "public static ProjectLifecycleResultInfo SaveProject("));
         foreach (var file in new[] { "Openness/Project/ProjectLifecycleOwner.cs", "Openness/Project/LocalSessionOwner.cs" })
         {

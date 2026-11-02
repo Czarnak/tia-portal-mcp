@@ -149,7 +149,7 @@ public sealed class PlcGuardedWriteMcpTests
 
         var reply = await harness.Client.CallToolAsync("plc_write", args);
 
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.Equal("applied", root.GetProperty("phase").GetString());
@@ -188,7 +188,7 @@ public sealed class PlcGuardedWriteMcpTests
         var reply = await harness.Client.CallToolAsync("plc_write",
             new Dictionary<string, object?> { ["operations"] = new[] { CreateTag("l1-01", "Start") } });
 
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.Equal("applied", root.GetProperty("phase").GetString());
         Assert.False(root.GetProperty("success").GetBoolean());
@@ -212,7 +212,7 @@ public sealed class PlcGuardedWriteMcpTests
             ["operations"] = new[] { CreateTag("l10-01", "L10Tag1"), CreateTag("l10-02", "Start"), CreateTag("l10-03", "L10Tag3") },
         });
 
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.Equal("applied", root.GetProperty("phase").GetString());
         Assert.False(root.GetProperty("success").GetBoolean());
@@ -275,7 +275,7 @@ public sealed class PlcGuardedWriteMcpTests
 
         var reply = await harness.Client.CallToolAsync("plc_write", args);
 
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.Equal(dryRun == true ? "preview" : "applied", root.GetProperty("phase").GetString());

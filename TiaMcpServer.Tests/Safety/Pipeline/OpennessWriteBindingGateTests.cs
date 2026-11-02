@@ -19,20 +19,11 @@ public sealed class OpennessWriteBindingGateTests
 {
     private const string Scenario = "network-subnet-lifecycle";
 
-    private static OpennessWorkerClient CreateClient(
-        ProjectSessionBinding binding,
-        OperationAccessPolicy? accessPolicy = null)
-        => new(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: accessPolicy);
-
     [Fact]
     public async Task VerifiedBinding_PassesTheGateAndRunsUnderTheCurrentSnapshot()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding);
         await NetworkVerifiedWriteFixture.VerifyAsync(client, binding, Scenario);
         var gate = new OpennessWriteBindingGate(client);
 
@@ -57,7 +48,7 @@ public sealed class OpennessWriteBindingGateTests
     public async Task SnapshotTakenBeforeBinding_IsRefusedWithoutRunningTheOperation()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding);
         var gate = new OpennessWriteBindingGate(client);
         var stale = gate.CurrentBinding;
         await NetworkVerifiedWriteFixture.VerifyAsync(client, binding, Scenario);
@@ -81,7 +72,7 @@ public sealed class OpennessWriteBindingGateTests
     public async Task UnboundSession_FailsTheGateWithBindingConflict()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = CreateClient(binding);
+        using var client = FakeWorkerClients.Create(binding: binding);
         var gate = new OpennessWriteBindingGate(client);
 
         var required = await gate.RequireVerifiedWriteBindingAsync();
@@ -93,7 +84,7 @@ public sealed class OpennessWriteBindingGateTests
     [Fact]
     public async Task CancellationWhileWaitingForLease_DoesNotRunTheCancelledOperation()
     {
-        using var client = CreateClient(new ProjectSessionBinding(null));
+        using var client = FakeWorkerClients.Create(binding: new ProjectSessionBinding(null));
         var gate = new OpennessWriteBindingGate(client);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -127,10 +118,8 @@ public sealed class OpennessWriteBindingGateTests
     [Fact]
     public void AccessMode_IsReadWriteWithoutPolicyAndFollowsThePolicyOtherwise()
     {
-        using var unrestricted = CreateClient(new ProjectSessionBinding(null));
-        using var readOnly = CreateClient(
-            new ProjectSessionBinding(null),
-            new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        using var unrestricted = FakeWorkerClients.Create(binding: new ProjectSessionBinding(null));
+        using var readOnly = FakeWorkerClients.Create(McpAccessMode.ReadOnly, binding: new ProjectSessionBinding(null));
 
         Assert.Equal(McpAccessMode.ReadWrite, new OpennessWriteBindingGate(unrestricted).AccessMode);
         Assert.Equal(McpAccessMode.ReadOnly, new OpennessWriteBindingGate(readOnly).AccessMode);

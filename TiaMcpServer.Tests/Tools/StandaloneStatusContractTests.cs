@@ -8,6 +8,7 @@ using TiaMcpServer.Tests.Project;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
+using TiaMcpServer.Tests.TestSupport;
 
 namespace TiaMcpServer.Tests.Tools;
 
@@ -80,7 +81,7 @@ public sealed class StandaloneStatusContractTests
     {
         var payload = Payload();
         var outcome = StandalonePayloadContract.DecodeStatus(WorkerCallResult.Ok(WorkerJson.SerializePayload(payload)));
-        var root = StandaloneStatusToolTests.Document(StructuredStandaloneResult.Create("get_project_status", outcome, []));
+        var root = CanonicalToolDocument.Read(StructuredStandaloneResult.Create("get_project_status", outcome, []));
         var metadata = root.GetProperty("result").GetProperty("value").GetProperty("metadata");
         Assert.Equal(0, metadata.GetProperty("historyEntries").GetArrayLength());
         Assert.False(metadata.GetProperty("historyTruncated").GetBoolean());
@@ -101,7 +102,7 @@ public sealed class StandaloneStatusContractTests
         var value = new ProjectStatusInfo { Author = "" };
         value.Author = new string('x', chars - CanonicalJson.Serialize(value).Length);
         var outcome = new StandaloneToolOutcome<ProjectStatusInfo>("succeeded", value, null, null);
-        var root = StandaloneStatusToolTests.Document(StructuredStandaloneResult.Create("get_project_status", outcome, []));
+        var root = CanonicalToolDocument.Read(StructuredStandaloneResult.Create("get_project_status", outcome, []));
         Assert.Equal(expectedStatus, root.GetProperty("result").GetProperty("status").GetString());
         Assert.Equal(expectedStatus == "succeeded", root.GetProperty("success").GetBoolean());
     }
@@ -111,7 +112,7 @@ public sealed class StandaloneStatusContractTests
     {
         var value = new ProjectStatusInfo { Author = new string('"', 11000) };
         var outcome = new StandaloneToolOutcome<ProjectStatusInfo>("succeeded", value, null, null);
-        var root = StandaloneStatusToolTests.Document(StructuredStandaloneResult.Create("get_project_status", outcome, []));
+        var root = CanonicalToolDocument.Read(StructuredStandaloneResult.Create("get_project_status", outcome, []));
         Assert.Equal("omitted", root.GetProperty("result").GetProperty("status").GetString());
     }
 
@@ -119,7 +120,7 @@ public sealed class StandaloneStatusContractTests
     public void DocumentBudget_DropsWholeWarningsAndDisclosesTheirCount()
     {
         var outcome = new StandaloneToolOutcome<ProjectStatusInfo>("succeeded", new(), null, null);
-        var root = StandaloneStatusToolTests.Document(StructuredStandaloneResult.Create("get_project_status", outcome,
+        var root = CanonicalToolDocument.Read(StructuredStandaloneResult.Create("get_project_status", outcome,
             ["keep", new string('x', 180000), "whole last warning"]));
         Assert.True(root.GetRawText().Length <= 180000);
         Assert.Equal("omitted", root.GetProperty("result").GetProperty("status").GetString());
@@ -134,12 +135,12 @@ public sealed class StandaloneStatusContractTests
         var failure = new StructuredOperationFailure("worker_operation_failed", new string('x', 180000));
         var outcome = new StandaloneToolOutcome<ProjectStatusInfo>("failed", null, failure, null);
         var attempted = StructuredStandaloneResult.Create("get_project_status", outcome, []);
-        var root = StandaloneStatusToolTests.Document(attempted);
+        var root = CanonicalToolDocument.Read(attempted);
         Assert.False(attempted.IsError);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
         Assert.Contains("message shortened", root.GetProperty("result").GetProperty("failure").GetProperty("message").GetString());
         var rejected = StructuredStandaloneResult.Create<ProjectStatusInfo>("get_project_status", null, [], failure);
-        root = StandaloneStatusToolTests.Document(rejected);
+        root = CanonicalToolDocument.Read(rejected);
         Assert.True(rejected.IsError);
         Assert.Equal(JsonValueKind.Null, root.GetProperty("result").ValueKind);
         Assert.True(root.GetRawText().Length <= 180000);

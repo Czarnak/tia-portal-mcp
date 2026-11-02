@@ -10,7 +10,7 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.OpennessWorker.Openness.Project;
 using TiaMcpServer.ProjectTree;
-using TiaMcpServer.Tests.TestUtilities;
+using TiaMcpServer.Tests.TestSupport;
 using TiaMcpServer.Worker;
 using Xunit;
 

@@ -1,13 +1,13 @@
 using System.Security.Cryptography;
 using System.Xml.Linq;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
 
 public class ReferenceStubSourceContractTests
 {
-    private static string Root => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-    private static string StubPath(params string[] parts) => Path.Combine(new[] { Root, "reference-stubs" }.Concat(parts).ToArray());
+    private static string StubPath(params string[] parts) => Path.Combine(new[] { RepositoryFiles.Root, "reference-stubs" }.Concat(parts).ToArray());
     private static XDocument ReadProject(string name)
     {
         var path = StubPath(name, name + ".csproj");

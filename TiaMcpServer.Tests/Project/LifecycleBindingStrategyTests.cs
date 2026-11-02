@@ -23,7 +23,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task UnboundOpenAndCreate_PrepareTheExactUnboundSource(McpAccessMode mode, string operation)
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding, mode);
+        using var client = FakeWorkerClients.Create(mode, binding: binding);
         var before = client.BindingSnapshot;
 
         var prepared = await new LifecycleBindingStrategy(client).PrepareAsync(Call(Item(operation, Destination())));
@@ -41,7 +41,7 @@ public sealed class LifecycleBindingStrategyTests
         var source = Source();
         using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         var before = client.BindingSnapshot;
 
@@ -59,7 +59,7 @@ public sealed class LifecycleBindingStrategyTests
         using var uiOpen = new FakeWorkerUiOpenProject(source);
         var destination = Destination();
         var binding = new ProjectSessionBinding(source);
-        using var client = Client(binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, client.BindingSnapshot.State);
 
         var prepared = await new LifecycleBindingStrategy(client).PrepareAsync(Call(Item("open_project", destination, force: true)));
@@ -76,7 +76,7 @@ public sealed class LifecycleBindingStrategyTests
         var source = Source();
         using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         binding.Invalidate("The connection was lost.");
         var invalidated = client.BindingSnapshot;
@@ -96,7 +96,7 @@ public sealed class LifecycleBindingStrategyTests
         var source = Source();
         using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         var before = client.BindingSnapshot;
 
@@ -116,7 +116,7 @@ public sealed class LifecycleBindingStrategyTests
         using var uiOpen = new FakeWorkerUiOpenProject(source);
         var destination = Destination();
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         var before = client.BindingSnapshot;
 
@@ -137,7 +137,7 @@ public sealed class LifecycleBindingStrategyTests
         var source = Source();
         using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         var before = client.BindingSnapshot;
 
@@ -154,7 +154,7 @@ public sealed class LifecycleBindingStrategyTests
         var source = Source();
         using var uiOpen = new FakeWorkerUiOpenProject(source);
         var binding = new ProjectSessionBinding(null);
-        using var client = Client(binding);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, source);
         var prepared = await new LifecycleBindingStrategy(client).PrepareAsync(Call(Item("save_project", source)));
         binding.Invalidate("Another operation changed the session.");
@@ -178,7 +178,7 @@ public sealed class LifecycleBindingStrategyTests
     public async Task ReadOnly_CannotPrepareLifecycleOrGroundAConfiguredSource(McpAccessMode mode, string operation)
     {
         var binding = new ProjectSessionBinding(Source());
-        using var client = Client(binding, mode);
+        using var client = FakeWorkerClients.Create(mode, binding: binding);
         var before = client.BindingSnapshot;
 
         var prepared = await new LifecycleBindingStrategy(client).PrepareAsync(Call(Item(operation, Destination(), force: true)));
@@ -188,9 +188,6 @@ public sealed class LifecycleBindingStrategyTests
         Assert.True(before.SameBinding(client.BindingSnapshot));
         Assert.Equal(ProjectBindingSnapshot.ConfiguredUnverifiedState, client.BindingSnapshot.State);
     }
-
-    private static OpennessWorkerClient Client(ProjectSessionBinding binding, McpAccessMode mode = McpAccessMode.Full)
-        => new(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new OperationAccessPolicy(mode));
 
     private static LifecycleWriteItem Item(string operation, string target, bool force = false) => new(operation)
     {

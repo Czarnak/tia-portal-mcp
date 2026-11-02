@@ -53,7 +53,7 @@ public sealed class ProjectTreeStructuredProtocolTests
             ["pageSize"] = 4,
         });
 
-        var structured = AssertOneCanonicalDocument(result);
+        var structured = CanonicalToolDocument.Read(result);
         Assert.False(result.IsError, structured.GetRawText());
         Assert.Equal(JsonValueKind.Object, structured.GetProperty("result").ValueKind);
         Assert.Equal(JsonValueKind.Null, structured.GetProperty("failure").ValueKind);
@@ -77,7 +77,7 @@ public sealed class ProjectTreeStructuredProtocolTests
 
         var result = await CallAsync(harness, new Dictionary<string, object?> { ["pageSize"] = 0 });
 
-        var structured = AssertOneCanonicalDocument(result);
+        var structured = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError);
         Assert.Equal(JsonValueKind.Null, structured.GetProperty("result").ValueKind);
         Assert.Equal(JsonValueKind.Object, structured.GetProperty("failure").ValueKind);
@@ -94,7 +94,7 @@ public sealed class ProjectTreeStructuredProtocolTests
         var result = await CallAsync(harness, new Dictionary<string, object?>());
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        var structured = AssertOneCanonicalDocument(result);
+        var structured = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError);
         Assert.Equal(
             WorkerFailureCategories.ProtocolError,
@@ -147,7 +147,7 @@ public sealed class ProjectTreeStructuredProtocolTests
     private static string FailureMessage(CallToolResult result)
     {
         AssertValidationFailure(result);
-        return AssertOneCanonicalDocument(result).GetProperty("failure").GetProperty("message").GetString()!;
+        return CanonicalToolDocument.Read(result).GetProperty("failure").GetProperty("message").GetString()!;
     }
 
     [Fact]
@@ -203,19 +203,10 @@ public sealed class ProjectTreeStructuredProtocolTests
             : new[] { type.GetString()! };
     }
 
-    private static JsonElement AssertOneCanonicalDocument(CallToolResult result)
-    {
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        var structured = Assert.IsType<JsonElement>(result.StructuredContent);
-        Assert.Equal(text, structured.GetRawText());
-        using var parsed = JsonDocument.Parse(text);
-        Assert.True(JsonElement.DeepEquals(structured, parsed.RootElement));
-        return structured;
-    }
 
     private static void AssertValidationFailure(CallToolResult result, string category = WorkerFailureCategories.ValidationError)
     {
-        var structured = AssertOneCanonicalDocument(result);
+        var structured = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError);
         Assert.Equal(JsonValueKind.Null, structured.GetProperty("result").ValueKind);
         Assert.Equal(

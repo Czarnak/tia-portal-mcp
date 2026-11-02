@@ -20,9 +20,9 @@ public class NetworkIntrospectionSafetyRegressionTests
             startupProjectPath: "network-roundtrip");
         var operations = ConfigureOperation("PLC_1", "node-1");
 
-        var preview = AssertCanonical(await CallWriteAsync(harness, operations));
+        var preview = CanonicalToolDocument.Read(await CallWriteAsync(harness, operations));
         var appliedResult = await CallWriteAsync(harness, operations, dryRun: false);
-        var applied = AssertCanonical(appliedResult);
+        var applied = CanonicalToolDocument.Read(appliedResult);
 
         Assert.False(appliedResult.IsError);
         Assert.Equal("applied", applied.GetProperty("phase").GetString());
@@ -40,9 +40,9 @@ public class NetworkIntrospectionSafetyRegressionTests
             startupProjectPath: "network-guarded-traversal-nodeEnumeration");
         var operations = ConfigureOperation("PLC_Grouped", "node-2");
 
-        var preview = AssertCanonical(await CallWriteAsync(harness, operations));
+        var preview = CanonicalToolDocument.Read(await CallWriteAsync(harness, operations));
         var rejectedResult = await CallWriteAsync(harness, operations, dryRun: false);
-        var rejected = AssertCanonical(rejectedResult);
+        var rejected = CanonicalToolDocument.Read(rejectedResult);
 
         Assert.True(rejectedResult.IsError);
         Assert.Equal("error", rejected.GetProperty("phase").GetString());
@@ -81,11 +81,4 @@ public class NetworkIntrospectionSafetyRegressionTests
         return harness.Client.CallToolAsync("network_write", arguments);
     }
 
-    private static JsonElement AssertCanonical(CallToolResult result)
-    {
-        var structured = Assert.IsType<JsonElement>(result.StructuredContent);
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.Equal(CanonicalJson.Serialize(structured), text);
-        return structured;
-    }
 }
