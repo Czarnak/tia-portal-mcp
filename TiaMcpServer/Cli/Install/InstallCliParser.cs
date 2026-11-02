@@ -150,7 +150,7 @@ public static class InstallCliParser
                 var resolved = ClientAliasResolver.MapToClientKind(arg);
                 if (resolved is null)
                 {
-                    return Invalid($"Unsupported MCP client: '{arg}'.", json);
+                    return Invalid($"Unsupported MCP client: '{arg}'.", json, 3);
                 }
 
                 client = resolved;
@@ -191,7 +191,8 @@ public static class InstallCliParser
                 dryRun,
                 json,
                 false,
-                "MiMoCode installation uses interactive mode and does not support --json output.");
+                "MiMoCode installation uses interactive mode and does not support --json output.",
+                8);
         }
 
         return new InstallOptions(
@@ -210,6 +211,6 @@ public static class InstallCliParser
     private static bool IsFlag(string arg, string flag)
         => string.Equals(arg, flag, StringComparison.OrdinalIgnoreCase);
 
-    private static InstallOptions Invalid(string error, bool json)
-        => new(false, null, "tia-portal", "read-only", null, null, false, json, false, error);
+    private static InstallOptions Invalid(string error, bool json, int exitCode = 2)
+        => new(false, null, "tia-portal", "read-only", null, null, false, json, false, error, exitCode);
 }
