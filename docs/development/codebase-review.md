@@ -81,8 +81,8 @@ Reserve full passes for milestones, such as before a major release.
 ### 5. Keep a findings ledger
 
 Findings keep stable IDs and a status: open, fixed, or won't-fix with a reason. Give reviewers the
-won't-fix and accepted items, so they do not report them again. The worker-only probes (Q1) are
-accepted for now.
+won't-fix and accepted items, so they do not report them again. Q1's three worker-only Network
+qualification probes are retired; their historical acceptance evidence is preserved.
 
 ### 6. Run the pipeline in this order
 

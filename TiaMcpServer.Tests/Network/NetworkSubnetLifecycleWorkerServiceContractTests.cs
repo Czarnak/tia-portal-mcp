@@ -43,17 +43,6 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "SubnetLifecycleService.cs"));
 
     [Fact]
-    public void Service_IsADistinctFileFromTheMutationProbe()
-    {
-        var path = FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "SubnetLifecycleService.cs");
-        Assert.True(File.Exists(path), $"Expected a distinct production service file at {path}.");
-
-        var source = ServiceSource;
-        Assert.DoesNotContain("SubnetLifecycleMutationProbeService.Run", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("class SubnetLifecycleMutationProbeService", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Service_MapsOnlyTheTwoApprovedTypeIdentifiers()
     {
         var source = ServiceSource;

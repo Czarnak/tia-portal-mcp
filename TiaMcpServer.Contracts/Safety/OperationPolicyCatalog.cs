@@ -112,7 +112,6 @@ public static class OperationPolicyCatalog
             ["list_tag_tables"] = OperationCapability.Observe,
             ["list_network_objects"] = OperationCapability.Observe,
             ["inspect_network_object"] = OperationCapability.Observe,
-            ["probe_network_object_attributes"] = OperationCapability.Observe,
 
             // SessionSelection (all presets, selects an already-open project)
             ["select_portal_project"] = OperationCapability.SessionSelection,
@@ -152,8 +151,6 @@ public static class OperationPolicyCatalog
             ["create_subnet"] = OperationCapability.ProjectMutation,
             ["update_subnet"] = OperationCapability.ProjectMutation,
             ["delete_subnet"] = OperationCapability.ProjectMutation,
-            ["probe_subnet_lifecycle_mutations"] = OperationCapability.ProjectMutation,
-            ["probe_io_system_qualification"] = OperationCapability.ProjectMutation,
 
             // Internal non-opening lifecycle probes and verification reads require a writable mode.
             ["probe_project_status_for_lifecycle"] = OperationCapability.ProjectLifecycle,

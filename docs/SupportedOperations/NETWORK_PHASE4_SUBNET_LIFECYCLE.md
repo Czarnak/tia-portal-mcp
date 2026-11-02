@@ -259,12 +259,11 @@ Openness-assigned `subnetId`.
 
 The Phase 4 evidence has distinct scopes:
 
-- **Internal probe evidence.** The internal, non-public `probe_subnet_lifecycle_mutations` worker
-  operation and `SubnetLifecycleMutationProbeService` exercised subnet creation, editing, and
+- **Historical internal probe evidence.** The now-retired, non-public
+  `probe_subnet_lifecycle_mutations` worker operation exercised subnet creation, editing, and
   deletion (including connected subnets) directly against a real TIA Portal V21 project during
-  design. This evidence shaped the Locked Public Contract but is not itself the public code path:
-  the probe is never registered in `NetworkOperationCatalog`, is absent from the public MCP schema,
-  and is not reachable from `network_write`.
+  design. This evidence shaped the Locked Public Contract but did not exercise the public code
+  path. Its reports and raw inputs are preserved; the worker route and its service are removed.
 - **Repaired static implementation.** Focused automated gates passed for exact target kind,
   required raw result members, late-drift classification, transaction-local delete identity, and
   the restored guarded harness. The executable repair commit

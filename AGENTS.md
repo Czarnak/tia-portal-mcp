@@ -47,7 +47,6 @@ when native access or transactions also need the Portal handle. Content services
 capability gates determine eligible container kinds. A local
 `save_project` calls `LocalSession.Save()` with the identity re-check adjacent to the save; it
 never updates from or checks in to the Project Server, and read-write confirmation says so.
-`StandaloneOnlyProbes` keeps the IO-system and subnet qualification probes standalone-only.
 Create, save-as, archive and close stay standalone-only.
 
 ## Solution structure

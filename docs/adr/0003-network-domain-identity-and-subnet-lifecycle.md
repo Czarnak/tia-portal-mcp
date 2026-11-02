@@ -27,6 +27,7 @@
 ## Consequences
 - Every later structured tool reuses this seam and fail-closed selector posture; callers supply qualified selectors and restart paging after a stale cursor.
 - Phase 5 (IO-system editing) is unshipped. Its qualified field set, hardware-compile target rule and planned post-commit failure contract are recorded only in the qualified-contract spec at the archive tag; widening that scope needs new live evidence. The open item is in [IMPROVEMENT_LOG](../IMPROVEMENT_LOG.md).
+- The temporary Network qualification worker routes are retired. Their preserved reports and raw inputs remain evidence for future IO-system work; a public implementation still needs its own scope-specific live acceptance.
 - Phase 6 attribute writes, if built, start from a positive closed allowlist.
 
 ## Evidence

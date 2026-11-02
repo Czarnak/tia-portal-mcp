@@ -116,14 +116,6 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
         }
     }
 
-    [Fact]
-    public void WorkerProgram_SubnetMutationProbeUsesCommonContextButRequiresStandaloneOwner()
-    {
-        var body = ExtractMethodBody(ProgramSource, "ProbeSubnetLifecycleMutations");
-        Assert.Contains("WithActiveContext(request,", body, StringComparison.Ordinal);
-        Assert.Contains("session.RequireStandaloneOwner().Project,", body, StringComparison.Ordinal);
-    }
-
     private static int CountOccurrences(string source, string value)
     {
         var count = 0;
