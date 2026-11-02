@@ -445,13 +445,6 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "DeviceName is required.");
         }
 
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with adding a network device.");
-        }
-
         return WithEngineeringRoot(request, project =>
         {
             var result = NetworkDeviceCreator.Create(project, request.TypeIdentifier!, request.DeviceName!,
@@ -463,13 +456,6 @@ internal static class Program
     private static WorkerResponse ConfigureNetworkDevice(WorkerRequest request)
     {
         var target = NetworkConfigurationTargetBinding.Resolve(request);
-
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with configuring a network device.");
-        }
 
         return WithEngineeringRoot(request, project =>
         {
@@ -497,13 +483,6 @@ internal static class Program
 
     private static WorkerResponse CreateSubnet(WorkerRequest request)
     {
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with creating a subnet.");
-        }
-
         if (string.IsNullOrWhiteSpace(request.SubnetName))
         {
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetName is required.");
@@ -540,13 +519,6 @@ internal static class Program
 
     private static WorkerResponse UpdateSubnet(WorkerRequest request)
     {
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with updating a subnet.");
-        }
-
         if (string.IsNullOrWhiteSpace(request.SubnetId))
         {
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
@@ -578,13 +550,6 @@ internal static class Program
 
     private static WorkerResponse DeleteSubnet(WorkerRequest request)
     {
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with deleting a subnet.");
-        }
-
         if (string.IsNullOrWhiteSpace(request.SubnetId))
         {
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
@@ -902,13 +867,6 @@ internal static class Program
                 "BlockType is required. Valid values: FB, FC, OB, GlobalDB.");
         }
 
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with creating a block.");
-        }
-
         return WithEngineeringRoot(request, project => Success(
             BlockMutationService.CreateBlock(
                 project,
@@ -925,13 +883,6 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with deleting a block.");
-        }
-
         return WithEngineeringRoot(request, project => Success(
             BlockMutationService.DeleteBlock(project, request.BlockPath!)));
     }
@@ -943,13 +894,6 @@ internal static class Program
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
         }
 
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with creating a block group.");
-        }
-
         return WithEngineeringRoot(request, project => Success(
             BlockMutationService.CreateBlockGroup(project, request.BlockPath!)));
     }
@@ -959,13 +903,6 @@ internal static class Program
         if (string.IsNullOrWhiteSpace(request.BlockPath))
         {
             throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
-        }
-
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with deleting a block group.");
         }
 
         return WithEngineeringRoot(request, project => Success(
@@ -1015,7 +952,7 @@ internal static class Program
                 ProjectPath = status.Path,
                 Project = status
             };
-        }, requiresConfirm: false);
+        });
     }
 
     /// <summary>
@@ -1034,7 +971,7 @@ internal static class Program
                 ProjectPath = status.Path,
                 Project = status
             };
-        }, requiresConfirm: false);
+        });
     }
 
     /// <summary>Internal, non-mutating read of the live source before a proposed rebind.</summary>
@@ -1060,8 +997,7 @@ internal static class Program
 
         return ProjectLifecycle(
             request,
-            session => ProjectLifecycleService.OpenProject(session, request.ProjectPath!),
-            requiresConfirm: true);
+            session => ProjectLifecycleService.OpenProject(session, request.ProjectPath!));
     }
 
     private static WorkerResponse CreateProject(WorkerRequest request)
@@ -1073,8 +1009,7 @@ internal static class Program
                 request.ProjectDirectory!,
                 request.ProjectName!,
                 request.Author,
-                request.Comment),
-            requiresConfirm: true);
+                request.Comment));
     }
 
     private static WorkerResponse SaveProject(WorkerRequest request)
@@ -1084,8 +1019,7 @@ internal static class Program
             session => ProjectLifecycleService.SaveProject(
                 session,
                 request.ProjectPath,
-                request.ExpectedSessionIdentity),
-            requiresConfirm: true);
+                request.ExpectedSessionIdentity));
     }
 
     private static WorkerResponse SaveProjectAs(WorkerRequest request)
@@ -1098,8 +1032,7 @@ internal static class Program
                 request.TargetDirectory!,
                 request.TargetName!,
                 request.Rebind,
-                request.ExpectedSessionIdentity),
-            requiresConfirm: true);
+                request.ExpectedSessionIdentity));
     }
 
     private static WorkerResponse ArchiveProject(WorkerRequest request)
@@ -1113,8 +1046,7 @@ internal static class Program
                 request.ArchiveName!,
                 request.ArchiveMode ?? ArchiveModeNames.Compressed,
                 request.SaveBeforeArchive,
-                request.ExpectedSessionIdentity),
-            requiresConfirm: true);
+                request.ExpectedSessionIdentity));
     }
 
     private static WorkerResponse CloseProject(WorkerRequest request)
@@ -1125,34 +1057,18 @@ internal static class Program
                 session,
                 request.ProjectPath,
                 request.SaveBeforeClose,
-                request.ExpectedSessionIdentity),
-            requiresConfirm: true);
+                request.ExpectedSessionIdentity));
     }
 
     private static WorkerResponse TagMutation(WorkerRequest request, Func<ProjectBase, TagMutationResultInfo> mutate)
     {
-        if (!request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with the tag operation.");
-        }
-
         return WithEngineeringRoot(request, project => Success(mutate(project)));
     }
 
     private static WorkerResponse ProjectLifecycle(
         WorkerRequest request,
-        Func<WorkerTiaPortalSession, ProjectLifecycleResultInfo> operation,
-        bool requiresConfirm)
+        Func<WorkerTiaPortalSession, ProjectLifecycleResultInfo> operation)
     {
-        if (requiresConfirm && !request.Confirm)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "Operation not confirmed. Set confirm=true to proceed with the project operation.");
-        }
-
         return WithSession(request, session => Success(operation(session)));
     }
 

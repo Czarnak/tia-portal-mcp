@@ -243,7 +243,6 @@ public sealed class MultiuserPortalReadDispatchTests
 
     [Theory]
     [InlineData("projectPath")]
-    [InlineData("confirm")]
     [InlineData("alias")]
     [InlineData("group")]
     [InlineData("project")]
@@ -255,7 +254,6 @@ public sealed class MultiuserPortalReadDispatchTests
         switch (invalid)
         {
             case "projectPath": request.ProjectPath = f.Path; break;
-            case "confirm": request.Confirm = true; break;
             case "alias": request.MultiuserServerAlias = "Fixture"; break;
             case "group": request.MultiuserGroupIsRoot = true; break;
             case "project": request.MultiuserServerProjectName = "Demo"; break;

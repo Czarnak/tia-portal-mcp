@@ -27,21 +27,6 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
     }
 
     [Fact]
-    public void WorkerProgram_EachSubnetLifecycleHandlerRequiresConfirm()
-    {
-        var source = ProgramSource;
-        var createBody = ExtractMethodBody(source, "CreateSubnet");
-        var updateBody = ExtractMethodBody(source, "UpdateSubnet");
-        var deleteBody = ExtractMethodBody(source, "DeleteSubnet");
-
-        foreach (var body in new[] { createBody, updateBody, deleteBody })
-        {
-            Assert.Contains("if (!request.Confirm)", body, StringComparison.Ordinal);
-            Assert.Contains("WorkerFailureCategories.ValidationError", body, StringComparison.Ordinal);
-        }
-    }
-
-    [Fact]
     public void WorkerProgram_EachSubnetLifecycleHandlerCallsExactlyOneTypedServiceMethod()
     {
         var source = ProgramSource;

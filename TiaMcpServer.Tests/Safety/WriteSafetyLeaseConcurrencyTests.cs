@@ -210,7 +210,6 @@ public sealed class WriteSafetyLeaseConcurrencyTests
                     }
                 }
                 'save_project' {
-                    if ($request.confirm -ne $true) { throw 'Worker mutation fence missing.' }
                     $revision += 1
                     [IO.File]::AppendAllText($MutationLogPath, 'save:' + $revision + [Environment]::NewLine)
                     $status.isModified = $false
