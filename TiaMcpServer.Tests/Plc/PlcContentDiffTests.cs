@@ -10,6 +10,19 @@ public sealed class PlcContentDiffTests
     private static string Sha256(string value)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
+    [Theory]
+    [InlineData("", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")]
+    [InlineData("abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")]
+    [InlineData("\u017B\u00F3\u0142\u0107\r\n\U0001F642", "3d623462693e399a0b0ee3bc2d0b73fe167f71a67e51bbeb78d73b11abf61220")]
+    [InlineData("\u017B\u00F3\u0142\u0107\n\U0001F642", "1b1bf63941c2a9597f98f69ba3d2e412d59bd791481188de7808cdca9217419c")]
+    public void Build_PreservesRawUtf8Hashes(string content, string expected)
+    {
+        var diff = PlcContentDiff.Build(content, content);
+
+        Assert.Equal(expected, diff.Current.Sha256);
+        Assert.Equal(expected, diff.Requested.Sha256);
+    }
+
     [Fact]
     public void Build_UsesRawHashesAndCounts()
     {
