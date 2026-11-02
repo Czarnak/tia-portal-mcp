@@ -184,6 +184,42 @@ public class InstallCommandTests
         Assert.Equal(3, exitCode);
     }
 
+    [Theory]
+    [InlineData(3, "does not support")]
+    [InlineData(2, "codex", "--Unsupported MCP client")]
+    [InlineData(2, "codex", "--does not support")]
+    [InlineData(2, "codex", "--access-mode=does not support")]
+    public async Task RunAsync_ParseErrorExitCode_IgnoresDiagnosticPhrases(int expectedExitCode, params string[] args)
+    {
+        foreach (var json in new[] { false, true })
+        {
+            var runner = new FakeProcessRunner();
+            var output = new StringWriter();
+            var error = new StringWriter();
+            var arguments = json ? args.Append("--json").ToArray() : args;
+
+            var exitCode = await InstallCommand.RunAsync(
+                arguments, runner, output, error, FakeResolveServerExe, FakeResolveClientExe);
+
+            Assert.Equal(expectedExitCode, exitCode);
+            Assert.Empty(runner.ExecutedCommands);
+            if (json)
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(output.ToString());
+                Assert.False(document.RootElement.GetProperty("success").GetBoolean());
+                Assert.Equal(InstallCliParser.Parse(args).ParseError,
+                    document.RootElement.GetProperty("error").GetString());
+                Assert.Empty(error.ToString());
+            }
+            else
+            {
+                Assert.Empty(output.ToString());
+                Assert.StartsWith($"error: {InstallCliParser.Parse(args).ParseError}{Environment.NewLine}", error.ToString());
+                Assert.Contains("Usage: tia-mcp install", error.ToString());
+            }
+        }
+    }
+
     [Fact]
     public async Task RunAsync_ServerExeNotFound_ReturnsExitCode5()
     {
