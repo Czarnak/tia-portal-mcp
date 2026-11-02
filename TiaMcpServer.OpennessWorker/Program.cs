@@ -6,7 +6,6 @@ using TiaMcpServer.Contracts.Diagnostics;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Network;
-using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Vci;
@@ -17,7 +16,6 @@ using TiaMcpServer.OpennessWorker.Openness.Hmi;
 using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Openness.Multiuser;
 using TiaMcpServer.OpennessWorker.Openness.Network;
-using TiaMcpServer.OpennessWorker.Openness.Plc;
 using TiaMcpServer.OpennessWorker.Openness.Project;
 using TiaMcpServer.OpennessWorker.Openness.Vci;
 using TiaMcpServer.OpennessWorker.Worker;
@@ -25,7 +23,7 @@ using WorkerTiaPortalSession = TiaMcpServer.OpennessWorker.Openness.Project.TiaP
 
 namespace TiaMcpServer.OpennessWorker;
 
-internal static class Program
+internal static partial class Program
 {
     // TIA Portal 권한 요청 다이얼로그는 Attach() 호출마다 뜬다.
     // 세션을 프로세스 수명 동안 재사용해 Attach()를 최초 1회만 호출한다.
@@ -166,39 +164,39 @@ internal static class Program
                     => WithPortalRead(request, _ => MultiuserPortalReadDispatch.Invoke(_sharedInventory, request)),
                 "select_portal_project" => SelectPortalProject(request),
                 "browse_project_tree_v3_snapshot" => BrowseProjectTreeV3Snapshot(request),
-                "read_hardware_config" => ReadHardwareConfig(request),
-                "read_hardware_page_candidates" => ReadHardwarePageCandidates(request),
-                "list_network_objects" => ListNetworkObjects(request),
-                "inspect_network_object" => InspectNetworkObject(request),
-                "search_equipment_catalog" => SearchEquipmentCatalog(request),
-                "add_network_device" => AddNetworkDevice(request),
-                "configure_network_device" => ConfigureNetworkDevice(request),
-                "create_subnet" => CreateSubnet(request),
-                "update_subnet" => UpdateSubnet(request),
-                "delete_subnet" => DeleteSubnet(request),
+                "read_hardware_config" => NetworkWorkerDispatch.ReadHardwareConfig(request),
+                "read_hardware_page_candidates" => NetworkWorkerDispatch.ReadHardwarePageCandidates(request),
+                "list_network_objects" => NetworkWorkerDispatch.ListNetworkObjects(request),
+                "inspect_network_object" => NetworkWorkerDispatch.InspectNetworkObject(request),
+                "search_equipment_catalog" => NetworkWorkerDispatch.SearchEquipmentCatalog(request),
+                "add_network_device" => NetworkWorkerDispatch.AddNetworkDevice(request),
+                "configure_network_device" => NetworkWorkerDispatch.ConfigureNetworkDevice(request),
+                "create_subnet" => NetworkWorkerDispatch.CreateSubnet(request),
+                "update_subnet" => NetworkWorkerDispatch.UpdateSubnet(request),
+                "delete_subnet" => NetworkWorkerDispatch.DeleteSubnet(request),
                 "read_cross_references" => ReadCrossReferences(request),
-                "get_block_content"   => GetBlockContent(request),
-                "update_block_logic"  => UpdateBlockLogic(request),
-                "get_type_content"    => GetTypeContent(request),
-                "update_type_content" => UpdateTypeContent(request),
-                "list_tag_tables"     => ListTagTables(request),
-                "compile_check"       => CompileCheck(request),
-                "create_tag_table"    => CreateTagTable(request),
-                "delete_tag_table"    => DeleteTagTable(request),
-                "create_tag"          => CreateTag(request),
-                "update_tag"          => UpdateTag(request),
-                "delete_tag"          => DeleteTag(request),
-                "create_user_constant" => CreateUserConstant(request),
-                "update_user_constant" => UpdateUserConstant(request),
-                "delete_user_constant" => DeleteUserConstant(request),
+                "get_block_content"   => PlcWorkerDispatch.GetBlockContent(request),
+                "update_block_logic"  => PlcWorkerDispatch.UpdateBlockLogic(request),
+                "get_type_content"    => PlcWorkerDispatch.GetTypeContent(request),
+                "update_type_content" => PlcWorkerDispatch.UpdateTypeContent(request),
+                "list_tag_tables"     => PlcWorkerDispatch.ListTagTables(request),
+                "compile_check"       => PlcWorkerDispatch.CompileCheck(request),
+                "create_tag_table"    => PlcWorkerDispatch.CreateTagTable(request),
+                "delete_tag_table"    => PlcWorkerDispatch.DeleteTagTable(request),
+                "create_tag"          => PlcWorkerDispatch.CreateTag(request),
+                "update_tag"          => PlcWorkerDispatch.UpdateTag(request),
+                "delete_tag"          => PlcWorkerDispatch.DeleteTag(request),
+                "create_user_constant" => PlcWorkerDispatch.CreateUserConstant(request),
+                "update_user_constant" => PlcWorkerDispatch.UpdateUserConstant(request),
+                "delete_user_constant" => PlcWorkerDispatch.DeleteUserConstant(request),
                 "get_project_status"  => GetProjectStatus(request),
                 "probe_project_status_for_lifecycle" => ProbeProjectStatusForLifecycle(request),
                 "probe_open_project_rebind" => ProbeOpenProjectRebind(request),
                 "get_basic_project_status" => GetBasicProjectStatus(request),
-                "create_block"        => CreateBlock(request),
-                "delete_block"        => DeleteBlock(request),
-                "create_block_group"  => CreateBlockGroup(request),
-                "delete_block_group"  => DeleteBlockGroup(request),
+                "create_block"        => PlcWorkerDispatch.CreateBlock(request),
+                "delete_block"        => PlcWorkerDispatch.DeleteBlock(request),
+                "create_block_group"  => PlcWorkerDispatch.CreateBlockGroup(request),
+                "delete_block_group"  => PlcWorkerDispatch.DeleteBlockGroup(request),
                 "open_project"        => OpenProject(request),
                 "create_project"      => CreateProject(request),
                 "save_project"        => SaveProject(request),
@@ -289,301 +287,6 @@ internal static class Program
         }
     }
 
-    private static WorkerResponse ReadHardwareConfig(WorkerRequest request)
-    {
-        return WithEngineeringRoot(request, project => Success(HardwareConfigReader.Read(
-            project,
-            request.DeviceName,
-            request.PlcName,
-            request.IncludeIoDetails,
-            request.IncludeTagMatches)));
-    }
-
-    private static WorkerResponse ReadHardwarePageCandidates(WorkerRequest request)
-    {
-        return WithEngineeringRoot(request, project =>
-        {
-            ValidateHardwarePageContinuationIdentity(request);
-            var source = HardwarePageCandidateSourceFactory.Create(
-                project,
-                request.DeviceName,
-                request.PlcName,
-                request.IncludeIoDetails,
-                request.IncludeTagMatches);
-            return Success(HardwarePageCandidateReader.Read(
-                source,
-                request.DeviceName,
-                request.PlcName,
-                request.IncludeIoDetails,
-                request.IncludeTagMatches,
-                request.HardwarePageSize,
-                request.HardwarePageContinuation));
-        });
-    }
-
-    private static WorkerResponse ListNetworkObjects(WorkerRequest request)
-    {
-        ValidateListNetworkObjectsRequest(request);
-
-        int pageSize;
-        try
-        {
-            pageSize = NetworkObjectPageBuilder.ResolvePageSize(request.NetworkObjectPageSize);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectPageSize must be between 1 and 200.");
-        }
-
-        return WithEngineeringRoot(request, project =>
-        {
-            var orderedItems = NetworkObjectIndexReader.Read(project, request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
-            var queryHash = NetworkObjectCursorCodec.CreateQueryHash(request.NetworkObjectKinds!, request.NetworkObjectDeviceName);
-            var snapshotHash = NetworkObjectCursorCodec.CreateSnapshotHash(orderedItems);
-            var offset = request.NetworkObjectCursor is null
-                ? 0
-                : NetworkObjectCursorCodec.Decode(
-                    request.NetworkObjectCursor,
-                    queryHash,
-                    snapshotHash,
-                    orderedItems.Count).Offset;
-            return Success(NetworkObjectPageBuilder.Build(orderedItems, pageSize, offset, queryHash, snapshotHash));
-        });
-    }
-
-    private static void ValidateListNetworkObjectsRequest(WorkerRequest request)
-    {
-        if (request.NetworkObjectKinds is null || request.NetworkObjectKinds.Count == 0)
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectKinds is required.");
-        }
-
-        if (request.NetworkObjectKinds.Any(kind => !NetworkObjectKinds.All.Contains(kind))
-            || request.NetworkObjectKinds.Distinct(StringComparer.Ordinal).Count() != request.NetworkObjectKinds.Count)
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectKinds is invalid.");
-        }
-
-        if (request.NetworkObjectDeviceName is not null && string.IsNullOrWhiteSpace(request.NetworkObjectDeviceName))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "NetworkObjectDeviceName must not be blank.");
-        }
-
-        if (request.NetworkObjectDeviceName is not null
-            && (request.NetworkObjectKinds.Contains(NetworkObjectKinds.Subnet)
-                || request.NetworkObjectKinds.Contains(NetworkObjectKinds.IoSystem)))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "NetworkObjectDeviceName is not applicable to subnet or ioSystem discovery.");
-        }
-    }
-
-    private static WorkerResponse InspectNetworkObject(WorkerRequest request)
-    {
-        if (request.NetworkObjectTarget is null)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "NetworkObjectTarget is required.");
-        }
-
-        return WithEngineeringRoot(request, project =>
-        {
-            var resolution = NetworkObjectSelectorResolver.Resolve(project, request.NetworkObjectTarget);
-            if (!resolution.Success)
-            {
-                return Failure(
-                    resolution.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
-                    resolution.Error ?? "The network object target could not be resolved.");
-            }
-
-            return Success(NetworkObjectInspector.Inspect(
-                resolution.Resolved!,
-                request.NetworkAttributeNames));
-        });
-    }
-
-    private static WorkerResponse SearchEquipmentCatalog(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Query))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Query is required.");
-        }
-
-        return WithSession(request, session =>
-        {
-            var failure = EnsureRequestedProjectOpen(session, request.ProjectPath);
-            if (failure is not null)
-            {
-                return failure;
-            }
-            ValidateExpectedAfterProjectResolution(session, request);
-
-            if (session.TiaPortal is null)
-            {
-                return Failure(
-                    WorkerFailureCategories.WorkerOperationFailed,
-                    "No TIA Portal session is connected. Please start TIA Portal and try again.");
-            }
-
-            return Success(EquipmentCatalogSearcher.Search(session.TiaPortal, request.Query!, request.MaxResults));
-        });
-    }
-
-    private static WorkerResponse AddNetworkDevice(WorkerRequest request)
-    {
-        if (!CatalogTypeIdentifier.IsCreatable(request.TypeIdentifier))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                CatalogTypeIdentifier.BuildValidationMessage(request.TypeIdentifier));
-        }
-
-        if (string.IsNullOrWhiteSpace(request.DeviceName))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "DeviceName is required.");
-        }
-
-        return WithEngineeringRoot(request, project =>
-        {
-            var result = NetworkDeviceCreator.Create(project, request.TypeIdentifier!, request.DeviceName!,
-                string.IsNullOrWhiteSpace(request.DeviceItemName) ? request.DeviceName! : request.DeviceItemName!);
-            return Success(result);
-        });
-    }
-
-    private static WorkerResponse ConfigureNetworkDevice(WorkerRequest request)
-    {
-        var target = NetworkConfigurationTargetBinding.Resolve(request);
-
-        return WithEngineeringRoot(request, project =>
-        {
-            // Capture the normalized owner while retaining supplied constraints for the final
-            // pre-setter resolver.
-            var prepared = NetworkObjectSelectorResolver.ResolveNode(project, target);
-            if (!prepared.Success) throw new WorkerOperationException(prepared.FailureCategory!, prepared.Error!);
-            var dispatchTarget = target.InterfacePath is not null || target.ItemPath is not null ? target : prepared.Resolved!.Target;
-            dispatchTarget.DeviceName = target.DeviceName;
-            dispatchTarget.InterfaceName = target.InterfaceName;
-            dispatchTarget.NodeIndex = target.NodeIndex;
-            var result = NetworkDeviceConfigurator.Configure(
-                project,
-                dispatchTarget,
-                request.IpAddress,
-                request.SubnetMask,
-                request.PnDeviceName,
-                request.PnDeviceNameAutoGeneration,
-                request.SubnetId,
-                request.IoSystemSubnetId,
-                request.IoSystemNumber);
-            return Success(result);
-        });
-    }
-
-    private static WorkerResponse CreateSubnet(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.SubnetName))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetName is required.");
-        }
-
-        if (!SubnetLifecycleContract.IsSupportedNetworkType(request.SubnetNetworkType))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "SubnetNetworkType is required. Valid values: "
-                + $"{SubnetLifecycleContract.Ethernet}, {SubnetLifecycleContract.Profibus}.");
-        }
-
-        if (string.Equals(request.SubnetNetworkType, SubnetLifecycleContract.Ethernet, StringComparison.Ordinal)
-            && (request.SubnetHighestAddress is not null || request.SubnetTransmissionSpeed is not null))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                $"SubnetHighestAddress and SubnetTransmissionSpeed are not applicable for network type "
-                + $"'{SubnetLifecycleContract.Ethernet}'.");
-        }
-
-        ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
-        ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
-
-        return WithActiveContext(request, session => Success(SubnetLifecycleService.Create(
-            session.TiaPortal!,
-            session.EngineeringRoot!,
-            request.SubnetName!,
-            request.SubnetNetworkType!,
-            request.SubnetHighestAddress,
-            request.SubnetTransmissionSpeed)));
-    }
-
-    private static WorkerResponse UpdateSubnet(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.SubnetId))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
-        }
-
-        if (request.SubnetName is not null && string.IsNullOrWhiteSpace(request.SubnetName))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetName must not be blank when supplied.");
-        }
-
-        if (request.SubnetName is null && request.SubnetHighestAddress is null && request.SubnetTransmissionSpeed is null)
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "update_subnet requires at least one requested change (name, highestAddress, or transmissionSpeed).");
-        }
-
-        ValidateSubnetHighestAddressRange(request.SubnetHighestAddress);
-        ValidateSubnetTransmissionSpeedValue(request.SubnetTransmissionSpeed);
-
-        return WithActiveContext(request, session => Success(SubnetLifecycleService.Update(
-            session.TiaPortal!,
-            session.EngineeringRoot!,
-            request.SubnetId!,
-            request.SubnetName,
-            request.SubnetHighestAddress,
-            request.SubnetTransmissionSpeed)));
-    }
-
-    private static WorkerResponse DeleteSubnet(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.SubnetId))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "SubnetId is required.");
-        }
-
-        return WithActiveContext(request, session => Success(SubnetLifecycleService.Delete(
-            session.TiaPortal!,
-            session.EngineeringRoot!,
-            request.SubnetId!)));
-    }
-
-    private static void ValidateSubnetHighestAddressRange(int? value)
-    {
-        if (value is { } address
-            && (address < SubnetLifecycleContract.MinimumHighestAddress || address > SubnetLifecycleContract.MaximumHighestAddress))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                $"SubnetHighestAddress must be between {SubnetLifecycleContract.MinimumHighestAddress} and "
-                + $"{SubnetLifecycleContract.MaximumHighestAddress} (received {address}).");
-        }
-    }
-
-    private static void ValidateSubnetTransmissionSpeedValue(string? value)
-    {
-        if (value is not null && !SubnetLifecycleContract.IsSupportedTransmissionSpeed(value))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                $"SubnetTransmissionSpeed value '{value}' is not supported. Valid values: "
-                + $"{string.Join(", ", SubnetLifecycleContract.TransmissionSpeeds)}.");
-        }
-    }
-
     private static WorkerResponse ReadCrossReferences(WorkerRequest request)
     {
         if (!CrossReferenceFilterNames.TryNormalize(
@@ -607,136 +310,6 @@ internal static class Program
             CrossReferenceReader.Read(project, request.CrossReferenceSelector, filter, request.MaxResults)));
     }
 
-    private static WorkerResponse GetBlockContent(WorkerRequest request)
-    {
-        if (string.IsNullOrEmpty(request.BlockPath))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
-        }
-
-        var format = NormalizeBlockFormat(request.Format);
-        var withDependencies = request.WithDependencies == true;
-
-        return WithEngineeringRoot(request, project =>
-        {
-            var content = BlockExporter.Export(project, request.BlockPath!, format, withDependencies);
-            return RawPayload(content, SourceReadWarnings.ForExport(withDependencies, format, content));
-        });
-    }
-
-    private static WorkerResponse UpdateBlockLogic(WorkerRequest request)
-    {
-        var normalizedFormat = BlockUpdateOutcomeDecorator.NormalizeFormatOrNull(request.Format);
-        var importerEntered = false;
-        try
-        {
-            if (string.IsNullOrEmpty(request.BlockPath))
-            {
-                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
-            }
-
-            if (string.IsNullOrEmpty(request.Content))
-            {
-                throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Content is required.");
-            }
-
-            normalizedFormat = NormalizeBlockFormat(request.Format);
-
-            var response = WithEngineeringRoot(request, project =>
-            {
-                importerEntered = true;
-                var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat, request.ExpectedContentHash);
-                return RawPayload(result.Payload, result.Warnings, result.Outcome);
-            });
-            return response.Success
-                ? response
-                : BlockUpdateOutcomeDecorator.Decorate(response, normalizedFormat, importerEntered);
-        }
-        catch (WorkerOperationException exception)
-        {
-            return BlockUpdateOutcomeDecorator.Decorate(exception, normalizedFormat, importerEntered);
-        }
-        catch (Exception exception)
-        {
-            return BlockUpdateOutcomeDecorator.Decorate(exception, normalizedFormat, importerEntered);
-        }
-    }
-
-    private static WorkerResponse GetTypeContent(WorkerRequest request)
-    {
-        if (string.IsNullOrEmpty(request.TypePath))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "TypePath is required.");
-        }
-
-        var format = NormalizeTypeFormat(request.Format);
-        var withDependencies = request.WithDependencies == true;
-
-        return WithEngineeringRoot(request, project =>
-        {
-            var content = PlcTypeExporter.Export(project, request.TypePath!, format, withDependencies);
-            return RawPayload(content, SourceReadWarnings.ForExport(withDependencies, format, content));
-        });
-    }
-
-    private static WorkerResponse UpdateTypeContent(WorkerRequest request)
-    {
-        if (string.IsNullOrEmpty(request.TypePath))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "TypePath is required.");
-        }
-
-        if (string.IsNullOrEmpty(request.Content))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Content is required.");
-        }
-
-        var format = NormalizeTypeFormat(request.Format);
-
-        return WithEngineeringRoot(request, project => Success(
-            PlcTypeImporter.Import(project, request.TypePath!, request.Content!, format, request.ExpectedContentHash)));
-    }
-
-    /// <summary>
-    /// The host normalizes <see cref="WorkerRequest.Format"/> before sending, but internal
-    /// diagnostics and tests can invoke the worker directly. Type operations therefore re-apply
-    /// their own default (source, i.e. .udt) rather than trusting the field to be set.
-    /// </summary>
-    private static string NormalizeTypeFormat(string? format)
-    {
-        if (!SourceFormatNames.TryNormalize(format, SourceFormatNames.Source, out var normalized, out var error))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                error ?? "Invalid format.");
-        }
-
-        return normalized;
-    }
-
-    /// <summary>
-    /// Same contract as <see cref="NormalizeTypeFormat"/> with the block default: xml, because
-    /// get_block_content and update_block_logic have callers whose payloads must not change when
-    /// format is omitted.
-    /// </summary>
-    private static string NormalizeBlockFormat(string? format)
-    {
-        if (!SourceFormatNames.TryNormalize(format, SourceFormatNames.Xml, out var normalized, out var error))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                error ?? "Invalid format.");
-        }
-
-        return normalized;
-    }
-
-    private static WorkerResponse ListTagTables(WorkerRequest request)
-    {
-        return WithEngineeringRoot(request, project => Success(TagTableReader.ReadInventory(
-            project, request.PlcName, request.TableName, request.FolderPath)));
-    }
-
     private static WorkerResponse WriteHmi(WorkerRequest request)
         => WithEngineeringRoot(request, project => Success(HmiWriteDispatch.Write(project, request.Method, request.HmiWrite ?? new HmiWriteRequestInfo())));
 
@@ -744,11 +317,6 @@ internal static class Program
     {
         return WithEngineeringRoot(request, project => Success(
             HmiReadDispatch.Read(project, request.Method, request.HmiQuery ?? new HmiQueryInfo())));
-    }
-
-    private static WorkerResponse CompileCheck(WorkerRequest request)
-    {
-        return WithEngineeringRoot(request, project => Success(CompileChecker.Compile(project, request.PlcName, request.BlockPath)));
     }
 
     private static WorkerResponse ReadVci(WorkerRequest request)
@@ -762,152 +330,6 @@ internal static class Program
     private static WorkerResponse WriteVci(WorkerRequest request)
         => WithActiveContext(request, session => Success(VciDispatch.Write(session.TiaPortal!,
             session.EngineeringRoot!, request.Method, request.VciWrite ?? new VciWriteRequestInfo())));
-
-    private static WorkerResponse CreateTagTable(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.CreateTagTable(project, request.PlcName, request.TableName!, request.FolderPath));
-    }
-
-    private static WorkerResponse DeleteTagTable(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.DeleteTagTable(project, request.PlcName, request.TableName!, request.FolderPath));
-    }
-
-    private static WorkerResponse CreateTag(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.CreateTag(
-                project,
-                request.PlcName,
-                request.TableName!,
-                request.FolderPath,
-                request.Name!,
-                request.DataType!,
-                request.LogicalAddress));
-    }
-
-    private static WorkerResponse UpdateTag(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.UpdateTag(
-                project,
-                request.PlcName,
-                request.TableName!,
-                request.FolderPath,
-                request.Name!,
-                request.NewName,
-                request.DataType,
-                request.LogicalAddress,
-                request.ExternalAccessible,
-                request.ExternalVisible,
-                request.ExternalWritable));
-    }
-
-    private static WorkerResponse DeleteTag(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.DeleteTag(
-                project,
-                request.PlcName,
-                request.TableName!,
-                request.FolderPath,
-                request.Name!));
-    }
-
-    private static WorkerResponse CreateUserConstant(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.CreateUserConstant(
-                project,
-                request.PlcName,
-                request.TableName!,
-                request.FolderPath,
-                request.Name!,
-                request.DataType!,
-                request.Value!));
-    }
-
-    private static WorkerResponse UpdateUserConstant(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.UpdateUserConstant(
-                project,
-                request.PlcName,
-                request.TableName!,
-                request.FolderPath,
-                request.Name!,
-                request.DataType,
-                request.Value));
-    }
-
-    private static WorkerResponse DeleteUserConstant(WorkerRequest request)
-    {
-        return TagMutation(request, project =>
-            TagMutationService.DeleteUserConstant(
-                project,
-                request.PlcName,
-                request.TableName!,
-                request.FolderPath,
-                request.Name!));
-    }
-
-    private static WorkerResponse CreateBlock(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.BlockPath))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.BlockType))
-        {
-            throw new WorkerOperationException(
-                WorkerFailureCategories.ValidationError,
-                "BlockType is required. Valid values: FB, FC, OB, GlobalDB.");
-        }
-
-        return WithEngineeringRoot(request, project => Success(
-            BlockMutationService.CreateBlock(
-                project,
-                request.BlockPath!,
-                request.BlockType!,
-                request.Language,
-                request.OBEventClass)));
-    }
-
-    private static WorkerResponse DeleteBlock(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.BlockPath))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
-        }
-
-        return WithEngineeringRoot(request, project => Success(
-            BlockMutationService.DeleteBlock(project, request.BlockPath!)));
-    }
-
-    private static WorkerResponse CreateBlockGroup(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.BlockPath))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
-        }
-
-        return WithEngineeringRoot(request, project => Success(
-            BlockMutationService.CreateBlockGroup(project, request.BlockPath!)));
-    }
-
-    private static WorkerResponse DeleteBlockGroup(WorkerRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.BlockPath))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "BlockPath is required.");
-        }
-
-        return WithEngineeringRoot(request, project => Success(
-            BlockMutationService.DeleteBlockGroup(project, request.BlockPath!)));
-    }
 
     private static WorkerResponse GetProjectStatus(WorkerRequest request)
     {
@@ -1058,11 +480,6 @@ internal static class Program
                 request.ProjectPath,
                 request.SaveBeforeClose,
                 request.ExpectedSessionIdentity));
-    }
-
-    private static WorkerResponse TagMutation(WorkerRequest request, Func<ProjectBase, TagMutationResultInfo> mutate)
-    {
-        return WithEngineeringRoot(request, project => Success(mutate(project)));
     }
 
     private static WorkerResponse ProjectLifecycle(

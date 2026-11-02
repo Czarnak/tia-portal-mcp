@@ -8,6 +8,9 @@ public sealed class ActiveProjectContextSourceTests
     private static readonly string Root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
     private static string Read(string path) => File.ReadAllText(Path.Combine(Root, "TiaMcpServer.OpennessWorker", path));
 
+    private static string DispatchSource => string.Join("\n",
+        new[] { "Program.cs", "Program.NetworkDispatch.cs", "Program.PlcDispatch.cs" }.Select(Read));
+
     [Fact]
     public void ProjectDispatch_ResolvesOwnerAfterFreshIdentityCheck()
     {
@@ -18,11 +21,11 @@ public sealed class ActiveProjectContextSourceTests
             "ProjectOpenPolicy.NoProjectOpenMessage(_accessMode)", "return body(session)");
         // Content writes and compile run on the ProjectBase root of any delivered container; the
         // capability gate in WithSession decides which container kinds reach a handler at all.
-        Assert.DoesNotContain("WithProject(", Read("Program.cs"));
+        Assert.DoesNotContain("WithProject(", DispatchSource);
         var root = Method(Read("Program.cs"), "private static WorkerResponse WithEngineeringRoot(");
         Assert.Contains("WithActiveContext(request, session => body(session.EngineeringRoot!))", root);
-        Assert.DoesNotContain("session.Project", Read("Program.cs"));
-        Assert.DoesNotContain("WithSubnetLifecycleProject(", Read("Program.cs"));
+        Assert.DoesNotContain("session.Project", DispatchSource);
+        Assert.DoesNotContain("WithSubnetLifecycleProject(", DispatchSource);
         var vci = Method(Read("Program.cs"), "private static WorkerResponse WriteVci(");
         Assert.Contains("WithActiveContext(request, session => Success(VciDispatch.Write(session.TiaPortal!", vci);
     }

@@ -4,7 +4,7 @@ namespace TiaMcpServer.Tests.Worker;
 
 public sealed class UpdateBlockLogicWorkerSourceContractTests
 {
-    private static string ReadWorkerProgram()
+    private static string ReadWorkerProgram(string fileName = "Program.cs")
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.slnx")))
@@ -13,7 +13,7 @@ public sealed class UpdateBlockLogicWorkerSourceContractTests
         }
 
         Assert.NotNull(directory);
-        return File.ReadAllText(Path.Combine(directory!.FullName, "TiaMcpServer.OpennessWorker", "Program.cs"));
+        return File.ReadAllText(Path.Combine(directory!.FullName, "TiaMcpServer.OpennessWorker", fileName));
     }
 
     [Fact]
@@ -32,15 +32,15 @@ public sealed class UpdateBlockLogicWorkerSourceContractTests
     [Fact]
     public void UpdateBlockLogic_WrapsValidationNormalizationAndWholeProjectCall()
     {
-        var source = ReadWorkerProgram();
-        var start = source.IndexOf("private static WorkerResponse UpdateBlockLogic", StringComparison.Ordinal);
-        var end = source.IndexOf("private static WorkerResponse GetTypeContent", start, StringComparison.Ordinal);
+        var source = ReadWorkerProgram("Program.PlcDispatch.cs");
+        var start = source.IndexOf("public static WorkerResponse UpdateBlockLogic", StringComparison.Ordinal);
+        var end = source.IndexOf("public static WorkerResponse GetTypeContent", start, StringComparison.Ordinal);
         var method = source[start..end];
 
         var tryIndex = method.IndexOf("try", StringComparison.Ordinal);
         Assert.True(tryIndex >= 0);
         Assert.True(method.IndexOf("BlockPath is required", StringComparison.Ordinal) > tryIndex);
-        Assert.True(method.IndexOf("NormalizeBlockFormat", StringComparison.Ordinal) > tryIndex);
+        Assert.True(method.IndexOf("NormalizeFormat(request.Format, SourceFormatNames.Xml)", StringComparison.Ordinal) > tryIndex);
         Assert.True(method.IndexOf("WithEngineeringRoot", StringComparison.Ordinal) > tryIndex);
         Assert.Contains("catch (WorkerOperationException", method, StringComparison.Ordinal);
         Assert.Contains("catch (Exception", method, StringComparison.Ordinal);
@@ -51,9 +51,9 @@ public sealed class UpdateBlockLogicWorkerSourceContractTests
     [Fact]
     public void ImporterEntered_IsSetImmediatelyBeforeImporterCall()
     {
-        var source = ReadWorkerProgram();
-        var start = source.IndexOf("private static WorkerResponse UpdateBlockLogic", StringComparison.Ordinal);
-        var end = source.IndexOf("private static WorkerResponse GetTypeContent", start, StringComparison.Ordinal);
+        var source = ReadWorkerProgram("Program.PlcDispatch.cs");
+        var start = source.IndexOf("public static WorkerResponse UpdateBlockLogic", StringComparison.Ordinal);
+        var end = source.IndexOf("public static WorkerResponse GetTypeContent", start, StringComparison.Ordinal);
         var method = source[start..end];
         var entered = method.IndexOf("importerEntered = true;", StringComparison.Ordinal);
         var import = method.IndexOf("BlockImporter.Import", StringComparison.Ordinal);
