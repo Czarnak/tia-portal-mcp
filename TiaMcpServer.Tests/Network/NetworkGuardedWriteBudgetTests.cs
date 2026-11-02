@@ -93,14 +93,14 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         else
         {
             var binding = new ProjectSessionBinding(null);
-            using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+            using var client = FakeWorkerClients.Create(binding: binding);
             var before = CanonicalJson.Serialize(binding.CaptureSnapshot());
             reply = await NetworkGuardedWriteFixture.CreateRunner(client, audit.Path).RunAsync(new NetworkWriteDomain(client),
                 new WriteCall<NetworkOperationRequest>(operations, false));
             Assert.Equal(before, CanonicalJson.Serialize(binding.CaptureSnapshot()));
         }
         Assert.Empty(requests.Methods());
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.True(reply.IsError);
         Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
         Assert.DoesNotContain(operations[0].OperationId, root.GetRawText());
@@ -301,7 +301,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
             reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
                 new WriteCall<NetworkOperationRequest>(new[] { operation }, false));
         }
-        var root = NetworkGuardedWriteMcpTests.Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         var canonical = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal("error", root.GetProperty("phase").GetString());
@@ -335,7 +335,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
             new WriteCall<NetworkOperationRequest>(operations, false));
         Assert.DoesNotContain("configure_network_device", requests.Methods());
-        var document = NetworkGuardedWriteMcpTests.Document(reply);
+        var document = CanonicalToolDocument.Read(reply);
         Assert.True(reply.IsError);
         Assert.Equal("error", document.GetProperty("phase").GetString());
         Assert.Equal("validation_error", document.GetProperty("error").GetProperty("category").GetString());
@@ -382,7 +382,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         operation.Target!.InterfaceName = "PROFINET interface_1";
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
             new WriteCall<NetworkOperationRequest>(new[] { operation }, false));
-        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
+        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(CanonicalToolDocument.Read(reply).GetRawText());
         Assert.True(response.Success);
         var path = response.Effects[0].Effect!.Target.InterfacePath!;
         Assert.Equal(operation.Target.InterfacePath![0].Name, path[0].Name);
@@ -399,7 +399,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         operation.Changes = new() { IpAddress = "10.0.0.5", Subnet = new() { SubnetId = "590-3" } };
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
             new WriteCall<NetworkOperationRequest>(new[] { operation, NetworkGuardedWriteFixture.Delete("second") }, false));
-        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
+        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(CanonicalToolDocument.Read(reply).GetRawText());
         Assert.Single(requests.Methods(), m => m == "configure_network_device");
         Assert.DoesNotContain("delete_subnet", requests.Methods());
         Assert.Equal("failed", response.Batch!.Operations[0].Status);
@@ -420,7 +420,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         operation.Changes = new() { IpAddress = "192.168.12.7", SubnetMask = "255.255.255.0" };
         var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
             new WriteCall<NetworkOperationRequest>(new[] { operation }, false));
-        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(NetworkGuardedWriteMcpTests.Document(reply).GetRawText());
+        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(CanonicalToolDocument.Read(reply).GetRawText());
         Assert.True(response.Success);
         Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
         Assert.NotNull(response.Effects[0].Effect!.Target.InterfacePath);

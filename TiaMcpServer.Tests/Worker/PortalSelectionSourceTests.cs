@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -9,7 +10,7 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class PortalSelectionSourceTests
 {
     private static string Read(string file) => File.ReadAllText(Path.Combine(
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..")),
+        RepositoryFiles.Root,
         "TiaMcpServer.OpennessWorker", file));
 
     private static string Method(string source, string declaration)
@@ -32,7 +33,7 @@ public sealed class PortalSelectionSourceTests
     [Fact]
     public void ListingRequestMatchesCatalogAndBothWorkerDispatches()
     {
-        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var root = RepositoryFiles.Root;
         var host = File.ReadAllText(Path.Combine(root, "TiaMcpServer/Worker/OpennessWorkerClient.Binding.cs"));
         var list = Method(host, "async Task<WorkerCallResult?> List()");
         var request = Regex.Match(list, "Method = \"([^\"]+)\"");

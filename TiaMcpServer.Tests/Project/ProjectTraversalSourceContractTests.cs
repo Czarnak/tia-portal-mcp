@@ -1,3 +1,4 @@
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Project;
@@ -7,7 +8,7 @@ public class ProjectTraversalSourceContractTests
     [Fact]
     public void ProjectDeviceEnumerator_KeepsStructuralLocatorsInternalToTheWorkerTraversal()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectDeviceEnumerator.cs");
 
         Assert.Contains("internal sealed class LocatedProjectDevice", source, StringComparison.Ordinal);
@@ -19,9 +20,9 @@ public class ProjectTraversalSourceContractTests
     [Fact]
     public void HardwareAndTreeReaders_UseTheSameProjectDeviceEnumerator()
     {
-        var hardware = ReadRepositorySource(
+        var hardware = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
-        var tree = ReadRepositorySource(
+        var tree = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("capture.Traverse(() => ProjectDeviceEnumerator.Enumerate(project), device =>", hardware, StringComparison.Ordinal);
@@ -37,7 +38,7 @@ public class ProjectTraversalSourceContractTests
     [Fact]
     public void ProjectTreeSnapshotWalker_TraversesEverySystemBlockGroupWithItsOwnTypedWalker()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("group is PlcBlockSystemGroup systemGroup", source, StringComparison.Ordinal);
@@ -50,14 +51,14 @@ public class ProjectTraversalSourceContractTests
     [Fact]
     public void ProjectTreeSnapshotWalker_MarksSystemMembershipWithoutChangingFunctionalBlockTypes()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
 
         Assert.Contains("NodeType = ProjectTreeNodeTypes.SystemBlockFolder", source, StringComparison.Ordinal);
         Assert.Contains("details[\"IsSystemBlock\"] = \"true\";", source, StringComparison.Ordinal);
         Assert.Contains("BuildBlockNode(block, softwareUnitName, isSystemBlock: false)", source, StringComparison.Ordinal);
         Assert.Contains("BuildBlockNode(block, softwareUnitName, isSystemBlock: true)", source, StringComparison.Ordinal);
-        Assert.Equal(1, source.Split("NodeType = block switch", StringSplitOptions.None).Length - 1);
+        Assert.Equal(1, RepositoryFiles.CountOccurrences(source, "NodeType = block switch"));
         Assert.Contains("block.HeaderAuthor", source, StringComparison.Ordinal);
         Assert.Contains("block.HeaderVersion", source, StringComparison.Ordinal);
         Assert.Contains("block.HeaderFamily", source, StringComparison.Ordinal);
@@ -68,7 +69,7 @@ public class ProjectTraversalSourceContractTests
     [Fact]
     public void SelectedDevice_IsResolvedBeforeAnyPlcSoftwareDiscovery()
     {
-        var source = ReadRepositorySource(
+        var source = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectTreeSnapshotWalker.cs");
         var enumerate = source.IndexOf("ProjectDeviceEnumerator.Enumerate(project)", StringComparison.Ordinal);
         var select = source.IndexOf("ProjectTreeDeviceSelector.Select", StringComparison.Ordinal);
@@ -77,23 +78,5 @@ public class ProjectTraversalSourceContractTests
         Assert.True(enumerate >= 0 && select > enumerate && walk > select);
         Assert.DoesNotContain("[\"Path\"]", source, StringComparison.Ordinal);
         Assert.DoesNotContain("CombinePath", source, StringComparison.Ordinal);
-    }
-
-    private static string ReadRepositorySource(params string[] pathSegments)
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current))
-        {
-            var candidate = Path.Combine(new[] { current }.Concat(pathSegments).ToArray());
-            if (File.Exists(candidate))
-            {
-                return File.ReadAllText(candidate).Replace("\r\n", "\n");
-            }
-
-            current = Path.GetDirectoryName(current);
-        }
-
-        throw new FileNotFoundException(
-            $"Could not find repository file '{Path.Combine(pathSegments)}'.");
     }
 }

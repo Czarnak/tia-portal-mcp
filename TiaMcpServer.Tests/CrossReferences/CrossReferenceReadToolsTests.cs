@@ -16,21 +16,10 @@ public class CrossReferenceReadToolsTests
 {
     private const string Scenario = "xref-roundtrip";
 
-    private static OpennessWorkerClient CreateClient()
-        => new(
-            new ProjectSessionBinding(null),
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
-
     private static async Task<OpennessWorkerClient> CreateBoundClientAsync()
     {
         var binding = new ProjectSessionBinding(null);
-        var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadOnly));
+        var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly, binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
         return client;
     }
@@ -44,10 +33,9 @@ public class CrossReferenceReadToolsTests
         },
     };
 
-    private static JsonElement Structured(CallToolResult result) => Assert.IsType<JsonElement>(result.StructuredContent);
 
     private static string Category(CallToolResult result)
-        => Structured(result).GetProperty("error").GetProperty("category").GetString()!;
+        => CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("category").GetString()!;
 
     [Fact]
     public async Task ReturnsTypedReportForPlcSweep()
@@ -57,7 +45,7 @@ public class CrossReferenceReadToolsTests
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc());
 
         Assert.False(result.IsError);
-        var root = Structured(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.Equal("read_cross_references", root.GetProperty("tool").GetString());
         Assert.Equal("1.0", root.GetProperty("contractVersion").GetString());
         Assert.True(root.GetProperty("success").GetBoolean());
@@ -73,7 +61,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task InvalidPathIsInvalidSelectorRejection()
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
         var target = new CrossReferenceTargetSelector
         {
             Path = { new ProjectTreeSelectorSegment { NodeType = ProjectTreeNodeTypes.PlcSoftware, Name = "PLC_1" } },
@@ -83,16 +71,16 @@ public class CrossReferenceReadToolsTests
 
         Assert.True(result.IsError);
         Assert.Equal("invalid_selector", Category(result));
-        var message = Structured(result).GetProperty("error").GetProperty("message").GetString()!;
+        var message = CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("message").GetString()!;
         Assert.Contains("target.path", message);
         Assert.DoesNotContain("startSelector", message);
-        Assert.Equal(JsonValueKind.Null, Structured(result).GetProperty("result").ValueKind);
+        Assert.Equal(JsonValueKind.Null, CanonicalToolDocument.Read(result).GetProperty("result").ValueKind);
     }
 
     [Fact]
     public async Task Selector_NeitherPathNorHmi_IsValidationError()
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, new CrossReferenceTargetSelector());
 
@@ -106,7 +94,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task HmiSelector_WithPath_IsValidationError()
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
         var target = Plc();
         target.Hmi = HmiTag();
 
@@ -121,14 +109,14 @@ public class CrossReferenceReadToolsTests
     [InlineData("", "Tag1")]
     public async Task HmiSelector_BlankHmiName_IsValidationError(string hmiName, string tagName)
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(
             client, new CrossReferenceTargetSelector { Hmi = HmiTag(hmiName, tagName) });
 
         Assert.True(result.IsError);
         Assert.Equal("validation_error", Category(result));
-        Assert.Contains("target.hmi.hmiName", Structured(result).GetProperty("error").GetProperty("message").GetString());
+        Assert.Contains("target.hmi.hmiName", CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("message").GetString());
     }
 
     [Theory]
@@ -136,14 +124,14 @@ public class CrossReferenceReadToolsTests
     [InlineData("")]
     public async Task HmiSelector_BlankTagName_IsValidationError(string tagName)
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(
             client, new CrossReferenceTargetSelector { Hmi = HmiTag(tagName: tagName) });
 
         Assert.True(result.IsError);
         Assert.Equal("validation_error", Category(result));
-        Assert.Contains("target.hmi.tagName", Structured(result).GetProperty("error").GetProperty("message").GetString());
+        Assert.Contains("target.hmi.tagName", CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("message").GetString());
     }
 
     [Theory]
@@ -176,7 +164,7 @@ public class CrossReferenceReadToolsTests
     [InlineData("Tag", false)]
     public async Task BadMemberIsInvalidSelectorRejection(string kind, bool tablePath)
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
         var target = Plc();
         if (tablePath)
         {
@@ -194,7 +182,7 @@ public class CrossReferenceReadToolsTests
     [Fact]
     public async Task UnknownFilterIsValidationError()
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), filter: "Everything");
 
@@ -207,7 +195,7 @@ public class CrossReferenceReadToolsTests
     [InlineData(-3)]
     public async Task MaxResultsZeroIsValidationError(int maxResults)
     {
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create(McpAccessMode.ReadOnly);
 
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc(), maxResults: maxResults);
 
@@ -223,7 +211,7 @@ public class CrossReferenceReadToolsTests
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc("Unsupported"));
 
         Assert.False(result.IsError);
-        var root = Structured(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.False(root.GetProperty("success").GetBoolean());
         var outcome = root.GetProperty("result");
         Assert.Equal("failed", outcome.GetProperty("status").GetString());
@@ -239,7 +227,7 @@ public class CrossReferenceReadToolsTests
         var result = await CrossReferenceReadTools.ReadCrossReferences(
             client, Plc(), filter: "UnusedObjects");
 
-        var root = Structured(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.False(root.GetProperty("result").GetProperty("value").GetProperty("isComplete").GetBoolean());
         Assert.Contains(
             "An incomplete UnusedObjects result is not proof that objects can be deleted.",
@@ -254,6 +242,6 @@ public class CrossReferenceReadToolsTests
         var result = await CrossReferenceReadTools.ReadCrossReferences(client, Plc());
 
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.Equal(text, Structured(result).GetRawText());
+        Assert.Equal(text, CanonicalToolDocument.Read(result).GetRawText());
     }
 }

@@ -1,3 +1,4 @@
+using TiaMcpServer.Tests.TestSupport;
 namespace TiaMcpServer.Tests.Network;
 
 using Xunit;
@@ -11,8 +12,8 @@ using Xunit;
 public class NetworkSubnetLifecycleWorkerDispatchTests
 {
     private static string ProgramSource => File.ReadAllText(
-        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.cs"))
-        + File.ReadAllText(FindRepositoryFile("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"));
+        RepositoryFiles.Path("TiaMcpServer.OpennessWorker", "Program.cs"))
+        + File.ReadAllText(RepositoryFiles.Path("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"));
 
     [Fact]
     public void WorkerProgram_DispatchesAllThreeSubnetLifecycleOperationsToTheirOwnHandlers()
@@ -95,24 +96,11 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
         foreach (var handler in new[] { "CreateSubnet", "UpdateSubnet", "DeleteSubnet" })
         {
             var body = ExtractMethodBody(source, handler);
-            Assert.Equal(1, CountOccurrences(body, "WithActiveContext(request,"));
-            Assert.Equal(1, CountOccurrences(body, "session.EngineeringRoot!,"));
+            Assert.Equal(1, RepositoryFiles.CountOccurrences(body, "WithActiveContext(request,"));
+            Assert.Equal(1, RepositoryFiles.CountOccurrences(body, "session.EngineeringRoot!,"));
             Assert.Contains("session.TiaPortal!", body, StringComparison.Ordinal);
             Assert.DoesNotContain("RequireStandaloneOwner", body, StringComparison.Ordinal);
         }
-    }
-
-    private static int CountOccurrences(string source, string value)
-    {
-        var count = 0;
-        var startIndex = 0;
-        while ((startIndex = source.IndexOf(value, startIndex, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            startIndex += value.Length;
-        }
-
-        return count;
     }
 
     /// <summary>
@@ -151,18 +139,5 @@ public class NetworkSubnetLifecycleWorkerDispatchTests
             : source.Length;
 
         return source[declarationIndex..end];
-    }
-
-    private static string FindRepositoryFile(params string[] segments)
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.slnx")))
-            {
-                return Path.Combine(new[] { directory.FullName }.Concat(segments).ToArray());
-            }
-        }
-
-        throw new InvalidOperationException("Could not locate the repository root.");
     }
 }

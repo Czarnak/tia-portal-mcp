@@ -32,7 +32,7 @@ public sealed class WriteExecutionFakeWorkerTests
 
         var result = await RunAsync(client, audit, ConnectedSubnet, dryRun: true);
 
-        var document = Structured(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.False(result.IsError);
         Assert.Equal(WritePhases.Preview, document.GetProperty("phase").GetString());
         Assert.True(document.GetProperty("success").GetBoolean());
@@ -52,7 +52,7 @@ public sealed class WriteExecutionFakeWorkerTests
 
         var result = await RunAsync(client, audit, ConnectedSubnet, dryRun: false);
 
-        var document = Structured(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError);
         Assert.Equal(WritePhases.Blocked, document.GetProperty("phase").GetString());
         Assert.Equal(
@@ -72,7 +72,7 @@ public sealed class WriteExecutionFakeWorkerTests
         var result = await RunAsync(
             client, audit, ConnectedSubnet, dryRun: false);
 
-        var document = Structured(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.False(result.IsError, Text(result));
         Assert.Equal(WritePhases.Applied, document.GetProperty("phase").GetString());
         Assert.True(document.GetProperty("success").GetBoolean());
@@ -103,7 +103,7 @@ public sealed class WriteExecutionFakeWorkerTests
 
         var result = await RunAsync(client, audit, "subnet-eth-9", dryRun: false);
 
-        var document = Structured(result);
+        var document = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError);
         Assert.Equal(WritePhases.Error, document.GetProperty("phase").GetString());
         Assert.Equal(
@@ -115,8 +115,7 @@ public sealed class WriteExecutionFakeWorkerTests
     private static async Task<OpennessWorkerClient> CreateBoundClientAsync(McpAccessMode mode = McpAccessMode.ReadWrite)
     {
         var binding = new ProjectSessionBinding(null);
-        var client = new OpennessWorkerClient(
-            binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate(), accessPolicy: new(mode));
+        var client = FakeWorkerClients.Create(mode, binding: binding);
         try
         {
             await NetworkVerifiedWriteFixture.VerifyAsync(client, binding, Scenario);
@@ -159,8 +158,6 @@ public sealed class WriteExecutionFakeWorkerTests
             .Select(line => JsonDocument.Parse(line).RootElement.Clone())
             .ToArray();
 
-    private static JsonElement Structured(CallToolResult result)
-        => Assert.IsType<JsonElement>(result.StructuredContent);
 
     private static string Text(CallToolResult result)
         => Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;

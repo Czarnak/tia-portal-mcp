@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Network;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Network;
@@ -13,9 +14,9 @@ public class HardwarePaginationWorkerSourceContractTests
     [Fact]
     public void InternalCandidateMethod_IsDispatchedAndIdentityValidatedBeforeReaderMaterialization()
     {
-        var source = ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.cs");
+        var source = RepositoryFiles.ReadSource("TiaMcpServer.OpennessWorker", "Program.cs");
         var handler = ExtractMethod(
-            ReadRepositorySource("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"),
+            RepositoryFiles.ReadSource("TiaMcpServer.OpennessWorker", "Program.NetworkDispatch.cs"),
             "public static WorkerResponse ReadHardwarePageCandidates(WorkerRequest request)",
             "public static WorkerResponse ListNetworkObjects(WorkerRequest request)");
 
@@ -49,9 +50,9 @@ public class HardwarePaginationWorkerSourceContractTests
     [Fact]
     public void SiemensWiring_EnumeratesDescriptorsAndUsesNarrowCandidateMaterializers()
     {
-        var factorySource = ReadRepositorySource(
+        var factorySource = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwarePageCandidateSourceFactory.cs");
-        var readerSource = ReadRepositorySource(
+        var readerSource = RepositoryFiles.ReadSource(
             "TiaMcpServer.OpennessWorker", "Openness", "Network", "HardwareConfigReader.cs");
 
         Assert.Contains("ProjectDeviceEnumerator", factorySource, StringComparison.Ordinal);
@@ -79,23 +80,5 @@ public class HardwarePaginationWorkerSourceContractTests
         Assert.True(start >= 0, $"Expected to find method marker '{startMarker}'.");
         Assert.True(end > start, $"Expected to find method boundary '{endMarker}'.");
         return source[start..end];
-    }
-
-    private static string ReadRepositorySource(params string[] pathSegments)
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current))
-        {
-            var candidate = Path.Combine(new[] { current }.Concat(pathSegments).ToArray());
-            if (File.Exists(candidate))
-            {
-                return File.ReadAllText(candidate).Replace("\r\n", "\n");
-            }
-
-            current = Path.GetDirectoryName(current);
-        }
-
-        throw new FileNotFoundException(
-            $"Could not find repository file '{Path.Combine(pathSegments)}'.");
     }
 }

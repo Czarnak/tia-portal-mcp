@@ -33,11 +33,7 @@ internal sealed class NetworkVerifiedWriteFixture : IDisposable
         McpAccessMode mode = McpAccessMode.ReadWrite)
     {
         var binding = new ProjectSessionBinding(null);
-        var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(mode));
+        var client = FakeWorkerClients.Create(mode, binding: binding);
 
         try
         {

@@ -150,12 +150,7 @@ internal sealed class McpProtocolTestHarness : IAsyncDisposable
 
         var binding = new ProjectSessionBinding(skipHardwarePreverification ? startupProjectPath : null);
         var accessPolicy = new OperationAccessPolicy(accessMode);
-        var workerClient = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate(),
-            requestTimeout: requestTimeout,
-            accessPolicy: accessPolicy);
+        var workerClient = FakeWorkerClients.Create(accessPolicy.Mode, binding: binding, requestTimeout: requestTimeout);
 
         var collection = new ServiceCollection();
         collection.AddLogging();

@@ -1,7 +1,7 @@
-using System.Diagnostics;
-using System.Security.Cryptography;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using System.Diagnostics;
+using System.Security.Cryptography;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Tests.TestSupport;
 using Xunit;
@@ -114,7 +114,7 @@ public sealed class LocalSessionStartupProcessTests
         Directory.CreateDirectory(directory);
         var fakeExe = FakeWorkerLocator.Locate();
         var fakeDirectory = Path.GetDirectoryName(fakeExe)!;
-        var repository = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var repository = RepositoryFiles.Root;
         // Match the test assembly's own configuration (bin/<Configuration>/net10.0); CI builds Release.
         var configuration = Path.GetFileName(Path.GetDirectoryName(
             Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory)))!;

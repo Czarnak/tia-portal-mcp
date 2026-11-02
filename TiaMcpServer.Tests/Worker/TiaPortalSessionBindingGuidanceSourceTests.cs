@@ -1,3 +1,4 @@
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -8,7 +9,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
     public void GuidanceStrings_NameBindProject()
     {
         // Source guard for user guidance, alongside source-linked session behavior tests.
-        var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var repositoryRoot = RepositoryFiles.Root;
         var source = File.ReadAllText(Path.Combine(repositoryRoot,
             "TiaMcpServer.OpennessWorker", "Openness", "Project", "TiaPortalSession.cs"));
         var methodStart = source.IndexOf("public void ValidateExpectedSessionIdentity(", StringComparison.Ordinal);
@@ -42,7 +43,7 @@ public sealed class TiaPortalSessionBindingGuidanceSourceTests
         Assert.Contains("internal McpAccessMode AccessMode { get; }", source);
         Assert.Contains("AccessMode = WorkerOperationAuthorization.ParseAccessMode(Environment.GetCommandLineArgs());", source);
         Assert.Contains("WorkerOperationAuthorization.AllowsTiaConfirmations(AccessMode)", source);
-        Assert.Equal(1, source.Split("WorkerOperationAuthorization.ParseAccessMode(").Length - 1);
+        Assert.Equal(1, RepositoryFiles.CountOccurrences(source, "WorkerOperationAuthorization.ParseAccessMode("));
         var ownerStart = source.IndexOf("internal StandaloneProjectOwner RequireStandaloneOwner()", StringComparison.Ordinal);
         var ownerEnd = source.IndexOf("public TiaPortal? TiaPortal", ownerStart, StringComparison.Ordinal);
         Assert.True(ownerStart >= 0 && ownerEnd > ownerStart);

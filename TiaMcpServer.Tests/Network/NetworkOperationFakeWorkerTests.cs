@@ -23,16 +23,10 @@ public class NetworkOperationFakeWorkerTests
 {
     private const string Scenario = "network-roundtrip";
 
-    private static OpennessWorkerClient CreateClient(ProjectSessionBinding? binding = null)
-        => new(
-            binding ?? new ProjectSessionBinding(null),
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
-
     private static async Task<OpennessWorkerClient> CreateBoundClientAsync(string projectPath)
     {
         var binding = new ProjectSessionBinding(null);
-        var client = CreateClient(binding);
+        var client = FakeWorkerClients.Create(binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
         return client;
     }
@@ -43,7 +37,7 @@ public class NetworkOperationFakeWorkerTests
         string projectPath)
     {
         var binding = new ProjectSessionBinding(null);
-        var client = CreateClient(binding);
+        var client = FakeWorkerClients.Create(binding: binding);
         NetworkVerifiedWriteFixture.VerifyAsync(client, binding, projectPath).GetAwaiter().GetResult();
         safety = NetworkGuardedWriteFixture.CreateRunner(client, audit.Path);
         return client;
@@ -282,7 +276,7 @@ public class NetworkOperationFakeWorkerTests
         var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, dryRun: false);
 
         Assert.False(applied.IsError, Text(applied));
-        var root = Structured(applied);
+        var root = CanonicalToolDocument.Read(applied);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
         var items = root.GetProperty("batch").GetProperty("operations");
@@ -378,8 +372,8 @@ public class NetworkOperationFakeWorkerTests
         var preview = await NetworkWriteTools.NetworkWrite(client, safety, operations, dryRun: true);
 
         var applied = await NetworkWriteTools.NetworkWrite(client, safety, operations, dryRun: false);
-        var results = Structured(applied).GetProperty("batch").GetProperty("operations");
-        Assert.True(Structured(applied).GetProperty("success").GetBoolean(), Text(applied));
+        var results = CanonicalToolDocument.Read(applied).GetProperty("batch").GetProperty("operations");
+        Assert.True(CanonicalToolDocument.Read(applied).GetProperty("success").GetBoolean(), Text(applied));
         Assert.Equal("add", results[0].GetProperty("operationId").GetString());
         Assert.Equal("succeeded", results[0].GetProperty("status").GetString());
 
@@ -419,7 +413,7 @@ public class NetworkOperationFakeWorkerTests
                 },
             });
 
-        var root = Structured(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.True(result.IsError);
         Assert.Equal("error", root.GetProperty("phase").GetString());
         Assert.Equal(
@@ -437,7 +431,7 @@ public class NetworkOperationFakeWorkerTests
     public async Task NetworkWrite_MismatchedSubnetAndIoSystemPairingIsRejectedBeforeAnyWorkerCall()
     {
         using var audit = new TempAuditDirectory();
-        using var client = CreateClient();
+        using var client = FakeWorkerClients.Create();
         var safety = NetworkGuardedWriteFixture.CreateRunner(client, audit.Path);
 
         var result = await NetworkWriteTools.NetworkWrite(
@@ -485,7 +479,7 @@ public class NetworkOperationFakeWorkerTests
             });
 
         Assert.False(result.IsError, Text(result));
-        var operation = Structured(result)
+        var operation = CanonicalToolDocument.Read(result)
             .GetProperty("batch")
             .GetProperty("operations")[0];
 
@@ -529,7 +523,7 @@ public class NetworkOperationFakeWorkerTests
             });
 
         Assert.False(result.IsError, Text(result));
-        var operation = Structured(result)
+        var operation = CanonicalToolDocument.Read(result)
             .GetProperty("batch")
             .GetProperty("operations")[0];
 
@@ -601,7 +595,7 @@ public class NetworkOperationFakeWorkerTests
 
         // The batch ran (tool call succeeded), but the item failed.
         Assert.False(result.IsError, Text(result));
-        var operation = Structured(result).GetProperty("batch").GetProperty("operations")[0];
+        var operation = CanonicalToolDocument.Read(result).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("failed", operation.GetProperty("status").GetString());
         Assert.Equal("protocol_error", operation.GetProperty("failure").GetProperty("category").GetString());
     }
@@ -628,7 +622,7 @@ public class NetworkOperationFakeWorkerTests
             });
 
         Assert.False(result.IsError, Text(result));
-        var operation = Structured(result).GetProperty("batch").GetProperty("operations")[0];
+        var operation = CanonicalToolDocument.Read(result).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", operation.GetProperty("status").GetString());
 
         var resultElement = operation.GetProperty("result");
@@ -651,14 +645,14 @@ public class NetworkOperationFakeWorkerTests
             ObjectKinds = new[] { "node" }, PageSize = 20,
         };
         var first = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
-        Assert.Equal(Text(first), CanonicalJson.Serialize(Structured(first)));
-        var firstPage = Structured(first).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
+        Assert.Equal(Text(first), CanonicalJson.Serialize(CanonicalToolDocument.Read(first)));
+        var firstPage = CanonicalToolDocument.Read(first).GetProperty("batch").GetProperty("operations")[0].GetProperty("result");
         var cursor = firstPage.GetProperty("nextCursor").GetString();
         Assert.NotEqual("large-list-page-2", cursor);
         operation.Cursor = cursor;
         var second = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
-        Assert.Equal(Text(second), CanonicalJson.Serialize(Structured(second)));
-        var secondItem = Structured(second).GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal(Text(second), CanonicalJson.Serialize(CanonicalToolDocument.Read(second)));
+        var secondItem = CanonicalToolDocument.Read(second).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", secondItem.GetProperty("status").GetString());
         var secondPage = secondItem.GetProperty("result");
         Assert.Equal(JsonValueKind.Object, secondPage.ValueKind);
@@ -686,22 +680,20 @@ public class NetworkOperationFakeWorkerTests
             ObjectKinds = new[] { "node" }, PageSize = 20,
         };
         var result = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
-        Assert.Equal(Text(result), CanonicalJson.Serialize(Structured(result)));
-        var token = Structured(result).GetProperty("batch").GetProperty("operations")[0]
+        Assert.Equal(Text(result), CanonicalJson.Serialize(CanonicalToolDocument.Read(result)));
+        var token = CanonicalToolDocument.Read(result).GetProperty("batch").GetProperty("operations")[0]
             .GetProperty("result").GetProperty("nextCursor").GetString();
         var state = codec.Decode(token!);
         Assert.Equal("large-list-page-2", state.WorkerCursor);
         Assert.True(state.HostBinding.Matches(client.BindingSnapshot));
         operation.Cursor = token;
         var continuation = await NetworkReadTools.NetworkRead(client, executor, new[] { operation });
-        Assert.Equal(Text(continuation), CanonicalJson.Serialize(Structured(continuation)));
-        var continuedItem = Structured(continuation).GetProperty("batch").GetProperty("operations")[0];
+        Assert.Equal(Text(continuation), CanonicalJson.Serialize(CanonicalToolDocument.Read(continuation)));
+        var continuedItem = CanonicalToolDocument.Read(continuation).GetProperty("batch").GetProperty("operations")[0];
         Assert.Equal("succeeded", continuedItem.GetProperty("status").GetString());
         Assert.Equal(20, continuedItem.GetProperty("result").GetProperty("returnedCount").GetInt32());
     }
 
-    private static JsonElement Structured(CallToolResult result)
-        => Assert.IsType<JsonElement>(result.StructuredContent);
 
     private static string Text(CallToolResult result)
         => Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;

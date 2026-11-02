@@ -1,3 +1,4 @@
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -5,16 +6,7 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class UpdateBlockLogicWorkerSourceContractTests
 {
     private static string ReadWorkerProgram(string fileName = "Program.cs")
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.slnx")))
-        {
-            directory = directory.Parent;
-        }
-
-        Assert.NotNull(directory);
-        return File.ReadAllText(Path.Combine(directory!.FullName, "TiaMcpServer.OpennessWorker", fileName));
-    }
+        => File.ReadAllText(RepositoryFiles.Path("TiaMcpServer.OpennessWorker", fileName));
 
     [Fact]
     public void AuthorizationDenial_IsDecoratedOnlyForUpdateBeforeDispatch()

@@ -1,3 +1,4 @@
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Worker;
@@ -7,7 +8,7 @@ public sealed class WorkerOpenPolicySourceTests
     [Fact]
     public void WorkerSource_OnlyOpenAndCreateCallOpenProject()
     {
-        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var root = RepositoryFiles.Root;
         var service = File.ReadAllText(Path.Combine(root, "TiaMcpServer.OpennessWorker", "Openness", "Project", "ProjectLifecycleService.cs"));
         var open = service.IndexOf("public static ProjectLifecycleResultInfo OpenProject(", StringComparison.Ordinal);
         var save = service.IndexOf("public static ProjectLifecycleResultInfo SaveProject(", StringComparison.Ordinal);
@@ -22,7 +23,7 @@ public sealed class WorkerOpenPolicySourceTests
     public void WorkerSource_EnsureRequestedProjectOpen_NeverOpens()
     {
         // The net48 worker is compiled with Siemens stubs but cannot run in this test process.
-        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var root = RepositoryFiles.Root;
         var source = File.ReadAllText(Path.Combine(root, "TiaMcpServer.OpennessWorker", "Program.cs"));
         var start = source.IndexOf("private static WorkerResponse? EnsureRequestedProjectOpen(", StringComparison.Ordinal);
         var end = source.IndexOf("private static void ValidateExpectedAfterProjectResolution(", start, StringComparison.Ordinal);
@@ -34,7 +35,7 @@ public sealed class WorkerOpenPolicySourceTests
         Assert.Contains("allowRequestedNotOpen: false, allowNoProject: false", body);
         Assert.Contains("catch (WorkerOperationException exception)", body);
         Assert.Contains("return Failure(exception.FailureCategory, exception.Message)", body);
-        Assert.Equal(1, body.Split("catch (").Length - 1);
+        Assert.Equal(1, RepositoryFiles.CountOccurrences(body, "catch ("));
         Assert.DoesNotContain("ProjectOpenPolicy.Decide", body);
         Assert.DoesNotContain("ProjectOpenDecision.", body);
     }

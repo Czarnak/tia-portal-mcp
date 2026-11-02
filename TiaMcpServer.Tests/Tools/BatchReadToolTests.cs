@@ -9,6 +9,7 @@ using TiaMcpServer.Safety;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
+using TiaMcpServer.Tests.TestSupport;
 
 namespace TiaMcpServer.Tests.Tools;
 
@@ -30,7 +31,6 @@ public class BatchReadToolTests
         return new(binding, workerExecutablePath: "never-started.exe", accessPolicy: new OperationAccessPolicy(mode));
     }
 
-    private static JsonElement Root(CallToolResult result) => Assert.IsType<JsonElement>(result.StructuredContent);
 
     private static StructuredOperationItem Item(Read operation, string? failure = null)
         => new(operation.OperationId, operation.Operation,
@@ -60,8 +60,8 @@ public class BatchReadToolTests
             _ => "retry", new CancellationToken(true));
 
         Assert.True(result.IsError);
-        Assert.Equal(WorkerFailureCategories.ValidationError, Root(result).GetProperty("error").GetProperty("category").GetString());
-        Assert.Equal(JsonValueKind.Null, Root(result).GetProperty("batch").ValueKind);
+        Assert.Equal(WorkerFailureCategories.ValidationError, CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("category").GetString());
+        Assert.Equal(JsonValueKind.Null, CanonicalToolDocument.Read(result).GetProperty("batch").ValueKind);
     }
 
     [Theory]
@@ -81,8 +81,8 @@ public class BatchReadToolTests
             _ => throw new InvalidOperationException("execution must not run"), _ => "retry");
 
         Assert.True(result.IsError);
-        Assert.Equal(WorkerFailureCategories.AccessDenied, Root(result).GetProperty("error").GetProperty("category").GetString());
-        Assert.Equal("first\nsecond", Root(result).GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal(WorkerFailureCategories.AccessDenied, CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("category").GetString());
+        Assert.Equal("first\nsecond", CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("message").GetString());
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class BatchReadToolTests
         using var client = Client(bound: false);
         var result = await Run(client, _ => throw new InvalidOperationException("execution must not run"), new CancellationToken(true));
         Assert.True(result.IsError);
-        Assert.Equal(WorkerFailureCategories.BindingConflict, Root(result).GetProperty("error").GetProperty("category").GetString());
+        Assert.Equal(WorkerFailureCategories.BindingConflict, CanonicalToolDocument.Read(result).GetProperty("error").GetProperty("category").GetString());
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class BatchReadToolTests
 
         Assert.Equal(new[] { "a", "b", "c" }, invoked);
         Assert.False(result.IsError);
-        var root = Root(result);
+        var root = CanonicalToolDocument.Read(result);
         Assert.False(root.GetProperty("success").GetBoolean());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
         Assert.Equal(2, root.GetProperty("batch").GetProperty("counts").GetProperty("failed").GetInt32());

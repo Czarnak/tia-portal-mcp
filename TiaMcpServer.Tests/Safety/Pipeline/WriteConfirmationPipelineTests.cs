@@ -7,6 +7,7 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using Xunit;
 using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Tests.TestSupport;
 
 namespace TiaMcpServer.Tests.Safety.Pipeline;
 
@@ -58,7 +59,7 @@ public sealed class WriteConfirmationPipelineTests
     public async Task AbsentAdapter_IsAccessDenied_WithMissingCapabilityMessage()
     {
         var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(null));
-        var doc = Document(result);
+        var doc = CanonicalToolDocument.Read(result);
 
         AssertDenied(result, doc, WorkerFailureCategories.AccessDenied);
         Assert.Contains("elicitation", doc.GetProperty("error").GetProperty("message").GetString()!);
@@ -87,7 +88,7 @@ public sealed class WriteConfirmationPipelineTests
 
         var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(confirmation));
 
-        AssertDenied(result, Document(result), WorkerFailureCategories.AccessDenied);
+        AssertDenied(result, CanonicalToolDocument.Read(result), WorkerFailureCategories.AccessDenied);
         Assert.Single(_audit.Records);
         Assert.Equal(0, _domain.MutationCount);
     }
@@ -98,7 +99,7 @@ public sealed class WriteConfirmationPipelineTests
         var confirmation = new UserConfirmation(true, (_, _) => throw new IOException("private transport detail"), TimeSpan.FromSeconds(1));
         var result = await _execution.RunAsync(_domain, Call(), new WriteConfirmationContext(confirmation));
 
-        AssertDenied(result, Document(result), WorkerFailureCategories.AccessDenied);
+        AssertDenied(result, CanonicalToolDocument.Read(result), WorkerFailureCategories.AccessDenied);
         Assert.DoesNotContain("private transport detail", _audit.Records[0].ResponseText);
         Assert.Equal(0, _domain.MutationCount);
     }
@@ -260,7 +261,7 @@ public sealed class WriteConfirmationPipelineTests
         var call = new WriteCall<FakeWriteItem>(new[] { new FakeWriteItem("a", Guards: new[] { Ack }), new FakeWriteItem("b", DependsOn: "a", LateGuards: new[] { Ack }) }, false);
 
         var result = await _execution.RunAsync(_domain, call, new WriteConfirmationContext(confirmation));
-        var doc = Document(result);
+        var doc = CanonicalToolDocument.Read(result);
 
         Assert.False(result.IsError == true);
         Assert.False(doc.GetProperty("success").GetBoolean());
@@ -304,7 +305,7 @@ public sealed class WriteConfirmationPipelineTests
         var record = Assert.Single(_audit.Records);
         Assert.Equal(text, record.ResponseText);
         Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(text), record.ResponseHash);
-        return (result, Document(result));
+        return (result, CanonicalToolDocument.Read(result));
     }
 
     private static WriteCall<FakeWriteItem> Call(IReadOnlyList<string>? guards = null, bool dryRun = false)
@@ -318,8 +319,6 @@ public sealed class WriteConfirmationPipelineTests
         Content = confirm.HasValue ? new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(confirm.Value) } : new()
     };
 
-    private static JsonElement Document(CallToolResult result)
-        => JsonDocument.Parse(Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text).RootElement.Clone();
 
     private static void AssertDenied(CallToolResult result, JsonElement doc, string category)
     {

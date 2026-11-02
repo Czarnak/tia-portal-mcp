@@ -37,7 +37,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_PagedHardwareReconstructsTheStableDeviceThenSubnetSequence()
     {
-        using var client = await CreateClientAsync(Scenario);
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
 
@@ -87,7 +87,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [InlineData("hardware-pagination-wrong-payload")]
     public async Task NetworkRead_InvalidCandidateResponsesFailClosedAsProtocolErrors(string scenario)
     {
-        using var client = await CreateClientAsync(scenario);
+        using var client = await FakeWorkerClients.CreateBoundAsync(scenario);
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
 
@@ -105,7 +105,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_ChangedCursorBoundFilterFailsBeforeTheWorker()
     {
-        using var client = await CreateClientAsync("hardware-pagination-telemetry");
+        using var client = await FakeWorkerClients.CreateBoundAsync("hardware-pagination-telemetry");
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
         var first = await ReadPage(client, executor, 1, "hardware-pagination-telemetry");
@@ -119,7 +119,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_ChangedCursorBoundDetailFlagFailsBeforeTheWorker()
     {
-        using var client = await CreateClientAsync("hardware-pagination-telemetry");
+        using var client = await FakeWorkerClients.CreateBoundAsync("hardware-pagination-telemetry");
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
         var first = await ReadPage(client, executor, 1, "hardware-pagination-telemetry");
@@ -136,7 +136,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [InlineData("hardware-pagination-identity-drift", WorkerFailureCategories.CursorBindingMismatch)]
     public async Task NetworkRead_ContinuationWorkerDriftUsesTheApprovedFailureCategory(string scenario, string category)
     {
-        using var client = await CreateClientAsync(scenario);
+        using var client = await FakeWorkerClients.CreateBoundAsync(scenario);
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
         var first = await ReadPage(client, executor, 1, scenario);
@@ -149,7 +149,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     public async Task NetworkRead_HostBindingChangeAfterTheFirstPageFailsBeforeTheWorker()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: binding);
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
@@ -168,7 +168,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     public async Task NetworkRead_CursorSignedByAnotherProcessScopedCodecIsInvalid()
     {
         string cursor;
-        using (var firstClient = await CreateClientAsync(Scenario))
+        using (var firstClient = await FakeWorkerClients.CreateBoundAsync(Scenario))
         using (var protector = AuthenticatedCursorProtector.CreateProcessScoped())
         {
             var executor = NetworkReadTestFactory.Create(firstClient, protector);
@@ -186,7 +186,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     public async Task NetworkRead_UnpagedFixtureIsCanonicalAndPagedContinuationStaysOnTheBinding()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: binding);
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, Scenario);
@@ -212,7 +212,7 @@ public sealed class HardwarePaginationFakeWorkerTests
     [Fact]
     public async Task NetworkRead_CanonicalItemTrimmingResumesWithTheUnemittedCandidatesAndDiagnostics()
     {
-        using var client = await CreateClientAsync(TrimmingScenarioProjectPath);
+        using var client = await FakeWorkerClients.CreateBoundAsync(TrimmingScenarioProjectPath);
         using var protector = AuthenticatedCursorProtector.CreateProcessScoped();
         var executor = NetworkReadTestFactory.Create(client, protector);
         var first = await ReadPage(client, executor, 6, TrimmingScenarioProjectPath);
@@ -229,14 +229,6 @@ public sealed class HardwarePaginationFakeWorkerTests
             6,
             first.GetProperty("devices").GetArrayLength() + first.GetProperty("subnets").GetArrayLength()
                 + second.GetProperty("devices").GetArrayLength() + second.GetProperty("subnets").GetArrayLength());
-    }
-
-    private static async Task<OpennessWorkerClient> CreateClientAsync(string projectPath)
-    {
-        var binding = new ProjectSessionBinding(null);
-        var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
-        await FakeWorkerBinding.BindVerifiedAsync(client, binding, projectPath);
-        return client;
     }
 
     private static async Task<JsonElement> ReadPage(

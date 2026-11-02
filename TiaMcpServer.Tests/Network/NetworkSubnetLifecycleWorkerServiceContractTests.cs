@@ -1,3 +1,4 @@
+using TiaMcpServer.Tests.TestSupport;
 namespace TiaMcpServer.Tests.Network;
 
 using System.Linq;
@@ -19,7 +20,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         var source = ServiceSource;
         var body = source[source.IndexOf("public static SubnetLifecycleResultInfo Update(", StringComparison.Ordinal)..source.IndexOf("public static SubnetLifecycleResultInfo Delete(", StringComparison.Ordinal)];
         const string resolve = "ResolveExactSubnetOrThrow(project, subnetId, \"update_subnet\")";
-        Assert.Equal(1, CountOccurrences(body, resolve));
+        Assert.Equal(1, RepositoryFiles.CountOccurrences(body, resolve));
         Assert.True(body.IndexOf(resolve, StringComparison.Ordinal) > body.IndexOf("exclusiveAccess.Transaction(project, \"update_subnet\")", StringComparison.Ordinal));
     }
 
@@ -40,7 +41,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
     }
 
     private static string ServiceSource => File.ReadAllText(
-        FindRepositoryFile("TiaMcpServer.OpennessWorker", "Openness", "Network", "SubnetLifecycleService.cs"));
+        RepositoryFiles.Path("TiaMcpServer.OpennessWorker", "Openness", "Network", "SubnetLifecycleService.cs"));
 
     [Fact]
     public void Service_MapsOnlyTheTwoApprovedTypeIdentifiers()
@@ -99,9 +100,9 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
     public void Service_UsesOneExclusiveAccessTransactionPerOperationWithCommitOnDisposeAfterEverySetter()
     {
         var source = ServiceSource;
-        Assert.Equal(3, CountOccurrences(source, "tiaPortal.ExclusiveAccess("));
-        Assert.Equal(3, CountOccurrences(source, "exclusiveAccess.Transaction(project,"));
-        Assert.Equal(3, CountOccurrences(source, "transaction.CommitOnDispose();"));
+        Assert.Equal(3, RepositoryFiles.CountOccurrences(source, "tiaPortal.ExclusiveAccess("));
+        Assert.Equal(3, RepositoryFiles.CountOccurrences(source, "exclusiveAccess.Transaction(project,"));
+        Assert.Equal(3, RepositoryFiles.CountOccurrences(source, "transaction.CommitOnDispose();"));
     }
 
     [Fact]
@@ -110,7 +111,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         var deleteBody = ExtractPublicMethodBody(ServiceSource, "Delete");
 
         Assert.DoesNotContain("var existing =", deleteBody, StringComparison.Ordinal);
-        Assert.Equal(1, CountOccurrences(deleteBody, "ResolveExactSubnetOrThrow("));
+        Assert.Equal(1, RepositoryFiles.CountOccurrences(deleteBody, "ResolveExactSubnetOrThrow("));
 
         var transactionIndex = deleteBody.IndexOf(
             "exclusiveAccess.Transaction(project, \"delete_subnet\")",
@@ -213,7 +214,7 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
         Assert.DoesNotContain("MessageBox", source, StringComparison.Ordinal);
 
         // subnet.Delete() is the only Delete() call — a device is never deleted.
-        Assert.Equal(1, CountOccurrences(source, ".Delete()"));
+        Assert.Equal(1, RepositoryFiles.CountOccurrences(source, ".Delete()"));
         Assert.Contains("subnet.Delete();", source, StringComparison.Ordinal);
     }
 
@@ -276,31 +277,5 @@ public class NetworkSubnetLifecycleWorkerServiceContractTests
             .ToArray();
         Assert.NotEmpty(caughtTypes);
         Assert.All(caughtTypes, caughtType => Assert.Equal("EngineeringException", caughtType));
-    }
-
-    private static int CountOccurrences(string source, string value)
-    {
-        var count = 0;
-        var startIndex = 0;
-        while ((startIndex = source.IndexOf(value, startIndex, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            startIndex += value.Length;
-        }
-
-        return count;
-    }
-
-    private static string FindRepositoryFile(params string[] segments)
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "TiaMcpServer.slnx")))
-            {
-                return Path.Combine(new[] { directory.FullName }.Concat(segments).ToArray());
-            }
-        }
-
-        throw new InvalidOperationException("Could not locate the repository root.");
     }
 }

@@ -71,10 +71,7 @@ public class OpennessWorkerClientWarningTests
         var binding = new ProjectSessionBinding(null);
         Assert.True(binding.Bind("C:\\bound\\Session.ap21", forceRebind: false, out _));
         using var uiOpen = new FakeWorkerUiOpenProject(@"C:\actual\Other.ap21");
-        using var client = new OpennessWorkerClient(
-            binding,
-            logger: null,
-            workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: binding);
 
         var result = await client.GetProjectStatusAsync(null);
 

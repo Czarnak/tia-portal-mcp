@@ -19,8 +19,8 @@ public sealed class NetworkGuardedWriteMcpTests
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path, "network-guarded");
         var args = Arguments(); args["dryRun"] = true;
         var reply = await harness.Client.CallToolAsync("network_write", args);
-        Assert.Equal("2.0", Document(reply).GetProperty("contractVersion").GetString());
-        Assert.Equal(JsonValueKind.Null, Document(reply).GetProperty("verification").ValueKind);
+        Assert.Equal("2.0", CanonicalToolDocument.Read(reply).GetProperty("contractVersion").GetString());
+        Assert.Equal(JsonValueKind.Null, CanonicalToolDocument.Read(reply).GetProperty("verification").ValueKind);
         var tool = Assert.Single(await harness.Client.ListToolsAsync(), t => t.Name == "network_write").ProtocolTool;
         var properties = tool.OutputSchema!.Value.GetProperty("properties").GetProperty("verification").GetProperty("properties");
         Assert.Equal(new[] { "omission", "operations", "success" }, properties.EnumerateObject().Select(p => p.Name).Order());
@@ -44,7 +44,7 @@ public sealed class NetworkGuardedWriteMcpTests
                     subnetChanges = new { name = "Renamed", highestAddress = 31, transmissionSpeed = "Baud187500" } }
             }
         });
-        var root = Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.True(root.GetProperty("success").GetBoolean());
         Assert.Equal("preview", root.GetProperty("phase").GetString());
         var effects = root.GetProperty("effects");
@@ -82,7 +82,7 @@ public sealed class NetworkGuardedWriteMcpTests
         });
 
         Assert.True(reply.IsError);
-        var root = Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         var text = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
         Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
         Assert.True(text.Length < 6000);
@@ -125,7 +125,7 @@ public sealed class NetworkGuardedWriteMcpTests
         });
         Assert.True(validation.IsValid, validation.Error);
         var reply = await harness.Client.CallToolAsync("network_write", new Dictionary<string, object?> { ["operations"] = Array.Empty<object>(), ["dryRun"] = true });
-        var publicRoot = Document(reply);
+        var publicRoot = CanonicalToolDocument.Read(reply);
         Assert.Equal("2.0", publicRoot.GetProperty("contractVersion").GetString());
     }
 
@@ -187,7 +187,7 @@ public sealed class NetworkGuardedWriteMcpTests
         var args = Arguments();
         if (dryRun.HasValue) args["dryRun"] = dryRun.Value;
         var reply = await harness.Client.CallToolAsync("network_write", args);
-        var root = Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("omission").ValueKind);
@@ -241,7 +241,7 @@ public sealed class NetworkGuardedWriteMcpTests
             }
         });
 
-        var root = Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.Equal("applied", root.GetProperty("phase").GetString());
         Assert.False(root.GetProperty("success").GetBoolean());
@@ -285,7 +285,7 @@ public sealed class NetworkGuardedWriteMcpTests
             }
         });
 
-        var root = Document(reply);
+        var root = CanonicalToolDocument.Read(reply);
         Assert.False(reply.IsError == true);
         Assert.Equal("applied", root.GetProperty("phase").GetString());
         Assert.False(root.GetProperty("success").GetBoolean());
@@ -333,12 +333,6 @@ public sealed class NetworkGuardedWriteMcpTests
     };
     internal static string[] AuditLines(string directory) => Directory.Exists(directory)
         ? Directory.GetFiles(directory, "writes-*.jsonl").SelectMany(File.ReadLines).ToArray() : [];
-    internal static JsonElement Document(CallToolResult reply)
-    {
-        var root = Assert.IsType<JsonElement>(reply.StructuredContent);
-        Assert.Equal(CanonicalJson.Serialize(root), Assert.Single(reply.Content.OfType<TextContentBlock>()).Text);
-        return root;
-    }
     private static McpClientOptions Options(Action prompt, string action) => new()
     {
         Capabilities = new() { Elicitation = new() { Form = new() } },

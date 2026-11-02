@@ -11,10 +11,6 @@ are the authorities on current behavior. For why the design is as it is, and the
 start at the [architecture decision records](../adr/README.md). Removed plans and specs remain at the
 `docs-archive-2026-10-30` tag.
 
-## Working plans
-
-- [F1: retire legacy worker payload null omission](plans/2026-11-02-f1-retire-legacy-null-omission.md)
-
 ## Acceptance definitions
 
 | Date | Document |

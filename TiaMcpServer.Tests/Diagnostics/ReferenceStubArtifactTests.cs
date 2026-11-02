@@ -1,8 +1,9 @@
-using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using TiaMcpServer.Tests.TestSupport;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Diagnostics;
@@ -15,7 +16,7 @@ public class ReferenceStubArtifactTests
     [InlineData("Siemens.Engineering.WinCCUnified")]
     public void TrackedReferencesHaveIdentityAndCurrentSourceProvenance(string name)
     {
-        using var stream = File.OpenRead(Path.Combine(RepositoryRoot, "ref", name + ".dll"));
+        using var stream = File.OpenRead(Path.Combine(RepositoryFiles.Root, "ref", name + ".dll"));
         using var pe = new PEReader(stream);
         var reader = pe.GetMetadataReader();
         var assembly = reader.GetAssemblyDefinition();
@@ -25,14 +26,14 @@ public class ReferenceStubArtifactTests
         Assert.Equal("29bfe5fdf4ba5d3b", Convert.ToHexString(token).ToLowerInvariant());
         var metadata = ReadAssemblyMetadata(reader);
         Assert.Equal("tia-portal-mcp", metadata["StubOrigin"]);
-        Assert.Equal(SourceHash(RepositoryRoot), metadata["StubSourceHash"]);
+        Assert.Equal(SourceHash(RepositoryFiles.Root), metadata["StubSourceHash"]);
         Assert.Contains("ReferenceAssemblyAttribute", AssemblyAttributeNames(reader));
     }
 
     [Fact]
     public void BaseReferenceExposesLockedPublicMultiuserFoundation()
     {
-        using var stream = File.OpenRead(Path.Combine(RepositoryRoot, "ref", "Siemens.Engineering.Base.dll"));
+        using var stream = File.OpenRead(Path.Combine(RepositoryFiles.Root, "ref", "Siemens.Engineering.Base.dll"));
         using var pe = new PEReader(stream);
         var reader = pe.GetMetadataReader();
         var types = reader.TypeDefinitions.ToDictionary(h => FullName(reader, h));
@@ -62,7 +63,7 @@ public class ReferenceStubArtifactTests
     [Fact]
     public void BaseReferenceExposesPublicInstanceReadOnlyIoSystemSubnet()
     {
-        using var stream = File.OpenRead(Path.Combine(RepositoryRoot, "ref", "Siemens.Engineering.Base.dll"));
+        using var stream = File.OpenRead(Path.Combine(RepositoryFiles.Root, "ref", "Siemens.Engineering.Base.dll"));
         using var pe = new PEReader(stream);
         var reader = pe.GetMetadataReader();
         var typeHandle = Assert.Single(reader.TypeDefinitions,
@@ -103,7 +104,7 @@ public class ReferenceStubArtifactTests
     [InlineData("Siemens.Engineering.HW.IoConnector", "ConnectToIoSystem", "Siemens.Engineering.HW.IoSystem")]
     public void BaseReferenceExposesTypedNetworkConnectionMethod(string receiver, string method, string parameter)
     {
-        using var stream = File.OpenRead(Path.Combine(RepositoryRoot, "ref", "Siemens.Engineering.Base.dll"));
+        using var stream = File.OpenRead(Path.Combine(RepositoryFiles.Root, "ref", "Siemens.Engineering.Base.dll"));
         using var pe = new PEReader(stream);
         var reader = pe.GetMetadataReader();
         var typeHandle = Assert.Single(reader.TypeDefinitions, h => FullName(reader, h) == receiver);
@@ -124,8 +125,6 @@ public class ReferenceStubArtifactTests
         Assert.Equal(parameter, FullName(reader, blob.ReadTypeHandle()));
         Assert.Equal(0, blob.RemainingBytes);
     }
-
-    internal static string RepositoryRoot => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 
     // Canonical framing: UTF-8 slash-relative path, LF, decimal byte length, LF, exact bytes, LF.
     internal static string[] SourceFiles(string root) => new[] { "Directory.Build.props", "reference-stubs/Directory.Build.props", "reference-stubs/Siemens.Engineering.PublicKey.snk" }

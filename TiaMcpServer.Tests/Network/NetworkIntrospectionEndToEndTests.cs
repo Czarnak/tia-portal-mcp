@@ -21,7 +21,7 @@ public class NetworkIntrospectionEndToEndTests
     public async Task Inspect_ForwardsEveryOwnerSegmentAndOptionalConstraintThroughIpc()
     {
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, logger: null, workerExecutablePath: FakeWorkerLocator.Locate());
+        using var client = FakeWorkerClients.Create(binding: binding);
         await FakeWorkerBinding.BindVerifiedAsync(client, binding, "echo");
         var operation = new NetworkOperationRequest { OperationId = "inspect", Operation = "inspect_network_object",
             Target = new() { Kind = "node", DeviceName = "Station", NodeId = "E1", InterfaceName = "PROFINET interface_1", NodeIndex = 0,
@@ -47,7 +47,7 @@ public class NetworkIntrospectionEndToEndTests
     public async Task TwoInterfacesWithE1_ReadListAndInspectRoundTripIndependently()
     {
         await using var harness = await McpProtocolTestHarness.StartAsync<NetworkReadTools>(startupProjectPath: "network-qualified-read");
-        var discovery = AssertCanonical(await CallReadAsync(harness, new object[]
+        var discovery = CanonicalToolDocument.Read(await CallReadAsync(harness, new object[]
         {
             new { operationId = "hardware", operation = "read_hardware_config"},
             new { operationId = "list", operation = "list_network_objects", objectKinds = new[] { "node" } },
@@ -61,7 +61,7 @@ public class NetworkIntrospectionEndToEndTests
             var readSelector = owners[index].GetProperty("networkInterfaces")[0].GetProperty("nodes")[0].GetProperty("selector");
             Assert.Equal(CanonicalJson.Serialize(readSelector), CanonicalJson.Serialize(list[index].GetProperty("selector")));
             Assert.Equal(index == 0 ? 32768 : 33024, readSelector.GetProperty("interfacePath")[1].GetProperty("positionNumber").GetInt32());
-            var inspected = AssertCanonical(await CallReadAsync(harness, new object[] { new
+            var inspected = CanonicalToolDocument.Read(await CallReadAsync(harness, new object[] { new
                 { operationId = "inspect", operation = "inspect_network_object", target = readSelector } }));
             var item = inspected.GetProperty("batch").GetProperty("operations")[0];
             Assert.Equal("succeeded", item.GetProperty("status").GetString());
@@ -87,7 +87,7 @@ public class NetworkIntrospectionEndToEndTests
                     pageSize = 20,
                 },
             });
-        var firstItem = AssertCanonical(first).GetProperty("batch").GetProperty("operations")[0];
+        var firstItem = CanonicalToolDocument.Read(first).GetProperty("batch").GetProperty("operations")[0];
         var cursor = firstItem.GetProperty("result").GetProperty("nextCursor").GetString();
         Assert.NotEqual("large-list-page-2", cursor);
         var second = await CallReadAsync(harness, new object[]
@@ -102,7 +102,7 @@ public class NetworkIntrospectionEndToEndTests
                 },
             });
 
-        var secondItem = AssertCanonical(second).GetProperty("batch").GetProperty("operations")[0];
+        var secondItem = CanonicalToolDocument.Read(second).GetProperty("batch").GetProperty("operations")[0];
         Assert.False(first.IsError);
         Assert.False(second.IsError);
         foreach (var item in new[] { firstItem, secondItem })
@@ -166,7 +166,7 @@ public class NetworkIntrospectionEndToEndTests
                     operation = "read_hardware_config",
                 },
             });
-        var root = AssertCanonical(result);
+        var root = CanonicalToolDocument.Read(result);
         return root.GetProperty("batch")
             .GetProperty("operations")[0]
             .GetProperty("result")
@@ -179,13 +179,4 @@ public class NetworkIntrospectionEndToEndTests
             "network_read",
             new Dictionary<string, object?> { ["operations"] = operations });
 
-    private static JsonElement AssertCanonical(CallToolResult result)
-    {
-        var structured = Assert.IsType<JsonElement>(result.StructuredContent);
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.Equal(CanonicalJson.Serialize(structured), text);
-        using var parsed = JsonDocument.Parse(text);
-        Assert.True(JsonElement.DeepEquals(structured, parsed.RootElement));
-        return structured;
-    }
 }

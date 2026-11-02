@@ -3,7 +3,6 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
-using TiaMcpServer.Tests.TestUtilities;
 using TiaMcpServer.Tools;
 using TiaMcpServer.Worker;
 using Xunit;
@@ -27,17 +26,16 @@ public class AuditIsolationTests
         var before = CountAuditLines(DefaultDirectory);
         using var audit = new TempAuditDirectory();
         var binding = new ProjectSessionBinding(null);
-        using var client = new OpennessWorkerClient(binding, workerExecutablePath: FakeWorkerLocator.Locate(),
-            accessPolicy: new OperationAccessPolicy(McpAccessMode.Full));
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
         var execution = LifecycleTestCalls.Execution(client, audit);
         using var fixture = new LifecycleProtocolFixture();
         var path = fixture.DestinationPath;
 
         var preview = await ProjectWriteTools.OpenProject(client, execution, path, dryRun: true);
-        Assert.Equal("preview", LifecycleTestCalls.Document(preview).GetProperty("phase").GetString());
+        Assert.Equal("preview", CanonicalToolDocument.Read(preview).GetProperty("phase").GetString());
         Assert.Equal(1, LifecycleTestCalls.AuditCount(audit));
         var applied = await ProjectWriteTools.OpenProject(client, execution, path);
-        Assert.True(LifecycleTestCalls.Document(applied).GetProperty("success").GetBoolean());
+        Assert.True(CanonicalToolDocument.Read(applied).GetProperty("success").GetBoolean());
 
         Assert.Equal(2, LifecycleTestCalls.AuditCount(audit));
         Assert.Equal(before, CountAuditLines(DefaultDirectory));
