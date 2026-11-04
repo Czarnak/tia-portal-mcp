@@ -57,6 +57,10 @@
       "applicability": "projectContent"
     },
     {
+      "operation": "library_read",
+      "applicability": "projectContent"
+    },
+    {
       "operation": "plc_write",
       "applicability": "projectContent"
     },
@@ -210,6 +214,10 @@
     },
     {
       "operation": "vci_write",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "library_project_read",
       "applicability": "standaloneOnly"
     }
   ],
@@ -271,6 +279,10 @@
       "applicability": "projectContent"
     },
     {
+      "operation": "library_read",
+      "applicability": "projectContent"
+    },
+    {
       "operation": "plc_write",
       "applicability": "projectContent"
     },
@@ -424,6 +436,10 @@
     },
     {
       "operation": "vci_write",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "library_project_read",
       "applicability": "standaloneOnly"
     }
   ],
@@ -485,6 +501,10 @@
       "applicability": "notYetDelivered"
     },
     {
+      "operation": "library_read",
+      "applicability": "notYetDelivered"
+    },
+    {
       "operation": "plc_write",
       "applicability": "notYetDelivered"
     },
@@ -638,6 +658,10 @@
     },
     {
       "operation": "vci_write",
+      "applicability": "standaloneOnly"
+    },
+    {
+      "operation": "library_project_read",
       "applicability": "standaloneOnly"
     }
   ]

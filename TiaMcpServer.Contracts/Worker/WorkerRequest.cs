@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.CrossReferences;
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Vci;
@@ -216,6 +217,13 @@ public class WorkerRequest
 
     /// <summary>Forwarded by: vci_plan and the six vci_* mutation methods. Breadcrumb transport stays domain-local.</summary>
     public VciWriteRequestInfo? VciWrite { get; set; }
+
+    #endregion
+
+    #region Library reads
+
+    /// <summary>Forwarded by: every library_* read method.</summary>
+    public LibraryQueryInfo? LibraryQuery { get; set; }
 
     #endregion
 

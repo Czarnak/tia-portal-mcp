@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Vci;
 
 namespace TiaMcpServer.Contracts.Project;
@@ -25,12 +26,19 @@ public static class ProjectCapabilityCatalog
         "vci_read", "vci_write"
     };
 
+    /// <summary>Library reads that need the bound project's own library; a local session lacks it.</summary>
+    private static readonly string[] StandaloneLibraryOperations =
+    {
+        "library_project_read"
+    };
+
     /// <summary>Reads that run against the common <c>ProjectBase</c> root of any open container.</summary>
     private static readonly string[] ProjectContentReadOperations =
     {
         "browse_project_tree", "plc_read", "network_read", "read_cross_references", "hmi_read",
         "get_block_content", "get_type_content", "list_tag_tables",
-        "read_hardware_config", "list_network_objects", "inspect_network_object"
+        "read_hardware_config", "list_network_objects", "inspect_network_object",
+        "library_read"
     };
 
     /// <summary>
@@ -91,6 +99,8 @@ public static class ProjectCapabilityCatalog
         if (NonProjectMethods.Contains(method, StringComparer.Ordinal)) return null;
         if (method == "hmi_write" || HmiWriteMethods.All.Contains(method, StringComparer.Ordinal)) return "hmi_write";
         if (method.StartsWith("hmi_", StringComparison.Ordinal) && method != "hmi_read") return "hmi_read";
+        if (LibraryReadMethods.ProjectLibraryReads.Contains(method, StringComparer.Ordinal)) return "library_project_read";
+        if (LibraryReadMethods.GlobalLibraryReads.Contains(method, StringComparer.Ordinal)) return "library_read";
         if (VciMethods.Read.Contains(method, StringComparer.Ordinal)) return "vci_read";
         if (method == VciMethods.Plan || VciMethods.Write.Contains(method, StringComparer.Ordinal)) return "vci_write";
         return method switch
@@ -145,7 +155,7 @@ public static class ProjectCapabilityCatalog
                     ? ProjectCapabilityApplicabilities.NotYetDelivered
                     : ProjectCapabilityApplicabilities.ProjectContent
             });
-        foreach (var operation in StandaloneLifecycleOperations.Concat(StandaloneVciOperations))
+        foreach (var operation in StandaloneLifecycleOperations.Concat(StandaloneVciOperations).Concat(StandaloneLibraryOperations))
             result.Add(new ProjectCapabilityInfo
             {
                 Operation = operation,
