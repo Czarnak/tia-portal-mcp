@@ -46,6 +46,8 @@ internal static class LibraryReader
         var held = query.SnapshotId is null ? null : snapshots.Take(project, query.SnapshotId, method);
         if (operation == ListGlobalLibraries)
         {
+            // A continuation never rescans, so touch the Portal: a lost attachment fails the item, not every row.
+            if (held is not null) HmiReadLog.Guard(() => portal.GlobalLibraries.Count(), "The Portal of the page snapshot", describe: true);
             return new RowReader(project, query, null).Page(held, portal, method, snapshots, () => portal.GlobalLibraries
                 .OrderBy(x => x.Name, StringComparer.Ordinal)
                 .ThenBy(x => x.Path?.FullName, StringComparer.OrdinalIgnoreCase)

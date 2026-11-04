@@ -10,7 +10,13 @@ namespace Siemens.Engineering
 {
     public sealed partial class TiaPortal
     {
-        public Library.LibraryComposition<Library.GlobalLibrary> GlobalLibraries { get; } = new();
+        private readonly Library.LibraryComposition<Library.GlobalLibrary> globalLibraries = new();
+
+        /// <summary>Thrown by <see cref="GlobalLibraries"/> when set, like a lost Portal attachment.</summary>
+        public Exception? GlobalLibrariesFailure { get; set; }
+
+        public Library.LibraryComposition<Library.GlobalLibrary> GlobalLibraries
+            => GlobalLibrariesFailure is null ? globalLibraries : throw GlobalLibrariesFailure;
     }
 
     public sealed partial class Project

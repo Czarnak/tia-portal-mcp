@@ -294,6 +294,20 @@ public sealed class LibraryReaderTests
     }
 
     [Fact]
+    public void Continuation_GlobalListPortalLost_WorkerOperationFailed()
+    {
+        AddGlobal("A", @"C:\Libs\A.al21");
+        AddGlobal("B", @"C:\Libs\B.al21");
+        var first = Read(ListGlobal, new LibraryQueryInfo { Limit = 1 });
+
+        portal.GlobalLibrariesFailure = new EngineeringObjectDisposedException("portal gone");
+        var failure = Assert.Throws<WorkerOperationException>(() => Read(ListGlobal, Continue(new LibraryQueryInfo { Offset = 1, Limit = 1 }, first)));
+
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, failure.FailureCategory);
+        Assert.NotNull(failure.EngineeringError);
+    }
+
+    [Fact]
     public void Optional_RecoverableEngineeringFailure_NullWithDiagnostic()
     {
         var library = AddGlobal("Lib", @"C:\Libs\Lib.al21");
