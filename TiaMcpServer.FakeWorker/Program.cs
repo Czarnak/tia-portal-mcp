@@ -458,8 +458,19 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
+    // Library reads answer from fixtures whatever the scenario, after the identity and open-policy gates.
+    if (currentMethod is not null && TiaMcpServer.Contracts.Library.LibraryReadMethods.All.Contains(currentMethod, StringComparer.Ordinal))
+    {
+        Respond(TiaMcpServer.FakeWorker.Library.LibraryReadScenario.Handle(line));
+        continue;
+    }
+
     switch (scenario)
     {
+        case "library-read-roundtrip":
+            // Startup project for library_read probes; its library reads are answered above.
+            Respond($$"""{"success":false,"error":"unexpected method '{{currentMethod}}' in library-read-roundtrip"}""");
+            break;
         case "portal-disposed":
             Respond(currentMethod == "get_project_status"
                 ? Success(DirectStatusPayload(new ProjectStatusInfo { IsOpen = true, Path = fakeProjectPath }))

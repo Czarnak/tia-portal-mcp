@@ -1,6 +1,7 @@
 using Siemens.Engineering;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
@@ -106,8 +107,7 @@ internal sealed class HmiReadLog
     /// or <see cref="EngineeringNotSupportedException"/>; those are recoverable per property. Anything else
     /// (a disposed object after the Portal died, a security failure) fails the whole item.
     /// </summary>
-    public static bool IsRecoverable(Exception ex)
-        => ex is EngineeringTargetInvocationException or EngineeringNotSupportedException;
+    public static bool IsRecoverable(Exception ex) => OpennessExceptions.IsRecoverablePropertyFailure(ex);
 
     /// <summary>Records a recoverable failure; rethrows anything else as <c>worker_operation_failed</c>.</summary>
     public void Recover(EngineeringException ex, string message)

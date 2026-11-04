@@ -303,6 +303,32 @@ public sealed class FakeWorkerIdentityEnforcementTests
         Assert.Equal(observed.ProjectPath, identityAfterRejection.ProjectPath);
     }
 
+    [Fact]
+    public async Task LibraryReadWithoutQuery_RejectsWithoutCrashingWorker()
+    {
+        using var transport = CreateTransport();
+        var observed = await PrimeAsync(transport);
+
+        var rejected = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "library_global_inspect_library",
+            ProjectPath = "network-roundtrip",
+            ExpectedSessionIdentity = observed
+        });
+        var accepted = await transport.SendAsync(new WorkerRequest
+        {
+            Method = "library_global_inspect_library",
+            ProjectPath = "network-roundtrip",
+            ExpectedSessionIdentity = observed,
+            LibraryQuery = new() { Scope = "global", LibraryName = "Fixture" }
+        });
+
+        Assert.False(rejected.Success);
+        Assert.Equal(WorkerFailureCategories.ValidationError, rejected.FailureCategory);
+        Assert.True(accepted.Success, accepted.Error);
+        Assert.Equal(observed.WorkerSessionId, accepted.SessionIdentity!.WorkerSessionId);
+    }
+
     private static PersistentWorkerTransport CreateTransport()
         => new(FakeWorkerLocator.Locate(), TimeSpan.FromSeconds(5));
 

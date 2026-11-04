@@ -1,5 +1,6 @@
 using Siemens.Engineering.HmiUnified;
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Hmi;
 
@@ -27,16 +28,14 @@ public static class HmiPager
         }
 
         var ordered = paging.Snapshot is { } held ? held.Ordered.Cast<T>().ToList() : InNameOrder(scan(), name).ToList();
-        var items = ordered.Skip(paging.Offset).Take(paging.Limit).ToList();
-        var end = (long)paging.Offset + paging.Limit; // long: offset is not bounded above, so int addition could wrap negative
-        var page = new HmiPage(paging.Offset, paging.Limit, ordered.Count, null);
-        if (end >= ordered.Count)
+        var (items, total, nextOffset, snapshotId) = SnapshotPager.Page(ordered, paging.Offset, paging.Limit, paging.Snapshot?.Id,
+            rows => HmiSnapshotStore.Shared.Put(project, software, paging.Operation, rows));
+        var page = new HmiPage(paging.Offset, paging.Limit, total, null);
+        if (nextOffset is null)
         {
             return (items, page);
         }
 
-        var snapshotId = paging.Snapshot?.Id
-            ?? HmiSnapshotStore.Shared.Put(project, software, paging.Operation, ordered.Cast<object>().ToList());
-        return (items, page with { NextOffset = (int)end, SnapshotId = snapshotId });
+        return (items, page with { NextOffset = nextOffset, SnapshotId = snapshotId });
     }
 }

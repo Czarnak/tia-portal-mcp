@@ -174,6 +174,7 @@ namespace Siemens.Engineering
     }
     public abstract class Project : global::Siemens.Engineering.ProjectBase, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
+        public global::Siemens.Engineering.Library.ProjectLibrary ProjectLibrary { get => throw new global::System.NotSupportedException(); }
         public void Save() => throw new global::System.NotSupportedException();
         public void SaveAs(global::System.IO.DirectoryInfo targetFolderPath) => throw new global::System.NotSupportedException();
         public void Archive(global::System.IO.DirectoryInfo targetDirectory, string targetName, global::Siemens.Engineering.ProjectArchivationMode archivationMode) => throw new global::System.NotSupportedException();
@@ -224,6 +225,7 @@ namespace Siemens.Engineering
     }
     public abstract partial class TiaPortal : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.IEngineeringServiceProvider, global::System.IDisposable
     {
+        public global::Siemens.Engineering.Library.GlobalLibraryComposition GlobalLibraries { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.HW.HardwareCatalog.HardwareCatalog HardwareCatalog { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.ProjectComposition Projects { get => throw new global::System.NotSupportedException(); }
         public event global::System.EventHandler<global::System.EventArgs> Disposed { add => throw new global::System.NotSupportedException(); remove => throw new global::System.NotSupportedException(); }
