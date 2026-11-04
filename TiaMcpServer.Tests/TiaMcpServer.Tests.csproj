@@ -399,6 +399,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\TiaMcpServer\Vci\*.cs" Link="Vci\%(Filename)%(Extension)" />
+    <Compile Include="..\TiaMcpServer\Library\*.cs" Link="Host\Library\%(Filename)%(Extension)" />
   </ItemGroup>
   <Import Project="TestSupport\WorkerSerializationHarness.targets" />
 </Project>

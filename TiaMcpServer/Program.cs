@@ -117,6 +117,8 @@ namespace TiaMcpServer
                 sp.GetRequiredService<AuthenticatedCursorProtector>()));
             builder.Services.AddSingleton(sp => new HmiPageCursorCodec(
                 sp.GetRequiredService<AuthenticatedCursorProtector>()));
+            builder.Services.AddSingleton(sp => new TiaMcpServer.Library.LibraryPageCursorCodec(
+                sp.GetRequiredService<AuthenticatedCursorProtector>()));
             builder.Services.AddSingleton(sp => new ProjectTreeSnapshotStore(TimeProvider.System));
             builder.Services.AddSingleton(sp => new ProjectTreePageProjector(
                 sp.GetRequiredService<ProjectTreeCursorCodec>()));

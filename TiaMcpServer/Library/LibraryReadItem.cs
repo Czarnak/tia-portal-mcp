@@ -1,0 +1,49 @@
+using System.ComponentModel;
+using System.Text.Json.Serialization;
+using TiaMcpServer.OperationBatches;
+
+namespace TiaMcpServer.Library;
+
+/// <summary>Strict request shape for one library_read operation; cross-field rules live in the catalog.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class LibraryReadItem : IOperationBatchItem
+{
+    [Description("Client-supplied unique identifier for this library operation; returned results are keyed by it.")]
+    public string OperationId { get; set; } = string.Empty;
+
+    [Description("Library operation to run: list_global_libraries, inspect_library, list_children, list_versions, list_dependencies.")]
+    public string Operation { get; set; } = string.Empty;
+
+    [Description("project or global. Required by inspect_library, list_children, list_versions and list_dependencies; not valid for list_global_libraries. project reads the bound project's own library; global reads a library already open in the bound Portal.")]
+    public string? Scope { get; set; }
+
+    [Description("Global scope only: absolute path (drive or UNC) of an already-open global library, compared case-insensitively. Give this or libraryName; when both are given both must match.")]
+    public string? LibraryPath { get; set; }
+
+    [Description("Global scope only: exact (ordinal) name of an already-open global library. Give this or libraryPath; when both are given both must match.")]
+    public string? LibraryName { get; set; }
+
+    [Description("list_children only: types or masterCopies.")]
+    public string? FolderKind { get; set; }
+
+    [Description("list_children, list_versions and list_dependencies: exact folder names below the root of the selected folder, at most 32 nonblank segments (not a slash-delimited string). Omit for the root.")]
+    public List<string>? FolderPath { get; set; }
+
+    [Description("list_versions and list_dependencies: GUID of the library type. Required.")]
+    public string? TypeGuid { get; set; }
+
+    [Description("list_dependencies only: GUID of the type version. Required.")]
+    public string? VersionGuid { get; set; }
+
+    [Description("list_dependencies only: dependencies (default) or dependents.")]
+    public string? Direction { get; set; }
+
+    [Description("Paged operations only (all except inspect_library): zero-based index of the first row. Default 0. Not valid with cursor.")]
+    public int? Offset { get; set; }
+
+    [Description("Paged operations only (all except inspect_library): rows per page, 1 to 200. Default 100.")]
+    public int? Limit { get; set; }
+
+    [Description("Paged operations only: page.nextCursor from a previous call with the same operation and selectors; continues that snapshot. Not valid with offset.")]
+    public string? Cursor { get; set; }
+}
