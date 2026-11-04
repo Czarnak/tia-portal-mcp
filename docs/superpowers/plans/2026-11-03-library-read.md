@@ -1,6 +1,6 @@
 # Library Read (PR 1 of 2) — Plan
 
-> **Status:** Decisions D1–D9 confirmed 4 November 2026; plan awaits approval to execute. Authorizes nothing: no implementation, remote write, or live TIA call until the user approves this plan and, separately, the live task.
+> **Status:** Decisions D1–D9 confirmed and adversarial review findings applied, 4 November 2026; plan awaits approval to execute. Authorizes nothing: no implementation, remote write, or live TIA call until the user approves this plan and, separately, the live task.
 >
 > **For agentic workers:** Execute task by task with `superpowers:subagent-driven-development` or `superpowers:executing-plans`. Each task brief is self-contained; read the Global constraints block too.
 
@@ -16,7 +16,7 @@
 
 - Port selectively; never apply the whole patch. Patch line refs below (`P:n`) point into `tia-portal-mcp-4.2.0-library.patch`.
 - Read-only means read-only: no Open/Retrieve/Save/Close/Create/Delete/setter in any library read path, in any access mode.
-- Reuse shared seams; no parallel response type, budget engine or dispatcher. Cursors reuse `AuthenticatedCursorProtector`, `ProjectBindingCursorState` and the existing cursor failure categories; the only new cursor code is a per-domain codec (precedent: tree, hardware, HMI) and an owner-keyed generalization of `HmiSnapshotStore`, not a second store.
+- Reuse shared seams; no parallel response type, budget engine or dispatcher. Cursors reuse `AuthenticatedCursorProtector`, `ProjectBindingCursorState` and the existing cursor failure categories; the only new cursor code is a per-domain codec (precedent: tree, hardware, HMI). Worker paging reuses HMI's: a generic core extracted from `HmiSnapshotStore` and `HmiPager`, with both HMI types kept API-identical thin wrappers. No second store or pager.
 - Typed worker payloads decode through `CanonicalJson.NormalizeWorkerPayload<T>`; a decode failure is `protocol_error` and is never echoed. New contracts write explicit nulls; no conditional members are planned (if one is added, register it in `ConditionalMemberRegisterTests`).
 - Budgets read the effective `StructuredOperationBatchPayloadBudget.MaxItemChars`/`MaxDocumentChars`, never literals.
 - `ProjectCapabilityCatalog.OperationFor` stays the only worker-method→capability map.
@@ -31,12 +31,12 @@
 | # | Decision | Outcome |
 | --- | --- | --- |
 | D1 | PR split | PR 1 = `library_read` only (this plan). PR 2 = `library_write`, planned after native-rejection probes. |
-| D2 | Public arguments | `library_read(operations[])` only. No `portalProcessId`: a verified binding already pins the Portal. `ReadBatchSchemas_ExposeOnlyOperations` stays unchanged. Unbound global reads (no project open) are a logged follow-up. |
+| D2 | Public arguments | `library_read(operations[])` only. No `portalProcessId`: a verified binding already pins the Portal. `ReadBatchSchemas_ExposeOnlyOperations` gets a plain `LibraryReadTools` InlineData row, no exception. Unbound global reads (no project open) are a logged follow-up. |
 | D3 | Item shape | Flat items like `hmi_read`/`vci_read` (and GitHub MCP's `pull_request_read`): `{operationId, operation, scope?, libraryPath?, libraryName?, folderKind?, folderPath?, typeGuid?, versionGuid?, direction?, offset?, limit?, cursor?}`. Each optional field's description names the operations that use it; cross-field rules live in `LibraryReadMethods.Validate`. The host maps an item to the worker-only `LibraryQueryInfo`. |
 | D4 | Response | Shared `OperationBatchReadResponse`, `contractVersion "1.0"`; drop the contributed `LibraryReadResponse` (required by the shared-seam rule). |
 | D5 | Binding rule | Every call needs a verified binding, all-global batches included; unbound → whole-call `binding_conflict`, like every other content read. Global reads use the bound Portal. No `BatchReadTool` change. |
 | D6 | Containers | Global-library reads: standalone and local session (capability `library_read`). Project-library reads: standalone only (capability `library_project_read`), like VCI. Local-session project-library reads are a follow-up after a separate probe. |
-| D7 | Paging | Snapshot cursors like `hmi_read`: `offset` ≥ 0, `limit` 1–200 (default 100), optional `cursor` (not valid with `offset`), page `{offset, nextOffset, nextCursor, complete}`. The first page of any paged scan with more rows freezes the ordered row set in a worker snapshot (at most 4 library snapshots, 10-minute idle lifetime); the host seals the snapshot id, operation, query hash, offset and binding state into `nextCursor` and never exposes the raw id. Failures: `invalid_cursor`, `cursor_filter_mismatch`, `cursor_binding_mismatch`, plus HMI's snapshot-mismatch error when the snapshot is gone. |
+| D7 | Paging | Snapshot cursors like `hmi_read`: `offset` ≥ 0, `limit` 1–200 (default 100), optional `cursor` (not valid with `offset`), page `{total, offset, nextOffset, nextCursor, complete}`. The first page of any paged scan enumerates every row in a defined total order and, when more rows exist, freezes that ordered set in a worker snapshot (at most 4 library snapshots, 10-minute idle lifetime). The host seals the snapshot id, operation, query hash, offset and binding state into `nextCursor` and never exposes the raw id. A continuation checks each row's liveness like HMI: a row deleted since page 1 fails only that row. Failures: host `invalid_cursor`, `cursor_filter_mismatch`, `cursor_binding_mismatch` (all NotSent); worker `snapshot_unavailable` (missing, evicted, or worker restarted) and `cursor_snapshot_mismatch` (other project or operation). |
 | D8 | Dispatch | All library methods use the bound route (`SendBoundProjectRequestAsync` → `WithActiveContext`). No `InspectPortalAsync` change; do not port `LibraryPortalReadDispatch`; `MultiuserPortalReadDispatch` is untouched. |
 | D9 | ADR | One short ADR: content tools stay gated on the verified binding, and may read Portal-scope objects of the bound Portal (global libraries). Refines ADR-0007/0011's "content tools act only on the bound project". |
 
@@ -55,10 +55,12 @@ Counts after this PR: 9 tools read-only, 20 read-write, 20 full.
 - Neither version operation accepts `folderKind`; the type lookup is non-recursive within the selected type folder.
 - Project scope: no `libraryPath`/`libraryName`; identity comes from the binding. Global scope: non-blank `libraryPath` (absolute drive or UNC ≥ 2 segments) or `libraryName`; both given must both match. `folderPath` ≤ 32 non-blank literal segments.
 - Global libraries are found only among those already open in the bound Portal: exact ordinal name, or `Path.GetFullPath` compared case-insensitively. Missing → `target_not_found`; multiple → `target_ambiguous`.
-- Cursor query hash covers the operation and every selector; it excludes `offset`, `limit` and `cursor`. A cursor continues the frozen row set; property values are read live per page.
+- Cursor query hash covers the operation and every selector; it excludes `offset`, `limit` and `cursor`. A cursor continues the frozen row set; property values are read live per page. The snapshot pins the resolved library (as HMI pins its software), so `Take` does not re-check selectors; the host query hash does.
+- Row order: `list_global_libraries` by name then path; `list_children` folders before entries, each by name (ordinal); `list_versions` by version number; `list_dependencies` by owner path, then type name, then version.
+- A library closed in the UI between pages fails the item `worker_operation_failed` and keeps the binding. It is `portal_lost` only when the Portal attachment itself was disposed during the execution (`WorkerExecution`).
 - Worker methods: `ProjectLibraryReads` = `library_project_{inspect_library,list_children,list_versions,list_dependencies}`; `GlobalLibraryReads` = `library_list_global_libraries` + `library_global_{same four}`. All `Observe`, all need a bound project and the expected session identity.
-- Payload: every operation returns worker `LibraryPageInfo {items, offset, nextOffset, snapshotId, complete, diagnostics}` of `LibraryEntryInfo {identity, namespace, versionNumber, state, isDefault, isReadOnly, isWriteProtected, isModified, nativeType, diagnostics}` (P:256-314; `snapshotId` is new, written as explicit null when no snapshot). The host projects it to public `LibraryPageResult {items, offset, nextOffset, nextCursor, complete, diagnostics}`. An unknown flag is null with a diagnostic, never false.
-- Errors: `validation_error` (shape), `binding_conflict`, `target_not_found`/`target_ambiguous`, `unsupported_capability`, `invalid_cursor`/`cursor_filter_mismatch`/`cursor_binding_mismatch`, `protocol_error`, `worker_operation_failed`, `portal_lost`.
+- Payload: every operation returns worker `LibraryPageInfo {items, total, offset, nextOffset, snapshotId, complete, diagnostics}` of `LibraryEntryInfo {identity, namespace, versionNumber, state, isDefault, isReadOnly, isWriteProtected, isModified, nativeType, diagnostics}` (P:256-314; `snapshotId` is new, written as explicit null when no snapshot). The host projects it to public `LibraryPageResult {items, total, offset, nextOffset, nextCursor, complete, diagnostics}`; a row that failed its liveness check carries a per-row diagnostic. An unknown flag is null with a diagnostic, never false.
+- Errors: `validation_error` (shape), `binding_conflict`, `target_not_found`/`target_ambiguous`, `unsupported_capability`, `invalid_cursor`/`cursor_filter_mismatch`/`cursor_binding_mismatch`, `snapshot_unavailable`/`cursor_snapshot_mismatch`, `protocol_error`, `worker_operation_failed`, `portal_lost`.
 - The worker raises `binding_conflict` only for identity or Portal-attachment loss, because the host invalidates a verified binding on any worker-reported `binding_conflict`. A missing project library (or any other library-level miss) uses `unsupported_capability` or `target_not_found`.
 
 ## Carried to the write plan (PR 2 input, not in scope here)
@@ -96,13 +98,14 @@ These review findings must reach the write plan; Task 7 records them in `docs/IM
 
 ### Task 1 — Contracts and catalogs
 
-**Files:** create `TiaMcpServer.Contracts/Library/LibraryReadMethods.cs`, `LibraryReadModels.cs`; modify `TiaMcpServer.Contracts/Worker/WorkerRequest.cs`, `Safety/OperationPolicyCatalog.cs`, `Project/ProjectCapabilityCatalog.cs`; tests `TiaMcpServer.Tests/Library/LibraryReadCatalogTests.cs`, `Multiuser/Snapshots/capabilities.json`, `Multiuser/LocalSessionContextContractTests.cs`.
+**Files:** create `TiaMcpServer.Contracts/Library/LibraryReadMethods.cs`, `LibraryReadModels.cs`; modify `TiaMcpServer.Contracts/Worker/WorkerRequest.cs`, `Safety/OperationPolicyCatalog.cs`, `Project/ProjectCapabilityCatalog.cs`; tests `TiaMcpServer.Tests/Library/LibraryReadCatalogTests.cs`, `Project/ProjectCapabilityCatalogTests.cs`, `Multiuser/Snapshots/capabilities.json`, `Multiuser/LocalSessionContextContractTests.cs`, `Multiuser/LocalSessionCapabilityTests.cs`.
 
 **Interfaces — Produces:**
 - `static class LibraryReadMethods { string[] Operations; string[] ProjectLibraryReads; string[] GlobalLibraryReads; string[] All; string ForOperation(string op, string? scope); string? OperationFor(string method); string? Validate(string op, LibraryQueryInfo q); bool IsAbsolutePath(string p); }`. Port P:185-255, reads only. `Validate` returns an error message or null; `OperationValidation` is a host type, so the host wraps the result.
-- `LibraryQueryInfo` (adds worker-only `SnapshotId`), `LibraryIdentityInfo`, `LibraryEntryInfo`, `LibraryPageInfo` (adds `SnapshotId`) (P:256-314; `[JsonUnmappedMemberHandling(Disallow)]` on the query).
+- `LibraryQueryInfo` (adds worker-only `SnapshotId`), `LibraryIdentityInfo`, `LibraryEntryInfo`, `LibraryPageInfo` (adds `Total`, `SnapshotId`) (P:256-314; `[JsonUnmappedMemberHandling(Disallow)]` on the query).
 - `WorkerRequest.LibraryQuery : LibraryQueryInfo?` only (no write fields).
-- Policy: every `LibraryReadMethods.All` → `Observe`. Capability: `GlobalLibraryReads` → `"library_read"` on standalone and local session; `ProjectLibraryReads` → `"library_project_read"` in a standalone-only array (D6).
+- Policy: every `LibraryReadMethods.All` → `Observe`. Capability: `GlobalLibraryReads` → `"library_read"` on standalone and local session; `ProjectLibraryReads` → `"library_project_read"` in a new standalone-only array concatenated in `Build` and `Supports` (D6).
+- `ProjectCapabilityCatalog.OperationFor` gets explicit `LibraryReadMethods` branches; its default maps a method to itself, which `Supports` would reject as `unsupported_capability`.
 
 - [ ] Write failing tests in `LibraryReadCatalogTests`:
   - `Methods_AreUniqueAndPartitioned` — `All` = `ProjectLibraryReads` ∪ `GlobalLibraryReads`, no overlap; `ForOperation`/`OperationFor` round-trip.
@@ -110,12 +113,14 @@ These review findings must reach the write plan; Task 7 records them in `docs/IM
   - `AllMethods_NeedBindingAndIdentity` — via `RequiresBoundProject` and `RequiresExpectedSessionIdentity`.
   - `GlobalReads_StandaloneAndLocalSession` / `ProjectLibraryReads_StandaloneOnly` — supported containers as in D6, every other container kind rejected.
   - `Validate_*` cases — selector rules in the Read surface table: project scope rejects path/name; global needs one; relative path rejected; UNC ≥ 2 segments; 33 `folderPath` segments rejected; limit 0/201 rejected; `list_global_libraries` rejects any non-paging field.
-- [ ] Add `library_read` and `library_project_read` rows to `capabilities.json` and update `LocalSessionContextContractTests` counts.
+  - `OperationFor_MapsOneMethodOfEachSet` — one global and one project method to their capabilities.
+- [ ] Add library rows to `ProjectCapabilityCatalogTests` (`RequiresBoundProject`), `LocalSessionContextContractTests.OperationFor_MapsWorkerMethodToCapability` and `LocalSessionCapabilityTests.LocalUnsupportedOperation_DeniesBeforeWorkerDispatch` (project-library method).
+- [ ] Add `library_read` and `library_project_read` rows to `capabilities.json` and update the `Describe_MatchesMainSnapshot` count (53 → 55 per kind).
 - [ ] Implement until green.
 
 Run: `dotnet build TiaMcpServer.slnx -m:1 -c Release /p:UseTiaPortalReferenceStubs=true` then the task test command — Expected: pass.
 
-**Task test command:** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build -c Release --filter "FullyQualifiedName~TiaMcpServer.Tests.Library|FullyQualifiedName~ReadOnlyModeTests|FullyQualifiedName~LocalSessionContextContractTests"`
+**Task test command:** `dotnet test TiaMcpServer.Tests/TiaMcpServer.Tests.csproj --no-build -c Release --filter "FullyQualifiedName~TiaMcpServer.Tests.Library|FullyQualifiedName~ReadOnlyModeTests|FullyQualifiedName~ProjectCapabilityCatalogTests|FullyQualifiedName~LocalSessionContextContractTests|FullyQualifiedName~LocalSessionCapabilityTests"`
 
 Commit: `feat: add library read contracts`
 
@@ -124,8 +129,8 @@ Commit: `feat: add library read contracts`
 **Files:**
 - Create `TiaMcpServer.OpennessWorker/Openness/Library/LibraryReader.cs`.
 - Modify:
-  - `Openness/Hmi/HmiSnapshotStore.cs` (owner-keyed generalization; move the generic core to a shared worker file if that is cleaner);
-  - `Infrastructure/OpennessExceptions.cs`;
+  - `Openness/Hmi/HmiSnapshotStore.cs` and `Openness/Hmi/HmiPager.cs` (extract a generic core into a shared worker file; both stay thin, API-identical HMI wrappers);
+  - `Openness/Infrastructure/OpennessExceptions.cs`;
   - `Openness/Hmi/HmiReadLog.cs`;
   - worker `Program.cs`;
   - `TiaMcpServer.FakeWorker/Program.cs`.
@@ -134,27 +139,30 @@ Commit: `feat: add library read contracts`
   - `TiaMcpServer.Tests/TestSupport/LibrarySiemensDoubles.cs`;
   - `Library/LibraryReaderTests.cs`;
   - `Library/LibraryWorkerDispatchTests.cs`;
-  - existing HMI snapshot-store tests (must stay green unchanged);
+  - existing HMI tests that use the store and pager (`HmiSnapshotStoreTests`, `HmiPagerTests`, `HmiTagWriterTests`, `HmiAlarmWriterTests`) must stay green unchanged;
   - `Worker/FakeWorkerIdentityEnforcementTests.cs`;
-  - test csproj `<Compile Include>` links for `Openness\Library\LibraryReader.cs` and any extracted store file.
+  - test csproj `<Compile Include>` links for `Openness\Library\LibraryReader.cs` and the extracted core file.
 
 **Interfaces:**
 - Consumes: Task 1 contracts.
 - Produces: `static LibraryPageInfo LibraryReader.Read(TiaPortal portal, ProjectBase project, string method, LibraryQueryInfo query, <library snapshot store>)`. Internal `Resolve`, `Exact<T>`, `TypeFolder`, `CopyFolder`, and `Owner` stay `internal` for PR 2 reuse.
-- Snapshot store: `HmiSnapshotStore` keys entries by an owner object instead of `HmiSoftware`; HMI and library each get their own `Shared` instance (capacity 4, 10-minute idle) so neither evicts the other. Library entries are owned by (bound project, resolved library, operation). HMI behavior and its tests stay unchanged; if the generalization cannot keep HMI behavior identical, stop and report.
+- Snapshot store and pager: the store already keys entries by project; `HmiSoftware` is only the payload. Extract a generic core whose snapshot payload is the owner object (HMI software or resolved library). Preserve HMI's surface exactly: the constructor, `Shared`, the `Put`/`Take`/`DropFor` signatures, the `HmiSnapshot` record and `HmiPager.Page`. HMI and library each get their own `Shared` instance (capacity 4, 10-minute idle) so neither evicts the other. If HMI behavior cannot stay identical, stop and report.
 - Dispatch arm: every `LibraryReadMethods.All` → `WithActiveContext(request, session => Success(LibraryReader.Read(...)))` with the Portal and `ProjectBase` from the active context. A null `LibraryQuery` throws `validation_error`.
-- Paging: a paged scan with more rows puts the ordered native objects in the store and returns `snapshotId`; a request with `SnapshotId` takes the snapshot (project and operation must match, mismatch uses the HMI snapshot error) and reads the requested slice; the last page returns no `snapshotId`.
+- Paging, through the shared pager:
+  - The first page enumerates all rows in the Read surface order and sets `total`. When more rows exist, it stores the ordered objects and returns `snapshotId`.
+  - A request with `SnapshotId` takes the snapshot (`snapshot_unavailable` when missing or evicted; `cursor_snapshot_mismatch` for another project or operation) and reads the requested slice. Each row gets an HMI-style liveness check (`HmiReadLog.IsLive` precedent): a dead row gets a row diagnostic, a dead owner library fails the item.
+  - The last page returns no `snapshotId`.
 
 Port fixes against P:1477-1652:
 - `Optional()` swallows only `EngineeringTargetInvocationException` and `EngineeringNotSupportedException`.
   - Add a new `OpennessExceptions.IsRecoverablePropertyFailure(Exception)` with exactly that rule, and make `HmiReadLog.IsRecoverable` forward to it.
   - The existing broad `OpennessExceptions.IsRecoverable` (not `NonRecoverableException`) stays unchanged; Multiuser and Network depend on it.
-  - Disposed and all other exceptions escape so `WorkerExecution` can classify `portal_lost`.
+  - Disposed and all other exceptions escape to `WorkerExecution`. It reports `portal_lost` only when the Portal attachment was disposed during the execution; otherwise the result is `worker_operation_failed` and the binding is kept.
 - A null `ProjectLibrary` fails `unsupported_capability`, not the patch's `binding_conflict`.
 - `Children` reuses `CopyFolder` instead of repeating its walk.
 - `TypeEntry` hoists only the owner library's `LibraryEntry`/`Optional` reads, cached by owner library. The `Owner()` walk stays per row, because dependency rows sit in different folders.
 - Stubs carry the read subset only:
-  - `ProjectBase.ProjectLibrary`, `TiaPortal.GlobalLibraries`;
+  - `Project.ProjectLibrary` (standalone `Project`, matching the Siemens V21 examples; project-library reads are standalone-only, so read through `Project` and leave `ProjectBase` untouched — the real-reference build confirms the placement), `TiaPortal.GlobalLibraries`;
   - `ILibrary`, `GlobalLibrary`, `GlobalLibraryComposition`, `ProjectLibrary`;
   - `MasterCopy`, `MasterCopyFolder`, `MasterCopySystemFolder`, `MasterCopyUserFolder` and their user-folder/master-copy compositions;
   - `LibraryTypeFolder`, `LibraryTypeSystemFolder`, `LibraryTypeUserFolder` and their user-folder/type compositions;
@@ -171,19 +179,21 @@ Port fixes against P:1477-1652:
   - `Global_NotOpen_IsTargetNotFound` and `Duplicate_IsTargetAmbiguous`.
   - `Project_NoProjectLibrary_IsUnsupportedCapability`.
   - `FolderPath_SegmentIsLiteral`.
-  - `Paging_LookAheadSetsNextOffset` and `Paging_LastPageComplete_NoSnapshot`.
+  - `Paging_FirstPageEnumeratesAllInOrder_SetsTotalAndNextOffset` and `Paging_LastPageComplete_NoSnapshot`.
   - `Snapshot_ContinuationReadsFrozenOrder` (rows added after page 1 do not appear).
-  - `Snapshot_OtherProjectOrOperation_Rejected` and `Snapshot_Evicted_Rejected`.
+  - `Snapshot_OtherProjectOrOperation_CursorSnapshotMismatch` and `Snapshot_Evicted_SnapshotUnavailable`.
+  - `Continuation_DeletedRow_FailsOnlyItsRow` and `Continuation_LibraryClosed_WorkerOperationFailed`.
   - `Snapshot_LibraryAndHmiStoresIndependent`.
+  - Tests touching a static `Shared` store join a `DisableParallelization` collection like `HmiSnapshotStoreCollection`.
   - `Optional_RecoverableEngineeringFailure_NullWithDiagnostic`.
   - `Optional_DisposedOrFatal_Escapes`.
   - `Owner_DepthCapFails`.
   - `Reader_CallsNoMutatingMember` (doubles throw on any mutator).
-- [ ] Add `LibraryReadWithoutQuery_RejectsWithoutCrashingWorker` to `FakeWorkerIdentityEnforcementTests`.
-- [ ] Add source-pinning `LibraryWorkerDispatchTests`, following the precedent of `NetworkSubnetLifecycleWorkerDispatchTests`:
+- [ ] Add `LibraryReadWithoutQuery_RejectsWithoutCrashingWorker` to `FakeWorkerIdentityEnforcementTests` (fake only; the real worker's null-query rule is pinned by the source test below).
+- [ ] Add source-pinning `LibraryWorkerDispatchTests`, following the precedent of `ActiveProjectContextSourceTests` (which pins `WithActiveContext` and VCI's Portal use):
   - every library method routes through `WithActiveContext`;
   - a read with a null `LibraryQuery` throws `validation_error`.
-- [ ] Add the FakeWorker library read branch, keyed on `LibraryReadMethods.All` and placed after the identity check, before the scenario switch. It returns a fixture entry for global and project methods, a two-page fixture with `snapshotId` on page 1; `Missing` → `target_not_found`; `Malformed` → bad payload.
+- [ ] Add the FakeWorker library read branch, keyed on `LibraryReadMethods.All` and placed after the identity check, before the scenario switch. It returns a fixture entry for global and project methods, a two-page fixture with `snapshotId` on page 1; `Missing` → `target_not_found`; `Malformed` → bad payload. Add a named startup scenario `library-read-roundtrip` for the Task 4 conformance success probe.
 - [ ] Update stubs. Run: `pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Configuration Release -Update`, inspect the `ref/` diff, then rerun without `-Update` — Expected: verified, no further diff.
 
 Run:
@@ -196,13 +206,14 @@ Commit: `feat: add library reader to worker`
 
 ### Task 3 — Host client route and cursors
 
-**Files:** modify `TiaMcpServer/Worker/OpennessWorkerClient.Domains.cs`, the DI registration that creates `HmiPageCursorCodec`; create `TiaMcpServer/Library/LibraryPageCursorCodec.cs`, `LibraryWorkerInvoker.cs`; tests `TiaMcpServer.Tests/Library/LibraryReadClientTests.cs`, `Library/LibraryPageCursorCodecTests.cs`.
+**Files:** modify `TiaMcpServer/Worker/OpennessWorkerClient.Domains.cs`; register `LibraryPageCursorCodec` beside `HmiPageCursorCodec` in both `TiaMcpServer/Program.cs` (~:118) and `TiaMcpServer.Tests/TestSupport/McpProtocolTestHarness.cs` (~:184); create `TiaMcpServer/Library/LibraryReadItem.cs`, `LibraryReadCatalog.cs` (validation, item→query mapping), `LibraryPageCursorCodec.cs`, `LibraryWorkerInvoker.cs`; add the host `..\TiaMcpServer\Library\*.cs` glob to the test csproj (like `Vci\*.cs`); tests `TiaMcpServer.Tests/Library/LibraryReadClientTests.cs`, `Library/LibraryPageCursorCodecTests.cs`.
 
 **Interfaces:**
 - Consumes: Task 1 contracts and the Task 2 FakeWorker branch.
-- Produces: `Task<WorkerCallResult> ReadLibraryAsync(string method, LibraryQueryInfo query, CancellationToken ct)` → `SendBoundProjectRequestAsync(method, null, r => r.LibraryQuery = query, "{}")`, like `ReadVciAsync`.
+- Produces: `LibraryReadItem` (flat D3 shape; each optional field's description names its operations) and `LibraryReadCatalog` (validation wrapping `LibraryReadMethods.Validate`, item→`LibraryQueryInfo` mapping).
+- Produces: `Task<WorkerCallResult> ReadLibraryAsync(string method, LibraryQueryInfo query)` → `SendBoundProjectRequestAsync(method, null, r => r.LibraryQuery = query, "{}")`, like `ReadVciAsync` (no cancellation token, matching it).
 - Produces: `LibraryPageCursorCodec` over the shared `AuthenticatedCursorProtector` (`CursorKind` `"library-page"`, category `invalid_cursor`), state `{SnapshotId, Operation, QueryHash, Offset, HostBinding}`, `QueryHash(item)` per the Read surface rule. Mirrors `HmiPageCursorCodec`.
-- Produces: `LibraryWorkerInvoker.InvokeReadAsync(client, codec, item, ct)`: decodes a cursor and checks operation, query hash and binding before sending (`invalid_cursor`/`cursor_filter_mismatch`/`cursor_binding_mismatch`, all NotSent), then sends `SnapshotId` + offset. Mirrors `HmiWorkerInvoker.ResolveCursor`.
+- Produces: `LibraryWorkerInvoker.InvokeReadAsync(client, codec, item, ct)`: decodes a cursor and checks operation, query hash and binding before sending (`invalid_cursor`/`cursor_filter_mismatch`/`cursor_binding_mismatch`), then sends `SnapshotId` + offset. Mirrors `HmiWorkerInvoker.ResolveCursor`, but sets `DispatchState = NotSent` explicitly (HMI's results default to `Unknown`).
 
 - [ ] Write failing tests:
   - `Unbound_BindingConflictNotSent` (global and project methods).
@@ -210,7 +221,8 @@ Commit: `feat: add library reader to worker`
   - `GlobalRead_StandaloneBound_SendsExpectedIdentity`.
   - `GlobalRead_LocalSessionBound_Succeeds`.
   - `ProjectRead_LocalSession_UnsupportedCapabilityNotSent`.
-  - Codec: `Tampered_OtherKey_InvalidCursor`, `OtherOperationOrSelectors_FilterMismatch`, `BindingRevisionChanged_BindingMismatch`, `QueryHash_ExcludesPaging`.
+  - Codec: `Tampered_OtherKey_InvalidCursor`, `OtherOperationOrSelectors_FilterMismatch`, `BindingRevisionChanged_BindingMismatch`, `QueryHash_ExcludesPaging`, `CursorFailures_AreNotSent`.
+  - Catalog: `Item_MapsToQuery` and `CursorWithOffset_Rejected`.
 - [ ] Implement until green.
 
 Run: stub build, then the task test command — Expected: pass.
@@ -221,12 +233,11 @@ Commit: `feat: route library reads through the bound project`
 
 ### Task 4 — `library_read` tool and registration
 
-**Files:** create `TiaMcpServer/Library/LibraryReadTools.cs`, `LibraryReadCatalog.cs` (validation, item→query mapping), `LibraryPayloadContract.cs`; modify `Tools/McpToolRegistration.cs`, test csproj (host `Library\*.cs` glob); tests `Library/LibraryReadToolsTests.cs`, `Library/LibraryReadBudgetTests.cs`, `Tools/ToolOutputContractConformanceTests.cs`, `AccessModeDiscoveryTests.cs`, `McpToolSchemaTests.cs`, `StandaloneToolsProtocolTests.cs`, `WriteToolMcpAnnotationProtocolTests.cs`, `Tools/Snapshots/output-schemas.json`.
+**Files:** create `TiaMcpServer/Library/LibraryReadTools.cs`, `LibraryPayloadContract.cs`; modify `Tools/McpToolRegistration.cs`; tests `Library/LibraryReadToolsTests.cs`, `Library/LibraryReadBudgetTests.cs`, `Tools/ToolOutputContractConformanceTests.cs`, `AccessModeDiscoveryTests.cs`, `McpToolSchemaTests.cs`, `Safety/ReadOnlyModeTests.cs`, `StandaloneToolsProtocolTests.cs`, `WriteToolMcpAnnotationProtocolTests.cs`, `Tools/Snapshots/output-schemas.json`.
 
 **Interfaces:**
-- Consumes: `ReadLibraryAsync`, `LibraryPageCursorCodec`, `LibraryWorkerInvoker` (Task 3) and the contracts (Task 1).
+- Consumes: `LibraryReadItem`, `LibraryReadCatalog`, `ReadLibraryAsync`, `LibraryPageCursorCodec`, `LibraryWorkerInvoker` (Task 3) and the contracts (Task 1).
 - `LibraryReadTools.LibraryRead(OpennessWorkerClient, LibraryPageCursorCodec, LibraryReadItem[] operations, CancellationToken)` on `BatchReadTool.RunAsync` unchanged, attributes `ReadOnly=true, Destructive=false, OpenWorld=false, UseStructuredContent=true`, output `OperationBatchReadResponse`, `contractVersion "1.0"`.
-- `LibraryReadItem` field descriptions name the operations that use each optional field (D3).
 - `LibraryPayloadContract.Project(item, WorkerCallResult, cursorIssuer)`: typed `LibraryPageInfo` decode, then project to public `LibraryPageResult`: drop `snapshotId`, seal `nextCursor` while more rows exist. Follows `VciPayloadContract` for decoding and `HmiPayloadContract.IssueNextCursor` for the cursor.
 - Registration: `WithClosedTools(..., closeNestedSchemas: true)` and the always-registered read list.
 
@@ -242,7 +253,7 @@ Commit: `feat: route library reads through the bound project`
   - `Budget_OversizedItemOmitted_AtDefaultAndRaisedLimits`.
   - `TextEqualsStructuredContent`.
   - `ItemFieldDescriptions_NameTheirOperations`.
-- [ ] Update conformance probes (rejected: empty operations; succeeded: `list_global_libraries` on a bound fixture), discovery and annotation lists, schema counts (9/20/20), and the output-schema snapshot. Regenerate snapshots from the built tool and review the diff; do not copy the patch snapshots.
+- [ ] Update conformance probes (rejected: empty operations; succeeded: `list_global_libraries` on the `library-read-roundtrip` scenario, with entries in the startup-path and UI-open switches at `ToolOutputContractConformanceTests` ~:360-384), discovery and annotation lists, `ReadOnlyModeTests` exact tool lists and the nineteen→twenty full-surface count, schema counts (9/20/20), a `LibraryReadTools` InlineData row in `ReadBatchSchemas_ExposeOnlyOperations`, and the output-schema snapshot. Regenerate snapshots from the built tool and review the diff; do not copy the patch snapshots.
 - [ ] Implement until green.
 
 Run: stub build, then the task test command — Expected: pass.
@@ -296,7 +307,8 @@ Commit: `test: add library read live verification report`
 
 **Files:** `README.md` (absolute GitHub links), `AGENTS.md` (counts 9/20/20, `library_read` in the overview, refined bound-only content rule), `docs/ARCHITECTURE.md`, new `docs/SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md` (reads only), `docs/SupportedOperations/README.md`, `docs/README.md`, one new ADR per `docs/adr/README.md` (D9), and `docs/IMPROVEMENT_LOG.md` entries (the write-plan carry list above, unbound global reads, local-session project-library reads, and any Task 6 gaps).
 
-- [ ] Describe only live-verified behavior; state snapshot-cursor paging (frozen order, live values), nullable flags, and that global reads use the bound Portal.
+- [ ] Describe only live-verified behavior; state snapshot-cursor paging (frozen order, live values, per-row liveness), nullable flags, and that global reads use the bound Portal.
+- [ ] Note the capability labels: `library_read` is reported as `projectContent` (and `notYetDelivered` on server projects) although it reads Portal-scope libraries, and `library_project_read` appears in `bind_project` context capabilities without being a tool name.
 - [ ] Run: `python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30` — Expected: pass.
 
 **Task test command:** the `verify-docs.py` line.
