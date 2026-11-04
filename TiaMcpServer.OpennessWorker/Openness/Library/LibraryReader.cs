@@ -303,6 +303,7 @@ internal static class LibraryReader
             else
             {
                 entry.IsModified = Optional(() => project.IsModified, "isModified", entry);
+                entry.Diagnostics.Add("isModified reflects the bound project's modified flag, not a project-library flag.");
                 entry.Diagnostics.Add("Project-library read-only and write-protection state is not established by this read.");
             }
 

@@ -108,6 +108,7 @@ public sealed class LibraryReaderTests
         Assert.Equal("project", entry.Identity.Scope);
         Assert.Equal("Bound", entry.Identity.Name);
         Assert.Null(entry.Identity.LibraryName);
+        Assert.Contains(entry.Diagnostics, d => d.Contains("isModified", StringComparison.Ordinal) && d.Contains("bound project", StringComparison.Ordinal));
     }
 
     [Fact]
