@@ -43,7 +43,8 @@ public sealed class LibraryPageCursorCodec
         var key = JsonSerializer.Serialize(new object?[]
         {
             item.Operation, item.Scope, item.LibraryPath, item.LibraryName, item.FolderKind,
-            item.FolderPath, item.TypeGuid, item.VersionGuid, item.Direction,
+            item.FolderPath is { Count: 0 } ? null : item.FolderPath, item.TypeGuid, item.VersionGuid,
+            item.Operation == "list_dependencies" ? item.Direction ?? "dependencies" : item.Direction,
         });
         return ContentHashRules.Sha256Hex(key);
     }

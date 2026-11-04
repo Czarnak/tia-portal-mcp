@@ -142,6 +142,18 @@ public sealed class LibraryPageCursorCodecTests
     }
 
     [Fact]
+    public void QueryHash_EquivalentDefaults_HashEqual()
+    {
+        var omitted = Item(i => { i.Operation = "list_dependencies"; i.TypeGuid = TypeGuid; i.VersionGuid = TypeGuid; });
+        var explicitDefault = Item(i => { i.Operation = "list_dependencies"; i.TypeGuid = TypeGuid; i.VersionGuid = TypeGuid; i.Direction = "dependencies"; });
+        var dependents = Item(i => { i.Operation = "list_dependencies"; i.TypeGuid = TypeGuid; i.VersionGuid = TypeGuid; i.Direction = "dependents"; });
+
+        Assert.Equal(LibraryPageCursorCodec.QueryHash(omitted), LibraryPageCursorCodec.QueryHash(explicitDefault));
+        Assert.NotEqual(LibraryPageCursorCodec.QueryHash(omitted), LibraryPageCursorCodec.QueryHash(dependents));
+        Assert.Equal(LibraryPageCursorCodec.QueryHash(Item()), LibraryPageCursorCodec.QueryHash(Item(i => i.FolderPath = new List<string>())));
+    }
+
+    [Fact]
     public void QueryHash_DistinguishesFolderPathSegmentsFromJoinedName()
     {
         var split = Item(i => i.FolderPath = new List<string> { "A", "B" });
