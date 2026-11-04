@@ -61,6 +61,17 @@ public sealed class LibraryReaderTests
     }
 
     [Fact]
+    public void Global_MalformedLibraryPath_IsValidationErrorEvenWithNoOpenLibrary()
+    {
+        // "\0" makes Path.GetFullPath throw on net48 and net10 alike; '|' is only rejected on net48.
+        Assert.Equal(WorkerFailureCategories.ValidationError,
+            Fails("library_global_inspect_library", Global(path: "C:\\Libs\\a\0b.al21")).FailureCategory);
+        AddGlobal("Lib", @"C:\Libs\Lib.al21");
+        Assert.Equal(WorkerFailureCategories.ValidationError,
+            Fails("library_global_inspect_library", Global("Other", "C:\\Libs\\a\0b.al21")).FailureCategory);
+    }
+
+    [Fact]
     public void Global_NameAndPathMustBothMatch()
     {
         AddGlobal("Lib", @"C:\Libs\Lib.al21");

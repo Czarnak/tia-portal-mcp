@@ -72,18 +72,36 @@ internal static class LibraryReader
     }
 
     internal static ILibrary Resolve(TiaPortal portal, ProjectBase project, LibraryQueryInfo query)
-        => query.Scope == "project"
-            ? (project as Siemens.Engineering.Project)?.ProjectLibrary ?? throw new WorkerOperationException(WorkerFailureCategories.UnsupportedCapability,
-                "The bound project has no project library this read can reach; project-library reads need a standalone project.")
-            : Exact(portal.GlobalLibraries.Where(x => Matches(x, query)), "global library already open in the bound Portal");
-
-    internal static bool Matches(GlobalLibrary library, LibraryQueryInfo query)
     {
-        if (query.LibraryName is not null && !string.Equals(library.Name, query.LibraryName, StringComparison.Ordinal)) return false;
-        if (query.LibraryPath is null) return true;
+        if (query.Scope == "project")
+        {
+            return (project as Siemens.Engineering.Project)?.ProjectLibrary ?? throw new WorkerOperationException(WorkerFailureCategories.UnsupportedCapability,
+                "The bound project has no project library this read can reach; project-library reads need a standalone project.");
+        }
+
+        var wantedPath = query.LibraryPath is null ? null : CanonicalPath(query.LibraryPath);
+        return Exact(portal.GlobalLibraries.Where(x => Matches(x, query.LibraryName, wantedPath)), "global library already open in the bound Portal");
+    }
+
+    /// <summary>The full path of a caller-supplied <c>libraryPath</c>; a malformed one is a validation error, not a worker failure.</summary>
+    internal static string CanonicalPath(string libraryPath)
+    {
+        try
+        {
+            return System.IO.Path.GetFullPath(libraryPath);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or System.IO.PathTooLongException)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "libraryPath is not a valid path.");
+        }
+    }
+
+    private static bool Matches(GlobalLibrary library, string? name, string? canonicalPath)
+    {
+        if (name is not null && !string.Equals(library.Name, name, StringComparison.Ordinal)) return false;
+        if (canonicalPath is null) return true;
         var path = library.Path?.FullName;
-        return path is not null && string.Equals(
-            System.IO.Path.GetFullPath(path), System.IO.Path.GetFullPath(query.LibraryPath), StringComparison.OrdinalIgnoreCase);
+        return path is not null && string.Equals(System.IO.Path.GetFullPath(path), canonicalPath, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static T Exact<T>(IEnumerable<T> matches, string subject)
