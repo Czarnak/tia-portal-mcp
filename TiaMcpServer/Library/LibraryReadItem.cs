@@ -17,10 +17,10 @@ public sealed class LibraryReadItem : IOperationBatchItem
     [Description("project or global. Required by inspect_library, list_children, list_versions and list_dependencies; not valid for list_global_libraries. project reads the bound project's own library; global reads a library already open in the bound Portal.")]
     public string? Scope { get; set; }
 
-    [Description("Global scope only: absolute path (drive or UNC) of an already-open global library, compared case-insensitively. Give this or libraryName; when both are given both must match.")]
+    [Description("Global scope only (inspect_library, list_children, list_versions, list_dependencies): absolute path (drive or UNC) of an already-open global library, compared case-insensitively. Give this or libraryName; when both are given both must match.")]
     public string? LibraryPath { get; set; }
 
-    [Description("Global scope only: exact (ordinal) name of an already-open global library. Give this or libraryPath; when both are given both must match.")]
+    [Description("Global scope only (inspect_library, list_children, list_versions, list_dependencies): exact (ordinal) name of an already-open global library. Give this or libraryPath; when both are given both must match.")]
     public string? LibraryName { get; set; }
 
     [Description("list_children only: types or masterCopies.")]
@@ -38,12 +38,12 @@ public sealed class LibraryReadItem : IOperationBatchItem
     [Description("list_dependencies only: dependencies (default) or dependents.")]
     public string? Direction { get; set; }
 
-    [Description("Paged operations only (all except inspect_library): zero-based index of the first row. Default 0. Not valid with cursor.")]
+    [Description("Paged operations only (list_global_libraries, list_children, list_versions and list_dependencies; not inspect_library): zero-based index of the first row. Default 0. Not valid with cursor.")]
     public int? Offset { get; set; }
 
-    [Description("Paged operations only (all except inspect_library): rows per page, 1 to 200. Default 100.")]
+    [Description("Paged operations only (list_global_libraries, list_children, list_versions and list_dependencies; not inspect_library): rows per page, 1 to 200. Default 100.")]
     public int? Limit { get; set; }
 
-    [Description("Paged operations only: page.nextCursor from a previous call with the same operation and selectors; continues that snapshot. Not valid with offset.")]
+    [Description("Paged operations only (list_global_libraries, list_children, list_versions and list_dependencies; not inspect_library): nextCursor from a previous call with the same operation and selectors; continues that snapshot. Not valid with offset.")]
     public string? Cursor { get; set; }
 }

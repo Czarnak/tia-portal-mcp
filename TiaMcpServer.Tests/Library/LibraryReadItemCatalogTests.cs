@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Library;
 using Xunit;
 
@@ -97,5 +98,23 @@ public sealed class LibraryReadItemCatalogTests
         });
 
         Assert.True(validation.IsValid, validation.Error);
+    }
+
+    [Theory]
+    [InlineData(McpAccessMode.ReadOnly)]
+    [InlineData(McpAccessMode.ReadWrite)]
+    [InlineData(McpAccessMode.Full)]
+    public void ValidateAccessMode_EveryReadOperation_AllowedInEveryMode(McpAccessMode mode)
+    {
+        var items = new[]
+        {
+            new LibraryReadItem { Operation = "list_global_libraries" },
+            new LibraryReadItem { Operation = "inspect_library", Scope = "global" },
+            new LibraryReadItem { Operation = "list_children", Scope = "project" },
+            new LibraryReadItem { Operation = "list_versions", Scope = "global" },
+            new LibraryReadItem { Operation = "list_dependencies", Scope = "project" },
+        };
+
+        Assert.Empty(LibraryReadCatalog.ValidateAccessMode(items, mode));
     }
 }

@@ -254,6 +254,7 @@ public sealed class LocalSessionCapabilityTests
     [InlineData("close_project")]
     [InlineData("vci_read")]
     [InlineData("vci_write")]
+    [InlineData("library_read")]
     public async Task LocalUnsupportedOperation_DeniesBeforeWorkerDispatch(string operation)
     {
         using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, Amc));
@@ -270,6 +271,7 @@ public sealed class LocalSessionCapabilityTests
         {
             "vci_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "delete_workspace", workspaceName = "Fixture" } } },
             "vci_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_workspaces" } } },
+            "library_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "inspect_library", scope = "project" } } },
             "create_project" => new Dictionary<string, object?> { ["projectDirectory"] = audit.Path, ["projectName"] = "New", ["dryRun"] = true },
             "save_project_as" => new Dictionary<string, object?> { ["targetDirectory"] = audit.Path, ["targetName"] = "Copy", ["dryRun"] = true },
             "archive_project" => new Dictionary<string, object?> { ["archiveDirectory"] = audit.Path, ["archiveName"] = "Copy", ["dryRun"] = true },
@@ -279,6 +281,7 @@ public sealed class LocalSessionCapabilityTests
         Assert.Contains(WorkerFailureCategories.UnsupportedCapability, response.StructuredContent!.Value.GetRawText());
         Assert.DoesNotContain(operation, log.Methods().Skip(before));
         Assert.DoesNotContain(log.Methods().Skip(before), method => method.StartsWith("vci_", StringComparison.Ordinal));
+        Assert.DoesNotContain(log.Methods().Skip(before), method => method.StartsWith("library_", StringComparison.Ordinal));
         Assert.DoesNotContain("probe_project_status_for_lifecycle", log.Methods().Skip(before));
     }
 }

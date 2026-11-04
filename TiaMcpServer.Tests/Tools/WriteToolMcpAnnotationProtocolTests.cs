@@ -12,6 +12,7 @@ public class WriteToolMcpAnnotationProtocolTests
         "browse_project_tree",
         "get_project_status",
         "hmi_read",
+        "library_read",
         "network_read",
         "plc_read",
         "read_cross_references", "vci_read",
@@ -28,6 +29,7 @@ public class WriteToolMcpAnnotationProtocolTests
         "get_project_status",
         "hmi_read",
         "hmi_write",
+        "library_read",
         "network_read",
         "network_write",
         "open_project",
@@ -61,7 +63,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
         Assert.Equal(FullToolNames, tools.Select(tool => tool.Name));
-        Assert.Equal(19, tools.Length);
+        Assert.Equal(20, tools.Length);
         Assert.All(
             tools,
             tool => Assert.Equal(
@@ -101,7 +103,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var toolNames = tools.Select(tool => tool.Name).ToArray();
 
         Assert.Equal(ReadOnlyToolNames, toolNames);
-        Assert.Equal(8, tools.Length);
+        Assert.Equal(9, tools.Length);
 
         foreach (var writeToolName in FullToolNames.Except(ReadOnlyToolNames, StringComparer.Ordinal))
         {
