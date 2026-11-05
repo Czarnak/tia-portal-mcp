@@ -46,6 +46,8 @@ internal static class LibraryReadScenario
         Identity = new() { Scope = query.Scope ?? "global", Kind = "library", Name = name, LibraryName = query.Scope == "project" ? null : name },
         IsReadOnly = true,
         IsModified = null,
+        LibraryType = query.Scope == "project" ? null : "user",
+        IsOpen = query.Scope == "project" ? null : true,
         Diagnostics = { "isModified unavailable in fixture" },
     };
 

@@ -14,9 +14,10 @@ namespace TiaMcpServer.OpennessWorker.Openness.Library;
 public sealed record LibrarySnapshot(object Owner, IReadOnlyList<object> Ordered, string Id);
 
 /// <summary>
-/// The read-only half of <c>library_read</c>. It finds global libraries only among those already open in the bound
-/// Portal and the project library only on a standalone <see cref="Siemens.Engineering.Project"/>; it never opens, retrieves, saves,
-/// closes or changes anything.
+/// The read-only half of <c>library_read</c>. <c>list_global_libraries</c> lists every available global library of the
+/// bound Portal (<c>GetGlobalLibraryInfos</c>, which opens nothing); every other global read resolves only among the
+/// libraries already open there, and the project library only on a standalone <see cref="Siemens.Engineering.Project"/>.
+/// It never opens, retrieves, saves, closes or changes anything.
 /// </summary>
 internal static class LibraryReader
 {
@@ -47,11 +48,17 @@ internal static class LibraryReader
         if (operation == ListGlobalLibraries)
         {
             // A continuation never rescans, so touch the Portal: a lost attachment fails the item, not every row.
-            if (held is not null) HmiReadLog.Guard(() => portal.GlobalLibraries.Count(), "The Portal of the page snapshot", describe: true);
-            return new RowReader(project, query, null).Page(held, portal, method, snapshots, () => portal.GlobalLibraries
-                .OrderBy(x => x.Name, StringComparer.Ordinal)
-                .ThenBy(x => x.Path?.FullName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(x => x.Path?.FullName, StringComparer.Ordinal));
+            // Every page re-reads the opened composition, so isOpen and the open-library flags are current.
+            var opened = held is null
+                ? portal.GlobalLibraries.ToList()
+                : HmiReadLog.Guard(() => portal.GlobalLibraries.ToList(), "The Portal of the page snapshot", describe: true);
+            return new RowReader(project, query, null, opened).Page(held, portal, method, snapshots, () => portal.GlobalLibraries
+                .GetGlobalLibraryInfos()
+                .Select(x => (Info: x, Path: InfoPath(x)))
+                .OrderBy(x => x.Info.Name, StringComparer.Ordinal)
+                .ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Path, StringComparer.Ordinal)
+                .Select(x => (object)x.Info));
         }
 
         // A continuation pages the library its first page resolved; a closed library fails the item.
@@ -80,7 +87,43 @@ internal static class LibraryReader
         }
 
         var wantedPath = query.LibraryPath is null ? null : CanonicalPath(query.LibraryPath);
-        return Exact(portal.GlobalLibraries.Where(x => Matches(x, query.LibraryName, wantedPath)), "global library already open in the bound Portal");
+        var opened = portal.GlobalLibraries.Where(x => Matches(x.Name, x.Path?.FullName, query.LibraryName, wantedPath)).Take(2).ToArray();
+        if (opened.Length == 0 && portal.GlobalLibraries.GetGlobalLibraryInfos()
+                .Any(x => Matches(x.Name, InfoPath(x), query.LibraryName, wantedPath)))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                "The global library is available but not open in the bound Portal; open it in TIA Portal first. No library was opened or changed.");
+        }
+
+        return Exact(opened, "global library already open in the bound Portal");
+    }
+
+    /// <summary>The full path of an available library, or null when TIA Portal reports none it can use (system/corporate libraries may not).</summary>
+    internal static string? InfoPath(GlobalLibraryInfo info)
+    {
+        try
+        {
+            return FullPath(info.Path?.FullName);
+        }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverablePropertyFailure(exception) || IsPathFailure(exception))
+        {
+            return null;
+        }
+    }
+
+    private static bool IsPathFailure(Exception exception)
+        => exception is ArgumentException or NotSupportedException or System.IO.PathTooLongException or System.Security.SecurityException;
+
+    private static string? FullPath(string? path)
+    {
+        try
+        {
+            return path is null ? null : System.IO.Path.GetFullPath(path);
+        }
+        catch (Exception exception) when (IsPathFailure(exception))
+        {
+            return null;
+        }
     }
 
     /// <summary>The full path of a caller-supplied <c>libraryPath</c>; a malformed one is a validation error, not a worker failure.</summary>
@@ -96,12 +139,12 @@ internal static class LibraryReader
         }
     }
 
-    private static bool Matches(GlobalLibrary library, string? name, string? canonicalPath)
+    private static bool Matches(string name, string? path, string? wantedName, string? wantedCanonicalPath)
     {
-        if (name is not null && !string.Equals(library.Name, name, StringComparison.Ordinal)) return false;
-        if (canonicalPath is null) return true;
-        var path = library.Path?.FullName;
-        return path is not null && string.Equals(System.IO.Path.GetFullPath(path), canonicalPath, StringComparison.OrdinalIgnoreCase);
+        if (wantedName is not null && !string.Equals(name, wantedName, StringComparison.Ordinal)) return false;
+        if (wantedCanonicalPath is null) return true;
+        var canonical = FullPath(path);
+        return canonical is not null && string.Equals(canonical, wantedCanonicalPath, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static T Exact<T>(IEnumerable<T> matches, string subject)
@@ -198,7 +241,7 @@ internal static class LibraryReader
     }
 
     /// <summary>Maps rows of one call to entries; caches each owner library's identity so it is read once per call.</summary>
-    private sealed class RowReader(ProjectBase project, LibraryQueryInfo query, ILibrary? resolved)
+    private sealed class RowReader(ProjectBase project, LibraryQueryInfo query, ILibrary? resolved, IReadOnlyList<GlobalLibrary>? opened = null)
     {
         private readonly Dictionary<ILibrary, LibraryIdentityInfo> owners = new();
 
@@ -232,9 +275,9 @@ internal static class LibraryReader
         {
             try
             {
+                // A GlobalLibraryInfo row has no native liveness: it is treated as live and re-matched per page.
                 _ = row switch
                 {
-                    GlobalLibrary x => x.Name,
                     LibraryTypeFolder x => x.Name,
                     LibraryType x => x.Name,
                     LibraryTypeVersion x => x.Guid,
@@ -259,7 +302,7 @@ internal static class LibraryReader
 
         private static string Kind(object row) => row switch
         {
-            ILibrary => "library",
+            ILibrary or GlobalLibraryInfo => "library",
             LibraryTypeFolder or MasterCopyFolder => "folder",
             LibraryType => "type",
             LibraryTypeVersion => "version",
@@ -268,6 +311,7 @@ internal static class LibraryReader
 
         private LibraryEntryInfo Entry(object row) => row switch
         {
+            GlobalLibraryInfo x => InfoEntry(x),
             ILibrary x => LibraryEntry(x),
             LibraryTypeFolder x => Folder(x.Name, "types", x),
             MasterCopyFolder x => Folder(x.Name, "masterCopies", x),
@@ -307,6 +351,42 @@ internal static class LibraryReader
                 entry.Diagnostics.Add("Project-library read-only and write-protection state is not established by this read.");
             }
 
+            return entry;
+        }
+
+        /// <summary>
+        /// One available global library. An open one is matched to its opened library (canonical path, else exact name)
+        /// and read like inspect_library; an unopened one reports only what its info carries. Nothing is opened.
+        /// </summary>
+        private LibraryEntryInfo InfoEntry(GlobalLibraryInfo info)
+        {
+            var name = info.Name;
+            var path = InfoPath(info);
+            var candidates = (opened ?? Array.Empty<GlobalLibrary>())
+                .Where(x => path is null ? string.Equals(x.Name, name, StringComparison.Ordinal) : Matches(x.Name, x.Path?.FullName, null, path))
+                .Take(2).ToArray();
+            var open = candidates.Length == 1 ? candidates[0] : null;
+            var entry = open is null ? new LibraryEntryInfo() : LibraryEntry(open);
+            entry.Identity = new LibraryIdentityInfo { Scope = "global", Kind = "library", Name = name, LibraryName = name, LibraryPath = path };
+            if (path is null) entry.Diagnostics.Add("libraryPath unavailable: TIA Portal reports no usable path for this library.");
+            entry.LibraryType = Optional(() => info.LibraryType, "libraryType", entry, x => x switch
+            {
+                GlobalLibraryType.System => "system",
+                GlobalLibraryType.Corporate => "corporate",
+                GlobalLibraryType.User => "user",
+                _ => null,
+            });
+            if (open is not null)
+            {
+                entry.IsOpen = true;
+                return entry;
+            }
+
+            entry.IsOpen = Optional(() => info.IsOpen, "isOpen", entry);
+            entry.IsReadOnly = Optional(() => info.IsReadOnly, "isReadOnly", entry);
+            entry.Diagnostics.Add(entry.IsOpen == true
+                ? "This library is reported open but could not be matched to exactly one opened library, so its open-library flags were not read. No library was opened."
+                : "This library is available but not open in the bound Portal, so its contents cannot be read until it is opened in TIA Portal. No library was opened.");
             return entry;
         }
 
@@ -370,6 +450,23 @@ internal static class LibraryReader
                 if (read() is bool value) return value;
                 entry.Diagnostics.Add(member + " unavailable: the native value is not boolean.");
                 return null;
+            }
+            catch (Exception exception) when (OpennessExceptions.IsRecoverablePropertyFailure(exception))
+            {
+                entry.Diagnostics.Add(member + " unavailable: " + exception.GetType().Name);
+                return null;
+            }
+        }
+
+        /// <summary>A native enum mapped to its public name; an unmapped value is null with a diagnostic, like an unreadable flag.</summary>
+        private static string? Optional<T>(Func<T> read, string member, LibraryEntryInfo entry, Func<T, string?> map)
+        {
+            try
+            {
+                var value = read();
+                var mapped = map(value);
+                if (mapped is null) entry.Diagnostics.Add($"{member} unavailable: unknown native value '{value}'.");
+                return mapped;
             }
             catch (Exception exception) when (OpennessExceptions.IsRecoverablePropertyFailure(exception))
             {

@@ -10,12 +10,12 @@ namespace Siemens.Engineering
 {
     public sealed partial class TiaPortal
     {
-        private readonly Library.LibraryComposition<Library.GlobalLibrary> globalLibraries = new();
+        private readonly Library.GlobalLibraryComposition globalLibraries = new();
 
         /// <summary>Thrown by <see cref="GlobalLibraries"/> when set, like a lost Portal attachment.</summary>
         public Exception? GlobalLibrariesFailure { get; set; }
 
-        public Library.LibraryComposition<Library.GlobalLibrary> GlobalLibraries
+        public Library.GlobalLibraryComposition GlobalLibraries
             => GlobalLibrariesFailure is null ? globalLibraries : throw GlobalLibrariesFailure;
     }
 
@@ -98,6 +98,45 @@ namespace Siemens.Engineering.Library
 
     public sealed class ProjectLibrary : LibraryRootDouble
     {
+    }
+
+    public enum GlobalLibraryType { System = 0, Corporate = 1, User = 2 }
+
+    public sealed class GlobalLibraryInfo : LibraryDouble
+    {
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>Thrown by <see cref="Path"/> when set, like a system library without a usable file path.</summary>
+        public Exception? PathFailure { get; set; }
+        private FileInfo? path;
+        public FileInfo? Path { get => PathFailure is null ? path : throw PathFailure; set => path = value; }
+        public bool IsOpen { get; set; }
+        public bool IsReadOnly { get; set; }
+        public GlobalLibraryType LibraryType { get; set; } = GlobalLibraryType.User;
+    }
+
+    /// <summary>
+    /// Opened libraries (<see cref="Items"/>) plus available-but-unopened ones (<see cref="Available"/>).
+    /// <see cref="GetGlobalLibraryInfos"/> reports both, like V21; it synthesizes a user info for every opened
+    /// library not already listed. <see cref="Open"/> throws so a read that tries to open fails the test.
+    /// </summary>
+    public sealed class GlobalLibraryComposition : IEnumerable<GlobalLibrary>
+    {
+        public List<GlobalLibrary> Items { get; } = new();
+        public List<GlobalLibraryInfo> Available { get; } = new();
+
+        public IList<GlobalLibraryInfo> GetGlobalLibraryInfos()
+            => Available.Concat(Items
+                .Where(open => !Available.Any(info => info.Name == open.Name
+                    && string.Equals(info.Path?.FullName, open.Path?.FullName, StringComparison.OrdinalIgnoreCase)))
+                .Select(open => new GlobalLibraryInfo { Name = open.Name, Path = open.Path, IsOpen = true }))
+                .ToList();
+
+        public GlobalLibrary Open(GlobalLibraryInfo info)
+            => throw new InvalidOperationException($"Library reads must not open: Open('{info.Name}').");
+
+        public IEnumerator<GlobalLibrary> GetEnumerator() => Items.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }
 

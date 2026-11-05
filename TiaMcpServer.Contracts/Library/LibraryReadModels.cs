@@ -47,6 +47,10 @@ public sealed class LibraryEntryInfo
     public bool? IsReadOnly { get; set; }
     public bool? IsWriteProtected { get; set; }
     public bool? IsModified { get; set; }
+    /// <summary>Global library rows only: <c>system</c>, <c>corporate</c> or <c>user</c>; null elsewhere or when unknown.</summary>
+    public string? LibraryType { get; set; }
+    /// <summary>Global library rows only: whether the library is open in the bound Portal; null elsewhere.</summary>
+    public bool? IsOpen { get; set; }
     public string? NativeType { get; set; }
     public List<string> Diagnostics { get; set; } = new();
 }

@@ -55,6 +55,18 @@ public sealed class LibraryPayloadContractTests
     }
 
     [Fact]
+    public void Project_TypeRow_WritesExplicitNullLibraryTypeAndIsOpen()
+    {
+        var item = LibraryPayloadContract.Project(Request, WorkerCallResult.Ok(Page(null, null, complete: true)), Codec, Binding);
+
+        var row = item.Result!.Value.GetProperty("items")[0];
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("libraryType").ValueKind);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("isOpen").ValueKind);
+        Assert.Contains("\"libraryType\":null", Page(null, null), StringComparison.Ordinal);
+        Assert.Contains("\"isOpen\":null", Page(null, null), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Project_PayloadWithMissingMember_IsProtocolErrorWithoutEcho()
     {
         var diagnostics = new List<string>();

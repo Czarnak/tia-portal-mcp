@@ -192,6 +192,117 @@ public sealed class LibraryReaderTests
         Assert.All(page.Items, i => Assert.True(i.IsReadOnly));
     }
 
+    private GlobalLibraryInfo AddAvailable(string name, string? path, GlobalLibraryType type, bool readOnly = true)
+    {
+        var info = new GlobalLibraryInfo { Name = name, Path = path is null ? null : new FileInfo(path), LibraryType = type, IsReadOnly = readOnly };
+        portal.GlobalLibraries.Available.Add(info);
+        return info;
+    }
+
+    [Fact]
+    public void ListGlobal_IncludesUnopenedSystemAndCorporate_WithTypeAndIsOpen()
+    {
+        AddAvailable("Sys", @"C:\System\Sys.al21", GlobalLibraryType.System);
+        AddAvailable("Corp", @"C:\Corp\B\Corp.al21", GlobalLibraryType.Corporate, readOnly: false);
+        AddAvailable("Corp", @"C:\Corp\A\Corp.al21", GlobalLibraryType.Corporate);
+        AddGlobal("User", @"C:\Libs\User.al21");
+
+        var page = Read(ListGlobal, new LibraryQueryInfo());
+
+        Assert.Equal(new[] { @"C:\Corp\A\Corp.al21", @"C:\Corp\B\Corp.al21", @"C:\System\Sys.al21", @"C:\Libs\User.al21" },
+            page.Items.Select(i => i.Identity.LibraryPath));
+        Assert.Equal(new[] { "corporate", "corporate", "system", "user" }, page.Items.Select(i => i.LibraryType));
+        Assert.Equal(new bool?[] { false, false, false, true }, page.Items.Select(i => i.IsOpen));
+        Assert.Equal(new bool?[] { true, false, true, true }, page.Items.Select(i => i.IsReadOnly));
+        var unopened = page.Items[2];
+        Assert.Equal("library", unopened.Identity.Kind);
+        Assert.Equal("Sys", unopened.Identity.LibraryName);
+        Assert.Null(unopened.IsModified);
+        Assert.Null(unopened.IsWriteProtected);
+        Assert.Null(unopened.NativeType);
+        Assert.Contains(unopened.Diagnostics, d => d.Contains("not open in the bound Portal", StringComparison.Ordinal)
+            && d.Contains("No library was opened", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ListGlobal_OpenInfo_ReadsFlagsFromOpenLibrary()
+    {
+        AddGlobal("User", @"C:\Libs\User.al21");
+        AddAvailable("User", @"c:\libs\USER.al21", GlobalLibraryType.User, readOnly: false).IsOpen = true;
+
+        var entry = Assert.Single(Read(ListGlobal, new LibraryQueryInfo()).Items);
+
+        Assert.True(entry.IsOpen);
+        Assert.True(entry.IsReadOnly);
+        Assert.False(entry.IsWriteProtected);
+        Assert.False(entry.IsModified);
+        Assert.Equal(typeof(GlobalLibrary).FullName, entry.NativeType);
+        Assert.Equal("user", entry.LibraryType);
+        Assert.Empty(entry.Diagnostics);
+    }
+
+    [Fact]
+    public void ListGlobal_UnknownLibraryType_NullWithDiagnostic()
+    {
+        AddAvailable("Odd", @"C:\Libs\Odd.al21", (GlobalLibraryType)7);
+
+        var entry = Assert.Single(Read(ListGlobal, new LibraryQueryInfo()).Items);
+
+        Assert.Null(entry.LibraryType);
+        Assert.Contains(entry.Diagnostics, d => d.StartsWith("libraryType unavailable", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ListGlobal_InfoWithoutPath_NullPathWithDiagnostic()
+    {
+        AddAvailable("NoPath", null, GlobalLibraryType.System);
+        AddAvailable("Broken", @"C:\Libs\Broken.al21", GlobalLibraryType.Corporate).PathFailure = new EngineeringNotSupportedException("no path");
+
+        var page = Read(ListGlobal, new LibraryQueryInfo());
+
+        Assert.Equal(new[] { "Broken", "NoPath" }, page.Items.Select(i => i.Identity.Name));
+        Assert.All(page.Items, i =>
+        {
+            Assert.Null(i.Identity.LibraryPath);
+            Assert.Contains(i.Diagnostics, d => d.StartsWith("libraryPath unavailable", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
+    public void Global_SelectorMatchesUnopenedInfo_TargetNotFoundNotOpen()
+    {
+        AddAvailable("Sys", @"C:\System\Sys.al21", GlobalLibraryType.System);
+
+        foreach (var query in new[] { Global("Sys"), Global(path: @"c:\system\SYS.al21") })
+        {
+            var failure = Fails("library_global_inspect_library", query);
+            Assert.Equal(WorkerFailureCategories.TargetNotFound, failure.FailureCategory);
+            Assert.Contains("not open in the bound Portal", failure.Message, StringComparison.Ordinal);
+            Assert.Contains("No library was opened or changed", failure.Message, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("not open in the bound Portal", Fails("library_global_inspect_library", Global("Other")).Message, StringComparison.Ordinal);
+        Assert.Empty(portal.GlobalLibraries.Items);
+    }
+
+    [Fact]
+    public void ListGlobal_Continuation_ReevaluatesIsOpen()
+    {
+        AddAvailable("A", @"C:\Libs\A.al21", GlobalLibraryType.User);
+        AddAvailable("B", @"C:\Libs\B.al21", GlobalLibraryType.User, readOnly: false);
+        var first = Read(ListGlobal, new LibraryQueryInfo { Limit = 1 });
+        Assert.Equal(false, Assert.Single(first.Items).IsOpen);
+
+        AddGlobal("B", @"C:\Libs\B.al21");
+        var next = Read(ListGlobal, Continue(new LibraryQueryInfo { Offset = 1, Limit = 1 }, first));
+
+        var entry = Assert.Single(next.Items);
+        Assert.Equal("B", entry.Identity.Name);
+        Assert.True(entry.IsOpen);
+        Assert.True(entry.IsReadOnly);
+        Assert.False(entry.IsModified);
+    }
+
     [Fact]
     public void Versions_OrderByVersionNumber_DependenciesByOwnerPathTypeVersion()
     {
@@ -376,8 +487,11 @@ public sealed class LibraryReaderTests
     [Fact]
     public void Reader_CallsNoMutatingMember()
     {
-        // Every double throws on SetAttribute; a full read of every operation, including a continuation, must not reach it.
+        // Every double throws on SetAttribute and the composition on Open; a full read of every operation,
+        // including a continuation and an unopened-library miss, must not reach either.
         var library = AddGlobal("Lib", @"C:\Libs\Lib.al21");
+        AddAvailable("Closed", @"C:\Libs\Closed.al21", GlobalLibraryType.Corporate);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, Fails("library_global_inspect_library", Global("Closed")).FailureCategory);
         project.ProjectLibrary = new ProjectLibrary();
         var type = library.TypeFolder.AddFolder("F").AddType("T");
         var version = type.AddVersion("1.0.0");
@@ -385,7 +499,8 @@ public sealed class LibraryReaderTests
         version.Dependents.Items.Add(project.ProjectLibrary.TypeFolder.AddType("P").AddVersion("1.0.0"));
         library.MasterCopyFolder.AddCopy("C");
 
-        Read(ListGlobal, new LibraryQueryInfo());
+        var listed = Read(ListGlobal, new LibraryQueryInfo { Limit = 1 });
+        Read(ListGlobal, Continue(new LibraryQueryInfo { Offset = 1, Limit = 1 }, listed));
         Read("library_global_inspect_library", Global("Lib"));
         Read("library_project_inspect_library", new LibraryQueryInfo { Scope = "project" });
         Read("library_project_list_children", new LibraryQueryInfo { Scope = "project", FolderKind = "types" });

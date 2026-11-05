@@ -30,8 +30,27 @@ namespace Siemens.Engineering.Library
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
     }
+    public enum GlobalLibraryType : int
+    {
+        System = 0,
+        Corporate = 1,
+        User = 2,
+    }
+    public abstract class GlobalLibraryInfo : global::Siemens.Engineering.IEngineeringObject
+    {
+        public bool IsOpen { get => throw new global::System.NotSupportedException(); }
+        public bool IsReadOnly { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.Library.GlobalLibraryType LibraryType { get => throw new global::System.NotSupportedException(); }
+        public string Name { get => throw new global::System.NotSupportedException(); }
+        public global::System.IO.FileInfo Path { get => throw new global::System.NotSupportedException(); }
+        object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
+        void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
+        global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
+        global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
+    }
     public abstract class GlobalLibraryComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.GlobalLibrary>
     {
+        public global::System.Collections.Generic.IList<global::Siemens.Engineering.Library.GlobalLibraryInfo> GetGlobalLibraryInfos() => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.GlobalLibrary> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
