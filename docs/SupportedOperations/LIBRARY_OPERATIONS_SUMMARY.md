@@ -39,7 +39,7 @@ The server never opens a library for you. A global library that is closed in TIA
 Every operation returns one page, `{items, total, offset, nextOffset, nextCursor, complete, diagnostics}`. `inspect_library` returns a one-row page. Each row is `{identity, namespace, versionNumber, state, isDefault, isReadOnly, isWriteProtected, isModified, libraryType, isOpen, nativeType, diagnostics}`.
 
 - `identity` is `{scope, libraryPath, libraryName, folderKind, folderPath[], kind, name, typeGuid, versionGuid}`. `kind` is `library`, `folder`, `type`, `version` or `masterCopy`. Folder paths are segments.
-- Every flag (`isDefault`, `isReadOnly`, `isWriteProtected`, `isModified`, `isOpen`) is nullable. A flag that could not be read or does not apply is null with a diagnostic, never `false`.
+- Every flag (`isDefault`, `isReadOnly`, `isWriteProtected`, `isModified`, `isOpen`) is nullable. A flag that cannot be read is null with a diagnostic, never `false`. A flag that does not apply to a row kind (for example `isDefault` on a folder) is null without a diagnostic.
 - For a project library, `isModified` is the bound project's own modified flag (the row diagnostic says so), and read-only and write-protection state are null with a diagnostic. `nativeType` is `ProjectLibrary`.
 - Row order: `list_global_libraries` by name then path; `list_children` folders before entries, each by name (ordinal); `list_versions` by version number; `list_dependencies` by owner path, then type name, then version.
 - Errors: `validation_error`, `binding_conflict`, `target_not_found`, `target_ambiguous`, `unsupported_capability`, `invalid_cursor`, `cursor_filter_mismatch`, `cursor_binding_mismatch`, `snapshot_unavailable`, `cursor_snapshot_mismatch`, `protocol_error`, `worker_operation_failed`, `portal_lost`.
@@ -47,29 +47,29 @@ Every operation returns one page, `{items, total, offset, nextOffset, nextCursor
 
 ## Cursor paging
 
-The four paged operations take `offset` (default 0) and `limit` (1 to 200, default 100). Whenever more rows exist, the page carries `nextCursor`; pass it back as `cursor`, instead of `offset`, with the same operation and selectors to continue the same scan. `limit` may differ between pages.
+The four paged operations take `offset` (default 0) and `limit` (1 to 200, default 100). Whenever more rows exist, the page carries `nextCursor`; pass it back as `cursor`, instead of `offset`, with the same operation and selectors to continue the same scan. `limit` may differ between pages (offline only).
 
-- **Frozen order, live values.** The first page of a paged scan enumerates every row in the order above and freezes that ordered set in a worker snapshot. A continuation pages the frozen set and reads each row's property values live. A row whose object no longer exists fails only that row with a diagnostic (offline only). Rows added after the first page are not included; a call without a cursor sees them.
+- **Frozen order, live values.** The first page of a paged scan enumerates every row in the order above and freezes that ordered set in a worker snapshot. A continuation pages the frozen set and reads each row's property values live. A row whose object no longer exists fails only that row with a diagnostic (offline only). Rows added after the first page are not included; a call without a cursor sees them (offline only).
 - **Lifetime.** The worker keeps at most 4 library snapshots, least recently used evicted first, each dropped after 10 idle minutes. Library snapshots use their own store, separate from HMI's, so neither evicts the other. A snapshot is not dropped when the last page is read: a page-1 cursor still worked after the last page (live observation).
 - **`isOpen` and open flags** are re-evaluated against the current composition on every page (offline only).
 - **Failures.** `cursor` together with `offset`, or on `inspect_library`, is a `validation_error` for the whole call. Checks before any worker call:
 
   | Condition | Category |
   | --- | --- |
-  | blank, malformed or tampered cursor, or one issued by an earlier server process | `invalid_cursor` |
+  | blank, malformed or tampered cursor, or (offline only) one issued by an earlier server process | `invalid_cursor` |
   | different operation or any selector changed (the hash excludes `offset`, `limit` and `cursor`) | `cursor_filter_mismatch` |
-  | project binding changed since the cursor was issued | `cursor_binding_mismatch` |
+  | project binding changed since the cursor was issued (offline only) | `cursor_binding_mismatch` |
 
-  In the worker, an expired or evicted snapshot is `snapshot_unavailable` and a snapshot from another project or operation is `cursor_snapshot_mismatch`. Restart without a cursor in each case. A continuation that restates the default `direction` explicitly is accepted.
+  In the worker, an expired or evicted snapshot is `snapshot_unavailable` and a snapshot from another project or operation is `cursor_snapshot_mismatch` (both offline only). Restart without a cursor in each case. A continuation that restates the default `direction` explicitly is accepted.
 
 ## Containers and capability labels
 
 | Reads | Standalone project | Local session | Server project |
 | --- | --- | --- | --- |
-| global (`list_global_libraries`, `scope:"global"`) | yes | offline only | not yet delivered |
-| project (`scope:"project"`) | yes | `unsupported_capability` (offline only) | not yet delivered |
+| global (`list_global_libraries`, `scope:"global"`) | yes | offline only | `unsupported_capability` (capability label `notYetDelivered`; offline only) |
+| project (`scope:"project"`) | yes | `unsupported_capability` (offline only) | `unsupported_capability` (capability label `standaloneOnly`; offline only) |
 
-Project-library reads on a local session are refused with `unsupported_capability` because the library is not reachable through the common project root there. They need a separate probe.
+Project-library reads on a local session are refused with `unsupported_capability` because `library_project_read` is a standalone-only capability until a separate probe covers local sessions (decision D6; the same applies to server projects).
 
 Capability labels in the `bind_project` context are not one-to-one with the tool name:
 

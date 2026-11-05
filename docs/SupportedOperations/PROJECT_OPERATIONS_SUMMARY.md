@@ -53,7 +53,7 @@ Results add conditional `result.value.inspection`, with observed PID and typed n
 `transition:"none"` and `project:null`. Whole-value omission includes the inventory. See the
 [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md) for selectors, examples, current-user scope,
 lock/error/omission limits and scoped live evidence. PR3 discovery was 7/17/17;
-current discovery is 9/20/20 with the standalone VCI tools.
+current discovery is 9/20/20 with the standalone VCI tools and `library_read`.
 
 ### Local-session identity and basic status
 

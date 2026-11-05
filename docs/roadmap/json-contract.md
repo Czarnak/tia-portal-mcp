@@ -69,6 +69,7 @@ it without inventing a second mechanism.
 | `plc_write` | Structured guarded write envelope (`1.0`; effects, guards, typed batch and verification, omission) | Implemented and live-accepted 2026-10-07; replaces `preview_write_batch` and `apply_write_batch`, which were retired |
 | `hmi_read` | Structured (`1.1`, typed items, opt-in sealed snapshot cursors) | Implemented and live-accepted; see the [HMI reference](../SupportedOperations/HMI_OPERATIONS_SUMMARY.md) |
 | `hmi_write` | Structured guarded write envelope (`2.0`); typed native errors/partial outcomes; `trusted`/`superseded` without read-back | Implemented and qualified within the recorded R1/R2/R3 scope: 35 functional cases on `96a28b7`; focused R1, manual UI, L5 and timing on `31d1a44`, with six R3 compile waivers; see the [completed scoped report](../superpowers/acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md) |
+| `library_read` | Structured (`1.0`, typed pages, sealed snapshot cursors; shared batch-read path) | Implemented; scoped live acceptance 2026-11-06; see the [library reference](../SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md) |
 | `vci_read`, `vci_write` | Structured (`1.0`); `vci_write` uses the guarded write envelope | Implemented; scoped live acceptance 2026-10-16; see the [VCI reference](../SupportedOperations/VCI_OPERATIONS_SUMMARY.md) |
 
 The batch tools were excluded because the
