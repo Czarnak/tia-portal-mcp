@@ -339,6 +339,56 @@ public sealed class LibraryReaderTests
     }
 
     [Fact]
+    public void Global_InspectRow_IsOpenWithLibraryTypeFromInfo()
+    {
+        AddGlobal("Corp", @"C:\Corp\Corp.al21");
+        AddAvailable("Corp", @"c:\corp\CORP.al21", GlobalLibraryType.Corporate).IsOpen = true;
+
+        var entry = Assert.Single(Read("library_global_inspect_library", Global("Corp")).Items);
+
+        Assert.True(entry.IsOpen);
+        Assert.Equal("corporate", entry.LibraryType);
+        Assert.Empty(entry.Diagnostics);
+    }
+
+    [Fact]
+    public void Global_InspectRow_NoMatchingInfoOrInfoFailure_NullLibraryTypeWithDiagnostic()
+    {
+        AddGlobal("Lib", @"C:\Libs\Lib.al21");
+        portal.GlobalLibraries.SynthesizeOpenInfos = false;
+
+        var unmatched = Assert.Single(Read("library_global_inspect_library", Global("Lib")).Items);
+        portal.GlobalLibraries.InfosFailure = new EngineeringNotSupportedException("no infos");
+        var failed = Assert.Single(Read("library_global_inspect_library", Global("Lib")).Items);
+
+        foreach (var entry in new[] { unmatched, failed })
+        {
+            Assert.True(entry.IsOpen);
+            Assert.Null(entry.LibraryType);
+            Assert.Contains(entry.Diagnostics, d => d.StartsWith("libraryType unavailable", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void Global_SelectorMiss_RecoverableInfoFailure_IsTargetNotFound()
+    {
+        portal.GlobalLibraries.InfosFailure = new EngineeringNotSupportedException("no infos");
+
+        var failure = Fails("library_global_inspect_library", Global("Lib"));
+
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, failure.FailureCategory);
+        Assert.DoesNotContain("not open in the bound Portal", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Global_SelectorMiss_NonRecoverableInfoFailure_Escapes()
+    {
+        portal.GlobalLibraries.InfosFailure = new NonRecoverableException("portal");
+
+        Assert.Throws<NonRecoverableException>(() => Read("library_global_inspect_library", Global("Lib")));
+    }
+
+    [Fact]
     public void Versions_OrderByVersionNumber_DependenciesByOwnerPathTypeVersion()
     {
         var library = AddGlobal("Lib", @"C:\Libs\Lib.al21");

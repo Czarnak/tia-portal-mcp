@@ -75,7 +75,9 @@ internal static class LibraryReader
             _ => DependencyRows(library, query, rows),
         };
 
-        return rows.Page(held, library, method, snapshots, Scan);
+        var page = rows.Page(held, library, method, snapshots, Scan);
+        if (operation == "inspect_library" && library is GlobalLibrary global) MarkInspectedGlobal(portal, global, page.Items[0]);
+        return page;
     }
 
     internal static ILibrary Resolve(TiaPortal portal, ProjectBase project, LibraryQueryInfo query)
@@ -88,8 +90,7 @@ internal static class LibraryReader
 
         var wantedPath = query.LibraryPath is null ? null : CanonicalPath(query.LibraryPath);
         var opened = portal.GlobalLibraries.Where(x => Matches(x.Name, x.Path?.FullName, query.LibraryName, wantedPath)).Take(2).ToArray();
-        if (opened.Length == 0 && portal.GlobalLibraries.GetGlobalLibraryInfos()
-                .Any(x => Matches(x.Name, InfoPath(x), query.LibraryName, wantedPath)))
+        if (opened.Length == 0 && AvailableButNotOpen(portal, query.LibraryName, wantedPath))
         {
             throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
                 "The global library is available but not open in the bound Portal; open it in TIA Portal first. No library was opened or changed.");
@@ -97,6 +98,57 @@ internal static class LibraryReader
 
         return Exact(opened, "global library already open in the bound Portal");
     }
+
+    /// <summary>Only refines the miss message; a recoverable failure of the probe keeps the plain target_not_found.</summary>
+    private static bool AvailableButNotOpen(TiaPortal portal, string? name, string? canonicalPath)
+    {
+        try
+        {
+            return portal.GlobalLibraries.GetGlobalLibraryInfos().Any(x => Matches(x.Name, InfoPath(x), name, canonicalPath));
+        }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverablePropertyFailure(exception))
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// A global inspect row is open by definition; its libraryType comes from the one available-library info with the
+    /// same canonical path (exact name when the library has no usable path). No match or a recoverable failure leaves it null.
+    /// </summary>
+    private static void MarkInspectedGlobal(TiaPortal portal, GlobalLibrary library, LibraryEntryInfo entry)
+    {
+        entry.IsOpen = true;
+        try
+        {
+            var name = library.Name;
+            var path = FullPath(library.Path?.FullName);
+            var infos = portal.GlobalLibraries.GetGlobalLibraryInfos()
+                .Where(x => path is null ? string.Equals(x.Name, name, StringComparison.Ordinal) : Matches(x.Name, InfoPath(x), null, path))
+                .Take(2).ToArray();
+            if (infos.Length != 1)
+            {
+                entry.Diagnostics.Add("libraryType unavailable: no single available-library entry matches this open library.");
+                return;
+            }
+
+            var type = infos[0].LibraryType;
+            entry.LibraryType = LibraryTypeName(type);
+            if (entry.LibraryType is null) entry.Diagnostics.Add($"libraryType unavailable: unknown native value '{type}'.");
+        }
+        catch (Exception exception) when (OpennessExceptions.IsRecoverablePropertyFailure(exception))
+        {
+            entry.Diagnostics.Add("libraryType unavailable: " + exception.GetType().Name);
+        }
+    }
+
+    private static string? LibraryTypeName(GlobalLibraryType type) => type switch
+    {
+        GlobalLibraryType.System => "system",
+        GlobalLibraryType.Corporate => "corporate",
+        GlobalLibraryType.User => "user",
+        _ => null,
+    };
 
     /// <summary>The full path of an available library, or null when TIA Portal reports none it can use (system/corporate libraries may not).</summary>
     internal static string? InfoPath(GlobalLibraryInfo info)
@@ -369,13 +421,7 @@ internal static class LibraryReader
             var entry = open is null ? new LibraryEntryInfo() : LibraryEntry(open);
             entry.Identity = new LibraryIdentityInfo { Scope = "global", Kind = "library", Name = name, LibraryName = name, LibraryPath = path };
             if (path is null) entry.Diagnostics.Add("libraryPath unavailable: TIA Portal reports no usable path for this library.");
-            entry.LibraryType = Optional(() => info.LibraryType, "libraryType", entry, x => x switch
-            {
-                GlobalLibraryType.System => "system",
-                GlobalLibraryType.Corporate => "corporate",
-                GlobalLibraryType.User => "user",
-                _ => null,
-            });
+            entry.LibraryType = Optional(() => info.LibraryType, "libraryType", entry, LibraryTypeName);
             if (open is not null)
             {
                 entry.IsOpen = true;

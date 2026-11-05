@@ -47,9 +47,15 @@ public sealed class LibraryEntryInfo
     public bool? IsReadOnly { get; set; }
     public bool? IsWriteProtected { get; set; }
     public bool? IsModified { get; set; }
-    /// <summary>Global library rows only: <c>system</c>, <c>corporate</c> or <c>user</c>; null elsewhere or when unknown.</summary>
+    /// <summary>
+    /// Library rows of <c>list_global_libraries</c> and of global <c>inspect_library</c>: <c>system</c>, <c>corporate</c>
+    /// or <c>user</c>; null (with a row diagnostic) when unknown or unmatched. Null on project-library and every non-library row.
+    /// </summary>
     public string? LibraryType { get; set; }
-    /// <summary>Global library rows only: whether the library is open in the bound Portal; null elsewhere.</summary>
+    /// <summary>
+    /// Library rows of <c>list_global_libraries</c> (whether open in the bound Portal) and of global <c>inspect_library</c>
+    /// (always true). Null on project-library and every non-library row.
+    /// </summary>
     public bool? IsOpen { get; set; }
     public string? NativeType { get; set; }
     public List<string> Diagnostics { get; set; } = new();

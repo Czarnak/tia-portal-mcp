@@ -125,8 +125,14 @@ namespace Siemens.Engineering.Library
         public List<GlobalLibrary> Items { get; } = new();
         public List<GlobalLibraryInfo> Available { get; } = new();
 
+        /// <summary>Thrown by <see cref="GetGlobalLibraryInfos"/> when set.</summary>
+        public Exception? InfosFailure { get; set; }
+
+        /// <summary>False reports only <see cref="Available"/>, so an opened library can lack a matching info.</summary>
+        public bool SynthesizeOpenInfos { get; set; } = true;
+
         public IList<GlobalLibraryInfo> GetGlobalLibraryInfos()
-            => Available.Concat(Items
+            => InfosFailure is not null ? throw InfosFailure : !SynthesizeOpenInfos ? Available.ToList() : Available.Concat(Items
                 .Where(open => !Available.Any(info => info.Name == open.Name
                     && string.Equals(info.Path?.FullName, open.Path?.FullName, StringComparison.OrdinalIgnoreCase)))
                 .Select(open => new GlobalLibraryInfo { Name = open.Name, Path = open.Path, IsOpen = true }))
