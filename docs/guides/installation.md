@@ -88,7 +88,7 @@ path when one was supplied, or a sole candidate when there is genuinely only one
 Portals/projects fail with `target_ambiguous` before Attach or mutation. A later path, PID, worker, or
 project-generation mismatch fails with `binding_conflict` and invalidates the binding; call
 `bind_project` with `forceRebind=true` for an already-open project, or start a new MCP session. `get_project_status`
-is read-only, takes no arguments and is non-binding: do not use it to switch projects. Content tools are gated on the verified binding, and able to read Portal-scope global libraries of the bound Portal; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` for adopting or
+is read-only, takes no arguments and is non-binding: do not use it to switch projects. Content tools are gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` for adopting or
 switching to an already-open project; use `open_project` only for opening one.
 
 Call `bind_project` without a path to adopt the sole open project or receive the candidate list;
@@ -241,7 +241,7 @@ The following operations are **not available** in read-only mode:
 - All project lifecycle operations (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`)
 - All data mutations (`plc_write`, `network_write`, `hmi_write` and `vci_write`)
 
-In read-only mode, the server operates only on an already-open project. It never opens, creates, saves or closes a project. Explicit `bind_project` can switch the selected session; ordinary reads cannot. Content tools are gated on the verified binding, and able to read Portal-scope global libraries of the bound Portal, and fail closed with `binding_conflict` when unbound. Project-tree cursors reject binding changes with `cursor_binding_mismatch`, even after switching back to the original path.
+In read-only mode, the server operates only on an already-open project. It never opens, creates, saves or closes a project. Explicit `bind_project` can switch the selected session; ordinary reads cannot. Content tools are gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; they fail closed with `binding_conflict` when unbound. Project-tree cursors reject binding changes with `cursor_binding_mismatch`, even after switching back to the original path.
 
 Read-only mode is a security boundary enforced at three layers:
 

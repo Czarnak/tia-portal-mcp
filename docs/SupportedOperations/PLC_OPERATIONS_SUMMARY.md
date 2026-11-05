@@ -45,7 +45,7 @@ rejection before anything ran.
   and `folderPath` the tables directly in one folder (written as the inventory emits it, `/` or
   `/Line/Cell`); both are case-insensitive and combine with `plcName`. A narrowing that matches no
   table fails the item with `target_not_found`, unless part of the tree was unreadable.
-- Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
+- Content tools are gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
   An unbound call returns one root error, never per-item failures. Reads never bind, switch or open a project.
 
 Budget: a value over the value budget or a document over the response budget (60,000 and 180,000

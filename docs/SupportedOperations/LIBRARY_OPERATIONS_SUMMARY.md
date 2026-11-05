@@ -69,7 +69,7 @@ The four paged operations take `offset` (default 0) and `limit` (1 to 200, defau
 | global (`list_global_libraries`, `scope:"global"`) | yes | offline only | `unsupported_capability` (capability label `notYetDelivered`; offline only) |
 | project (`scope:"project"`) | yes | `unsupported_capability` (offline only) | `unsupported_capability` (capability label `standaloneOnly`; offline only) |
 
-Project-library reads on a local session are refused with `unsupported_capability` because `library_project_read` is a standalone-only capability until a separate probe covers local sessions (decision D6; the same applies to server projects).
+Project-library reads on a local session are refused with `unsupported_capability` because `library_project_read` is a standalone-only capability until a separate probe covers local sessions; the same applies to server projects.
 
 Capability labels in the `bind_project` context are not one-to-one with the tool name:
 

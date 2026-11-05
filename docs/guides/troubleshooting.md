@@ -17,7 +17,7 @@ installation that are surprising but expected.
 
 ### Bound-project failures
 
-- `binding_conflict` on a content read, write or compile: there is no verified project binding. Content tools are gated on the verified binding, and able to read Portal-scope global libraries of the bound Portal; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. After path, PID or generation drift, call `bind_project` with `forceRebind:true`.
+- `binding_conflict` on a content read, write or compile: there is no verified project binding. Content tools are gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. After path, PID or generation drift, call `bind_project` with `forceRebind:true`.
 
 ### Hardware pagination cursor failures
 

@@ -285,7 +285,7 @@ only to that complete worker identity, never to caller input alone.
 - close clears the binding;
 - explicit `bind_project` adopts an already-open project's verified identity in every mode;
 - ordinary reads and writes do not implicitly bind an unbound session; content tools are
-  gated on the verified binding, and able to read Portal-scope global libraries of the bound Portal, and fail closed with `binding_conflict` when unbound (bind first);
+  gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; they fail closed with `binding_conflict` when unbound (bind first);
 - a configured path is promoted only after a matching status response;
 - timeout, crash, worker restart, PID/path/generation drift, or a missing
   identity invalidates the binding and fails closed.

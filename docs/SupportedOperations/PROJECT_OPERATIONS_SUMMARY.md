@@ -438,7 +438,7 @@ tool, including a dry run. Server elicitation asks once per actual read-write li
 - `save_project_as` requires rebinding because Siemens `SaveAs` switches the active project to the copy.
 - Archive output is rejected when the archive directory is inside the project folder.
 - After a timeout or worker crash, inspect the current project state before deciding whether another call is safe; the server does not automatically retry lifecycle writes.
-- `get_project_status` takes no arguments, is non-binding and never switches. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` to select an already-open project, or `open_project` to open one deliberately.
+- `get_project_status` takes no arguments, is non-binding and never switches. Content tools are gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` to select an already-open project, or `open_project` to open one deliberately.
 
 ## Current limits
 
