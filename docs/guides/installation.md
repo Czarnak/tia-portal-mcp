@@ -188,12 +188,12 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-only** - eight tools: seven observation tools plus `bind_project`; no compile, edits, or
+- **read-only** - nine tools: eight observation tools plus `bind_project`; no compile, edits, or
   lifecycle.
-- **read-write** (server startup default) - nineteen tools: the read-only surface plus
+- **read-write** (server startup default) - twenty tools: the read-only surface plus
   `compile_check`, `network_write`, `plc_write`, `hmi_write`, `vci_write`, and all six lifecycle tools. Every actual lifecycle
   call requires one confirmation form; the four domain write tools never prompt.
-- **full** - the same nineteen tools and operations; lifecycle runs without server elicitation.
+- **full** - the same twenty tools and operations; lifecycle runs without server elicitation.
   Unknown operations remain denied.
 
 **Migration:** read-write clients can save, close, and use all lifecycle tools with confirmation.
@@ -223,7 +223,7 @@ Configuration precedence: CLI argument > environment variable > default (read-wr
 
 The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
 
-In read-only mode, the server exposes exactly eight MCP tools:
+In read-only mode, the server exposes exactly nine MCP tools:
 
 - `bind_project` — adopt or switch to an already-open project without project mutation.
 - `get_project_status` — read active project metadata without opening or switching projects.
@@ -233,6 +233,7 @@ In read-only mode, the server exposes exactly eight MCP tools:
 - `network_read` — run dedicated network reads in a batch.
 - `hmi_read` — run read-only WinCC Unified HMI reads in a batch.
 - `vci_read` — inspect standalone VCI workspaces, mappings and supported formats.
+- `library_read` — read global libraries of the bound Portal and the bound project's own library.
 
 The following operations are **not available** in read-only mode:
 

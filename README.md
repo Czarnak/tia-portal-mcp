@@ -12,11 +12,11 @@
 
 MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents inspect a running TIA Portal project through the Siemens Openness API.
 
-The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, WinCC Unified HMI inspection and guarded tag-table/tag/alarm writes, standalone VCI workspace operations, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
+The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, WinCC Unified HMI inspection and guarded tag-table/tag/alarm writes, standalone VCI workspace operations, read-only library inspection, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
 ## Tools
 
-The server exposes 8 tools in `read-only`, 19 in `read-write` (the startup default), and the same 19 in `full`.
+The server exposes 9 tools in `read-only`, 20 in `read-write` (the startup default), and the same 20 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls, asking once per actual lifecycle call.
 `full` adds no tools or operations; it only runs lifecycle calls without the prompt. Every write tool
 (`plc_write`, `network_write`, `hmi_write`, `vci_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
@@ -36,6 +36,10 @@ safety tokens and no PLC run/stop.
 
 - `vci_read` - inspect standalone-project workspaces, paged mappings, optional raw status and supported leaf formats in every mode.
 - `vci_write(operations, dryRun=false)` - create/delete workspaces, export leaf scopes, sync in either direction and delete mappings in read-write/full. It executes by default, previews with `dryRun:true`, and stops after the first failed item without rollback across items or server elicitation. Save the project to persist workspaces and mappings; inspect current state before retrying. The [VCI reference](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/VCI_OPERATIONS_SUMMARY.md) gives formats, path guards, sync decisions, Portal-loss recovery and scoped acceptance limits.
+
+### Library reads
+
+- `library_read` - run up to 50 read-only library operations in one call: `list_global_libraries`, `inspect_library`, `list_children`, `list_versions` and `list_dependencies`. Registered in every access mode, structured JSON with `contractVersion` `1.0`. It needs a verified binding like every content tool (`bind_project` first) and never opens, retrieves, saves, closes or changes a library. `list_global_libraries` lists every global library available in the bound Portal (system, corporate and user) with `libraryType` and `isOpen`; only libraries already open in TIA Portal can be read further. Project-library reads work on standalone projects. Paged operations take `offset`/`limit` (1-200, default 100) or the returned `nextCursor`, which continues a frozen row set with live values. A flag that cannot be read is null with a diagnostic, never false. See the [library operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md) for fields, paging and the live-verified scope.
 
 ### PLC writes
 
@@ -184,9 +188,9 @@ structured results. This custom-integration requirement is separate from the `br
 v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
-**read-only** mode by default (eight tools); add `--access-mode read-write` for edits, compilation,
-and lifecycle with one prompt per actual call (nineteen tools). Select `--access-mode full` for
-lifecycle without server elicitation (the same nineteen tools).
+**read-only** mode by default (nine tools); add `--access-mode read-write` for edits, compilation,
+and lifecycle with one prompt per actual call (twenty tools). Select `--access-mode full` for
+lifecycle without server elicitation (the same twenty tools).
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing

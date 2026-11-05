@@ -53,7 +53,7 @@ an advertised output schema, with typed payloads and no JSON nested inside strin
 
 The rules in [AGENTS.md](../../AGENTS.md) ("Structured JSON contract rules") and the seam in
 [ARCHITECTURE.md §7a](../ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)
-already describe that contract. All nineteen registered tools now follow it. This roadmap moves the rest onto
+already describe that contract. All twenty registered tools now follow it. This roadmap moves the rest onto
 it without inventing a second mechanism.
 
 ## Scope
