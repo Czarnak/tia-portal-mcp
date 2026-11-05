@@ -382,7 +382,9 @@ internal static class LibraryReader
                 return entry;
             }
 
-            entry.IsOpen = Optional(() => info.IsOpen, "isOpen", entry);
+            // The current composition is the authority: a usable path with no opened match is closed, even if a held
+            // info still says open. Only an unresolvable match (no path and ambiguous name) falls back to the info.
+            entry.IsOpen = path is not null && candidates.Length == 0 ? false : Optional(() => info.IsOpen, "isOpen", entry);
             entry.IsReadOnly = Optional(() => info.IsReadOnly, "isReadOnly", entry);
             entry.Diagnostics.Add(entry.IsOpen == true
                 ? "This library is reported open but could not be matched to exactly one opened library, so its open-library flags were not read. No library was opened."

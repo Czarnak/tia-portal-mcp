@@ -304,6 +304,41 @@ public sealed class LibraryReaderTests
     }
 
     [Fact]
+    public void ListGlobal_Continuation_LibraryClosed_ReportsNotOpen()
+    {
+        AddAvailable("A", @"C:\Libs\A.al21", GlobalLibraryType.User);
+        var closing = AddGlobal("B", @"C:\Libs\B.al21");
+        AddAvailable("B", @"C:\Libs\B.al21", GlobalLibraryType.User, readOnly: false).IsOpen = true; // a value snapshot: stays "open"
+        var first = Read(ListGlobal, new LibraryQueryInfo { Limit = 1 });
+
+        portal.GlobalLibraries.Items.Remove(closing);
+        var next = Read(ListGlobal, Continue(new LibraryQueryInfo { Offset = 1, Limit = 1 }, first));
+
+        var entry = Assert.Single(next.Items);
+        Assert.Equal("B", entry.Identity.Name);
+        Assert.False(entry.IsOpen);
+        Assert.False(entry.IsReadOnly);
+        Assert.Null(entry.IsModified);
+        Assert.Contains(entry.Diagnostics, d => d.Contains("not open in the bound Portal", StringComparison.Ordinal));
+        Assert.DoesNotContain(entry.Diagnostics, d => d.Contains("reported open", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ListGlobal_InfoReportsOpenWithoutPath_AmbiguousName_KeepsInfoIsOpenWithDiagnostic()
+    {
+        AddGlobal("Dup", @"C:\A\Dup.al21");
+        AddGlobal("Dup", @"C:\B\Dup.al21");
+        AddAvailable("Dup", null, GlobalLibraryType.Corporate).IsOpen = true;
+
+        var entry = Assert.Single(Read(ListGlobal, new LibraryQueryInfo()).Items, i => i.Identity.LibraryPath is null);
+
+        Assert.True(entry.IsOpen);
+        Assert.Null(entry.IsModified);
+        Assert.Null(entry.NativeType);
+        Assert.Contains(entry.Diagnostics, d => d.Contains("reported open but could not be matched", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Versions_OrderByVersionNumber_DependenciesByOwnerPathTypeVersion()
     {
         var library = AddGlobal("Lib", @"C:\Libs\Lib.al21");
