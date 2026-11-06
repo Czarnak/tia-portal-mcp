@@ -91,6 +91,9 @@ Paths are reported relative to the work folder.
 
 - Software Units, HMI types, `HarmonizeProject`, `CleanUpLibrary` and structure-conflict
   synchronization are not covered.
+- `T7Z` (release as `0.0.0`) crashed Portal in the first run; Portal's error report shows
+  `The value 0.0.0 is not allowable, Parameter name: build` thrown inside
+  `CheckVersionValuesAreWithinRange`. `--all` skips it; name it in `--case` to reproduce.
 - The global library holds no type that the project library lacks, so `T17` synchronizes into a
   fresh empty library it creates, and `T21` instantiates a global version the project library
   already holds.

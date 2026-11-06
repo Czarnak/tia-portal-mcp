@@ -183,7 +183,7 @@ internal sealed class Options
             throw new ArgumentException("--work must be a new path inside --disposable-root, outside the project and library folders.");
         if ((all ? 1 : 0) + (selected != null ? 1 : 0) + (o.CheckFixture ? 1 : 0) != 1)
             throw new ArgumentException("Specify exactly one of --all, --case IDS or --check-fixture.");
-        if (all) o.Cases = Catalog.All.Select(c => c.Id).ToArray();
+        if (all) o.Cases = Catalog.All.Where(c => c.Hazard == null).Select(c => c.Id).ToArray();
         if (selected != null)
         {
             o.Cases = selected.Split(',').Select(s => s.Trim()).ToArray();
@@ -209,6 +209,7 @@ internal sealed class Case
     internal bool Project;
     internal LibMode Library;
     internal Action<Ctx> Setup, Act, Inspect;
+    internal string Hazard;
 }
 
 internal sealed class Ctx
@@ -238,13 +239,14 @@ internal sealed class Ctx
     // Released number of the type's current default, before any setup edit.
     internal Version Released(string typeName) => F.Default(F.Type(PL, typeName)).VersionNumber;
 
-    internal void ReleaseNext(string typeName)
+    internal void ReleaseNext(string typeName) => ReleaseAt(typeName, F.Next(Released(typeName)));
+
+    internal void ReleaseAt(string typeName, Version number)
     {
-        var next = F.Next(Released(typeName));
         var inWork = EditType(typeName);
-        At("setup:LibraryTypeVersion.Release(" + next + ")");
-        inWork.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, next, "probe", "setup");
-        Note("setupReleased", next.ToString());
+        At("setup:LibraryTypeVersion.Release(" + number + ")");
+        inWork.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, number, "probe", "setup");
+        Note("setupReleased", number.ToString());
     }
 
     // The global library has no master-copy folder; cases that need one create it natively first.
@@ -284,7 +286,6 @@ internal static class F
         type.Versions.SingleOrDefault(v => v.IsDefault) ?? throw new ProbeSetupException("No single default version on " + type.Name + ".");
 
     internal static Version Next(Version v) => new Version(v.Major, v.Minor, v.Build + 1);
-    internal static Version Lower(Version v) => v.Build > 0 ? new Version(v.Major, v.Minor, v.Build - 1) : new Version(v.Major, Math.Max(0, v.Minor - 1), 0);
 
     internal static IEnumerable<PlcType> PlcTypes(PlcTypeGroup g) => g.Types.Concat(g.Groups.SelectMany(PlcTypes));
 
@@ -316,6 +317,14 @@ internal static class F
 
 internal static class Catalog
 {
+    // A hazard case is known to kill Portal: --all skips it, --case runs it only when named.
+    private static Case H(string id, string question, string hazard, Action<Ctx> act)
+    {
+        var k = C(id, question, true, LibMode.None, null, act);
+        k.Hazard = hazard;
+        return k;
+    }
+
     private static Case C(string id, string question, bool project, LibMode library, Action<Ctx> setup, Action<Ctx> act, Action<Ctx> inspect = null) =>
         new Case { Id = id, Question = question, Project = project, Library = library, Setup = setup, Act = act, Inspect = inspect };
 
@@ -420,9 +429,13 @@ internal static class Catalog
                 c.At("act:Release(" + Names.Fb + " in-work)");
                 fbInWork.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, F.Next(fbInWork.VersionNumber), "probe", "dependent");
             }),
-        C("T7", "Release with a version number lower than the existing release.", true, None, null,
-            c => { var lower = F.Lower(c.Released(Names.LeafUdt)); var w = c.EditType(Names.LeafUdt); c.At("act:Release(" + lower + ")");
+        C("T7", "Release with a valid number lower than the current default (setup releases build+2, act releases build+1).", true, None,
+            c => { var v = c.Released(Names.LeafUdt); c.Notes["lower"] = F.Next(v).ToString(); c.ReleaseAt(Names.LeafUdt, F.Next(F.Next(v))); },
+            c => { var lower = new Version((string)c.Notes["lower"]); var w = c.EditType(Names.LeafUdt); c.At("act:Release(" + lower + ")");
                    w.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, lower, "probe", "lower"); }),
+        H("T7Z", "Release with version number 0.0.0.", "Crashed Portal V21 in run 1 (NonRecoverableException; the Portal error report says 'The value 0.0.0 is not allowable, Parameter name: build').",
+            c => { var w = c.EditType(Names.LeafUdt); c.At("act:Release(0.0.0)");
+                   w.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, new Version(0, 0, 0), "probe", "zero"); }),
         C("T8", "Release with the same version number as the existing release.", true, None, null,
             c => { var same = c.Released(Names.LeafUdt); var w = c.EditType(Names.LeafUdt); c.At("act:Release(" + same + ")");
                    w.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, same, "probe", "same"); }),
@@ -558,6 +571,7 @@ internal sealed class Runner
     private readonly Options options;
     private TiaPortal portal;
     private readonly List<object> confirmations = new List<object>();
+    private bool portalLost;
     internal Runner(Options options) { this.options = options; }
 
     internal int Run()
@@ -593,7 +607,6 @@ internal sealed class Runner
                     originals = new { projectWasOpen = reopenProject, libraryWasOpen = openLib != null, libraryReadOnly = reopenLibraryReadOnly } });
                 if (openLib != null) { Program.Progress("originals:close-library"); openLib.Close(); }
                 if (openProject != null) { Program.Progress("originals:close-project"); openProject.Close(); }
-                bool portalLost = false;
                 try
                 {
                     if (options.CheckFixture) return new FixtureCheck(this).Run();
@@ -708,7 +721,7 @@ internal sealed class Runner
             rec["notes"] = c.Notes;
         }
         rec["confirmationsDuringCase"] = confirmations.ToList();
-        if (fatal) { rec["stopped"] = "Portal loss; no cleanup or retry attempted."; Program.Emit(rec); return false; }
+        if (fatal) { portalLost = true; rec["stopped"] = "Portal loss; no cleanup or retry attempted."; Program.Emit(rec); return false; }
 
         var cleanup = Cleanup(c, out bool clean);
         rec["cleanup"] = cleanup;
