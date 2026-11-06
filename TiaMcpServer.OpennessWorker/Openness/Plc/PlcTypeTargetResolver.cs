@@ -116,7 +116,7 @@ internal static class PlcTypeTargetResolver
         throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound, $"Software Unit '{unitName}' not found in PLC software '{plcSoftware.Name}'.");
     }
 
-    private static PlcTypeGroup FindTypeGroup(PlcTypeGroup rootGroup, IReadOnlyList<string> folderPath)
+    internal static PlcTypeGroup FindTypeGroup(PlcTypeGroup rootGroup, IReadOnlyList<string> folderPath)
     {
         PlcTypeGroup current = rootGroup;
 

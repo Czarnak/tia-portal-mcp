@@ -332,7 +332,7 @@ namespace Siemens.Engineering.SW.Tags
             return constant;
         }
     }
-    public sealed class PlcTagTable : NamedObject
+    public sealed class PlcTagTable : NamedObject, Library.MasterCopies.IMasterCopySource
     {
         public PlcTagComposition Tags { get; } = new();
         public PlcUserConstantComposition UserConstants { get; } = new();
@@ -400,12 +400,14 @@ namespace Siemens.Engineering.SW.Blocks
         public string? HeaderName { get; set; }
         public System.Version? HeaderVersion { get; set; }
     }
-    public sealed class OB : PlcBlock { }
-    public sealed class FB : PlcBlock { }
-    public sealed class FC : PlcBlock { }
-    public sealed class GlobalDB : PlcBlock { }
-    public class InstanceDB : PlcBlock { }
-    public sealed class ArrayDB : PlcBlock { }
+    public class CodeBlock : PlcBlock, Library.MasterCopies.IMasterCopySource { }
+    public class DataBlock : PlcBlock, Library.MasterCopies.IMasterCopySource { }
+    public sealed class OB : CodeBlock { }
+    public sealed class FB : CodeBlock { }
+    public sealed class FC : CodeBlock { }
+    public sealed class GlobalDB : DataBlock { }
+    public class InstanceDB : DataBlock { }
+    public sealed class ArrayDB : DataBlock { }
     public sealed class PlcBlockComposition : Composition<PlcBlock>
     {
         public List<ImportOptions> ImportCalls { get; } = new();
@@ -455,13 +457,14 @@ namespace Siemens.Engineering.SW.Blocks
 
 namespace Siemens.Engineering.SW.Types
 {
-    public sealed class PlcType : NamedObject { }
-    public sealed class PlcTypeGroup : NamedObject
+    public sealed class PlcType : NamedObject, Library.MasterCopies.IMasterCopySource { }
+    public class PlcTypeGroup : NamedObject
     {
         public PlcTypeGroup() { Types.Parent = this; Groups.Parent = this; }
         public Composition<PlcType> Types { get; } = new();
         public Composition<PlcTypeGroup> Groups { get; } = new();
     }
+    public sealed class PlcTypeUserGroup : PlcTypeGroup { }
 }
 
 namespace Siemens.Engineering.SW.ExternalSources

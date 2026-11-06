@@ -56,7 +56,8 @@ namespace Siemens.Engineering.Library
     public sealed class LibraryComposition<T> : IEnumerable<T>
     {
         public List<T> Items { get; } = new();
-        public IEnumerator<T> GetEnumerator() => Items.GetEnumerator();
+        public Exception? EnumerationFailure { get; set; }
+        public IEnumerator<T> GetEnumerator() => EnumerationFailure is null ? Items.GetEnumerator() : throw EnumerationFailure;
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
@@ -81,12 +82,13 @@ namespace Siemens.Engineering.Library
         public LibraryTypeSystemFolder TypeFolder => Live(types);
     }
 
-    public sealed class GlobalLibrary : LibraryRootDouble
+    public class GlobalLibrary : LibraryRootDouble
     {
         private string name = string.Empty;
         private FileInfo? path;
 
-        public string Name { get => Live(name); set => name = value; }
+        public Exception? NameFailure { get; set; }
+        public string Name { get => NameFailure is null ? Live(name) : throw NameFailure; set => name = value; }
         public FileInfo? Path { get => Live(path); set => path = value; }
 
         /// <summary>Thrown by <see cref="IsReadOnly"/> when set.</summary>
@@ -94,6 +96,12 @@ namespace Siemens.Engineering.Library
         public bool IsReadOnly => ReadOnlyFailure is null ? Live(true) : throw ReadOnlyFailure;
         public bool IsWriteProtected => Live(false);
         public bool IsModified => Live(false);
+    }
+
+    public sealed class UserGlobalLibrary : GlobalLibrary
+    {
+        public void Save() => throw new InvalidOperationException("Planning must not save.");
+        public void Close() => throw new InvalidOperationException("Planning must not close.");
     }
 
     public sealed class ProjectLibrary : LibraryRootDouble
@@ -148,6 +156,7 @@ namespace Siemens.Engineering.Library
 
 namespace Siemens.Engineering.Library.MasterCopies
 {
+    public interface IMasterCopySource { }
     public sealed class MasterCopy : Library.LibraryDouble
     {
         private string name = string.Empty;

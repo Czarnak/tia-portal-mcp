@@ -218,15 +218,20 @@ public static class TagMutationService
         string? folderPath)
     {
         var plcSoftware = PlcSoftwareLocator.FindUnique(project, plcName).Software;
-        PlcTagTableGroup group = plcSoftware.TagTableGroup;
+        return (plcSoftware, FindGroup(plcSoftware.TagTableGroup, SplitFolderPath(folderPath)));
+    }
 
-        foreach (var segment in SplitFolderPath(folderPath))
+    internal static PlcTagTableGroup FindGroup(PlcTagTableGroup rootGroup, IReadOnlyList<string> folderPath)
+    {
+        PlcTagTableGroup group = rootGroup;
+
+        foreach (var segment in folderPath)
         {
             group = group.Groups.Find(segment) ??
-                throw NotFound($"Tag table folder '{NormalizeFolderPath(folderPath)}' was not found.");
+                throw NotFound($"Tag table folder '/{string.Join("/", folderPath)}' was not found.");
         }
 
-        return (plcSoftware, group);
+        return group;
     }
 
     private static WorkerOperationException NotFound(string message)
