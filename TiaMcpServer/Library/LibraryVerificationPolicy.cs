@@ -8,7 +8,7 @@ namespace TiaMcpServer.Library;
 public sealed class LibraryVerificationPolicy(IReadOnlyDictionary<string, LibraryWriteEffect> effects)
     : IWriteVerificationPolicy<LibraryWriteItem>
 {
-    public string ReadTool => "library_read";
+    public string ReadTool => "library_read for library objects or plc_read for PLC destinations";
     public bool HasReadBack(LibraryWriteItem item) => false;
     public Task<WriteOperationVerification> ReadBackAsync(LibraryWriteItem item, StructuredOperationFailure? failure)
         => throw new NotSupportedException();

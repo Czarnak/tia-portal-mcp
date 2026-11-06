@@ -7,8 +7,8 @@ namespace TiaMcpServer.Library;
 /// <summary>Bounds presentation only; execution statuses and verification truth survive omitted values.</summary>
 public static class LibraryWritePayloadBudget
 {
-    private const string Guidance = "Inspect current state with library_read; use smaller library_write calls to see every effect. Do not replay the write.";
-    private const string DiagnosticSummary = "Diagnostic details omitted. Inspect current state with library_read.";
+    private const string Guidance = "Inspect current state with library_read for library objects or plc_read for PLC destinations; use smaller library_write calls to see every effect. Do not replay the write.";
+    private const string DiagnosticSummary = "Diagnostic details omitted. Inspect current state with library_read for library objects or plc_read for PLC destinations.";
 
     private static readonly GuardedWriteResponseBudget Budget = new("library_read", Guidance, DiagnosticSummary);
 

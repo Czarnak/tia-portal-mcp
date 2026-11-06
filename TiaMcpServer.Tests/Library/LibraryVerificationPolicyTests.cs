@@ -126,12 +126,32 @@ public sealed class LibraryVerificationPolicyTests
         Assert.True(verification.Success);
     }
 
+    [Theory]
+    [InlineData("delete_master_copy")]
+    [InlineData("instantiate_master_copy")]
+    public async Task FailedAttemptRecoveryGuidanceDistinguishesLibraryObjectsAndPlcDestinations(string operation)
+    {
+        var items = operation == "instantiate_master_copy"
+            ? new[] { Instantiate("a"), Instantiate("b") }
+            : new[] { Item("a"), Item("b") };
+        var verification = await new TrustedWriteVerifier<LibraryWriteItem>(items,
+            new LibraryVerificationPolicy(items.ToDictionary(i => i.OperationId, _ => Effect())))
+            .VerifyAsync(StructuredOperationBatch.FromItems([Succeeded(items[0]),
+                LibraryWritePayloadContract.Project(items[1], WorkerCallResult.Fail("worker_operation_failed", "failed"))]));
+
+        var superseded = Assert.Single(verification.Operations);
+        Assert.Equal("superseded", superseded.Check);
+        Assert.Contains("library_read for library objects", superseded.Message);
+        Assert.Contains("plc_read for PLC destinations", superseded.Message);
+        Assert.Contains("final state is not verified", superseded.Message);
+        Assert.True(verification.Success);
+    }
+
     [Fact]
     public async Task PolicyNeverReadsBack()
     {
         var policy = new LibraryVerificationPolicy(new Dictionary<string, LibraryWriteEffect>());
         Assert.False(policy.HasReadBack(Item("a")));
-        Assert.Equal("library_read", policy.ReadTool);
         await Assert.ThrowsAsync<NotSupportedException>(() => policy.ReadBackAsync(Item("a"), null));
     }
 
