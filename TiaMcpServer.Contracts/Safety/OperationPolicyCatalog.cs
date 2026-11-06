@@ -1,4 +1,5 @@
 using TiaMcpServer.Contracts.Hmi;
+using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Vci;
 
@@ -162,6 +163,8 @@ public static class OperationPolicyCatalog
             dict[method] = OperationCapability.Observe;
         foreach (var method in HmiWriteMethods.All)
             dict[method] = OperationCapability.ProjectMutation;
+        foreach (var method in LibraryReadMethods.All)
+            dict[method] = OperationCapability.Observe;
         foreach (var method in VciMethods.Read)
             dict[method] = OperationCapability.Observe;
         dict[VciMethods.Plan] = OperationCapability.Observe;

@@ -53,7 +53,7 @@ Results add conditional `result.value.inspection`, with observed PID and typed n
 `transition:"none"` and `project:null`. Whole-value omission includes the inventory. See the
 [Multiuser reference](MULTIUSER_OPERATIONS_SUMMARY.md) for selectors, examples, current-user scope,
 lock/error/omission limits and scoped live evidence. PR3 discovery was 7/17/17;
-current discovery is 8/19/19 with the standalone VCI tools.
+current discovery is 9/20/20 with the standalone VCI tools and `library_read`.
 
 ### Local-session identity and basic status
 
@@ -266,7 +266,7 @@ the plain project status only — it never enumerates history or the extended me
 ## Lifecycle operations
 
 All six lifecycle tools are available in read-write and full; the complete mode counts are
-8/19/19. Read-write requires one confirmation form per actual call; full executes under policy
+9/20/20. Read-write requires one confirmation form per actual call; full executes under policy
 without server elicitation. Block guards stop a call in every mode. Ordinary reads never bind,
 switch or open; use `bind_project` for already-open projects and open/create for deliberate opening.
 
@@ -438,7 +438,7 @@ tool, including a dry run. Server elicitation asks once per actual read-write li
 - `save_project_as` requires rebinding because Siemens `SaveAs` switches the active project to the copy.
 - Archive output is rejected when the archive directory is inside the project folder.
 - After a timeout or worker crash, inspect the current project state before deciding whether another call is safe; the server does not automatically retry lifecycle writes.
-- `get_project_status` takes no arguments, is non-binding and never switches. Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` to select an already-open project, or `open_project` to open one deliberately.
+- `get_project_status` takes no arguments, is non-binding and never switches. Content tools are gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first. Use `bind_project` to select an already-open project, or `open_project` to open one deliberately.
 
 ## Current limits
 

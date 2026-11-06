@@ -84,7 +84,7 @@ for client limits and mutation recovery.
 
 ### Read-write mode
 
-Read-write exposes nineteen tools: seven observation tools, `bind_project`, `compile_check`,
+Read-write exposes twenty tools: eight observation tools, `bind_project`, `compile_check`,
 `network_write`, `plc_write`, `hmi_write`, `vci_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
 `SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`. The four domain write tools
 never elicit; every actual lifecycle call asks once through client form elicitation.
@@ -92,7 +92,7 @@ Reads never bind, switch, or open; `bind_project` selects an already-open projec
 
 ### Full mode
 
-Full exposes the same nineteen tools and permits the same capabilities; it adds no tools or
+Full exposes the same twenty tools and permits the same capabilities; it adds no tools or
 operations. Lifecycle runs under policy without server elicitation. Block guards stop the call in
 every mode. PLC run/stop (`start_plc`/`stop_plc`) was removed; `OperationCapability.OnlineControl`
 remains as a reserved value with no operation and is permitted in no mode.
@@ -119,10 +119,10 @@ archives, or closes a project; never compiles;
 and never performs project-data mutations. It operates only on a project that
 is already open in the attached TIA Portal instance.
 
-The read-only surface contains eight tools: seven observations and `bind_project` for explicit
+The read-only surface contains nine tools: eight observations and `bind_project` for explicit
 session selection. Binding can switch the selected Portal/project without project mutation.
 
-Content tools act on the bound project only; with no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
+Content tools act only through the verified binding: on the bound project and, for `library_read`, on Portal-scope objects of the bound Portal ([ADR-0015](adr/0015-portal-scope-reads-under-binding-gate.md)). With no verified binding (a configured `--project` is grounded by status first) they fail closed with `binding_conflict`; call `bind_project` first.
 Only `bind_project` and `open_project` accept a public `projectPath`; ordinary observation/read tools reject it as an unknown member and never use a path to open or switch projects.
 
 ## 3. Explicit MCP tool registration
@@ -136,6 +136,7 @@ Tool registration is explicit and mode-dependent. The host always registers:
 - `CrossReferenceReadTools`
 - `HmiReadTools`
 - `VciReadTools`
+- `LibraryReadTools`
 
 The shared `McpToolRegistration.WithAccessModeTools` helper registers these in read-write and full:
 
@@ -168,6 +169,7 @@ preview-only live V21 evidence are recorded in the
 | `network_read` | Execute up to 50 validated network observation operations. |
 | `hmi_read` | Execute up to 50 validated read-only WinCC Unified HMI operations on the structured contract. |
 | `vci_read` | Inspect standalone VCI workspaces, mappings and supported leaf formats. |
+| `library_read` | Execute up to 50 validated read-only library operations on global libraries of the bound Portal and the bound project's own library. |
 
 `execute_read_batch` was retired; its four operations moved to `plc_read` (`get_block_content`,
 `get_type_content`, `list_tag_tables`) and the standalone `read_cross_references`. See the
@@ -282,8 +284,8 @@ only to that complete worker identity, never to caller input alone.
 - open, create, and rebinding save-as bind to worker-reported ground truth;
 - close clears the binding;
 - explicit `bind_project` adopts an already-open project's verified identity in every mode;
-- ordinary reads and writes do not implicitly bind an unbound session; content tools act on the
-  bound project only and fail closed with `binding_conflict` when unbound (bind first);
+- ordinary reads and writes do not implicitly bind an unbound session; content tools are
+  gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; they fail closed with `binding_conflict` when unbound (bind first);
 - a configured path is promoted only after a matching status response;
 - timeout, crash, worker restart, PID/path/generation drift, or a missing
   identity invalidates the binding and fails closed.
@@ -375,7 +377,7 @@ null and active connection observation `unknown` without a supported owner/endpo
 Explicit endpoint inventory has separate attachment/endpoint-scoped history; refresh timestamps
 do not create identity churn or prove an active-session reconnection. Capability descriptions
 grant no permission. Strict required-member/coherence decoding precedes existing 60,000-value
-and 180,000-document budgets. Current counts are 8/19/19 (read-only/read-write/full).
+and 180,000-document budgets. Current counts are 9/20/20 (read-only/read-write/full).
 PR4's [scoped live report](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
 retains both failed noninteractive offline opens, UI-assisted success, restoration and
 unexecuted rows. Content/session/markings/mutations remain undelivered; see the
@@ -808,6 +810,38 @@ decisions, path policy and retry limits. [ADR-0014](adr/0014-vci-write-native-re
 records the native-rejection/overwrite decision; the
 [current scoped report](superpowers/acceptance/reports/2026-11-01-vci-write-native-rejections-live-verification.md)
 keeps native observations, mixed timing results and untested crash/race/format limits separate.
+
+### Library reads (`library_read`)
+
+`library_read` is registered in every mode through `LibraryReadTools` on the shared batch-read path
+(`BatchReadTool`, `StructuredOperationBatchPayloadBudget`, `OperationBatchReadResponse`, contract `1.0`); there is no
+parallel response type, budget engine or dispatcher. `LibraryReadCatalog` validates the batch and
+`LibraryReadMethods` (in `TiaMcpServer.Contracts/Library`, Siemens-free) owns the five operations, the
+selector rules and the worker method names: `library_project_*` for the four project-scope operations and
+`library_list_global_libraries` plus `library_global_*` for the global ones. The host maps a flat
+`LibraryReadItem` to the worker-only `LibraryQueryInfo`. Every library method uses the bound route
+(`SendBoundProjectRequestAsync`, worker `WithActiveContext`), so a global read gets the bound Portal and the
+bound `ProjectBase` after the identity check; there is no Portal-only dispatch ([ADR-0015](adr/0015-portal-scope-reads-under-binding-gate.md)).
+All library methods are `Observe` and need a bound project.
+
+Capability mapping stays in `ProjectCapabilityCatalog.OperationFor`: `library_project_*` map to
+`library_project_read` (`standaloneOnly`, so a local session gets `unsupported_capability`) and the global
+methods to `library_read` (`projectContent`, `notYetDelivered` on server projects), although those read
+Portal-scope libraries. `library_project_read` is a capability label, not a tool name.
+
+Every operation returns one typed `LibraryPageInfo`, decoded by `LibraryPayloadContract` through the
+worker-payload reader (`protocol_error` otherwise, never echoed) and projected to `LibraryPageResult`.
+Paging reuses HMI's generic core: `PageSnapshotStore<T>` and `SnapshotPager` in the worker, with a separate
+`LibraryReader.SharedSnapshots` store (at most four snapshots, ten idle minutes), so library and HMI scans never
+evict each other. The first page of a paged scan enumerates every row in its defined order and freezes it;
+continuations read values live. The host seals `{snapshotId, operation, queryHash, offset, hostBinding}` into
+`nextCursor` with `LibraryPageCursorCodec`, on the shared `AuthenticatedCursorProtector`, and
+`LibraryWorkerInvoker` checks it before any worker call (`invalid_cursor`, `cursor_filter_mismatch`,
+`cursor_binding_mismatch`); the worker adds `snapshot_unavailable` and `cursor_snapshot_mismatch`.
+`list_global_libraries` enumerates `GetGlobalLibraryInfos()`; the other global operations resolve only opened
+libraries (exact name or case-insensitive full path). The worker raises `binding_conflict` only for identity
+or Portal-attachment loss and never opens, retrieves, saves, closes or changes a library. Operation reference:
+[Library operations summary](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md).
 
 ### Typed Network payload registry
 

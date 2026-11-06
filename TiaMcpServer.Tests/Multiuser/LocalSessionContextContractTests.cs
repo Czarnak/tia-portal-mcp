@@ -26,7 +26,7 @@ public sealed class LocalSessionContextContractTests
             .Select(e => (e.GetProperty("operation").GetString()!, e.GetProperty("applicability").GetString()!))
             .ToList();
         var actual = ProjectCapabilityCatalog.Describe(kind).Select(c => (c.Operation, c.Applicability)).ToList();
-        Assert.Equal(53, expected.Count);
+        Assert.Equal(55, expected.Count);
         Assert.Equal(expected, actual);
     }
 
@@ -341,7 +341,7 @@ public sealed class LocalSessionContextContractTests
         {
             "bind_project", "get_project_status", "browse_project_tree", "plc_read", "plc_write",
             "network_read", "network_write", "read_cross_references", "compile_check", "hmi_read", "hmi_write",
-            "vci_read", "vci_write",
+            "vci_read", "vci_write", "library_read", "library_project_read",
             "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project"
         };
         var projectItems = PlcOperationCatalog.ReadOperationNames
@@ -431,6 +431,9 @@ public sealed class LocalSessionContextContractTests
     [InlineData("hmi_validate", "hmi_read")]
     [InlineData("vci_list_mappings", "vci_read")]
     [InlineData("vci_plan", "vci_write")]
+    [InlineData("library_list_global_libraries", "library_read")]
+    [InlineData("library_global_list_versions", "library_read")]
+    [InlineData("library_project_list_dependencies", "library_project_read")]
     [InlineData("vci_export", "vci_write")]
     [InlineData("get_block_content", "get_block_content")]
     [InlineData("search_equipment_catalog", null)]

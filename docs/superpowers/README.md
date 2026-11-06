@@ -23,6 +23,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-06 | [library_read — scoped read verification: all-available global listing (system/corporate/user, `isOpen`), selectors, nested trees, versions, dependencies, snapshot-cursor paging and failures, project library; local session, rebind and between-page changes unverified](acceptance/reports/2026-11-06-library-read-live-verification.md) |
 | 2026-11-01 | [VCI write native rejections — 20 scoped contract/lifecycle variants, 21 qualified timing samples with synchronization regressions retained, native failure evidence, shared verification and restored fixture](acceptance/reports/2026-11-01-vci-write-native-rejections-live-verification.md) |
 | 2026-10-30 | [HMI write native rejections — scoped qualification complete: version boundaries, 31-variant matrix, R1 partial-failure fix, R2 evidence reuse, accepted R3 compile reduction, L1–L5, timing and retained limits](acceptance/reports/2026-10-30-hmi-write-native-rejections-live-verification.md) |
 | 2026-10-29 | [Network write native rejections — scoped 17-case PASS, maintainer rulings, corrected L11c/L13mini fixtures, three-run timing comparison, verified restoration and retained snapshot/native-fault limits](acceptance/reports/2026-10-29-network-write-native-rejections-live-verification.md) |

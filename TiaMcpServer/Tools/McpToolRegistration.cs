@@ -48,6 +48,8 @@ public static class McpToolRegistration
                 (_, tool, message) => Standalone<CrossReferenceReport>(tool, message), closeNestedSchemas: false),
             [typeof(Vci.VciReadTools)] = builder => builder.WithClosedTools(typeof(Vci.VciReadTools),
                 (_, _, message) => Vci.VciReadTools.Error(ValidationError, message), closeNestedSchemas: true),
+            [typeof(Library.LibraryReadTools)] = builder => builder.WithClosedTools(typeof(Library.LibraryReadTools),
+                (_, _, message) => Library.LibraryReadTools.Error(ValidationError, message), closeNestedSchemas: true),
             [typeof(ProjectEngineeringTools)] = builder => builder.WithClosedTools(typeof(ProjectEngineeringTools),
                 (_, tool, message) => Standalone<CompileCheckReport>(tool, message), closeNestedSchemas: false),
             [typeof(NetworkWriteTools)] = builder => builder.WithClosedTools(typeof(NetworkWriteTools),
@@ -73,7 +75,8 @@ public static class McpToolRegistration
     {
         _ = McpAccessModeNames.ToName(mode); // Reject an invalid configuration before registration.
         foreach (var type in new[] { typeof(ProjectReadTools), typeof(ProjectBindingTools), typeof(NetworkReadTools), typeof(PlcReadTools),
-                     typeof(Hmi.HmiReadTools), typeof(CrossReferences.CrossReferenceReadTools), typeof(Vci.VciReadTools) })
+                     typeof(Hmi.HmiReadTools), typeof(CrossReferences.CrossReferenceReadTools), typeof(Vci.VciReadTools),
+                     typeof(Library.LibraryReadTools) })
             builder.WithProductionTools(type);
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.Compile))
             builder.WithProductionTools(typeof(ProjectEngineeringTools));

@@ -4,3 +4,4 @@ namespace Siemens.Engineering;
 internal sealed class NonRecoverableException : Exception;
 internal class EngineeringException(string message) : Exception(message);
 internal sealed class EngineeringTargetInvocationException(string message) : EngineeringException(message);
+internal sealed class EngineeringNotSupportedException(string message) : EngineeringException(message);

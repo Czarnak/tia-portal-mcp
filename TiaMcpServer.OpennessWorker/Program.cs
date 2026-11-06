@@ -5,6 +5,7 @@ using TiaMcpServer.Contracts.CrossReferences;
 using TiaMcpServer.Contracts.Diagnostics;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Json;
+using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
@@ -14,6 +15,7 @@ using TiaMcpServer.OpennessWorker.Openness.Block;
 using TiaMcpServer.OpennessWorker.Openness.CrossReferences;
 using TiaMcpServer.OpennessWorker.Openness.Hmi;
 using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
+using TiaMcpServer.OpennessWorker.Openness.Library;
 using TiaMcpServer.OpennessWorker.Openness.Multiuser;
 using TiaMcpServer.OpennessWorker.Openness.Network;
 using TiaMcpServer.OpennessWorker.Openness.Project;
@@ -206,6 +208,7 @@ internal static partial class Program
                 var m when HmiWriteMethods.All.Contains(m, StringComparer.Ordinal) => WriteHmi(request),
                 var m when HmiReadMethods.All.Contains(m, StringComparer.Ordinal) => ReadHmi(request),
                 var m when VciMethods.Read.Contains(m, StringComparer.Ordinal) => ReadVci(request),
+                var m when LibraryReadMethods.All.Contains(m, StringComparer.Ordinal) => ReadLibrary(request),
                 VciMethods.Plan => PlanVci(request),
                 var m when VciMethods.Write.Contains(m, StringComparer.Ordinal) => WriteVci(request),
                 _ => throw new WorkerOperationException(
@@ -322,6 +325,14 @@ internal static partial class Program
     private static WorkerResponse ReadVci(WorkerRequest request)
         => WithEngineeringRoot(request, project => Success(
             VciDispatch.Read(project, request.Method, request.VciQuery ?? new VciQueryInfo())));
+
+    // Global reads need the bound Portal and project reads the bound root, so both come from the active context.
+    private static WorkerResponse ReadLibrary(WorkerRequest request)
+        => WithActiveContext(request, session => Success(LibraryReader.Read(
+            session.TiaPortal!, session.EngineeringRoot!, request.Method,
+            request.LibraryQuery ?? throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "A library read requires a library query."),
+            LibraryReader.SharedSnapshots)));
 
     private static WorkerResponse PlanVci(WorkerRequest request)
         => WithEngineeringRoot(request, project => Success(

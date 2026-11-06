@@ -55,6 +55,10 @@ public partial class OpennessWorkerClient
     public Task<WorkerCallResult> ReadVciAsync(string method, TiaMcpServer.Contracts.Vci.VciQueryInfo query)
         => SendBoundProjectRequestAsync(method, null, request => request.VciQuery = query, "{}");
 
+    /// <summary>Runs one library read through the verified binding; <paramref name="method"/> is a <c>library_*</c> worker method.</summary>
+    public Task<WorkerCallResult> ReadLibraryAsync(string method, TiaMcpServer.Contracts.Library.LibraryQueryInfo query)
+        => SendBoundProjectRequestAsync(method, null, request => request.LibraryQuery = query, "{}");
+
     public Task<WorkerCallResult> WriteVciAsync(string method, TiaMcpServer.Contracts.Vci.VciWriteRequestInfo write)
         => SendBoundProjectRequestAsync(method, null, request => request.VciWrite = write, "{}");
 

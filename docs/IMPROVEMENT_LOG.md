@@ -7,6 +7,58 @@ History lives in the ADRs, the acceptance reports and the archive tag; see
 are recorded in the [orchestration ledger](https://github.com/Czarnak/tia-portal-mcp/blob/docs-archive-2026-10-30/docs/superpowers/plans/2026-10-24-workstream-c-followups-orchestration.md).
 An accepted implementation does not establish unexecuted native or plant acceptance.
 
+## Open: library_read follow-ups (2026-11-06)
+
+Found while building and live-accepting [`library_read`](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md)
+([ADR-0015](adr/0015-portal-scope-reads-under-binding-gate.md),
+[live report](superpowers/acceptance/reports/2026-11-06-library-read-live-verification.md)). The
+following remain open.
+
+**Read surface**
+
+- **Unbound global reads.** Global reads need a verified binding today, like every content tool. Reading
+  global libraries with no project open needs its own decision (a Portal selector or a Portal-only route) and
+  would revisit ADR-0015.
+- **Local-session project-library reads.** They are refused with `unsupported_capability` and need a
+  separate probe. The reference stub declares `ProjectLibrary` on `Project`, but real V21 declares it on
+  `ProjectBase`; move it when this lands.
+- **Strict item member casing (repo-wide).** Item member names in every batch tool are matched
+  case-insensitively by the SDK item deserializer; only unknown names and miscased root keys are
+  rejected. Consider strict item member casing across all batch tools.
+- **Not live-verified.** A local session; a rebind cursor (`cursor_binding_mismatch`); a library closed,
+  changed, or a Portal lost between pages; duplicate global library names (`target_ambiguous`). All are
+  covered offline only.
+- **`list_global_libraries` cost.** Each page re-reads every opened library's path for each info row
+  (rows times opened libraries native reads). Compute canonical paths once per page if this becomes slow.
+- **Disposed `GlobalLibraryInfo`.** A disposed info fails the whole item rather than one "no longer
+  exists" row. Add per-row liveness if live evidence shows infos can be disposed.
+
+**Carried to the `library_write` plan (PR 2 input)**
+
+Native-rejection probes run before PR 2 is planned.
+
+- Portal identity is not part of `WriteBindingPreparation`, the `WriteRun` lease or confirmation
+  rechecks, which compare `ProjectBindingSnapshot` only.
+- `WriteRun` gates on the tool name. Pick a per-call seam aligned with the host (`Invocation.cs`) and
+  worker (`Program.cs`) per-method gates, or keep it fail-closed for v1.
+- Lifecycle: the contribution picks the lifecycle operations by position (`Take(6)`) and classifies them
+  `ProjectMutation`; the Portal write route also runs `Execute` without the mutates flag. Name the set,
+  its capability and the per-operation `ConfirmsEveryCall`.
+- `release_type_version` and `synchronize_type` make multi-step default changes with no transaction or
+  receipt.
+- Mixed guards: `library_collision`, `library_state_unverifiable`, `library_unsaved_changes` (eight uses,
+  five are release preconditions) and `library_read_only` (which also covers access-mode mismatch).
+- Admission accounting: the contributed `Validate` skips `WriteValidation.Compose(MeasureProtectedCore...)`.
+- An oversized item `result` is omitted whole; commit and partial-move facts need a compact rewrite.
+- Typed outcome plumbing touches about 15 copy sites, and `PersistentWorkerTransport` validates only
+  VCI and Network outcomes.
+- All four validation helpers reflect into `LibraryWriter.Verify` and use `Verified` as oracle. The probe
+  convention is `docs/superpowers/acceptance/reports/inputs/<date>-<topic>-native-probe/`.
+- Remove the `verify` RPC and `LibraryWriteVerification`; stage approved XML (sidecar race); decide one
+  operation per call versus the 1-50 convention.
+- Library mutations must drop library read snapshots for the touched library, as HMI mutations do
+  (`HmiSnapshotStore.DropFor`).
+
 ## Open: VCI follow-ups (2026-10-16)
 
 The [VCI reference](SupportedOperations/VCI_OPERATIONS_SUMMARY.md) documents the delivered
@@ -120,7 +172,7 @@ PR4's observed AMC paths and successful opens do not close this follow-up or Iss
 ## Open: totally-integrated-claude tia-portal-mcp skill migration
 
 Update the plugin's source `tia-portal-mcp` skill in a separately authorized plugin change to teach
-the current 8/19/19 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`;
+the current 9/20/20 tool counts (`plc_read` and `read_cross_references` replace the retired `execute_read_batch`;
 `plc_write` replaces `preview_write_batch`/`apply_write_batch`, with `content` plus
 `expectedContentHash` instead of `yamlContent`/`sourceContent` and no safety token; full adds no
 tools and PLC run/stop is gone), `bind_project` for already-open projects, no implicit opens, per-call
