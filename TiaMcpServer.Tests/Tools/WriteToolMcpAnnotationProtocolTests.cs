@@ -30,6 +30,7 @@ public class WriteToolMcpAnnotationProtocolTests
         "hmi_read",
         "hmi_write",
         "library_read",
+        "library_write",
         "network_read",
         "network_write",
         "open_project",
@@ -53,6 +54,7 @@ public class WriteToolMcpAnnotationProtocolTests
         ("plc_write", false, true, null, false),
         ("hmi_write", false, true, null, false),
         ("vci_write", false, true, null, false),
+        ("library_write", false, true, null, false),
     };
 
     [Fact]
@@ -63,7 +65,7 @@ public class WriteToolMcpAnnotationProtocolTests
         var byName = tools.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
 
         Assert.Equal(FullToolNames, tools.Select(tool => tool.Name));
-        Assert.Equal(20, tools.Length);
+        Assert.Equal(21, tools.Length);
         Assert.All(
             tools,
             tool => Assert.Equal(
@@ -82,6 +84,9 @@ public class WriteToolMcpAnnotationProtocolTests
 
         Assert.Contains("\"operations\"", byName["plc_write"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
         Assert.Contains("\"projectPath\"", byName["open_project"].ProtocolTool.InputSchema.GetRawText(), StringComparison.Ordinal);
+        var libraryProperties = byName["library_write"].ProtocolTool.InputSchema.GetProperty("properties");
+        Assert.Equal(new[] { "dryRun", "operations" }, libraryProperties.EnumerateObject().Select(p => p.Name).Order());
+        Assert.NotNull(byName["library_write"].ProtocolTool.OutputSchema);
         foreach (var name in new[] { "open_project", "create_project", "save_project", "save_project_as", "archive_project", "close_project" })
         {
             var properties = byName[name].ProtocolTool.InputSchema.GetProperty("properties");

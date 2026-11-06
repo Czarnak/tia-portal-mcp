@@ -69,7 +69,7 @@ public sealed class StandaloneToolsProtocolTests
         using var uiOpen = FakeWorkerUiOpenProject.ForWorkerRelativePath("status-no-project");
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(mode);
         var tools = await harness.Client.ListToolsAsync();
-        Assert.Equal(mode == McpAccessMode.ReadOnly ? 9 : 20, tools.Count);
+        Assert.Equal(mode == McpAccessMode.ReadOnly ? 9 : 21, tools.Count);
         var statusTool = Assert.Single(tools, tool => tool.Name == "get_project_status");
         var statusSchema = statusTool.ProtocolTool.OutputSchema!.Value;
         Assert.Equal(new[] { "contractVersion", "error", "result", "success", "tool", "warnings" },

@@ -36,6 +36,10 @@ public sealed class ToolOutputContractConformanceTests
 
     private static readonly IReadOnlyDictionary<string, ToolProbe> StructuredToolProbes = new[]
     {
+        new ToolProbe("library_write", "rejected", true, null,
+            new Dictionary<string, object?> { ["operations"] = Array.Empty<object>() }),
+        new ToolProbe("library_write", "previewed", false, "library-write-roundtrip",
+            new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "folder", operation = "create_folder", scope = "global", libraryName = "Fixture", folderKind = "masterCopies", folderPath = Array.Empty<string>(), name = "Folder" } }, ["dryRun"] = true }),
         new ToolProbe("bind_project", "succeeded", false, null, new()),
         new ToolProbe("bind_project", "rejected", true, null,
             new Dictionary<string, object?> { ["projectPath"] = "relative.ap21" }),
@@ -416,8 +420,13 @@ public sealed class ToolOutputContractConformanceTests
                     Assert.Equal(2, document.GetProperty("result").GetProperty("value").GetProperty("portals").GetArrayLength());
             }
         }
-        if (probe.Tool is "network_write" or "hmi_write" or "vci_write")
+        if (probe.Tool is "network_write" or "hmi_write" or "vci_write" or "library_write")
             Assert.Equal("2.0", result.StructuredContent!.Value.GetProperty("contractVersion").GetString());
+        if (probe.Name == "library_write/previewed")
+        {
+            Assert.True(result.StructuredContent!.Value.GetProperty("success").GetBoolean(), TextOf(result));
+            Assert.Equal("preview", result.StructuredContent.Value.GetProperty("phase").GetString());
+        }
         if (probe.Tool == "network_read")
         {
             var document = result.StructuredContent!.Value;
@@ -554,6 +563,7 @@ public sealed class ToolOutputContractConformanceTests
     [InlineData("hmi_write", "operations")]
     [InlineData("vci_read", "operations")]
     [InlineData("library_read", "operations")]
+    [InlineData("library_write", "operations")]
     [InlineData("vci_write", "operations")]
     [InlineData("open_project", "projectPath")]
     [InlineData("create_project", "projectDirectory")]
@@ -643,7 +653,7 @@ public sealed class ToolOutputContractConformanceTests
     public static TheoryData<string> RetiredItemPathTools => new()
     {
         "plc_read", "plc_write", "network_read", "network_write",
-        "hmi_read", "hmi_write", "vci_read", "vci_write", "library_read",
+        "hmi_read", "hmi_write", "vci_read", "vci_write", "library_read", "library_write",
     };
 
     [Theory]
@@ -660,6 +670,7 @@ public sealed class ToolOutputContractConformanceTests
             "hmi_write" => ("hmi-write-roundtrip", new { operationId = "table", operation = "create_tag_table", tableName = "T", projectPath = "hmi-write-roundtrip" }),
             "vci_read" => ("vci-read-roundtrip", new { operationId = "w", operation = "list_workspaces", projectPath = "vci-read-roundtrip" }),
             "library_read" => ("library-read-roundtrip", new { operationId = "g", operation = "list_global_libraries", projectPath = "library-read-roundtrip" }),
+            "library_write" => ("library-write-roundtrip", new { operationId = "g", operation = "delete_master_copy", scope = "global", libraryName = "Fixture", name = "Copy", projectPath = "library-write-roundtrip" }),
             "vci_write" => ("vci-write-roundtrip", new { operationId = "v", operation = "export", workspaceName = "Fixture", scope = new[] { new { nodeType = "Device", name = "Fixture" } }, projectPath = "vci-write-roundtrip" }),
             _ => throw new ArgumentOutOfRangeException(nameof(tool)),
         };

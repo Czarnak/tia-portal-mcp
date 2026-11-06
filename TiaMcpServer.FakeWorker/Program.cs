@@ -465,6 +465,13 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
+    if (scenario is "library-write-roundtrip" or "library-write-roundtrip.amc21"
+        && currentMethod == TiaMcpServer.Contracts.Library.LibraryWriteMethods.GlobalPlan)
+    {
+        Respond(TiaMcpServer.FakeWorker.Library.LibraryWriteScenario.Handle(line));
+        continue;
+    }
+
     switch (scenario)
     {
         case "library-read-roundtrip":

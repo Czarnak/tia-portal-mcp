@@ -154,12 +154,12 @@ public class McpToolSchemaTests
     /// ProjectWriteTools lives in - which, for TiaMcpServer.Tests, is the test assembly
     /// itself, since the host's tool source files are compiled directly into it (see
     /// TiaMcpServer.Tests.csproj's Compile Include entries). Counts every method on those types
-    /// carrying [McpServerTool] and asserts the exact approved surface: 20 tools total, and the
+    /// carrying [McpServerTool] and asserts the exact approved surface: 21 tools total, and the
     /// internal lifecycle probe (probe_project_status_for_lifecycle, never [McpServerTool]-decorated)
     /// absent.
     /// </summary>
     [Fact]
-    public void McpToolSurface_ExposesExactlyTwentyApprovedTools()
+    public void McpToolSurface_ExposesExactlyTwentyOneApprovedTools()
     {
         var toolTypes = typeof(ProjectWriteTools).Assembly
             .GetTypes()
@@ -191,7 +191,7 @@ public class McpToolSchemaTests
             "plc_read",
             "plc_write",
             "hmi_write",
-            "read_cross_references", "vci_read", "vci_write", "library_read"
+            "read_cross_references", "vci_read", "vci_write", "library_read", "library_write"
         };
 
         Assert.Equal(expected.OrderBy(name => name), toolNames);
