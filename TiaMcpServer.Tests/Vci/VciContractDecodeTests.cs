@@ -61,9 +61,9 @@ public sealed class VciContractDecodeTests
     [Fact]
     public void PartialOutcome_SurvivesExceptionAndWorkerEnvelope()
     {
-        var outcome = Activator.CreateInstance(ResultType("VciWriteOutcomeInfo"))!;
-        var exception = (WorkerOperationException)Activator.CreateInstance(typeof(WorkerOperationException),
-            WorkerFailureCategories.WorkerOperationFailed, "leaf failed", null, null, null, outcome, null, null)!;
+        var outcome = new VciWriteOutcomeInfo();
+        var exception = new WorkerOperationException(
+            WorkerFailureCategories.WorkerOperationFailed, "leaf failed", vciWriteOutcome: outcome);
         var property = typeof(WorkerOperationException).GetProperty("VciWriteOutcome");
         Assert.NotNull(property);
         Assert.Same(outcome, property.GetValue(exception));
