@@ -209,6 +209,8 @@ internal static partial class Program
                 var m when HmiReadMethods.All.Contains(m, StringComparer.Ordinal) => ReadHmi(request),
                 var m when VciMethods.Read.Contains(m, StringComparer.Ordinal) => ReadVci(request),
                 var m when LibraryReadMethods.All.Contains(m, StringComparer.Ordinal) => ReadLibrary(request),
+                LibraryWriteMethods.GlobalPlan or LibraryWriteMethods.ProjectPlan => PlanLibraryWrite(request),
+                var m when LibraryWriteMethods.All.Contains(m, StringComparer.Ordinal) => WriteLibrary(request),
                 VciMethods.Plan => PlanVci(request),
                 var m when VciMethods.Write.Contains(m, StringComparer.Ordinal) => WriteVci(request),
                 _ => throw new WorkerOperationException(
@@ -333,6 +335,18 @@ internal static partial class Program
             request.LibraryQuery ?? throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
                 "A library read requires a library query."),
             LibraryReader.SharedSnapshots)));
+
+    private static WorkerResponse PlanLibraryWrite(WorkerRequest request)
+        => WithActiveContext(request, session => Success(LibraryWritePlanReader.Plan(
+            session.TiaPortal!, session.EngineeringRoot!, request.Method,
+            request.LibraryWrite ?? throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "A library write plan requires a library write request."))));
+
+    private static WorkerResponse WriteLibrary(WorkerRequest request)
+        => WithActiveContext(request, session => Success(LibraryWriter.Write(
+            session.TiaPortal!, session.EngineeringRoot!, request.Method,
+            request.LibraryWrite ?? throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "A library write requires a library write request."))));
 
     private static WorkerResponse PlanVci(WorkerRequest request)
         => WithEngineeringRoot(request, project => Success(

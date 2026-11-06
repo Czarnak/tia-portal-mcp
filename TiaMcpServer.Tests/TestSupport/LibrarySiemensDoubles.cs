@@ -8,6 +8,7 @@ using Siemens.Engineering.Library.Types;
 
 namespace Siemens.Engineering
 {
+    public enum OpenMode { ReadOnly = 0, ReadWrite = 1 }
     public sealed partial class TiaPortal
     {
         private readonly Library.GlobalLibraryComposition globalLibraries = new();
@@ -95,14 +96,23 @@ namespace Siemens.Engineering.Library
         public Exception? ReadOnlyFailure { get; set; }
         public bool IsReadOnly => ReadOnlyFailure is null ? Live(true) : throw ReadOnlyFailure;
         public bool IsWriteProtected => Live(false);
-        public bool IsModified => Live(false);
+        public bool Modified { get; set; }
+        public Exception? ModifiedFailure { get; set; }
+        public bool IsModified => ModifiedFailure is null ? Live(Modified) : throw ModifiedFailure;
     }
 
     public sealed class UserGlobalLibrary : GlobalLibrary
     {
-        public void Save() => throw new InvalidOperationException("Planning must not save.");
-        public void Close() => throw new InvalidOperationException("Planning must not close.");
+        public Action? SaveAction { get; set; }
+        public Action? CloseAction { get; set; }
+        public Action<DirectoryInfo, string, LibraryArchivationMode>? ArchiveAction { get; set; }
+        public void Save() => (SaveAction ?? throw new InvalidOperationException("Unconfigured library Save."))();
+        public void Close() => (CloseAction ?? throw new InvalidOperationException("Unconfigured library Close."))();
+        public void Archive(DirectoryInfo directory, string name, LibraryArchivationMode mode)
+            => (ArchiveAction ?? throw new InvalidOperationException("Unconfigured library Archive."))(directory, name, mode);
     }
+
+    public enum LibraryArchivationMode { None = 0, Compressed = 1, DiscardRestorableData = 2, DiscardRestorableDataAndCompressed = 3 }
 
     public sealed class ProjectLibrary : LibraryRootDouble
     {
@@ -132,6 +142,15 @@ namespace Siemens.Engineering.Library
     {
         public List<GlobalLibrary> Items { get; } = new();
         public List<GlobalLibraryInfo> Available { get; } = new();
+        public Func<DirectoryInfo, string, UserGlobalLibrary>? CreateAction { get; set; }
+        public Func<FileInfo, OpenMode, UserGlobalLibrary>? OpenAction { get; set; }
+        public Func<FileInfo, DirectoryInfo, OpenMode, UserGlobalLibrary>? RetrieveAction { get; set; }
+        public T Create<T>(DirectoryInfo directory, string name) where T : class
+            => (T)(object)(CreateAction ?? throw new InvalidOperationException("Unconfigured library Create."))(directory, name);
+        public UserGlobalLibrary Open(FileInfo path, OpenMode mode)
+            => (OpenAction ?? throw new InvalidOperationException("Unconfigured library Open."))(path, mode);
+        public UserGlobalLibrary Retrieve(FileInfo path, DirectoryInfo directory, OpenMode mode)
+            => (RetrieveAction ?? throw new InvalidOperationException("Unconfigured library Retrieve."))(path, directory, mode);
 
         /// <summary>Thrown by <see cref="GetGlobalLibraryInfos"/> when set.</summary>
         public Exception? InfosFailure { get; set; }
@@ -157,18 +176,46 @@ namespace Siemens.Engineering.Library
 namespace Siemens.Engineering.Library.MasterCopies
 {
     public interface IMasterCopySource { }
+    public enum MasterCopyMode { ThrowIfExists = 0, Rename = 1, Replace = 2 }
+    public sealed class MasterCopyComposition : IEnumerable<MasterCopy>
+    {
+        public List<MasterCopy> Items { get; } = new();
+        public Exception? EnumerationFailure { get; set; }
+        public Func<IMasterCopySource, MasterCopy>? CreateAction { get; set; }
+        public Func<MasterCopy, MasterCopy>? CreateFromAction { get; set; }
+        public MasterCopy Create(IMasterCopySource source)
+            => (CreateAction ?? throw new InvalidOperationException("Unconfigured master-copy Create."))(source);
+        public MasterCopy CreateFrom(MasterCopy source)
+            => (CreateFromAction ?? throw new InvalidOperationException("Unconfigured master-copy CreateFrom."))(source);
+        public IEnumerator<MasterCopy> GetEnumerator() => EnumerationFailure is null ? Items.GetEnumerator() : throw EnumerationFailure;
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    public sealed class MasterCopyUserFolderComposition : IEnumerable<MasterCopyUserFolder>
+    {
+        public List<MasterCopyUserFolder> Items { get; } = new();
+        public Exception? EnumerationFailure { get; set; }
+        public Func<string, MasterCopyUserFolder>? CreateAction { get; set; }
+        public MasterCopyUserFolder Create(string name)
+            => (CreateAction ?? throw new InvalidOperationException("Unconfigured master-copy folder Create."))(name);
+        public IEnumerator<MasterCopyUserFolder> GetEnumerator() => EnumerationFailure is null ? Items.GetEnumerator() : throw EnumerationFailure;
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     public sealed class MasterCopy : Library.LibraryDouble
     {
         private string name = string.Empty;
         public string Name { get => Live(name); set => name = value; }
+        public Action? DeleteAction { get; set; }
+        public void Delete() => (DeleteAction ?? throw new InvalidOperationException("Unconfigured master-copy Delete."))();
     }
 
     public abstract class MasterCopyFolder : Library.LibraryDouble
     {
         private string name = string.Empty;
         public string Name { get => Live(name); set => name = value; }
-        public Library.LibraryComposition<MasterCopyUserFolder> Folders { get; } = new();
-        public Library.LibraryComposition<MasterCopy> MasterCopies { get; } = new();
+        public MasterCopyUserFolderComposition Folders { get; } = new();
+        public MasterCopyComposition MasterCopies { get; } = new();
 
         public MasterCopyUserFolder AddFolder(string folderName)
         {
@@ -186,11 +233,25 @@ namespace Siemens.Engineering.Library.MasterCopies
     }
 
     public sealed class MasterCopySystemFolder : MasterCopyFolder { }
-    public sealed class MasterCopyUserFolder : MasterCopyFolder { }
+    public sealed class MasterCopyUserFolder : MasterCopyFolder
+    {
+        public Action? DeleteAction { get; set; }
+        public void Delete() => (DeleteAction ?? throw new InvalidOperationException("Unconfigured master-copy folder Delete."))();
+    }
 }
 
 namespace Siemens.Engineering.Library.Types
 {
+    public sealed class LibraryTypeUserFolderComposition : IEnumerable<LibraryTypeUserFolder>
+    {
+        public List<LibraryTypeUserFolder> Items { get; } = new();
+        public Exception? EnumerationFailure { get; set; }
+        public Func<string, LibraryTypeUserFolder>? CreateAction { get; set; }
+        public LibraryTypeUserFolder Create(string name)
+            => (CreateAction ?? throw new InvalidOperationException("Unconfigured type folder Create."))(name);
+        public IEnumerator<LibraryTypeUserFolder> GetEnumerator() => EnumerationFailure is null ? Items.GetEnumerator() : throw EnumerationFailure;
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
     public enum LibraryTypeVersionState { InWork = 0, Committed = 1 }
 
     [Flags]
@@ -204,7 +265,7 @@ namespace Siemens.Engineering.Library.Types
     {
         private string name = string.Empty;
         public string Name { get => Live(name); set => name = value; }
-        public Library.LibraryComposition<LibraryTypeUserFolder> Folders { get; } = new();
+        public LibraryTypeUserFolderComposition Folders { get; } = new();
         public Library.LibraryComposition<LibraryType> Types { get; } = new();
 
         public LibraryTypeUserFolder AddFolder(string folderName)
@@ -223,7 +284,11 @@ namespace Siemens.Engineering.Library.Types
     }
 
     public sealed class LibraryTypeSystemFolder : LibraryTypeFolder { }
-    public sealed class LibraryTypeUserFolder : LibraryTypeFolder { }
+    public sealed class LibraryTypeUserFolder : LibraryTypeFolder
+    {
+        public Action? DeleteAction { get; set; }
+        public void Delete() => (DeleteAction ?? throw new InvalidOperationException("Unconfigured type folder Delete."))();
+    }
 
     public sealed class LibraryType : Library.LibraryDouble
     {

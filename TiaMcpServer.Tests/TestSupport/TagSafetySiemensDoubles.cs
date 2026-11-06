@@ -307,6 +307,9 @@ namespace Siemens.Engineering.SW.Tags
     }
     public sealed class PlcTagTableComposition : Composition<PlcTagTable>
     {
+        public Func<Library.MasterCopies.MasterCopy, Library.MasterCopies.MasterCopyMode, PlcTagTable>? CreateFromAction { get; set; }
+        public PlcTagTable CreateFrom(Library.MasterCopies.MasterCopy copy, Library.MasterCopies.MasterCopyMode mode)
+            => (CreateFromAction ?? throw new InvalidOperationException("Unconfigured tag-table CreateFrom."))(copy, mode);
         public PlcTagTable Create(string name)
         {
             var table = new PlcTagTable { Name = name, Owner = this };
@@ -410,6 +413,9 @@ namespace Siemens.Engineering.SW.Blocks
     public sealed class ArrayDB : DataBlock { }
     public sealed class PlcBlockComposition : Composition<PlcBlock>
     {
+        public Func<Library.MasterCopies.MasterCopy, Library.MasterCopies.MasterCopyMode, PlcBlock>? CreateFromAction { get; set; }
+        public PlcBlock CreateFrom(Library.MasterCopies.MasterCopy copy, Library.MasterCopies.MasterCopyMode mode)
+            => (CreateFromAction ?? throw new InvalidOperationException("Unconfigured block CreateFrom."))(copy, mode);
         public List<ImportOptions> ImportCalls { get; } = new();
         public List<string> ImportedDocuments { get; } = new();
         // Blocks the next import yields; they are also added to this composition, as TIA would.
@@ -458,10 +464,16 @@ namespace Siemens.Engineering.SW.Blocks
 namespace Siemens.Engineering.SW.Types
 {
     public sealed class PlcType : NamedObject, Library.MasterCopies.IMasterCopySource { }
+    public sealed class PlcTypeComposition : Composition<PlcType>
+    {
+        public Func<Library.MasterCopies.MasterCopy, Library.MasterCopies.MasterCopyMode, PlcType>? CreateFromAction { get; set; }
+        public PlcType CreateFrom(Library.MasterCopies.MasterCopy copy, Library.MasterCopies.MasterCopyMode mode)
+            => (CreateFromAction ?? throw new InvalidOperationException("Unconfigured type CreateFrom."))(copy, mode);
+    }
     public class PlcTypeGroup : NamedObject
     {
         public PlcTypeGroup() { Types.Parent = this; Groups.Parent = this; }
-        public Composition<PlcType> Types { get; } = new();
+        public PlcTypeComposition Types { get; } = new();
         public Composition<PlcTypeGroup> Groups { get; } = new();
     }
     public sealed class PlcTypeUserGroup : PlcTypeGroup { }

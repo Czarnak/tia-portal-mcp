@@ -34,4 +34,22 @@ public sealed class LibraryWorkerDispatchTests
         => Assert.Contains(
             "request.LibraryQuery ?? throw new WorkerOperationException(WorkerFailureCategories.ValidationError,",
             ReadLibrary());
+
+    [Theory]
+    [InlineData("PlanLibraryWrite", "LibraryWritePlanReader.Plan")]
+    [InlineData("WriteLibrary", "LibraryWriter.Write")]
+    public void LibraryWrites_UseWithActiveContextAndRequiredRequest(string handler, string callee)
+    {
+        var start = Program.IndexOf($"private static WorkerResponse {handler}(WorkerRequest request)", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Missing {handler} dispatch.");
+        var end = Program.IndexOf("\n\n", start, StringComparison.Ordinal);
+        var body = Program.Substring(start, (end < 0 ? Program.Length : end) - start);
+        Assert.Contains($"=> WithActiveContext(request, session => Success({callee}(", body);
+        Assert.Contains("session.TiaPortal!, session.EngineeringRoot!, request.Method,", body);
+        Assert.Contains("request.LibraryWrite ?? throw new WorkerOperationException(WorkerFailureCategories.ValidationError,", body);
+        Assert.DoesNotContain("SharedSnapshots", body);
+        Assert.Contains(handler == "PlanLibraryWrite"
+            ? "LibraryWriteMethods.GlobalPlan or LibraryWriteMethods.ProjectPlan => PlanLibraryWrite(request),"
+            : "var m when LibraryWriteMethods.All.Contains(m, StringComparer.Ordinal) => WriteLibrary(request),", Program);
+    }
 }
