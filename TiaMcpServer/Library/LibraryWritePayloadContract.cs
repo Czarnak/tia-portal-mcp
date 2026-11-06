@@ -1,11 +1,38 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts.Library;
+using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
+using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Worker;
 
 namespace TiaMcpServer.Library;
 
 public static class LibraryWritePayloadContract
 {
+    public static StructuredOperationItem Project(LibraryWriteItem item, WorkerCallResult result)
+    {
+        try
+        {
+            if (!result.Success)
+            {
+                if (result.LibraryWriteOutcome is not { } outcome)
+                    return StructuredOperationItem.Failed(item,
+                        result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                        result.Error ?? "The library write failed.", result.Warnings);
+                return new(item.OperationId, item.Operation, OperationBatchStatus.Failed, CanonicalJson.ToElement(outcome),
+                    new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
+                        result.Error ?? "The library write failed."), null, null, result.Warnings);
+            }
+            var (_, _, element) = CanonicalJson.NormalizeWorkerPayload<LibraryWriteResultInfo>(result.Payload);
+            return new(item.OperationId, item.Operation, OperationBatchStatus.Succeeded, element, null, null, null, result.Warnings);
+        }
+        catch (JsonException)
+        {
+            return StructuredOperationItem.Failed(item, WorkerFailureCategories.ProtocolError,
+                "The library worker payload did not match its declared result contract and was rejected.", result.Warnings);
+        }
+    }
+
     internal static void ValidateEnvelopeOutcome(JsonElement envelope)
     {
         if (envelope.ValueKind != JsonValueKind.Object) return;
