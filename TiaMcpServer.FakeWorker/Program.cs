@@ -465,10 +465,11 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
-    if (scenario is "library-write-roundtrip" or "library-write-roundtrip.amc21"
-        && currentMethod == TiaMcpServer.Contracts.Library.LibraryWriteMethods.GlobalPlan)
+    if (scenario is "library-write-roundtrip" or "library-write-roundtrip.amc21" or "library-write-portal-lost"
+        && currentMethod is not null
+        && TiaMcpServer.Contracts.Library.LibraryWriteMethods.All.Contains(currentMethod, StringComparer.Ordinal))
     {
-        Respond(TiaMcpServer.FakeWorker.Library.LibraryWriteScenario.Handle(line));
+        Respond(TiaMcpServer.FakeWorker.Library.LibraryWriteScenario.Handle(line, scenario));
         continue;
     }
 
