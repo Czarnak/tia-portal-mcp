@@ -23,7 +23,11 @@ public static class LibraryWritePayloadContract
                     new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                         result.Error ?? "The library write failed."), null, null, result.Warnings);
             }
-            var (_, _, element) = CanonicalJson.NormalizeWorkerPayload<LibraryWriteResultInfo>(result.Payload);
+            var (_, _, element) = CanonicalJson.NormalizeWorkerPayload<LibraryWriteResultInfo>(result.Payload, value =>
+            {
+                ValidateIdentity(value.Library);
+                ValidateIdentity(value.Target);
+            });
             return new(item.OperationId, item.Operation, OperationBatchStatus.Succeeded, element, null, null, null, result.Warnings);
         }
         catch (JsonException)
@@ -31,6 +35,11 @@ public static class LibraryWritePayloadContract
             return StructuredOperationItem.Failed(item, WorkerFailureCategories.ProtocolError,
                 "The library worker payload did not match its declared result contract and was rejected.", result.Warnings);
         }
+    }
+
+    internal static void ValidateIdentity(LibraryIdentityInfo? identity)
+    {
+        if (identity?.FolderPath.Any(segment => segment is null) == true) throw new JsonException();
     }
 
     internal static void ValidateEnvelopeOutcome(JsonElement envelope)

@@ -27,6 +27,9 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
             {
                 var plan = CanonicalJson.DeserializeWorkerPayload<LibraryWritePlanInfo>(result.Payload);
                 if (plan.FolderContents.Any(identity => identity is null)) throw new JsonException();
+                LibraryWritePayloadContract.ValidateIdentity(plan.Library);
+                LibraryWritePayloadContract.ValidateIdentity(plan.Target);
+                foreach (var identity in plan.FolderContents) LibraryWritePayloadContract.ValidateIdentity(identity);
                 plans.Add(ItemPlan<LibraryWriteEffect>.Resolved(new(plan.Library, plan.Target, plan.AlreadyOpen,
                     plan.FolderContents, plan.ContentsTruncated)));
                 guards[item.OperationId] = Guards(item, plan);

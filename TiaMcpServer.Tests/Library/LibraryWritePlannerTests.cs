@@ -73,6 +73,51 @@ public sealed class LibraryWritePlannerTests
         Assert.Equal("protocol_error", (await new LibraryWritePlanner(f.Client).PlanAsync([Item("a")])).Plan.Error!.Category);
     }
 
+    [Theory]
+    [InlineData("library")]
+    [InlineData("target")]
+    [InlineData("folderContents")]
+    public async Task NullFolderSegmentInAnyIdentityRejectsAllPlanEvidence(string position)
+    {
+        using var f = await Fixture.Create();
+        var identity = new LibraryIdentityInfo { Name = "leak-sentinel", FolderPath = [null!] };
+        var plan = new LibraryWritePlanInfo();
+        if (position == "library") plan.Library = identity;
+        if (position == "target") plan.Target = identity;
+        if (position == "folderContents") plan.FolderContents = [identity];
+        f.Put(plan);
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([Item("a")]);
+        Assert.False(result.Plan.Success);
+        Assert.Equal("protocol_error", result.Plan.Error!.Category);
+        Assert.Empty(result.Plan.Items);
+        Assert.Empty(result.Guards);
+        Assert.DoesNotContain("leak-sentinel", TiaMcpServer.Json.CanonicalJson.Serialize(result));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NullOptionalIdentitiesAndEmptyFolderPathsRemainValid(bool present)
+    {
+        using var f = await Fixture.Create();
+        f.Put(new() { Library = present ? new() : null, Target = present ? new() : null,
+            FolderContents = present ? [new()] : [] });
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([Item("a")]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        var effect = Assert.Single(result.Plan.Items).Effect!;
+        if (present)
+        {
+            Assert.Empty(effect.Library!.FolderPath);
+            Assert.Empty(effect.Target!.FolderPath);
+            Assert.Empty(Assert.Single(effect.FolderContents).FolderPath);
+        }
+        else
+        {
+            Assert.Null(effect.Library);
+            Assert.Null(effect.Target);
+        }
+    }
+
     [Fact]
     public async Task TargetFailureStopsPlanningAndPassesThrough()
     {

@@ -33,6 +33,36 @@ public sealed class LibraryWriteContractDecodeTests
         Assert.Equal(["warning"], result.Warnings);
     }
 
+    [Theory]
+    [InlineData("library")]
+    [InlineData("target")]
+    public void NullFolderSegmentInAnyIdentityRejectsResultEvidence(string position)
+    {
+        var identity = new LibraryIdentityInfo { Name = "leak-sentinel", FolderPath = [null!] };
+        var payload = new LibraryWriteResultInfo();
+        if (position == "library") payload.Library = identity;
+        else payload.Target = identity;
+        var result = LibraryWritePayloadContract.Project(Item, WorkerCallResult.Ok(WorkerJson.SerializePayload(payload)));
+        Assert.Equal("failed", result.Status);
+        Assert.Equal("protocol_error", result.Failure!.Category);
+        Assert.Null(result.Result);
+        Assert.DoesNotContain("leak-sentinel", TiaMcpServer.Json.CanonicalJson.Serialize(result));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EmptyFolderPathsAndOptionalNullTargetRemainValid(bool targetPresent)
+    {
+        var payload = new LibraryWriteResultInfo { Target = targetPresent ? new() : null };
+        var result = LibraryWritePayloadContract.Project(Item, WorkerCallResult.Ok(WorkerJson.SerializePayload(payload)));
+        Assert.Equal("succeeded", result.Status);
+        var document = result.Result!.Value;
+        Assert.Equal(0, document.GetProperty("library").GetProperty("folderPath").GetArrayLength());
+        if (targetPresent) Assert.Equal(0, document.GetProperty("target").GetProperty("folderPath").GetArrayLength());
+        else Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("target").ValueKind);
+    }
+
     [Fact]
     public void FailurePreservesPartialReceipt()
     {
