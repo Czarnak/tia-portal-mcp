@@ -15,7 +15,7 @@ public static class LibrarySelectorRules
                 ? "Project library identity comes from the verified project binding, not a library path/name."
                 : $"Project library identity comes from the verified project binding, not {pathMember}/{nameMember}.";
         if (scope == "global" && string.IsNullOrWhiteSpace(libraryPath) && string.IsNullOrWhiteSpace(libraryName))
-            return $"Global reads require an exact {pathMember} or {nameMember} of an already-open library.";
+            return $"Global library selectors require an exact {pathMember} or {nameMember} of an already-open library.";
         if (libraryPath is not null && !LibraryReadMethods.IsAbsolutePath(libraryPath)) return $"{pathMember} must be absolute.";
         if (libraryName is not null && string.IsNullOrWhiteSpace(libraryName)) return $"{nameMember} must be nonblank.";
         if (folderPath is { Count: > 32 } || folderPath?.Any(string.IsNullOrWhiteSpace) == true)
