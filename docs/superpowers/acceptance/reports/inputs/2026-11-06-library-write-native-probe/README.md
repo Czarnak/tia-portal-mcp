@@ -2,8 +2,8 @@
 
 Standalone .NET Framework 4.8 executable that calls the Siemens V21 library APIs directly, with no
 worker pre-checks, to see which `library_write` conditions Portal rejects natively and which it
-accepts silently. It runs before the `library_write` plan (issue #218, PR 2). It does not use or
-change the MCP server.
+accepts silently. It ran before the `library_write` plan (issue #218, PR 2). It does not use or
+change the MCP server. Results: [native-rejection probe report](../../2026-11-06-library-write-native-probes.md).
 
 Every case runs on fresh copies of the disposable project and global library, taken into
 `--work\<case>\`. Cases never save the project. A library copy may be saved only by the cleanup

@@ -35,7 +35,9 @@ following remain open.
 
 **Carried to the `library_write` plan (PR 2 input)**
 
-Native-rejection probes run before PR 2 is planned.
+Native-rejection probes ran on 2026-11-06 ([report](superpowers/acceptance/reports/2026-11-06-library-write-native-probes.md));
+its "Consequences" section lists what Portal refuses and what the tool must own (including the
+`0.0.0` release that kills Portal and `UpdateProject` removing unused instances despite `DoNotDelete`).
 
 - Portal identity is not part of `WriteBindingPreparation`, the `WriteRun` lease or confirmation
   rechecks, which compare `ProjectBindingSnapshot` only.
