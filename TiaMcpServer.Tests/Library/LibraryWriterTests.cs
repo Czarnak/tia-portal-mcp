@@ -245,10 +245,13 @@ public sealed class LibraryWriterTests
     }
 
     [Theory]
-    [InlineData("block")]
-    [InlineData("plcType")]
-    [InlineData("tagTable")]
-    public void CreateMasterCopy_UsesSelectedPlcSource(string kind)
+    [InlineData("block", "Source")]
+    [InlineData("plcType", "Source")]
+    [InlineData("tagTable", "Source")]
+    [InlineData("block", "source")]
+    [InlineData("plcType", "source")]
+    [InlineData("tagTable", "source")]
+    public void CreateMasterCopy_UsesSelectedPlcSource(string kind, string selector)
     {
         var library = AddLibrary();
         var plc = AddPlc();
@@ -256,8 +259,13 @@ public sealed class LibraryWriterTests
         if (kind == "block") { var value = new FB { Name = "Source" }; plc.BlockGroup.Blocks.Items.Add(value); source = value; }
         else if (kind == "plcType") { var value = new PlcType { Name = "Source" }; plc.TypeGroup.Types.Items.Add(value); source = value; }
         else { var value = new PlcTagTable { Name = "Source" }; plc.TagTableGroup.TagTables.Items.Add(value); source = value; }
-        library.MasterCopyFolder.MasterCopies.CreateAction = actual => { Assert.Same(source, actual); return library.MasterCopyFolder.AddCopy("Source"); };
-        var item = Item("create_master_copy"); item.PlcName = "PLC"; item.PlcKind = kind; item.PlcObjectName = "Source";
+        library.MasterCopyFolder.MasterCopies.CreateAction = actual =>
+        {
+            Assert.Same(source, actual);
+            ((NamedObject)source).NameFailure = new EngineeringNotSupportedException("Source name must be captured before Create.");
+            return library.MasterCopyFolder.AddCopy("Source");
+        };
+        var item = Item("create_master_copy"); item.PlcName = "PLC"; item.PlcKind = kind; item.PlcObjectName = selector;
         var result = Write(item);
         Assert.Equal("Source", result.ActualName);
         Assert.Equal("Source", result.Target!.Name);

@@ -108,7 +108,9 @@ internal static class LibraryWriter
         switch (item.Operation)
         {
             case "create_master_copy":
-                return Created(copies.Create(LibraryWriteTargets.PlcSource(project, item)), item.PlcObjectName!);
+                var plcSource = LibraryWriteTargets.PlcSource(project, item);
+                var expectedName = LibraryWriteTargets.PlcSourceName(plcSource);
+                return Created(copies.Create(plcSource), expectedName);
             case "copy_master_copy":
                 var source = LibraryWriteTargets.Library(portal, project, item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName);
                 var sourceCopy = LibraryReader.Exact(LibraryReader.CopyFolder(source, item.SourceFolderPath).MasterCopies

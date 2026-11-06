@@ -82,6 +82,27 @@ public sealed class LibraryWritePlanReaderTests
         Assert.Equal("Source", plan.Target!.Name);
     }
 
+    [Theory]
+    [InlineData("block")]
+    [InlineData("plcType")]
+    [InlineData("tagTable")]
+    public void Plan_CreateMasterCopy_CaseAliasUsesActualSourceSpelling(string kind)
+    {
+        var library = AddLibrary();
+        library.MasterCopyFolder.AddCopy("SOURCE");
+        var plc = AddPlc();
+        if (kind == "block") plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Source" });
+        else if (kind == "plcType") plc.TypeGroup.Types.Items.Add(new PlcType { Name = "Source" });
+        else plc.TagTableGroup.TagTables.Items.Add(new PlcTagTable { Name = "Source" });
+        var plan = Plan(new()
+        {
+            Operation = "create_master_copy", Scope = "global", LibraryName = "Fixture",
+            PlcName = "PLC", PlcKind = kind, PlcObjectName = "source",
+        });
+        Assert.Equal("Source", plan.Target!.Name);
+        Assert.True(plan.MasterCopyExists);
+    }
+
     [Fact]
     public void Plan_FolderWithSameName_IsNotMasterCopyCollision()
     {

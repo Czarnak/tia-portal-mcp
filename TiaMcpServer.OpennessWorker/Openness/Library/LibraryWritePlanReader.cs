@@ -80,13 +80,11 @@ internal static class LibraryWritePlanReader
         }
 
         var copies = LibraryReader.CopyFolder(library, pathSegments);
-        var name = item.Operation == "create_master_copy" ? item.PlcObjectName! : item.Name!;
+        var name = item.Operation == "create_master_copy"
+            ? LibraryWriteTargets.PlcSourceName(LibraryWriteTargets.PlcSource(project, item)) : item.Name!;
         plan.Target = LibraryIdentities.Child(identity, "masterCopies", pathSegments, "masterCopy", name);
         switch (item.Operation)
         {
-            case "create_master_copy":
-                _ = LibraryWriteTargets.PlcSource(project, item);
-                break;
             case "copy_master_copy":
                 var source = LibraryWriteTargets.Library(portal, project, item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName);
                 _ = LibraryReader.Exact(LibraryReader.CopyFolder(source, item.SourceFolderPath).MasterCopies.Where(x => x.Name == name), "source master copy");

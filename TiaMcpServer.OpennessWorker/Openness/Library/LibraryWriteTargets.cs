@@ -1,6 +1,9 @@
 using Siemens.Engineering;
 using Siemens.Engineering.Library;
 using Siemens.Engineering.Library.MasterCopies;
+using Siemens.Engineering.SW.Blocks;
+using Siemens.Engineering.SW.Tags;
+using Siemens.Engineering.SW.Types;
 using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Block;
@@ -52,4 +55,13 @@ internal static class LibraryWriteTargets
         };
         return (group, item.PlcKind!);
     }
+
+    internal static string PlcSourceName(IMasterCopySource source) => source switch
+    {
+        PlcBlock block => block.Name,
+        PlcType type => type.Name,
+        PlcTagTable table => table.Name,
+        _ => throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported,
+            "The selected PLC source kind does not support master-copy naming."),
+    };
 }
