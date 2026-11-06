@@ -10,7 +10,6 @@ public static class LibraryReadMethods
     private const string ListGlobalLibrariesMethod = "library_list_global_libraries";
     private const string ProjectPrefix = "library_project_";
     private const string GlobalPrefix = "library_global_";
-    private const int MaxFolderSegments = 32;
     private const int MaxLimit = 200;
 
     public static string[] Operations { get; } =
@@ -53,15 +52,8 @@ public static class LibraryReadMethods
                 || query.VersionGuid is not null || query.Direction is not null
                 ? "list_global_libraries accepts only paging selectors." : null;
 
-        if (query.Scope is not ("project" or "global")) return "scope must be project or global.";
-        if (query.Scope == "project" && (query.LibraryPath is not null || query.LibraryName is not null))
-            return "Project library identity comes from the verified project binding, not a library path/name.";
-        if (query.Scope == "global" && string.IsNullOrWhiteSpace(query.LibraryPath) && string.IsNullOrWhiteSpace(query.LibraryName))
-            return "Global reads require an exact libraryPath or libraryName of an already-open library.";
-        if (query.LibraryPath is not null && !IsAbsolutePath(query.LibraryPath)) return "libraryPath must be absolute.";
-        if (query.LibraryName is not null && string.IsNullOrWhiteSpace(query.LibraryName)) return "libraryName must be nonblank.";
-        if (query.FolderPath is { Count: > MaxFolderSegments } || query.FolderPath?.Any(string.IsNullOrWhiteSpace) == true)
-            return "folderPath must contain at most 32 nonblank exact name segments.";
+        if (LibrarySelectorRules.Check(query.Scope, query.LibraryPath, query.LibraryName, query.FolderPath, "") is { } selectorError)
+            return selectorError;
 
         switch (operation)
         {

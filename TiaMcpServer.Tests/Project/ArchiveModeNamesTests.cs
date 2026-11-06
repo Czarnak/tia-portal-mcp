@@ -5,6 +5,17 @@ namespace TiaMcpServer.Tests.Project;
 
 public class ArchiveModeNamesTests
 {
+    [Theory]
+    [InlineData("Backup", "Backup.zal21")]
+    [InlineData("Backup.zal21", "Backup.zal21")]
+    [InlineData("Backup.zal21x", "Backup.zal21x.zal21")]
+    public void EnsureExtension_AppendsZal21_CaseInsensitive(string name, string expected)
+        => Assert.Equal(expected, ArchiveModeNames.EnsureExtension(name, ".zal21"));
+
+    [Fact]
+    public void EnsureExtension_UpperCaseExtension_NotDoubled()
+        => Assert.Equal("Backup.ZAL21", ArchiveModeNames.EnsureExtension("Backup.ZAL21", ".zal21"));
+
     [Fact]
     public void EmptyArchiveModeDefaultsToCompressed()
     {
