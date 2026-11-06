@@ -226,7 +226,7 @@ internal static partial class Program
         }
         catch (WorkerOperationException ex)
         {
-            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome, ex.VciWriteOutcome, ex.EngineeringError, ex.ConfigureNetworkDeviceOutcome);
+            return Failure(ex.FailureCategory, ex.Message, ex.Warnings, ex.BlockImportOutcome, ex.HmiWriteOutcome, ex.VciWriteOutcome, ex.EngineeringError, ex.ConfigureNetworkDeviceOutcome, ex.LibraryWriteOutcome);
         }
         catch (Exception ex)
         {
@@ -706,7 +706,8 @@ internal static partial class Program
         HmiWriteOutcomeInfo? hmiWriteOutcome = null,
         TiaMcpServer.Contracts.Vci.VciWriteOutcomeInfo? vciWriteOutcome = null,
         EngineeringErrorInfo? engineeringError = null,
-        ConfigureNetworkDeviceResultInfo? configureNetworkDeviceOutcome = null)
+        ConfigureNetworkDeviceResultInfo? configureNetworkDeviceOutcome = null,
+        TiaMcpServer.Contracts.Library.LibraryWriteOutcomeInfo? libraryWriteOutcome = null)
     {
         return new WorkerResponse
         {
@@ -716,6 +717,7 @@ internal static partial class Program
             Warnings = warnings is { Count: > 0 } ? new List<string>(warnings) : null,
             EngineeringError = engineeringError,
             ConfigureNetworkDeviceOutcome = configureNetworkDeviceOutcome,
+            LibraryWriteOutcome = libraryWriteOutcome,
             HmiWriteOutcome = hmiWriteOutcome,
             VciWriteOutcome = vciWriteOutcome,
             BlockImportOutcome = blockImportOutcome

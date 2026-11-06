@@ -26,10 +26,10 @@ public static class ProjectCapabilityCatalog
         "vci_read", "vci_write"
     };
 
-    /// <summary>Library reads that need the bound project's own library; a local session lacks it.</summary>
+    /// <summary>Library operations that need the bound project's own library or PLC sources/destinations.</summary>
     private static readonly string[] StandaloneLibraryOperations =
     {
-        "library_project_read"
+        "library_project_read", "library_project_write"
     };
 
     /// <summary>Reads that run against the common <c>ProjectBase</c> root of any open container.</summary>
@@ -47,7 +47,7 @@ public static class ProjectCapabilityCatalog
     /// </summary>
     private static readonly string[] ProjectContentOperations = new[]
     {
-        "plc_write", "network_write", "hmi_write", "compile_check", "save_project"
+        "plc_write", "network_write", "hmi_write", "library_write", "compile_check", "save_project"
     }
     .Concat(HmiWriteMethods.All)
     .Concat(new[]
@@ -101,6 +101,7 @@ public static class ProjectCapabilityCatalog
         if (method.StartsWith("hmi_", StringComparison.Ordinal) && method != "hmi_read") return "hmi_read";
         if (LibraryReadMethods.ProjectLibraryReads.Contains(method, StringComparer.Ordinal)) return "library_project_read";
         if (LibraryReadMethods.GlobalLibraryReads.Contains(method, StringComparer.Ordinal)) return "library_read";
+        if (LibraryWriteMethods.OperationFor(method) is { } libraryWrite) return libraryWrite;
         if (VciMethods.Read.Contains(method, StringComparer.Ordinal)) return "vci_read";
         if (method == VciMethods.Plan || VciMethods.Write.Contains(method, StringComparer.Ordinal)) return "vci_write";
         return method switch

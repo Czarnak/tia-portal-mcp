@@ -41,6 +41,8 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.ConfigureNetworkDeviceOutcome",
         // vci_write: present after a VCI mutation attempt, including portal_lost.
         "WorkerResponse.VciWriteOutcome",
+        // library_write: present after a saved close fails or a master-copy name changes, including portal_lost.
+        "WorkerResponse.LibraryWriteOutcome",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
         // Worker mutation failures: present only when a Siemens exception caused the failure.

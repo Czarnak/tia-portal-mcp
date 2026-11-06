@@ -195,6 +195,7 @@ public partial class OpennessWorkerClient
                     ConfigureNetworkDeviceOutcome = response.ConfigureNetworkDeviceOutcome,
                     HmiWriteOutcome = response.HmiWriteOutcome,
                     VciWriteOutcome = response.VciWriteOutcome,
+                    LibraryWriteOutcome = response.LibraryWriteOutcome,
                     BlockImportOutcome = response.BlockImportOutcome,
                     DispatchState = WorkerDispatchState.Sent
                 };
@@ -215,6 +216,7 @@ public partial class OpennessWorkerClient
                 ConfigureNetworkDeviceOutcome = response.ConfigureNetworkDeviceOutcome,
                 HmiWriteOutcome = response.HmiWriteOutcome,
                 VciWriteOutcome = response.VciWriteOutcome,
+                LibraryWriteOutcome = response.LibraryWriteOutcome,
                 BlockImportOutcome = response.BlockImportOutcome,
                 DispatchState = WorkerDispatchState.Sent
             };
