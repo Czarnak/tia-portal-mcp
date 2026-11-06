@@ -125,9 +125,11 @@ internal static class Program
 
 internal static class Names
 {
-    internal const string Plc1 = "PLC_1", Plc2 = "PLC_2", Lib = "LP_ProbeLib";
-    internal const string Udt = "LP_Udt", Fb = "LP_Fb", Free = "LP_Free", PlainUdt = "LP_PlainUdt";
-    internal const string GUdt = "LP_GUdt", GFb = "LP_GFb", TypeFolder = "LP_TypeFolder", McFolder = "LP_McFolder";
+    // Roles mapped onto the disposable fixture: LeafUdt <- Udt <- Fb (each a released library type with a PLC_1 instance).
+    internal const string Plc1 = "PLC_1", Plc2 = "PLC_2";
+    internal const string LeafUdt = "UDT_TIME", Udt = "UDT_COUNTER_BUFFER", Fb = "WorkTimeCounter";
+    internal const string Free = "FB_CALENDAR", PlainUdt = "CALENDAR_CTRL", LoneType = "InvertBit";
+    internal const string TypeFolder = "05_HMI", TypeFolderSibling = "UDT", McFolder = "LP_McFolder";
 }
 
 internal sealed class Options
@@ -138,6 +140,7 @@ internal sealed class Options
     internal bool CheckFixture;
     internal string ProjectDir => Path.GetDirectoryName(ProjectFile);
     internal string LibraryDir => Path.GetDirectoryName(LibraryFile);
+    internal string LibName => Path.GetFileNameWithoutExtension(LibraryFile);
 
     internal static Options Parse(string[] args)
     {
@@ -169,8 +172,8 @@ internal sealed class Options
             throw new ArgumentException("--project must be an existing .ap21 inside --disposable-root.");
         if (o.LibraryFile == null || !File.Exists(o.LibraryFile) || !o.LibraryFile.EndsWith(".al21", StringComparison.OrdinalIgnoreCase) || !Program.Under(o.LibraryFile, o.Root))
             throw new ArgumentException("--library must be an existing .al21 inside --disposable-root.");
-        if (Path.GetFileNameWithoutExtension(o.LibraryFile) != Names.Lib || Path.GetFileName(o.LibraryDir) != Names.Lib)
-            throw new ArgumentException("--library must be " + Names.Lib + "\\" + Names.Lib + ".al21.");
+        if (!string.Equals(o.LibName, Path.GetFileName(o.LibraryDir), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("--library must be <Name>\\<Name>.al21 (library folder and file share the name).");
         if (string.Equals(o.ProjectDir, o.Root, StringComparison.OrdinalIgnoreCase) || string.Equals(o.LibraryDir, o.Root, StringComparison.OrdinalIgnoreCase)
             || string.Equals(o.ProjectDir, o.LibraryDir, StringComparison.OrdinalIgnoreCase)
             || Program.Under(o.ProjectDir, o.LibraryDir) || Program.Under(o.LibraryDir, o.ProjectDir))
@@ -212,9 +215,9 @@ internal sealed class Ctx
 {
     internal TiaPortal Portal;
     internal Project Project;
-    internal UserGlobalLibrary Lib;
+    internal UserGlobalLibrary Lib, Extra;
     internal PlcSoftware Plc1, Plc2;
-    internal string CaseDir, OutDir, LibDir, LibFile;
+    internal string CaseDir, OutDir, LibDir, LibFile, LibName;
     internal string Stage = "prepare";
     internal readonly Dictionary<string, object> Notes = new Dictionary<string, object>();
     internal ProjectLibrary PL => Project.ProjectLibrary;
@@ -222,20 +225,39 @@ internal sealed class Ctx
     internal void Note(string key, object value) { Notes[key] = Describe.Value(value); }
     internal string Out(string relative) => Path.Combine(OutDir, relative);
 
-    internal LibraryTypeVersion EditUdt()
+    // Edits the released version through its PLC_1 instance; returns the new in-work version.
+    internal LibraryTypeVersion EditType(string plcTypeName)
     {
-        At("setup:LibraryTypeVersion.Edit(LibraryTypeInstanceInfo)");
-        var info = F.PlcTypeOf(Plc1, Names.Udt).GetService<LibraryTypeInstanceInfo>() ?? throw new ProbeSetupException("PLC_1 LP_Udt is not a type instance.");
+        At("setup:LibraryTypeVersion.Edit(" + plcTypeName + " instance)");
+        var info = F.PlcTypeOf(Plc1, plcTypeName).GetService<LibraryTypeInstanceInfo>() ?? throw new ProbeSetupException("PLC_1 " + plcTypeName + " is not a type instance.");
         var inWork = info.LibraryTypeVersion.Edit(info);
-        Note("setupInWork", new { guid = inWork.Guid.ToString(), number = inWork.VersionNumber.ToString(), state = inWork.State.ToString() });
+        Note("setupInWork", new { type = plcTypeName, guid = inWork.Guid.ToString(), number = inWork.VersionNumber.ToString(), state = inWork.State.ToString() });
         return inWork;
     }
 
-    internal void ReleaseUdt110()
+    // Released number of the type's current default, before any setup edit.
+    internal Version Released(string typeName) => F.Default(F.Type(PL, typeName)).VersionNumber;
+
+    internal void ReleaseNext(string typeName)
     {
-        var inWork = EditUdt();
-        At("setup:LibraryTypeVersion.Release(1.1.0)");
-        inWork.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, new Version(1, 1, 0), "probe", "setup");
+        var next = F.Next(Released(typeName));
+        var inWork = EditType(typeName);
+        At("setup:LibraryTypeVersion.Release(" + next + ")");
+        inWork.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, next, "probe", "setup");
+        Note("setupReleased", next.ToString());
+    }
+
+    // The global library has no master-copy folder; cases that need one create it natively first.
+    internal MasterCopyUserFolder MakeMcFolder(bool withCopy)
+    {
+        At("setup:MasterCopyFolder.Folders.Create(" + Names.McFolder + ")");
+        var folder = Lib.MasterCopyFolder.Folders.Create(Names.McFolder);
+        if (withCopy)
+        {
+            At("setup:MasterCopies.CreateFrom(" + Names.Free + ") into " + Names.McFolder);
+            folder.MasterCopies.CreateFrom(F.Mc(Lib.MasterCopyFolder, Names.Free));
+        }
+        return folder;
     }
 
     internal void ArchiveBase()
@@ -258,11 +280,13 @@ internal static class F
         return matches[0];
     }
 
-    internal static LibraryTypeVersion Version(LibraryType type, string number) =>
-        type.Versions.SingleOrDefault(v => v.VersionNumber.ToString() == number) ?? throw new ProbeSetupException("Missing version " + type.Name + " " + number + ".");
-
     internal static LibraryTypeVersion Default(LibraryType type) =>
         type.Versions.SingleOrDefault(v => v.IsDefault) ?? throw new ProbeSetupException("No single default version on " + type.Name + ".");
+
+    internal static Version Next(Version v) => new Version(v.Major, v.Minor, v.Build + 1);
+    internal static Version Lower(Version v) => v.Build > 0 ? new Version(v.Major, v.Minor, v.Build - 1) : new Version(v.Major, Math.Max(0, v.Minor - 1), 0);
+
+    internal static IEnumerable<PlcType> PlcTypes(PlcTypeGroup g) => g.Types.Concat(g.Groups.SelectMany(PlcTypes));
 
     internal static MasterCopy Mc(MasterCopyFolder folder, string name) =>
         folder.MasterCopies.Find(name) ?? throw new ProbeSetupException("Missing master copy " + name + ".");
@@ -304,7 +328,7 @@ internal static class Catalog
     {
         // Global library lifecycle
         C("G1", "Create a global library whose destination folder already exists.", false, None, null,
-            c => c.Note("returned", c.Portal.GlobalLibraries.Create<UserGlobalLibrary>(new DirectoryInfo(Path.GetDirectoryName(c.LibDir)), Names.Lib))),
+            c => c.Note("returned", c.Portal.GlobalLibraries.Create<UserGlobalLibrary>(new DirectoryInfo(Path.GetDirectoryName(c.LibDir)), c.LibName))),
         C("G2", "Create a global library with an invalid file-system name.", false, None, null,
             c => c.Note("returned", c.Portal.GlobalLibraries.Create<UserGlobalLibrary>(new DirectoryInfo(c.OutDir), "LP:Bad"))),
         C("G3", "Open the same library file again in the same mode (read-write).", false, RW, null,
@@ -312,8 +336,8 @@ internal static class Catalog
         C("G4", "Open the same library file again in the other mode (read-only while read-write).", false, RW, null,
             c => { var again = c.Portal.GlobalLibraries.Open(new FileInfo(c.LibFile), OpenMode.ReadOnly); c.Note("sameObject", again.Equals(c.Lib)); c.Note("againIsReadOnly", again.IsReadOnly); }),
         C("G5", "Open a second library with the same name from another path.", false, RW,
-            c => { c.At("setup:copy-second-library"); Runner.CopyDir(c.LibDir, Path.Combine(c.CaseDir, "lib2", Names.Lib)); },
-            c => c.Note("returned", c.Portal.GlobalLibraries.Open(new FileInfo(Path.Combine(c.CaseDir, "lib2", Names.Lib, Names.Lib + ".al21")), OpenMode.ReadWrite))),
+            c => { c.At("setup:copy-second-library"); Runner.CopyDir(c.LibDir, Path.Combine(c.CaseDir, "lib2", c.LibName)); },
+            c => c.Note("returned", c.Portal.GlobalLibraries.Open(new FileInfo(Path.Combine(c.CaseDir, "lib2", c.LibName, c.LibName + ".al21")), OpenMode.ReadWrite))),
         C("G6", "Retrieve an archive into a non-empty directory.", false, RW,
             c => { c.ArchiveBase(); Directory.CreateDirectory(c.Out("occupied")); File.WriteAllText(Path.Combine(c.Out("occupied"), "occupied.txt"), "x"); },
             c => c.Note("returned", c.Portal.GlobalLibraries.Retrieve(new FileInfo(c.Out("base.zal21")), new DirectoryInfo(c.Out("occupied")), OpenMode.ReadOnly))),
@@ -338,12 +362,14 @@ internal static class Catalog
             c => c.Lib.Archive(new DirectoryInfo(c.OutDir), "noext", LibraryArchivationMode.Compressed)),
 
         // Folders
-        C("F1", "Create a master-copy folder whose name already exists.", false, RW, null, c => c.Note("returned", c.Lib.MasterCopyFolder.Folders.Create(Names.McFolder))),
-        C("F2", "Create a master-copy folder that differs only in case.", false, RW, null, c => c.Note("returned", c.Lib.MasterCopyFolder.Folders.Create(Names.McFolder.ToLowerInvariant()))),
-        C("F3", "Create a type folder whose name already exists.", false, RW, null, c => c.Note("returned", c.Lib.TypeFolder.Folders.Create(Names.TypeFolder))),
+        C("F1", "Create a master-copy folder whose name already exists.", false, RW, c => c.MakeMcFolder(false),
+            c => c.Note("returned", c.Lib.MasterCopyFolder.Folders.Create(Names.McFolder))),
+        C("F2", "Create a master-copy folder that differs only in case.", false, RW, c => c.MakeMcFolder(false),
+            c => c.Note("returned", c.Lib.MasterCopyFolder.Folders.Create(Names.McFolder.ToLowerInvariant()))),
+        C("F3", "Create a type folder whose name already exists.", false, RW, null, c => c.Note("returned", c.Lib.TypeFolder.Folders.Create(Names.TypeFolderSibling))),
         C("F4", "Create a folder in a library opened read-only.", false, RO, null, c => c.Note("returned", c.Lib.MasterCopyFolder.Folders.Create("LP_New"))),
-        C("F5", "Delete a non-empty master-copy folder.", false, RW, null, c => c.Lib.MasterCopyFolder.Folders.Find(Names.McFolder).Delete()),
-        C("F6", "Delete a type folder that contains types.", false, RW, null, c => c.Lib.TypeFolder.Folders.Find(Names.TypeFolder).Delete()),
+        C("F5", "Delete a non-empty master-copy folder.", false, RW, c => c.MakeMcFolder(true), c => c.Lib.MasterCopyFolder.Folders.Find(Names.McFolder).Delete()),
+        C("F6", "Delete a type folder that contains types other folders' types depend on.", false, RW, null, c => c.Lib.TypeFolder.Folders.Find(Names.TypeFolder).Delete()),
 
         // Master copies
         C("M1", "Create a master copy from a PLC block whose name already exists in the target folder.", true, RW, null,
@@ -365,61 +391,79 @@ internal static class Catalog
 
         // Library types and versions
         C("T1", "Create a project-library type from a document whose name matches an existing type.", true, None,
-            c => F.ExportXml(c, F.PlcTypeOf(c.Plc1, Names.Udt), Names.Udt),
-            c => c.Note("returned", c.PL.TypeFolder.Types.CreateFromDocuments(new DirectoryInfo(c.Out("docs")), Names.Udt, c.Plc2.TypeGroup, LibraryImportOptions.None))),
+            c => F.ExportXml(c, F.PlcTypeOf(c.Plc1, Names.LeafUdt), Names.LeafUdt),
+            c => c.Note("returned", c.PL.TypeFolder.Types.CreateFromDocuments(new DirectoryInfo(c.Out("docs")), Names.LeafUdt, c.Plc2.TypeGroup, LibraryImportOptions.None))),
         C("T2", "Create a type from a document into a PLC group that already holds that object (no library collision).", true, None,
             c => F.ExportXml(c, F.PlcTypeOf(c.Plc1, Names.PlainUdt), Names.PlainUdt),
             c => c.Note("returned", c.PL.TypeFolder.Types.CreateFromDocuments(new DirectoryInfo(c.Out("docs")), Names.PlainUdt, c.Plc1.TypeGroup, LibraryImportOptions.None))),
         C("T3", "Create a version from a document with CreateOptions.None while an in-work version exists.", true, None,
-            c => { F.ExportXml(c, F.PlcTypeOf(c.Plc1, Names.Udt), Names.Udt); c.EditUdt(); },
-            c => c.Note("returned", F.Type(c.PL, Names.Udt).Versions.CreateFromDocuments(new DirectoryInfo(c.Out("docs")), Names.Udt, c.Plc2.TypeGroup, CreateOptions.None, LibraryImportOptions.None))),
+            c => { F.ExportXml(c, F.PlcTypeOf(c.Plc1, Names.LeafUdt), Names.LeafUdt); c.EditType(Names.LeafUdt); },
+            c => c.Note("returned", F.Type(c.PL, Names.LeafUdt).Versions.CreateFromDocuments(new DirectoryInfo(c.Out("docs")), Names.LeafUdt, c.Plc2.TypeGroup, CreateOptions.None, LibraryImportOptions.None))),
         C("T4", "Create a version from a document with CreateOptions.Override while an in-work version exists.", true, None,
-            c => { F.ExportXml(c, F.PlcTypeOf(c.Plc1, Names.Udt), Names.Udt); c.EditUdt(); },
-            c => c.Note("returned", F.Type(c.PL, Names.Udt).Versions.CreateFromDocuments(new DirectoryInfo(c.Out("docs")), Names.Udt, c.Plc2.TypeGroup, CreateOptions.Override, LibraryImportOptions.None))),
-        C("T5", "Edit a released version again while an in-work version already exists.", true, None, c => c.EditUdt(),
-            c => { var info = F.PlcTypeOf(c.Plc1, Names.Udt).GetService<LibraryTypeInstanceInfo>(); c.Note("returned", F.Version(F.Type(c.PL, Names.Udt), "1.0.0").Edit(info)); }),
+            c => { F.ExportXml(c, F.PlcTypeOf(c.Plc1, Names.LeafUdt), Names.LeafUdt); c.EditType(Names.LeafUdt); },
+            c => c.Note("returned", F.Type(c.PL, Names.LeafUdt).Versions.CreateFromDocuments(new DirectoryInfo(c.Out("docs")), Names.LeafUdt, c.Plc2.TypeGroup, CreateOptions.Override, LibraryImportOptions.None))),
+        C("T5", "Edit the released version again while an in-work version already exists.", true, None,
+            c => { c.Notes["released"] = F.Default(F.Type(c.PL, Names.Udt)).Guid.ToString(); c.EditType(Names.Udt); },
+            c =>
+            {
+                var released = c.PL.FindVersion(new Guid((string)c.Notes["released"]));
+                var info = F.PlcTypeOf(c.Plc1, Names.Udt).GetService<LibraryTypeInstanceInfo>();
+                c.Note("returned", released.Edit(info));
+            }),
         C("T6", "Release a dependent's in-work version with DoNotAutomaticallyCreateOrReleaseDependencies while its dependency is in work.", true, None,
-            c => { c.EditUdt(); c.Note("fbVersionsAfterUdtEdit", F.Type(c.PL, Names.Fb).Versions.Select(v => v.VersionNumber + ":" + v.State).ToList()); },
+            c => { c.EditType(Names.Udt); c.Note("fbVersionsAfterUdtEdit", F.Type(c.PL, Names.Fb).Versions.Select(v => v.VersionNumber + ":" + v.State).ToList()); },
             c =>
             {
                 var fbInWork = F.Type(c.PL, Names.Fb).Versions.FirstOrDefault(v => v.State == LibraryTypeVersionState.InWork);
                 c.Note("dependentInWorkCreated", fbInWork != null);
                 if (fbInWork == null) return; // the cascade observation is the evidence
-                c.At("act:Release(LP_Fb in-work)");
-                fbInWork.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, new Version(1, 1, 0), "probe", "dependent");
+                c.At("act:Release(" + Names.Fb + " in-work)");
+                fbInWork.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, F.Next(fbInWork.VersionNumber), "probe", "dependent");
             }),
         C("T7", "Release with a version number lower than the existing release.", true, None, null,
-            c => { var w = c.EditUdt(); c.At("act:Release(0.9.0)"); w.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, new Version(0, 9, 0), "probe", "lower"); }),
+            c => { var lower = F.Lower(c.Released(Names.LeafUdt)); var w = c.EditType(Names.LeafUdt); c.At("act:Release(" + lower + ")");
+                   w.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, lower, "probe", "lower"); }),
         C("T8", "Release with the same version number as the existing release.", true, None, null,
-            c => { var w = c.EditUdt(); c.At("act:Release(1.0.0)"); w.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, new Version(1, 0, 0), "probe", "same"); }),
-        C("T9", "Set an in-work version as default.", true, None, null, c => { var w = c.EditUdt(); c.At("act:SetAsDefault(in-work)"); w.SetAsDefault(); }),
-        C("T10", "Delete the default version of a type that has two released versions.", true, None, c => c.ReleaseUdt110(),
-            c => F.Default(F.Type(c.PL, Names.Udt)).Delete()),
-        C("T11", "Delete the only version of a type with no dependents or instances.", false, RW, null,
-            c => F.Version(F.Type(c.Lib, Names.GFb), "1.0.0").Delete()),
+            c => { var same = c.Released(Names.LeafUdt); var w = c.EditType(Names.LeafUdt); c.At("act:Release(" + same + ")");
+                   w.Release(CreateOrReleaseDependenciesMode.DoNotAutomaticallyCreateOrReleaseDependencies, same, "probe", "same"); }),
+        C("T9", "Set an in-work version as default.", true, None, null, c => { var w = c.EditType(Names.LeafUdt); c.At("act:SetAsDefault(in-work)"); w.SetAsDefault(); }),
+        C("T10", "Delete the default version of a type that has two released versions.", true, None, c => c.ReleaseNext(Names.LeafUdt),
+            c => F.Default(F.Type(c.PL, Names.LeafUdt)).Delete()),
+        C("T11", "Delete the only version of a global type nothing depends on.", false, RW, null,
+            c => F.Default(F.Type(c.Lib, Names.LoneType)).Delete()),
         C("T12", "Delete a project-library type that has PLC instances.", true, None, null, c => F.Type(c.PL, Names.Fb).Delete()),
-        C("T13", "Delete a project-library version that has PLC instances.", true, None, null, c => F.Version(F.Type(c.PL, Names.Fb), "1.0.0").Delete()),
-        C("T14", "Delete a global type that another type depends on.", false, RW, null, c => F.Type(c.Lib, Names.GUdt).Delete()),
+        C("T13", "Delete a project-library version that has PLC instances.", true, None, null, c => F.Default(F.Type(c.PL, Names.Fb)).Delete()),
+        C("T14", "Delete a global type that other types depend on.", false, RW, null, c => F.Type(c.Lib, Names.LeafUdt).Delete()),
         C("T15", "UpdateLibrary with the same library as source and target.", true, None, null, c => F.Type(c.PL, Names.Udt).UpdateLibrary(c.PL)),
         C("T16", "UpdateLibrary global to project with ForceUpdateMode.NoDefaultVersionChange.", true, RW, null,
-            c => F.Type(c.Lib, Names.GUdt).UpdateLibrary(c.PL, Keep, Cancel, ForceUpdateMode.NoDefaultVersionChange)),
-        C("T17", "UpdateLibrary a type whose dependency is missing in the target (is it pulled in?).", true, RW, null,
-            c => F.Type(c.Lib, Names.GFb).UpdateLibrary(c.PL, Keep, Cancel, ForceUpdateMode.SetOnlyHigherUpdatedVersionAsDefault)),
-        C("T18", "UpdateLibrary a new version into a global library opened read-only.", true, RO, c => c.ReleaseUdt110(),
-            c => F.Type(c.PL, Names.Udt).UpdateLibrary(c.Lib, Keep, Cancel, ForceUpdateMode.SetOnlyHigherUpdatedVersionAsDefault)),
+            c => F.Type(c.Lib, Names.LeafUdt).UpdateLibrary(c.PL, Keep, Cancel, ForceUpdateMode.NoDefaultVersionChange)),
+        C("T17", "UpdateLibrary a type into an empty global library that lacks its dependencies (are they pulled in?).", true, None,
+            c => { c.At("setup:GlobalLibraries.Create(LP_Empty)"); c.Extra = c.Portal.GlobalLibraries.Create<UserGlobalLibrary>(new DirectoryInfo(c.OutDir), "LP_Empty"); },
+            c => F.Type(c.PL, Names.Fb).UpdateLibrary(c.Extra, Keep, Cancel, ForceUpdateMode.SetOnlyHigherUpdatedVersionAsDefault)),
+        C("T18", "UpdateLibrary a new version into a global library opened read-only.", true, RO, c => c.ReleaseNext(Names.LeafUdt),
+            c => F.Type(c.PL, Names.LeafUdt).UpdateLibrary(c.Lib, Keep, Cancel, ForceUpdateMode.SetOnlyHigherUpdatedVersionAsDefault)),
         C("T19", "Instantiate a type version with ThrowIfPathsConflict where its instance already exists.", true, None, null,
-            c => c.Note("returned", c.Plc1.TypeGroup.Types.CreateFrom(F.As<PlcTypeLibraryTypeVersion>(F.Version(F.Type(c.PL, Names.Udt), "1.0.0")), Throw))),
-        C("T20", "Instantiate an FB type version into a PLC that lacks its UDT dependency.", true, None, null,
-            c => c.Note("returned", c.Plc2.BlockGroup.Blocks.CreateFrom(F.As<CodeBlockLibraryTypeVersion>(F.Version(F.Type(c.PL, Names.Fb), "1.0.0")), Throw))),
-        C("T21", "Instantiate a global-library type version directly (is it synchronized into the project library?).", true, RW, null,
-            c => c.Note("returned", c.Plc2.TypeGroup.Types.CreateFrom(F.As<PlcTypeLibraryTypeVersion>(F.Version(F.Type(c.Lib, Names.GUdt), "1.0.0")), Throw))),
-        C("T22", "Instantiate a type version over a same-named plain PLC object.", true, RW, null,
-            c => c.Note("returned", c.Plc1.TypeGroup.Types.CreateFrom(F.As<PlcTypeLibraryTypeVersion>(F.Version(F.Type(c.Lib, Names.GUdt), "1.0.0")), Throw))),
-        C("T23", "Discard a released (committed) version.", true, None, null, c => F.Version(F.Type(c.PL, Names.Udt), "1.0.0").Discard()),
-        C("T24", "Delete a type in a library opened read-only.", false, RO, null, c => F.Type(c.Lib, Names.GFb).Delete()),
+            c => c.Note("returned", c.Plc1.TypeGroup.Types.CreateFrom(F.As<PlcTypeLibraryTypeVersion>(F.Default(F.Type(c.PL, Names.Udt))), Throw))),
+        C("T20", "Instantiate an FB type version into a PLC that lacks its UDT dependencies.", true, None, null,
+            c => c.Note("returned", c.Plc2.BlockGroup.Blocks.CreateFrom(F.As<CodeBlockLibraryTypeVersion>(F.Default(F.Type(c.PL, Names.Fb))), Throw))),
+        C("T21", "Instantiate a global-library type version directly into a PLC (the project library already holds the same version).", true, RW, null,
+            c => c.Note("returned", c.Plc2.TypeGroup.Types.CreateFrom(F.As<PlcTypeLibraryTypeVersion>(F.Default(F.Type(c.Lib, Names.LeafUdt))), Throw))),
+        C("T22", "Instantiate a global type version over a same-named PLC_1 data type that is not linked to it.", true, RW, null,
+            c =>
+            {
+                c.At("act:find-unlinked-namesake");
+                var libTypes = F.Types(c.Lib.TypeFolder).ToList();
+                var target = F.PlcTypes(c.Plc1.TypeGroup).FirstOrDefault(t => Describe.Link(t) == null && libTypes.Count(l => l.Name == t.Name) == 1);
+                c.Note("namesake", target?.Name);
+                if (target == null) return; // no such object in this fixture; the note is the observation
+                c.At("act:Types.CreateFrom(" + target.Name + ")");
+                c.Note("returned", c.Plc1.TypeGroup.Types.CreateFrom(F.As<PlcTypeLibraryTypeVersion>(F.Default(libTypes.Single(l => l.Name == target.Name))), Throw));
+            }),
+        C("T23", "Discard a released (committed) version.", true, None, null, c => F.Default(F.Type(c.PL, Names.LeafUdt)).Discard()),
+        C("T24", "Delete a type in a library opened read-only.", false, RO, null, c => F.Type(c.Lib, Names.LoneType).Delete()),
 
         // Project update
-        C("U1", "UpdateProject with DoNotDelete/RetainStructure/NoDefaultVersionChange after a new release (what changes on the PLC?).", true, None, c => c.ReleaseUdt110(),
+        C("U1", "UpdateProject with DoNotDelete/RetainStructure/NoDefaultVersionChange after a new release (what changes on the PLC?).", true, None, c => c.ReleaseNext(Names.Udt),
             c => F.Type(c.PL, Names.Udt).UpdateProject(c.Plc1 as IUpdateProjectScope ?? throw new ProbeSetupException("PlcSoftware is not an IUpdateProjectScope."),
                 Keep, StructureConflictResolutionMode.RetainStructure, ForceUpdateMode.NoDefaultVersionChange)),
     };
@@ -528,19 +572,58 @@ internal sealed class Runner
             portal.Confirmation += OnConfirmation;
             try
             {
-                Program.Progress("idle-check");
-                if (portal.Projects.Count != 0) throw new InvalidOperationException("Portal must have no open project; close it first. Nothing was changed.");
-                if (portal.GlobalLibraries.OfType<UserGlobalLibrary>().Any(l => Program.Under(l.Path.FullName, options.Root)))
-                    throw new InvalidOperationException("A library below --disposable-root is open; close it first. Nothing was changed.");
-                Program.Emit(new { type = "attached", portalPid = options.Pid, assembly = typeof(TiaPortal).Assembly.FullName, step7 = typeof(PlcSoftware).Assembly.FullName });
-                if (options.CheckFixture) return new FixtureCheck(this).Run();
-                foreach (var id in options.Cases)
-                    if (!RunCase(Catalog.All.Single(c => c.Id == id))) return 2;
-                Program.Emit(new { type = "complete", cases = options.Cases.Length });
-                return 0;
+                // The pristine project and library may be open in this Portal. They are closed (only when saved),
+                // the cases run on copies, and both are reopened afterwards as they were found.
+                Program.Progress("originals-check");
+                if (portal.Projects.Count > 1) throw new InvalidOperationException("Portal has more than one project open. Nothing was changed.");
+                var openProject = portal.Projects.SingleOrDefault();
+                if (openProject != null && !SamePath(openProject.Path.FullName, options.ProjectFile))
+                    throw new InvalidOperationException("Portal has a different project open; close it first. Nothing was changed.");
+                if (openProject != null && openProject.IsModified)
+                    throw new InvalidOperationException("The disposable project has unsaved changes; save it first. Nothing was changed.");
+                var openLibs = portal.GlobalLibraries.OfType<UserGlobalLibrary>().Where(l => Program.Under(l.Path.FullName, options.Root)).ToList();
+                if (openLibs.Any(l => !SamePath(l.Path.FullName, options.LibraryFile)))
+                    throw new InvalidOperationException("Another library below --disposable-root is open; close it first. Nothing was changed.");
+                var openLib = openLibs.SingleOrDefault();
+                if (openLib != null && openLib.IsModified)
+                    throw new InvalidOperationException("The disposable library has unsaved changes; save it first. Nothing was changed.");
+                var reopenProject = openProject != null;
+                var reopenLibraryReadOnly = openLib?.IsReadOnly;
+                Program.Emit(new { type = "attached", portalPid = options.Pid, assembly = typeof(TiaPortal).Assembly.FullName, step7 = typeof(PlcSoftware).Assembly.FullName,
+                    originals = new { projectWasOpen = reopenProject, libraryWasOpen = openLib != null, libraryReadOnly = reopenLibraryReadOnly } });
+                if (openLib != null) { Program.Progress("originals:close-library"); openLib.Close(); }
+                if (openProject != null) { Program.Progress("originals:close-project"); openProject.Close(); }
+                bool portalLost = false;
+                try
+                {
+                    if (options.CheckFixture) return new FixtureCheck(this).Run();
+                    foreach (var id in options.Cases)
+                        if (!RunCase(Catalog.All.Single(c => c.Id == id))) return 2;
+                    Program.Emit(new { type = "complete", cases = options.Cases.Length });
+                    return 0;
+                }
+                catch (Exception ex) when (Program.IsFatal(ex)) { portalLost = true; throw; }
+                finally { if (!portalLost) ReopenOriginals(reopenProject, reopenLibraryReadOnly); }
             }
             finally { portal.Confirmation -= OnConfirmation; }
         }
+    }
+
+    private static bool SamePath(string a, string b) => string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+
+    private void ReopenOriginals(bool project, bool? libraryReadOnly)
+    {
+        try
+        {
+            if (project) { Program.Progress("originals:reopen-project"); portal.Projects.Open(new FileInfo(options.ProjectFile)); }
+            if (libraryReadOnly.HasValue)
+            {
+                Program.Progress("originals:reopen-library");
+                portal.GlobalLibraries.Open(new FileInfo(options.LibraryFile), libraryReadOnly.Value ? OpenMode.ReadOnly : OpenMode.ReadWrite);
+            }
+            Program.Emit(new { type = "originals-reopened", project, library = libraryReadOnly.HasValue });
+        }
+        catch (Exception ex) { Program.Emit(new { type = "originals-reopen-failed", phase = Program.CurrentPhase, error = Program.Error(ex) }); }
     }
 
     // Records every Portal confirmation and answers the most conservative available choice.
@@ -554,10 +637,10 @@ internal sealed class Runner
 
     internal Ctx NewCtx(string id)
     {
-        var c = new Ctx { Portal = portal, CaseDir = Path.Combine(options.Work, id) };
+        var c = new Ctx { Portal = portal, CaseDir = Path.Combine(options.Work, id), LibName = options.LibName };
         c.OutDir = Path.Combine(c.CaseDir, "out");
-        c.LibDir = Path.Combine(c.CaseDir, "lib", Names.Lib);
-        c.LibFile = Path.Combine(c.LibDir, Names.Lib + ".al21");
+        c.LibDir = Path.Combine(c.CaseDir, "lib", c.LibName);
+        c.LibFile = Path.Combine(c.LibDir, c.LibName + ".al21");
         return c;
     }
 
@@ -741,33 +824,36 @@ internal sealed class FixtureCheck
             return 3;
         }
         var gl = c.Lib;
-        bool Released(LibraryType t) => t.Versions.Count == 1 && F.Version(t, "1.0.0").State == LibraryTypeVersionState.Committed && F.Version(t, "1.0.0").IsDefault;
-        bool DependsOn(LibraryType user, LibraryType dep) => F.Version(user, "1.0.0").Dependencies.Any(d => d.TypeObject.Guid == dep.Guid);
-        string LinkedTo(object o) { var i = ((IEngineeringServiceProvider)o).GetService<LibraryTypeInstanceInfo>(); return i == null ? null : i.LibraryTypeVersion.TypeObject.Guid + "@" + i.LibraryTypeVersion.VersionNumber; }
+        bool Single(LibraryType t) => t.Versions.Count == 1 && F.Default(t).State == LibraryTypeVersionState.Committed;
+        bool DependsOn(LibraryType user, LibraryType dep) => F.Default(user).Dependencies.Any(d => d.TypeObject.Guid == dep.Guid);
+        string LinkedTo(object o) { var i = ((IEngineeringServiceProvider)o).GetService<LibraryTypeInstanceInfo>(); return i == null ? null : i.LibraryTypeVersion.TypeObject.Guid + "@" + i.LibraryTypeVersion.Guid; }
+        string DefaultOf(string n) { var t = F.Type(c.PL, n); return t.Guid + "@" + F.Default(t).Guid; }
 
-        Check("global library name is " + Names.Lib, () => gl.Name == Names.Lib);
-        Check("global root types: LP_Udt and LP_Fb, each only 1.0.0 released default", () => gl.TypeFolder.Types.Find(Names.Udt) != null && gl.TypeFolder.Types.Find(Names.Fb) != null && Released(F.Type(gl, Names.Udt)) && Released(F.Type(gl, Names.Fb)));
-        Check("global LP_Fb 1.0.0 depends on LP_Udt", () => DependsOn(F.Type(gl, Names.Fb), F.Type(gl, Names.Udt)));
-        Check("global folder LP_TypeFolder holds LP_GUdt and LP_GFb, each only 1.0.0 released default", () =>
+        Check("global library name matches its file", () => gl.Name == c.LibName);
+        foreach (var n in new[] { Names.LeafUdt, Names.Udt, Names.Fb })
+            Check(n + ": one type of that name in each library, same GUID, one released default version", () =>
+                Single(F.Type(c.PL, n)) && Single(F.Type(gl, n)) && F.Type(c.PL, n).Guid == F.Type(gl, n).Guid);
+        Check(Names.LeafUdt + " has no dependencies", () => !F.Default(F.Type(c.PL, Names.LeafUdt)).Dependencies.Any());
+        Check(Names.Udt + " depends on " + Names.LeafUdt, () => DependsOn(F.Type(c.PL, Names.Udt), F.Type(c.PL, Names.LeafUdt)));
+        Check(Names.Fb + " depends on " + Names.Udt, () => DependsOn(F.Type(c.PL, Names.Fb), F.Type(c.PL, Names.Udt)));
+        Check("global " + Names.LoneType + " has one released version and no dependents", () =>
+            Single(F.Type(gl, Names.LoneType)) && !F.Default(F.Type(gl, Names.LoneType)).Dependents.Any());
+        Check("global type folders " + Names.TypeFolder + " (not empty) and " + Names.TypeFolderSibling + " exist", () =>
         {
             var folder = gl.TypeFolder.Folders.Find(Names.TypeFolder);
-            return folder != null && folder.Types.Find(Names.GUdt) != null && folder.Types.Find(Names.GFb) != null && Released(F.Type(gl, Names.GUdt)) && Released(F.Type(gl, Names.GFb));
+            return folder != null && folder.Types.Count > 0 && gl.TypeFolder.Folders.Find(Names.TypeFolderSibling) != null;
         });
-        Check("global LP_GFb 1.0.0 depends on LP_GUdt", () => DependsOn(F.Type(gl, Names.GFb), F.Type(gl, Names.GUdt)));
-        Check("global root master copy LP_Free exists", () => gl.MasterCopyFolder.MasterCopies.Find(Names.Free) != null);
-        Check("global master-copy folder LP_McFolder exists and is not empty", () => { var f = gl.MasterCopyFolder.Folders.Find(Names.McFolder); return f != null && (f.MasterCopies.Count > 0 || f.Folders.Count > 0); });
-        Check("project library root types LP_Udt and LP_Fb, each only 1.0.0 released default, same GUIDs as global", () =>
-            c.PL.TypeFolder.Types.Find(Names.Udt) != null && c.PL.TypeFolder.Types.Find(Names.Fb) != null
-            && Released(F.Type(c.PL, Names.Udt)) && Released(F.Type(c.PL, Names.Fb))
-            && F.Type(c.PL, Names.Udt).Guid == F.Type(gl, Names.Udt).Guid && F.Type(c.PL, Names.Fb).Guid == F.Type(gl, Names.Fb).Guid);
-        Check("project library has no LP_GUdt or LP_GFb type", () => F.Types(c.PL.TypeFolder).All(t => t.Name != Names.GUdt && t.Name != Names.GFb));
-        Check("project library root master copy LP_Free exists", () => c.PL.MasterCopyFolder.MasterCopies.Find(Names.Free) != null);
-        Check("PLC_1 LP_Udt is an instance of project LP_Udt 1.0.0", () => LinkedTo(F.PlcTypeOf(c.Plc1, Names.Udt)) == F.Type(c.PL, Names.Udt).Guid + "@1.0.0");
-        Check("PLC_1 LP_Fb is an instance of project LP_Fb 1.0.0", () => LinkedTo(F.Block(c.Plc1, Names.Fb)) == F.Type(c.PL, Names.Fb).Guid + "@1.0.0");
-        Check("PLC_1 LP_Free block, LP_PlainUdt and LP_GUdt types exist and are not type instances", () =>
-            LinkedTo(F.Block(c.Plc1, Names.Free)) == null && LinkedTo(F.PlcTypeOf(c.Plc1, Names.PlainUdt)) == null && LinkedTo(F.PlcTypeOf(c.Plc1, Names.GUdt)) == null);
-        Check("PLC_2 has no LP_ objects", () =>
-            F.BlockNames(c.Plc2.BlockGroup).Concat(F.TypeNames(c.Plc2.TypeGroup)).All(n => !n.StartsWith("LP_", StringComparison.Ordinal)));
+        Check("global library has no master-copy folder " + Names.McFolder, () => gl.MasterCopyFolder.Folders.Find(Names.McFolder) == null);
+        Check("master copy " + Names.Free + " at the root of both libraries", () =>
+            gl.MasterCopyFolder.MasterCopies.Find(Names.Free) != null && c.PL.MasterCopyFolder.MasterCopies.Find(Names.Free) != null);
+        Check("PLC_1 " + Names.LeafUdt + " and " + Names.Udt + " are instances of the project default versions", () =>
+            LinkedTo(F.PlcTypeOf(c.Plc1, Names.LeafUdt)) == DefaultOf(Names.LeafUdt) && LinkedTo(F.PlcTypeOf(c.Plc1, Names.Udt)) == DefaultOf(Names.Udt));
+        Check("PLC_1 " + Names.Fb + " is an instance of the project default version", () => LinkedTo(F.Block(c.Plc1, Names.Fb)) == DefaultOf(Names.Fb));
+        Check("PLC_1 " + Names.Free + " and " + Names.PlainUdt + " exist and are not type instances", () =>
+            LinkedTo(F.Block(c.Plc1, Names.Free)) == null && LinkedTo(F.PlcTypeOf(c.Plc1, Names.PlainUdt)) == null);
+        Check("PLC_2 holds none of the role objects", () =>
+            !F.BlockNames(c.Plc2.BlockGroup).Concat(F.TypeNames(c.Plc2.TypeGroup))
+                .Any(n => n == Names.LeafUdt || n == Names.Udt || n == Names.Fb || n == Names.Free || n == Names.PlainUdt));
 
         var cleanup = runner.Cleanup(c, out bool clean);
         Program.Emit(new { type = "fixture-check", pass, checks, cleanup, clean });
@@ -785,7 +871,7 @@ internal static class SelfTest
 
         var root = Path.Combine(Path.GetTempPath(), "lwp-selftest-" + Guid.NewGuid().ToString("N"));
         var project = Path.Combine(root, "proj", "Fixture.ap21");
-        var library = Path.Combine(root, Names.Lib, Names.Lib + ".al21");
+        var library = Path.Combine(root, "Lib", "Lib.al21");
         Directory.CreateDirectory(Path.GetDirectoryName(project));
         Directory.CreateDirectory(Path.GetDirectoryName(library));
         File.WriteAllText(project, "");
