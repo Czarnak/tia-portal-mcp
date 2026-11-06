@@ -69,6 +69,16 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public bool ConfirmsEveryCall { get; set; }
 
+    public Func<IReadOnlyList<FakeWriteItem>, bool>? ConfirmsCallOverride { get; set; }
+
+    public Func<IReadOnlyList<FakeWriteItem>, IEnumerable<string>>? CapabilityOperationsOverride { get; set; }
+
+    public bool ConfirmsCall(IReadOnlyList<FakeWriteItem> items)
+        => ConfirmsCallOverride?.Invoke(items) ?? ConfirmsEveryCall;
+
+    public IEnumerable<string> CapabilityOperations(IReadOnlyList<FakeWriteItem> items)
+        => CapabilityOperationsOverride?.Invoke(items) ?? new[] { ToolName };
+
     public string DescribeForConfirmation(IReadOnlyList<FakeWriteItem> items, IReadOnlyList<ItemPlan<FakeEffect>> plans)
         => $"Confirm '{ToolName}': " + string.Join(", ", plans.Where(plan => plan.Effect is not null)
             .Select(plan => $"{plan.Effect!.Change} {plan.Effect.Target}"));

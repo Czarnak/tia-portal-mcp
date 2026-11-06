@@ -133,12 +133,17 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             }
         }
 
-        if (_binding.IsVerified && _binding.Context is { } projectContext
-            && !ProjectCapabilityCatalog.Supports(projectContext.ContainerKind, _domain.ToolName))
+        if (_binding.IsVerified && _binding.Context is { } projectContext)
         {
-            return Finish(Failure(WritePhases.Error, new WriteToolError(
-                WorkerFailureCategories.UnsupportedCapability,
-                $"{_domain.ToolName} is unavailable for this project container.")));
+            foreach (var operation in _domain.CapabilityOperations(Items))
+            {
+                if (!ProjectCapabilityCatalog.Supports(projectContext.ContainerKind, operation))
+                {
+                    return Finish(Failure(WritePhases.Error, new WriteToolError(
+                        WorkerFailureCategories.UnsupportedCapability,
+                        $"{operation} is unavailable for this project container.")));
+                }
+            }
         }
 
         _cancellationToken.ThrowIfCancellationRequested();
@@ -244,7 +249,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         }
 
         if (ConfirmationMode == ConfirmationMode.AskUser
-            && (_domain.ConfirmsEveryCall || decision.Kind == GuardDecisionKind.NeedsUser))
+            && (_domain.ConfirmsCall(Items) || decision.Kind == GuardDecisionKind.NeedsUser))
         {
             var refusal = await ConfirmAndRecheckAsync(plan, fired).ConfigureAwait(false);
             if (refusal is not null)

@@ -18,6 +18,10 @@ public interface IWriteDomain<TItem, TEffect, TVerification, TResponse>
 
     bool ConfirmsEveryCall => false;
 
+    bool ConfirmsCall(IReadOnlyList<TItem> items) => ConfirmsEveryCall;
+
+    IEnumerable<string> CapabilityOperations(IReadOnlyList<TItem> items) => new[] { ToolName };
+
     string DescribeForConfirmation(IReadOnlyList<TItem> items, IReadOnlyList<ItemPlan<TEffect>> plans) => ToolName;
 
     /// <summary>Validates the items and the access mode before any worker call.</summary>
