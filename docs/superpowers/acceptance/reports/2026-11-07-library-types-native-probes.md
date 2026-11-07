@@ -3,8 +3,9 @@
 **Verdict:** evidence for planning versioned library types on `library_write` (issue #218, PR 3), not an
 acceptance of any tool. 37 cases ran on one disposable standalone project and one disposable user global
 library, against one UI Portal that stayed alive throughout. In-place conversion of a block into a type
-works and rolls back completely. Portal refuses every type or version delete while instances exist.
-Portal never deletes or replaces a type's test instance, so `plc_write` cannot change a type being edited.
+works, and for the UDT it rolls back completely. In the project library Portal refused every probed type
+or version delete that had instances. Portal refuses PLC-side deletes and replacements of a type's test
+instance, so `plc_write` cannot change a type being edited.
 `LibraryTypeVersionComposition.CreateFromDocuments` changes a type's content from SimaticML instead.
 None of the three crash-risk release values killed Portal.
 
@@ -112,13 +113,15 @@ P13b, P14a and P14b ran alone and last because PR 2's `T7Z` (release as `0.0.0`)
 | P16c | P16b without a test environment | Returned `Success` | As P16b. |
 | P16d | P16a for `LT_Fb` with an `Input` member | Returned `Success` | As P16a (`CodeBlockLibraryTypeVersion`). |
 
-The dialog, quoted from the owner's screenshot (P15a; the P11c/P12c dialogs carried the same title):
+The dialog, quoted from the owner's screenshot of P15a (the owner described the P11c/P12c dialogs as
+"Library test environment cannot be closed"; their exact text was not captured):
 
 > **Cannot delete or replace (0026:000074)**: The test environment of the library cannot be deleted or
 > replaced. The test environment for LT_Udt V 0.0.2 cannot be deleted or replaced because a test instance
 > cannot be deleted or replaced.
 
-It offers only OK and does not pass through the Openness `Confirmation` event. The P11c and P12c imports
+The P15a dialog offered only OK (so did the earlier ones, per the owner), and none raised the Openness
+`Confirmation` event. The P11c and P12c imports
 waited about 50 and 45 s for the owner; every other step took under 12 s. An unattended caller blocks until
 someone confirms it or the caller times out.
 
@@ -143,14 +146,17 @@ no test environment and the existing test instance was kept.
 ## Consequences for the library-types spec
 
 - `create_type` route (c), export → delete → `CreateFromDocuments` in one project transaction, is confirmed
-  for UDT and FB, including rollback and a nested folder. An uncompiled source fails safely at export.
+  for UDT and FB; rollback, the no-transaction variant and a nested folder were shown for the UDT. An
+  uncompiled source fails safely at export.
 - `create_type` must refuse a source that is already a type instance (P4c): Portal creates a second type.
 - Releases use `DoNotAutomaticallyCreateOrReleaseDependencies`. Automatic mode creates and releases types the
   caller did not name (P3b); the plain refusal has an empty message (P3).
 - A missing release number takes Portal's prefilled number (P13b); `1.0.0` and `0.1.0` are valid first
   numbers. The version GUID changes on release and on `Override`: in-work GUIDs are temporary.
-- Deletes need no tool check: Portal refuses every delete with instances, master copies included, and the
-  default version (P7a–P7d). Discarding an in-work version keeps its instance (P11).
+- Deletes need no tool check in the probed cases: Portal refused project-library type deletes with PLC
+  instances or a master copy holding one, a version delete with a PLC instance, and the default version
+  while another version exists (P7a–P7d); the only version deletes the type (PR 2 `T11`). Discarding an
+  in-work version with a released version and no content change keeps its instance (P11).
 - The planned edit → `plc_write` → release flow does not work (P11c, P12c, P15a–c). Changing a type's
   content goes through `Versions.CreateFromDocuments`, `None` without an in-work version and `Override` with
   one, with no test environment argument (P16a–d, T4).
@@ -164,6 +170,10 @@ no test environment and the existing test instance was kept.
 - No compile was run after rollbacks; P2 compiled only `PLC_1` and `LT_Caller`.
 - `Versions.CreateFromDocuments` was tried only when a type instance already existed in `PLC_2`; behavior with
   no instance anywhere, with global libraries and with content that does not match the type is unprobed.
-- Release numbers below an existing version, out-of-range parts and the documented range itself were not
+- Release numbers below an existing version, out-of-range parts and the range Portal checks were not
   probed. Synchronize was probed into a fresh library only.
+- Deletes were probed in the project library only; a version held only by a master copy was not tried.
+  Discard was tried only with a released version and no content change.
+- `Versions.CreateFromDocuments` with `Override` but no in-work version, and with instances in several
+  PLCs, was not tried.
 - The dialog was observed through the owner, not recorded by the probe; its exact text is from P15a only.

@@ -5,9 +5,10 @@ review). Issue: Refs #218, PR 3 of N.
 
 **Revision after Task 0** ([native probe report](../acceptance/reports/2026-11-07-library-types-native-probes.md)):
 `edit_type_version` is replaced by `create_type_version`, which writes a type's content from SimaticML,
-because Portal never deletes or replaces a test instance and so the edit → `plc_write` → release flow
-cannot work. `create_type` refuses a source that is already a type instance. A release number may be
-omitted. The delete wording is corrected: Portal refuses every delete while instances exist.
+because Portal refuses PLC-side deletes and replacements of a test instance (`Delete`, `Import` with
+Override) and so the edit → `plc_write` → release flow cannot work. `create_type` refuses a source that is already a type instance. A release number may be
+omitted. The delete wording is corrected: in the project library Portal refused every probed delete
+that had instances, and the default version while another version exists.
 
 **This PR does not close #218.** The PR body says "Refs #218 (PR 3 of N: versioned types; …)" and lists
 what remains: `update_type_instances`, `replace_master_copy`, `move_master_copy`,
@@ -95,20 +96,22 @@ accepts arbitrary paths and must defend against files changing or gaining sideca
 UDT as the source: the tool exports it, deletes the original and imports it as a type inside one project
 transaction, so the original is replaced by a linked instance. **Picked (c)**: it matches the user's
 request ("make this block a type"), and no content passes through the agent. New code still enters the
-project through `plc_write`, then becomes a type through (c). Task 0 confirmed (c) for UDT and FB,
-including full rollback (P1, P2). Openness offers no other way to create a type: `CreateFromDocuments`
+project through `plc_write`, then becomes a type through (c). Task 0 confirmed (c): UDT and FB convert
+(P1u, P1f) and dependents still compile (P2); conversion without a transaction, full rollback (P1r) and a
+nested folder (P1n) were shown for the UDT only. Openness offers no other way to create a type: `CreateFromDocuments`
 is the only type-creating member in the 16 V21 API reference files, and an Add-In, UI automation or
 reflection were rejected.
 
 **Changing a type's content** (added after Task 0). (a) `edit_type_version`, then `plc_write` on the
 test instance, then release (the approved design): Portal refuses, because the import deletes the
-target first and Portal never deletes or replaces a test instance. It also shows a modal UI dialog
-("Cannot delete or replace (0026:000074)") that no Openness event can answer (P11c, P12c, P15a).
+target first and Portal refuses to delete or replace a test instance from the PLC side (P11c, P12c; a
+direct delete, P15a, too). It also shows a modal UI dialog (text captured for P15a: "Cannot delete or
+replace (0026:000074)") that does not raise the Openness `Confirmation` event.
 (b) The document route, `ImportFromDocuments(Override)`, on the test instance: refused, "already exists"
 (P15b, P15c). (c) `type.Versions.CreateFromDocuments(dir, name, CreateOptions, LibraryImportOptions)`
 from SimaticML content: `None` creates a new in-work version when none exists, `Override` replaces the
 in-work version, and the existing PLC instance becomes or stays its test instance; the release keeps the
-new content (P16a–d). **Picked (c)** as `create_type_version`. It is called without a test environment
+new content (P16a–d, each with exactly one instance, in `PLC_2`). **Picked (c)** as `create_type_version`. It is called without a test environment
 argument: with one in a different PLC, PR 2's `T4` deleted the old test instance and made a new one.
 
 **Applying a call.** (a) Today's pipeline: plan every item first (one worker request each), evaluate
@@ -144,20 +147,20 @@ passed, so the inline-content fallback for `create_type` is not needed.
 
 | ID | Question | Answer | Decision |
 |---|---|---|---|
-| P1 | Export → delete → `CreateFromDocuments` in one project transaction; forced failure rolls back. UDT and FB. | Works with and without a transaction; rollback complete; nested folder works. | `create_type` route (c); transaction kept for rollback. |
+| P1 | Export → delete → `CreateFromDocuments` in one project transaction; forced failure rolls back. UDT and FB. | UDT and FB convert (P1u, P1f). For the UDT: also without a transaction, complete rollback (P1r), nested folder (P1n). | `create_type` route (c); transaction kept for rollback. |
 | P2 | Callers, instance DBs and compile after conversion. | All resolve; compile equals the baseline. | No caller fix-up. |
 | P3 | FB using a plain UDT. | Converts; release with `DoNotAutomatically…` refused with an empty message. `Automatically…` makes the UDT a type and releases it (P3b). | Keep `DoNotAutomatically…`; docs explain the empty refusal. |
 | P4 | Source already a type instance. | Not refused once compiled: a second type `LT_Udt_1` is created and the instance relinks (P4c). | New check `library_source_is_type_instance`. |
 | P5 | Version GUID and number around release. | Type GUID stable; version GUID changes on release; number prefilled (`0.0.1`, then last release + 1); each release becomes the default. | Result reads the new GUID; in-work GUIDs are temporary. |
 | P6 | `SetAsDefault` on an older version. | Only the flag moves; instances stay. | As specified. |
-| P7 | Deletes with instances or master copies. | Portal refuses every type or version delete with instances (PLC or master copy) and the default version (P7a–d). | No tool check; docs wording corrected. |
+| P7 | Deletes with instances or master copies. | Project library: type delete refused with PLC instances or a master copy holding one (P7a, P7c, P7c2); version delete refused with a PLC instance (P7d); default version refused while another version exists (P7b). The only version deletes the type (T11). | No tool check; docs wording corrected; global-library and master-copy-only version deletes go to live acceptance. |
 | P8 | Instantiate a global version the project lacks. | The project library gains the type with the same GUIDs; instance inconsistent until compiled. | Dry-run note; docs. |
-| P9 | Target default after `UpdateLibrary(…, SetOnlyHigherUpdatedVersionAsDefault)`. | Moves only to the source default, only when higher; new target type takes the source default. | Docs wording. |
+| P9 | Target default after `UpdateLibrary(…, SetOnlyHigherUpdatedVersionAsDefault)`. | Into a fresh library: moves only to the source default, only when higher; a new target type takes the source default. | Docs wording, scoped to that case; a target with its own releases goes to live acceptance. |
 | P10 | Know-how protected source. | Export works; conversion not tried. A failed import rolls back (P1r). | No check. |
-| P11 | `Discard()` on in-work. | Version removed; instance kept, relinked to the last release. | `delete_type_version` with `inWork`. |
-| P12 | `plc_write` on an in-work test instance. | Refused behind a modal UI dialog (P12c, P11c, P15a–c). | `create_type_version` (section 4). |
+| P11 | `Discard()` on in-work. | With a released `0.0.1` and no content change: version removed; instance kept, relinked to `0.0.1`. | `delete_type_version` with `inWork`; discard after a content change and before any release go to live acceptance. |
+| P12 | `plc_write` on an in-work test instance. | Refused behind a modal UI dialog (P12c, P11c; the same dialog on a direct delete, P15a). The document route fails without a dialog (P15b, P15c). | `create_type_version` (section 4). |
 | P13 | In-work number; release with null. | Null releases with the prefilled number (P13b). | `versionNumber` optional. |
-| P14 | Release `1.0.0`, `0.1.0`, `0.0.1`. | All valid; Portal survived. No documented range was found. | Host rule: three parts, not `0.0.0`. |
+| P14 | Release `1.0.0`, `0.1.0`, `0.0.1`. | All valid; Portal survived. The range Portal checks (`CheckVersionValuesAreWithinRange`, T7Z) is unknown and was not probed. | Host rule: three parts, not `0.0.0`; open risk for large parts (section 8). |
 | P16 | `Versions.CreateFromDocuments` from content. | `None` creates in-work, `Override` replaces it; instance follows; release keeps content. | `create_type_version`. |
 
 Never repeat T7Z (`0.0.0`). Never pass a test environment to `Versions.CreateFromDocuments` (T4).
@@ -190,8 +193,9 @@ Pipeline and domain changes this needs (found in review):
 - Each item's worker mutation method resolves its own target. A miss is `target_not_found`, several
   matches are `target_ambiguous`.
 - Tool-owned checks run in the same worker call, right before the native call. A check that fails before
-  any native change fails the item with `guard_blocked` and the guard id in the message. That category
-  is a precondition refusal, so it neither supersedes earlier items nor counts as a partial write
+  any native change fails the item with `guard_blocked` and the guard id in the message
+  (`state_changed` for the `create_type_version` content hash). Both categories are precondition
+  refusals, so it neither supersedes earlier items nor counts as a partial write
   *(my call)*.
 - Effects are absent from the apply response; the item `result` carries what happened.
 - Audit records stay one per call with actual item statuses. Effects and audit already handle a missing
@@ -242,7 +246,8 @@ Library: unchanged (`scope` + `libraryPath`/`libraryName`; source side `sourceSc
 - **Type**: exactly one of
   - PLC block (`plcName` + `plcKind` `block`/`plcType` + `plcFolderPath` + `plcObjectName`), resolved
     through `LibraryTypeInstanceInfo.LibraryTypeVersion`. This also fixes the version and the instance.
-    Required by `create_type_version` (as the source of `create_type` it names a plain block instead).
+    Valid only for `create_type_version`, where it is required (as the source of `create_type` it names
+    a plain block instead). Other operations name types by `typeName` or `typeGuid` with `scope`.
   - `typeName`, optional `folderPath` to narrow. The search covers the whole type tree, subfolders
     included, ordinal name match, by enumeration.
   - `typeGuid`.
@@ -264,18 +269,20 @@ All are content operations: they never prompt, in any mode. "Dry run shows" is t
 | Operation | Members | Native route on apply | Result | Dry run shows |
 |---|---|---|---|---|
 | `create_type` | PLC block (`plcKind` `block`/`plcType`), project type `folderPath` | resolve block and folder; check name (T1) and that the block is not a type instance (P4c); export to an operation-owned temp folder (an uncompiled block fails here, before any change); transaction: delete original, `Types.CreateFromDocuments(dir, name, group, LibraryImportOptions.None)`, link check, commit; delete temp folder | type name, GUID, folder; version GUID, state `InWork`; instance path | block to be replaced by a linked instance; target folder |
-| `create_type_version` | PLC instance of a project-library type (block route); `content` and `expectedContentHash` from a `plc_read` of that instance in the same format (SimaticML XML only); `replaceInWork` (default `false`) | resolve the instance and its type through `LibraryTypeInstanceInfo`; export the instance and compare the hash; write `content` to an operation-owned folder; `type.Versions.CreateFromDocuments(new DirectoryInfo(dir), name, replaceInWork ? Override : None, LibraryImportOptions.None)` with no test environment; read the created version and the instance link; delete the folder | type name and GUID; created version number, GUID (temporary), state `InWork`; whether an in-work version was replaced; instance path | type; in-work version that would be replaced, if any; instance that becomes the test instance |
+| `create_type_version` | PLC instance of a project-library type (block route); `content` and `expectedContentHash` from a `plc_read` of that instance in the same format (SimaticML XML only); `replaceInWork` (default `false`) | resolve the instance and its type through `LibraryTypeInstanceInfo`; export the instance and compare the hash; read whether an in-work version exists; write `content` to an operation-owned folder as `<instance name>.xml`; `type.Versions.CreateFromDocuments(new DirectoryInfo(dir), <instance name>, replaceInWork ? Override : None, LibraryImportOptions.None)` with no test environment; read the created version and which instances now link to it; delete the folder | type name and GUID; created version number, GUID (temporary), state `InWork`; `replacedInWork` from the read before the call; the instance paths actually linked to the created version (read back, not echoed) | type; in-work version that would be replaced, if any; the named instance, with a note that the test instance is not predictable when the type has instances in more than one PLC |
 | `release_type_version` | type, optional `versionNumber`, `author`, `comment` | resolve the in-work version; number check when given; read default; `Release(DoNotAutomaticallyCreateOrReleaseDependencies, v or null, author, comment)` (null takes Portal's prefilled number, P13b); read number, GUID and default | version GUID and number; `defaultBefore`, `defaultAfter` | in-work version and its prefilled number; expected default move |
 | `set_default_type_version` | library, type, version | read default; `SetAsDefault()` | `defaultBefore`, `defaultAfter` | current default |
 | `synchronize_type` | source library + type; target library | read target default; `type.UpdateLibrary(target, DoNotDelete, CancelIfStructureConflicts, SetOnlyHigherUpdatedVersionAsDefault)`; read target default | target type GUID; `targetDefaultBefore`, `targetDefaultAfter` | dependency closure to be copied; target default |
 | `instantiate_type_version` | source library + type + optional version; `plcName`, `plcFolderPath` | `Blocks.CreateFrom(CodeBlockLibraryTypeVersion, ThrowIfPathsConflict)` or `Types.CreateFrom(PlcTypeLibraryTypeVersion, ThrowIfPathsConflict)` | root instance path | dependencies that come along; whether a global version also lands in the project library |
 | `delete_type` | library, type | resolve; `LibraryType.Delete()` | deleted type name, deleted version numbers | versions to go; PLC instances and master copies that make Portal refuse (P7) |
-| `delete_type_version` | library, type, version or `inWork: true` | released: `Delete()`; in work: `Discard()` (the test instance stays, relinked to the last release, P11) | deleted number or `discarded: true`; `typeDeleted` | whether the last version takes the type (T11); default version or instances that make Portal refuse (P7) |
+| `delete_type_version` | library, type, version or `inWork: true` | released: `Delete()`; in work: `Discard()` (with a released version and no content change, the test instance stayed, relinked to the release, P11; other cases unprobed) | deleted number or `discarded: true`; `typeDeleted` | whether the last version takes the type (T11); default version or instances that make Portal refuse (P7) |
 
 `create_type_version` with an in-work version and `replaceInWork:false` is refused by Portal (T3,
-`engineering_rejected`); the tool adds no check. The agent's sequence for "improve this type" is
-`plc_read` of the instance (after `compile_check` if the instance was just placed), then
-`create_type_version`, then `compile_check`, then `release_type_version`.
+`engineering_rejected`); the tool adds no check. `replaceInWork:true` without an in-work version is
+unprobed; Portal decides, and `replacedInWork` reports what happened. Only an instance named like its
+type was probed (P16). The agent's sequence for "improve this type" is `plc_read` of the instance
+(after `compile_check` if a library operation placed it), then `create_type_version`, then
+`release_type_version`. `Release` needs no compile; a `plc_read` of the result does.
 
 Capability: `create_type`, `create_type_version`, `release_type_version`, `instantiate_type_version` are
 project methods. `set_default_type_version`, `delete_type`, `delete_type_version` follow the library
@@ -293,18 +300,20 @@ declared conditional and registered in `ConditionalMemberRegisterTests`.
 
 | Check | Where | Operation | Failure | Why |
 |---|---|---|---|---|
-| Version number, when given: three numeric parts, not `0.0.0` | host validation | release | `validation_error` | `0.0.0` killed Portal (T7Z); `1.0.0`, `0.1.0`, `0.0.1` are valid (P14); no documented range was found |
-| Version number, when given, strictly higher than every existing version of the type | worker, before `Release` | release | `guard_blocked` | equal and lower numbers are accepted; the release becomes the default (T7, T8). The prefilled number is already higher (P5) |
+| Version number, when given: three numeric parts, not `0.0.0` | host validation | release | `validation_error` | `0.0.0` killed Portal (T7Z); `1.0.0`, `0.1.0`, `0.0.1` are valid (P14). The range Portal checks is unknown, so a large part may also be fatal: open risk, logged in IMPROVEMENT_LOG |
+| Release number (given, or the in-work version's prefilled number when omitted) strictly higher than every **released** version of the type | worker, before `Release` | release | `guard_blocked` | equal and lower numbers are accepted; the release becomes the default (T7, T8). The prefilled number is last release + 1 (P5), which out-of-order releases (T7) can make lower than another released version |
 | No type with the name in the project library | worker, before export | create_type | `guard_blocked` | Portal creates duplicate names (T1) |
-| Source is not a type instance (`library_source_is_type_instance`) | worker, before export | create_type | `guard_blocked` | Portal creates a second type and relinks the instance (P4c); a type in a global library only is not caught by the name check |
+| Source is not a type instance (`library_source_is_type_instance`) | worker, before export | create_type | `guard_blocked` | Portal creates a second type and relinks the instance (P4c); an instance named differently from its type is not caught by the name check |
 | Instance content unchanged since the caller's `plc_read` (`expectedContentHash`) | worker, before `CreateFromDocuments` | create_type_version | `state_changed`, as `plc_write` | `Override` replaces the in-work version without a trace *(my call: same discipline as `plc_write` content writes)* |
 | New instance linked to the created type | worker, inside the transaction | create_type | `postcondition_failed` after rollback, with outcome | a conversion must leave a linked instance or roll back |
 | Master copy name exists (PR 2) | worker, before create/copy | master copies | `guard_blocked` | Portal renames silently (M1–M3) |
 
 **Deletes have no instance check (owner decision).** `delete_type` and `delete_type_version` call the
-native delete directly; the apply route never scans PLCs. Task 0 settled the risk: Portal refuses to
-delete a type or version while any instance exists, in a PLC or in a master copy, and refuses to delete
-the default version (P7a–d), so a delete never takes instances with it. Library work stays separate
+native delete directly; the apply route never scans PLCs. Task 0 settled the main risk for the project
+library: Portal refused a type delete with PLC instances or with only a master copy holding one, a
+version delete with a PLC instance, and the default version while another version exists (P7a–d).
+Deleting a type's only version deletes the type (T11). Global-library deletes and a version held only
+by a master copy are covered in live acceptance before the docs make the general claim. Library work stays separate
 from PLC work: why a type is deleted is the caller's business, controlled through its harness and
 prompts. A dry run shows what would block the delete, and only a dry run scans for instances.
 
@@ -333,7 +342,7 @@ One new ADR, "Library writes apply without a planning pass", updating ADR-0016:
 - Release and synchronize report the default before and after and never restore it.
 - A type's content changes only through `create_type_version` (`Versions.CreateFromDocuments`, never with
   a test environment argument). Portal blocks the edit → `plc_write` route and answers it with a modal UI
-  dialog no Openness event can handle. Links the native probe report.
+  dialog that does not raise the Openness `Confirmation` event. Links the native probe report.
 - The other write tools are expected to adopt the same hook in later PRs.
 
 ## 10. Documentation
@@ -345,24 +354,28 @@ After live acceptance (docs task last):
   defaults move, finalized after P9:
   - **Releasing a version makes it the type's default version (Portal does this).**
   - **Synchronizing a type moves the target library's default only when the source default has a higher
-    number than the target default.**
+    number than the target default** (probed into a fresh library; final wording after the live case with
+    a target that has its own releases).
   - **The tool reports the default before and after and never restores the previous default. To keep
     it, add `set_default_type_version` to the same call.**
-  - **Portal refuses to delete a type or version while any instance exists, in a PLC or in a master copy,
-    and refuses to delete the default version. Discarding an in-work version keeps its test instance,
-    relinked to the last released version. A dry run shows what would block a delete.**
+  - **Portal refuses to delete a type or version while instances exist and refuses to delete the default
+    version while other versions exist; deleting the only version deletes the type. (Final wording after
+    live acceptance covers global libraries and master copies.) Discarding an in-work version keeps its
+    test instance, relinked to the last released version (final wording after the live discard cases).
+    A dry run shows what would block a delete.**
   - **Objects that library operations place in a PLC (conversion, instantiate, version creation,
     release) cannot be read with `plc_read` until compiled; run `compile_check` first.**
-  - **Changing a type: `plc_read` the instance, `create_type_version` with the edited content, then
-    release. `plc_write` cannot change a type instance.**
+  - **Changing a type: `plc_read` the instance (after `compile_check` if needed), `create_type_version`
+    with the edited content, then `release_type_version`. `plc_write` cannot change a type instance.**
 - `docs/ARCHITECTURE.md` (library writes, pipeline hook), `AGENTS.md` (library bullets, including the
   transaction), `README.md` (absolute links), `docs/IMPROVEMENT_LOG.md` (rewrite the PR 3 block, keep
   "still deferred", add: other write tools adopt the hook, batched planning if timing shows a need,
   optional `keepDefault`, and consider making a dry run mandatory before any delete — not in this PR;
-  also the `plc_write` hazard on type instances: on a test instance a content update fails behind the
-  modal dialog "Cannot delete or replace (0026:000074)", which blocks the worker until someone answers
-  it or the request times out, and on a released instance it silently unlinks the instance from its
-  type (probe P11c, P12c, P15a, P15d)), `docs/roadmap/json-contract.md`, `docs/adr/README.md`, the live report under
+  also the `plc_write` hazard on type instances: on a test instance a content update fails behind a
+  modal Portal dialog (the same dialog on a direct delete read "Cannot delete or replace (0026:000074)",
+  P15a), which blocks the worker until someone answers it or the request times out, and on a released
+  instance it silently unlinks the instance from its type (probe P11c, P12c, P15d); and the unknown
+  release-number range: only `0.0.0` is known to kill Portal, larger parts were not probed), `docs/roadmap/json-contract.md`, `docs/adr/README.md`, the live report under
   `docs/superpowers/acceptance/reports/`.
 
 ## 11. Implementation notes for the builder
@@ -401,4 +414,10 @@ earlier items applied, the default before/after report, and one PR 2 master-copy
 new apply behaviour. `create_type_version` cases: a new in-work version from a released type, a
 replaced in-work version (`replaceInWork:true`), Portal's refusal without it, and a stale
 `expectedContentHash`; each followed by `compile_check`, release and a `plc_read` showing the new
-content. No raw MCP traces kept; the report lists limits.
+content. Plus `replaceInWork:true` without an in-work version, and a type with instances in both PLCs
+(which instance becomes the test instance).
+
+Cases that settle wording the probe left open: deleting a version held only by a master copy;
+deleting a global-library type and version with instances in global master copies; discarding an
+in-work version after `create_type_version`, and on a type that was never released; synchronizing into
+a target type that has its own releases. No raw MCP traces kept; the report lists limits.
