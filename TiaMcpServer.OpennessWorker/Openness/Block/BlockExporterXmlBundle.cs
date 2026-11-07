@@ -1,3 +1,4 @@
+using Siemens.Engineering;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
@@ -16,6 +17,7 @@ public static partial class BlockExporter
     {
         var documents = new List<BlockImportDocument>();
         var xmlExported = false;
+        EngineeringErrorInfo? xmlEngineeringError = null;
         try
         {
             var content = exportXml();
@@ -26,6 +28,7 @@ public static partial class BlockExporter
         catch (Exception exception) when (OpennessExceptions.IsRecoverable(exception))
         {
             // Preserve the public best-effort companion-only fallback.
+            if (exception is EngineeringException native) xmlEngineeringError = WorkerExecution.Describe(native);
         }
 
         try
@@ -41,7 +44,9 @@ public static partial class BlockExporter
             var outcome = BlockDocumentPackagePolicy.Decide(xmlExported, displayPath, exception.Message);
             if (outcome.IsFatal)
             {
-                throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, outcome.Message);
+                throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, outcome.Message,
+                    engineeringError: exception is EngineeringException native
+                        ? WorkerExecution.Describe(native) : xmlEngineeringError);
             }
 
             Console.Error.WriteLine(outcome.Message);

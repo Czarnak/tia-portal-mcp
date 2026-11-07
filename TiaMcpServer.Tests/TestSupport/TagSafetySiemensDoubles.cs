@@ -394,7 +394,7 @@ namespace Siemens.Engineering.SW.Tags
 
 namespace Siemens.Engineering.SW.Blocks
 {
-    public class PlcBlock : NamedObject, IEngineeringServiceProvider
+    public class PlcBlock : NamedObject, IEngineeringServiceProvider, ExternalSources.IGenerateSource
     {
         public Compiler.ICompilable? CompilerService { get; set; }
         public override T? GetService<T>() where T : class => CompilerService as T ?? base.GetService<T>();
@@ -408,6 +408,9 @@ namespace Siemens.Engineering.SW.Blocks
             if (Parent is PlcBlockGroup group) group.Blocks.Items.Remove(this);
         }
         public Action<FileInfo, ExportOptions>? ExportAction { get; set; }
+        public Func<DirectoryInfo, string, DocumentExportResult>? ExportAsDocumentsAction { get; set; }
+        public DocumentExportResult ExportAsDocuments(DirectoryInfo directory, string name)
+            => (ExportAsDocumentsAction ?? throw new InvalidOperationException("Unconfigured block ExportAsDocuments."))(directory, name);
         public void Export(FileInfo path, ExportOptions options)
             => (ExportAction ?? throw new InvalidOperationException("Unconfigured block Export."))(path, options);
         public string ProgrammingLanguage { get; set; } = "SCL";
@@ -485,7 +488,7 @@ namespace Siemens.Engineering.SW.Blocks
 namespace Siemens.Engineering.SW.Types
 {
     public sealed class PlcTypeLibraryTypeVersion : Library.Types.LibraryTypeVersion { }
-    public sealed class PlcType : NamedObject, Library.MasterCopies.IMasterCopySource
+    public sealed class PlcType : NamedObject, Library.MasterCopies.IMasterCopySource, ExternalSources.IGenerateSource
     {
         public bool Deleted { get; private set; }
         public Action? DeleteAction { get; set; }
@@ -523,7 +526,13 @@ namespace Siemens.Engineering.SW.Types
 
 namespace Siemens.Engineering.SW.ExternalSources
 {
-    public sealed class PlcExternalSourceSystemGroup { }
+    public interface IGenerateSource { }
+    public enum GenerateOptions { None = 0, WithDependencies = 1 }
+    public sealed class PlcExternalSourceSystemGroup
+    {
+        public void GenerateSource(IEnumerable<IGenerateSource> sources, FileInfo file, GenerateOptions options)
+            => throw new InvalidOperationException("Unconfigured GenerateSource.");
+    }
 }
 
 namespace Siemens.Engineering.SW.Units

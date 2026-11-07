@@ -31,6 +31,8 @@ internal static class LibraryWriter
             throw new WorkerOperationException(WorkerFailureCategories.UnsupportedCapability,
                 "The bound project container does not support this library operation.");
 
+        if (LibraryWriteMethods.TypeOperations.Contains(item.Operation))
+            return LibraryTypeWriter.Write(portal, project, method, item);
         switch (item.Operation)
         {
             case "create_global":

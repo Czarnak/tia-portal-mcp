@@ -77,10 +77,10 @@ public static partial class BlockExporter
             return ExportSource(target, address, withDependencies);
         }
 
-        return ExportXml(target, address);
+        return ExportXml(target, address.ToDisplayPath());
     }
 
-    private static string ExportXml(ResolvedBlockTarget target, BlockAddress address)
+    internal static string ExportXml(ResolvedBlockTarget target, string displayPath)
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "tia-mcp-export-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -88,7 +88,7 @@ public static partial class BlockExporter
         try
         {
             return ExportXmlBundle(
-                address.ToDisplayPath(),
+                displayPath,
                 target.DocumentName,
                 () =>
                 {

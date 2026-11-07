@@ -16,6 +16,9 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryWriteTargets.cs" Link="Library\LibraryWriteTargets.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryWritePlanReader.cs" Link="Library\LibraryWritePlanReader.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryWriter.cs" Link="Library\LibraryWriter.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryTypeWriter.cs" Link="Library\LibraryTypeWriter.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockExporter.cs" Link="Block\BlockExporter.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypeExporter.cs" Link="Plc\PlcTypeExporter.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypeTargetResolver.cs" Link="Plc\PlcTypeTargetResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerExecution.cs" Link="Worker\WorkerExecution.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
