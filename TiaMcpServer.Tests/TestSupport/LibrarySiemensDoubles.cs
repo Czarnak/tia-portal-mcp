@@ -1,4 +1,4 @@
-// Offline boundary doubles for the library_read reader. They declare the read members of
+// Offline boundary doubles for library reads and writes. They declare the members of
 // reference-stubs/Siemens.Engineering.Base/Library.cs plus test hooks; no Openness assembly is loaded.
 // A disposed double throws EngineeringObjectDisposedException on every read, like a deleted Openness object;
 // SetAttribute throws so any mutation attempt fails the test.
@@ -54,7 +54,7 @@ namespace Siemens.Engineering.Library
             => throw new InvalidOperationException($"Library reads must not mutate: SetAttribute('{name}').");
     }
 
-    public sealed class LibraryComposition<T> : IEnumerable<T>
+    public class LibraryComposition<T> : IEnumerable<T>
     {
         public List<T> Items { get; } = new();
         public Exception? EnumerationFailure { get; set; }
@@ -66,6 +66,19 @@ namespace Siemens.Engineering.Library
     {
         MasterCopySystemFolder MasterCopyFolder { get; }
         LibraryTypeSystemFolder TypeFolder { get; }
+    }
+
+    public enum LibraryImportOptions { None = 0, SkipInactiveCultures = 1, ActivateInactiveCultures = 2 }
+    public enum TransferResultState { Success = 0, Warning = 1 }
+    public sealed class TypeCreateTransferResults
+    {
+        public LibraryType? CreatedType { get; set; }
+        public TransferResultState TransferResultState { get; set; }
+    }
+    public sealed class VersionCreateTransferResults
+    {
+        public LibraryTypeVersion? CreatedVersion { get; set; }
+        public TransferResultState TransferResultState { get; set; }
     }
 
     public abstract class LibraryRootDouble : LibraryDouble, ILibrary
@@ -83,7 +96,7 @@ namespace Siemens.Engineering.Library
         public LibraryTypeSystemFolder TypeFolder => Live(types);
     }
 
-    public class GlobalLibrary : LibraryRootDouble
+    public class GlobalLibrary : LibraryRootDouble, ITransactionSupport
     {
         private string name = string.Empty;
         private FileInfo? path;
@@ -242,6 +255,40 @@ namespace Siemens.Engineering.Library.MasterCopies
 
 namespace Siemens.Engineering.Library.Types
 {
+    public enum CreateOptions { None = 0, Override = 1 }
+    public enum CreateOrReleaseDependenciesMode { DoNotAutomaticallyCreateOrReleaseDependencies = 0, AutomaticallyCreateOrReleaseDependenciesIfRequired = 1 }
+    public enum UpdatePathsMode { UpdatePathsInTarget = 0, KeepExistingPathsInTarget = 1, ThrowIfPathsConflict = 2 }
+    public enum DeleteUnusedVersionsMode { AutomaticallyDelete = 0, DoNotDelete = 1 }
+    public enum StructureConflictResolutionMode { UpdateStructure = 0, RetainStructure = 1, CancelIfStructureConflicts = 2 }
+    public enum ForceUpdateMode { SetOnlyHigherUpdatedVersionAsDefault = 0, ForceSetAnyUpdatedVersionAsDefault = 1, NoDefaultVersionChange = 2 }
+    public interface IInstanceSearchScope { }
+    public sealed class LibraryTypeInstanceInfo : Library.LibraryDouble, IEngineeringService
+    {
+        public LibraryTypeVersion LibraryTypeVersion { get; set; } = null!;
+        public IEngineeringObject LibraryTypeInstance { get; set; } = null!;
+    }
+
+    public sealed class LibraryTypeComposition : Library.LibraryComposition<LibraryType>
+    {
+        public List<(DirectoryInfo Directory, string Name, IEngineeringObject TestEnvironment, Library.LibraryImportOptions Options)> CreateFromDocumentsCalls { get; } = new();
+        public Func<DirectoryInfo, string, IEngineeringObject, Library.LibraryImportOptions, Library.TypeCreateTransferResults>? CreateFromDocumentsAction { get; set; }
+        public Library.TypeCreateTransferResults CreateFromDocuments(DirectoryInfo directory, string name, IEngineeringObject testEnvironment, Library.LibraryImportOptions options)
+        {
+            CreateFromDocumentsCalls.Add((directory, name, testEnvironment, options));
+            return (CreateFromDocumentsAction ?? throw new InvalidOperationException("Unconfigured type CreateFromDocuments."))(directory, name, testEnvironment, options);
+        }
+    }
+
+    public sealed class LibraryTypeVersionComposition : Library.LibraryComposition<LibraryTypeVersion>
+    {
+        public List<(DirectoryInfo Directory, string Name, CreateOptions CreateOptions, Library.LibraryImportOptions ImportOptions)> CreateFromDocumentsCalls { get; } = new();
+        public Func<DirectoryInfo, string, CreateOptions, Library.LibraryImportOptions, Library.VersionCreateTransferResults>? CreateFromDocumentsAction { get; set; }
+        public Library.VersionCreateTransferResults CreateFromDocuments(DirectoryInfo directory, string name, CreateOptions createOptions, Library.LibraryImportOptions importOptions)
+        {
+            CreateFromDocumentsCalls.Add((directory, name, createOptions, importOptions));
+            return (CreateFromDocumentsAction ?? throw new InvalidOperationException("Unconfigured version CreateFromDocuments."))(directory, name, createOptions, importOptions);
+        }
+    }
     public sealed class LibraryTypeUserFolderComposition : IEnumerable<LibraryTypeUserFolder>
     {
         public List<LibraryTypeUserFolder> Items { get; } = new();
@@ -266,7 +313,7 @@ namespace Siemens.Engineering.Library.Types
         private string name = string.Empty;
         public string Name { get => Live(name); set => name = value; }
         public LibraryTypeUserFolderComposition Folders { get; } = new();
-        public Library.LibraryComposition<LibraryType> Types { get; } = new();
+        public LibraryTypeComposition Types { get; } = new();
 
         public LibraryTypeUserFolder AddFolder(string folderName)
         {
@@ -298,7 +345,21 @@ namespace Siemens.Engineering.Library.Types
         public Guid Guid { get => Live(guid); set => guid = value; }
         public string Namespace { get; set; } = "Fixture";
         public ConsistencyStatus Status { get; set; } = ConsistencyStatus.Consistent;
-        public Library.LibraryComposition<LibraryTypeVersion> Versions { get; } = new();
+        public LibraryTypeVersionComposition Versions { get; } = new();
+        public Action? DeleteAction { get; set; }
+        public List<(Library.ILibrary Library, DeleteUnusedVersionsMode DeleteMode, StructureConflictResolutionMode StructureMode, ForceUpdateMode ForceMode)> UpdateLibraryCalls { get; } = new();
+        public Action<Library.ILibrary, DeleteUnusedVersionsMode, StructureConflictResolutionMode, ForceUpdateMode>? UpdateLibraryAction { get; set; }
+        public void UpdateLibrary(Library.ILibrary library, DeleteUnusedVersionsMode deleteMode, StructureConflictResolutionMode structureMode, ForceUpdateMode forceMode)
+        {
+            UpdateLibraryCalls.Add((library, deleteMode, structureMode, forceMode));
+            (UpdateLibraryAction ?? throw new InvalidOperationException("Unconfigured type UpdateLibrary."))(library, deleteMode, structureMode, forceMode);
+        }
+        public void Delete()
+        {
+            if (DeleteAction is not null) { DeleteAction(); return; }
+            if (Parent is LibraryTypeFolder folder) folder.Types.Items.Remove(this);
+            Disposed = true;
+        }
 
         public LibraryTypeVersion AddVersion(string number, bool isDefault = false, Guid? versionGuid = null)
         {
@@ -312,7 +373,7 @@ namespace Siemens.Engineering.Library.Types
         }
     }
 
-    public sealed class LibraryTypeVersion : Library.LibraryDouble
+    public class LibraryTypeVersion : Library.LibraryDouble
     {
         private Guid guid;
         public Guid Guid { get => Live(guid); set => guid = value; }
@@ -322,5 +383,46 @@ namespace Siemens.Engineering.Library.Types
         public bool IsDefault { get; set; }
         public Library.LibraryComposition<LibraryTypeVersion> Dependencies { get; } = new();
         public Library.LibraryComposition<LibraryTypeVersion> Dependents { get; } = new();
+        public List<(CreateOrReleaseDependenciesMode Mode, Version? Number, string? Author, string? Comment)> ReleaseCalls { get; } = new();
+        public Action<CreateOrReleaseDependenciesMode, Version?, string?, string?>? ReleaseAction { get; set; }
+        public Action? SetAsDefaultAction { get; set; }
+        public Action? DiscardAction { get; set; }
+        public Action? DeleteAction { get; set; }
+        public List<IInstanceSearchScope> FindInstancesCalls { get; } = new();
+        public Dictionary<IInstanceSearchScope, IList<LibraryTypeInstanceInfo>> Instances { get; } = new();
+        public Func<IInstanceSearchScope, IList<LibraryTypeInstanceInfo>>? FindInstancesAction { get; set; }
+        public IList<LibraryTypeInstanceInfo> FindInstances(IInstanceSearchScope scope)
+        {
+            FindInstancesCalls.Add(scope);
+            return FindInstancesAction is not null ? FindInstancesAction(scope)
+                : Instances.TryGetValue(scope, out var instances) ? instances : new List<LibraryTypeInstanceInfo>();
+        }
+        public void Release(CreateOrReleaseDependenciesMode mode, Version? number, string? author, string? comment)
+        {
+            ReleaseCalls.Add((mode, number, author, comment));
+            if (ReleaseAction is not null) { ReleaseAction(mode, number, author, comment); return; }
+            if (number is not null) VersionNumber = number;
+            State = LibraryTypeVersionState.Committed;
+        }
+        public void SetAsDefault()
+        {
+            if (SetAsDefaultAction is not null) { SetAsDefaultAction(); return; }
+            foreach (var version in TypeObject.Versions.Items) version.IsDefault = ReferenceEquals(version, this);
+        }
+        public void Discard()
+        {
+            if (DiscardAction is not null) { DiscardAction(); return; }
+            Remove();
+        }
+        public void Delete()
+        {
+            if (DeleteAction is not null) { DeleteAction(); return; }
+            Remove();
+        }
+        private void Remove()
+        {
+            TypeObject.Versions.Items.Remove(this);
+            Disposed = true;
+        }
     }
 }

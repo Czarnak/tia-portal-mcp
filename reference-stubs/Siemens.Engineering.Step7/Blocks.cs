@@ -2,6 +2,7 @@
 #nullable disable // V21 net48 signatures have no nullable annotations.
 namespace Siemens.Engineering.SW.Blocks
 {
+    public abstract class CodeBlockLibraryTypeVersion : global::Siemens.Engineering.Library.Types.LibraryTypeVersion { }
     public abstract class ArrayDB : global::Siemens.Engineering.SW.Blocks.DataBlock, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
@@ -78,6 +79,7 @@ namespace Siemens.Engineering.SW.Blocks
     }
     public abstract class PlcBlockComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.SW.Blocks.PlcBlock>
     {
+        public PlcBlock CreateFrom(CodeBlockLibraryTypeVersion sourceVersion, global::Siemens.Engineering.Library.Types.UpdatePathsMode updatePathsMode) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.Blocks.PlcBlock CreateFrom(global::Siemens.Engineering.Library.MasterCopies.MasterCopy sourceMasterCopy, global::Siemens.Engineering.Library.MasterCopies.MasterCopyMode copyMode) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IList<global::Siemens.Engineering.SW.Blocks.PlcBlock> Import(global::System.IO.FileInfo path, global::Siemens.Engineering.ImportOptions importOptions) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.DocumentImportResultForBlocks ImportFromDocuments(global::System.IO.DirectoryInfo directoryInfo, string fileNameWithoutExtension, global::Siemens.Engineering.SW.ImportDocumentOptions importDocumentOptions) => throw new global::System.NotSupportedException();

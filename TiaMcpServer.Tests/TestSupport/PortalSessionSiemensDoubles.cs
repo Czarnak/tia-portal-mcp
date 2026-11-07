@@ -88,6 +88,7 @@ namespace Siemens.Engineering
         public List<string> ExclusiveAccessCalls { get; } = new();
         public List<Transaction> Transactions { get; } = new();
         public bool TransactionCanCommit { get; set; } = true;
+        public Action<Transaction>? TransactionAction { get; set; }
         public ExclusiveAccess ExclusiveAccess(string description)
         {
             ExclusiveAccessCalls.Add(description);
