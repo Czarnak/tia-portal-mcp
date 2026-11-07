@@ -28,7 +28,7 @@ Nothing changed, but the refusal is **not** silent: during both imports Portal s
 P11c and 45 s in P12c; every other step took under 9 s). The dialog did not go through the Openness
 `Confirmation` event (the record has no confirmations), so an unattended worker would block on it until its
 request timeout. That is a hazard of today's `plc_write` on any type test instance, independent of PR 3.
-Whether the import failed because of the dialog answer or regardless of it is unknown. Released instances
+The dialog offered only OK, so the import failed regardless of the answer. Released instances
 can be deleted (P7c2, P8 setups) with no dialog, so the block is specific to the test instance (inference).
 
 Candidate routes for a run 3 (unprobed):

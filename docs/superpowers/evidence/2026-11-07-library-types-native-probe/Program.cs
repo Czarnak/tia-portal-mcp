@@ -706,6 +706,48 @@ internal static class Catalog
         c.Note("inWorkGuid", Describe.Safe(() => c.Working.Guid.ToString()));
     }
 
+    // Document (SIMATIC SD) route on the PLC_2 object: ExportAsDocuments, optional edit of the .s7dcl text,
+    // ImportFromDocuments(Override) into the object's own group (P15b, P15c).
+    private static void DocumentsRoundTrip(Ctx c, string name, Func<string, string> edit)
+    {
+        var obj = F.Obj(c.Plc2, name);
+        var dir = new DirectoryInfo(c.Out("sd"));
+        dir.Create();
+        c.Note("sdExport", c.Step("ExportAsDocuments", () => obj is PlcType t ? (object)t.ExportAsDocuments(dir, name) : ((PlcBlock)obj).ExportAsDocuments(dir, name)));
+        var files = dir.GetFiles();
+        c.Note("sdFiles", files.Select(f => new { name = f.Name, bytes = f.Length }).ToList());
+        var dcl = files.Where(f => f.Extension.Equals(".s7dcl", StringComparison.OrdinalIgnoreCase)).ToList();
+        c.Note("sdDclText", dcl.Select(f => { var s = File.ReadAllText(f.FullName); return s.Length > 4000 ? s.Substring(0, 4000) : s; }).ToList());
+        if (edit != null)
+        {
+            var applied = false;
+            foreach (var f in dcl)
+            {
+                var bytes = File.ReadAllBytes(f.FullName);
+                var bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+                var text = File.ReadAllText(f.FullName);
+                var edited = edit(text);
+                if (edited == text) continue;
+                File.WriteAllText(f.FullName, edited, new UTF8Encoding(bom));
+                applied = true;
+            }
+            c.Note("sdEditApplied", applied);
+        }
+        var result = c.Step("ImportFromDocuments(Override)", () => obj is PlcType t
+            ? (object)((PlcTypeGroup)t.Parent).Types.ImportFromDocuments(dir, name, ImportDocumentOptions.Override)
+            : ((PlcBlockGroup)((PlcBlock)obj).Parent).Blocks.ImportFromDocuments(dir, name, ImportDocumentOptions.Override));
+        c.Note("sdImport", result);
+        c.Note("linkAfterImport", Describe.Safe(() => Describe.Link(F.Obj(c.Plc2, name))));
+    }
+
+    // Adds "probeAdded : Int;" after the "b : Int;" member line of LT_Udt's .s7dcl text, keeping indent and line ending.
+    private static string AddDclMember(string text)
+    {
+        var newline = text.Contains("\r\n") ? "\r\n" : "\n";
+        return new Regex(@"^([ \t]*)b\s*:\s*Int\s*;[^\r\n]*$", RegexOptions.Multiline)
+            .Replace(text, m => m.Value + newline + m.Groups[1].Value + "probeAdded : Int;", 1);
+    }
+
     private static void Sync(Ctx c, string step)
     {
         c.Step("UpdateLibrary(" + step + ")", () => F.Type(c.PL, Names.Udt).UpdateLibrary(c.Extra, DeleteUnusedVersionsMode.DoNotDelete,
@@ -909,6 +951,37 @@ internal static class Catalog
                 c.CompileFirst(c.Plc2, Names.Fb, "afterRelease");
                 c.Note("titleAfterRelease", Describe.Safe(() => F.BlockTitleText(XDocument.Load(c.ExportFile(c.Plc2, Names.Fb, "afterRelease")))?.Value));
             }), After(Names.Fb)),
+        C("P15a", "Delete the compiled in-work PLC_2 LT_Udt test instance directly: refused (and the 'Library test environment cannot be closed' dialog) like the Override imports in P11c/P12c?",
+            c => { MakeAndRelease(Names.Udt)(c); c.EditVia(Names.Udt); c.CompileFirst(c.Plc2, Names.Udt, "inWork"); },
+            Before(Names.Udt, c => c.Step("Delete test instance", () => F.Delete(F.Obj(c.Plc2, Names.Udt)))), After(Names.Udt)),
+        C("P15b", "Document route on the compiled in-work PLC_2 LT_Fb test instance: ExportAsDocuments, then ImportFromDocuments(Override) unchanged. Accepted in place, still linked to the in-work version?",
+            c => { MakeAndRelease(Names.Fb)(c); c.EditVia(Names.Fb); c.CompileFirst(c.Plc2, Names.Fb, "inWork"); },
+            Before(Names.Fb, c => DocumentsRoundTrip(c, Names.Fb, null)),
+            c => { After(Names.Fb)(c); c.CompileFirst(c.Plc2, Names.Fb, "afterImport"); }),
+        C("P15c", "Document route with a content change on the compiled in-work PLC_2 LT_Udt test instance: add a member in the .s7dcl, ImportFromDocuments(Override), compile, release 0.0.2. Does the released version carry the member?",
+            c => { MakeAndRelease(Names.Udt)(c); c.EditVia(Names.Udt); c.CompileFirst(c.Plc2, Names.Udt, "inWork"); },
+            Before(Names.Udt, c =>
+            {
+                DocumentsRoundTrip(c, Names.Udt, AddDclMember);
+                c.CompileFirst(c.Plc2, Names.Udt, "afterImport");
+                c.Note("contentAfterImport", Describe.Safe(() => c.Content(c.Plc2, Names.Udt, "afterImport")));
+                var inWork = c.Step("find-in-work", () => F.InWork(F.Type(c.PL, Names.Udt)));
+                c.Step("Release(0.0.2)", () => inWork.Release(Ctx.NoDeps, V2, "probe", "P15c"));
+                c.Note("versionsAfterRelease", Describe.Safe(() => F.Versions(F.Type(c.PL, Names.Udt))));
+                c.Note("linkAfterRelease", Describe.Safe(() => Describe.Link(F.Obj(c.Plc2, Names.Udt))));
+                c.CompileFirst(c.Plc2, Names.Udt, "afterRelease");
+                c.Note("contentAfterRelease", Describe.Safe(() => c.Content(c.Plc2, Names.Udt, "afterRelease")));
+            }), After(Names.Udt)),
+        C("P15d", "Override import (update_type_content XML route) with an added member onto a compiled RELEASED PLC_2 LT_Udt instance (no edit): accepted? Still a type instance, of which version, and does an in-work version appear?",
+            c => { MakeAndRelease(Names.Udt)(c); c.CompileFirst(c.Plc2, Names.Udt, "released"); c.Note("releasedContent", c.Content(c.Plc2, Names.Udt, "released")); },
+            Before(Names.Udt, c => c.ImportWithExtraMember(c.Plc2, Names.Udt)),
+            c =>
+            {
+                After(Names.Udt)(c);
+                c.Note("linkAfterImport", Describe.Safe(() => Describe.Link(F.Obj(c.Plc2, Names.Udt))));
+                c.CompileFirst(c.Plc2, Names.Udt, "afterImport");
+                c.Note("contentAfterImport", Describe.Safe(() => c.Content(c.Plc2, Names.Udt, "afterImport")));
+            }),
         H("P13b", "Release the in-work version with a null version number (and null author/comment).",
             "Version validation may run in Portal itself (see T7Z, which killed Portal).",
             c => c.MakeTypeInPlc2(Names.Udt), Before(Names.Udt, c => c.Working.Release(Ctx.NoDeps, null, null, null)), After(Names.Udt)),
@@ -1396,7 +1469,7 @@ internal static class SelfTest
 {
     private static readonly string[] ExpectedIds =
         { "P1u", "P1u-notx", "P1f", "P1r-after-import", "P1r-after-delete", "P1n", "P3", "P3b", "P4", "P4c", "P5", "P6", "P7a", "P7b", "P7c", "P7c2", "P7d",
-          "P8", "P9", "P10", "P11", "P11c", "P12", "P12c", "P13b", "P14a", "P14b", "P14c" };
+          "P8", "P9", "P10", "P11", "P11c", "P12", "P12c", "P15a", "P15b", "P15c", "P15d", "P13b", "P14a", "P14b", "P14c" };
     private static readonly string[] CrashRisk = { "P13b", "P14a", "P14b" };
 
     private static void Assert(bool ok, string what) { if (!ok) throw new Exception("Self-test failed: " + what); }

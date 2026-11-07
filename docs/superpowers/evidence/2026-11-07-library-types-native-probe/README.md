@@ -65,7 +65,7 @@ this order and each with a new `--work`:
         --disposable-root <root> --project <root>\<proj>\<proj>.ap21 ^
         --library <root>\<lib>\<lib>.al21 --work <root>\probe-run-1
 
-Use `--case P1u,P9` instead of `--all` for selected cases (run 2: `--case P1n,P3b,P4c,P7c2,P7d,P10,P11c,P12c`). Run the crash-risk cases **last and
+Use `--case P1u,P9` instead of `--all` for selected cases (run 2: `--case P1n,P3b,P4c,P7c2,P7d,P10,P11c,P12c`; run 3: `--case P15a,P15b,P15c,P15d`). Run the crash-risk cases **last and
 alone**, one per run, each with its own new `--work`, and check Portal is still alive after each:
 
     ... --case P13b --work <root>\probe-p13b
@@ -109,6 +109,10 @@ customer identifiers anyway: Siemens messages can quote text the redaction does 
 | `P11c` | Released `0.0.1`, edited, a member added to the in-work PLC_2 instance through the worker's `update_type_content` XML call (`Types.Import(file, ImportOptions.Override)`), compiled; `Discard`; content compared (members, hash without `DocumentInfo`) |
 | `P12` | `LT_Fb` type made in PLC_2, released `0.0.1`, edited; re-import the in-work test instance's XML with only the block title changed (whitespace kept, `DocumentInfo` removed as `plc_read` does), through the worker's `update_block_logic` XML call (`Blocks.Import(file, ImportOptions.Override)`) |
 | `P12c` | `P12` with the in-work test instance compiled before the export; then compile and release the in-work version as `0.0.2`, and read the title back |
+| `P15a` | Released `0.0.1`, edited, compiled; delete the in-work PLC_2 `LT_Udt` test instance directly |
+| `P15b` | Released `0.0.1`, edited, compiled; `LT_Fb` test instance through `ExportAsDocuments` and unchanged `ImportFromDocuments(Override)` into its group |
+| `P15c` | As `P15b` for `LT_Udt` with a member added after `b : Int;` in the `.s7dcl`; compile, release `0.0.2`, compare content |
+| `P15d` | Released `0.0.1`, compiled, not edited; `update_type_content` XML route (`Types.Import(file, ImportOptions.Override)`) with an added member |
 | `P13b` | Crash risk. Release the new in-work version with a null number, author and comment |
 | `P14a` | Crash risk. Release the new in-work version as `1.0.0` |
 | `P14b` | Crash risk. Release as `0.1.0` |
