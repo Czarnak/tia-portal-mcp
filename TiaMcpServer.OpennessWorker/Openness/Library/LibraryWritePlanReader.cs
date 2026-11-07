@@ -166,7 +166,9 @@ internal static class LibraryWritePlanReader
         if (item.Operation == "create_type_version")
         {
             var instance = LibraryTypeTargets.Instance(project, item);
-            LibraryTypeWriter.RequireContentHash(project, item, instance.instance);
+            // An unreadable export fails the call (not plan.Unverifiable) so the worker can still classify Portal loss.
+            var (name, fresh) = LibraryTypeWriter.RequireContentHash(project, item, instance.instance);
+            _ = LibraryTypeWriter.SimaticMl(instance.instance, name, item.Content!, fresh);
             type = instance.version.TypeObject;
             plan.Type = Describe(type);
             plan.Type.InstancePaths.Add(LibraryTypeTargets.InstancePath(instance.instance));
@@ -174,9 +176,13 @@ internal static class LibraryWritePlanReader
             {
                 var inWork = type.Versions.FirstOrDefault(x => x.State == LibraryTypeVersionState.InWork);
                 if (inWork is not null) SetVersion(plan.Type, inWork);
-                plan.Type.ReplacedInWork = inWork is not null;
-                var plcs = Instances(project, type.Versions, plan, null);
-                if (plcs > 1) plan.Notes = new() { "The type has instances in more than one PLC; the test instance is not predictable." };
+                plan.Type.ReplacedInWork = inWork is not null && item.ReplaceInWork == true;
+                var notes = new List<string>();
+                if (inWork is not null && item.ReplaceInWork != true)
+                    notes.Add("An in-work version exists; Portal refuses a new version unless replaceInWork is true.");
+                if (Instances(project, type.Versions, plan, null) > 1)
+                    notes.Add("The type has instances in more than one PLC; the test instance is not predictable.");
+                if (notes.Count > 0) plan.Notes = notes;
             });
             return;
         }
@@ -195,7 +201,13 @@ internal static class LibraryWritePlanReader
         var missing = LibraryIdentities.Child(sourceRoot, "types", item.FolderPath ?? new(), "type", item.TypeName ?? "");
         missing.TypeGuid = item.TypeGuid;
         var resolved = Missing(plan, missing, () => LibraryTypeTargets.Type(sourceLibrary, item.TypeName, item.FolderPath, item.TypeGuid));
-        if (resolved is null) return;
+        if (resolved is null)
+        {
+            // The type comes from an earlier item; describe it by selector so a later item can name this one as its producer.
+            if (item.Operation == "synchronize_type")
+                plan.Type = new() { TypeName = item.TypeName ?? "", TypeGuid = item.TypeGuid ?? "", FolderPath = item.FolderPath ?? new() };
+            return;
+        }
         type = resolved;
         plan.Type = Describe(type);
         if (item.Operation is not ("delete_type" or "synchronize_type"))
@@ -252,7 +264,7 @@ internal static class LibraryWritePlanReader
                     }
                 }
                 foreach (var selected in version is null ? type.Versions : new[] { version }.AsEnumerable()) Dependencies(selected);
-                if (item.Operation == "instantiate_type_version" && item.SourceScope == "global")
+                if (item.Operation == "instantiate_type_version" && item.SourceScope == "global" && !InProjectLibrary(project, type, version!))
                     plan.Notes = new() { "The global library version and dependencies also enter the project library." };
                 if (item.Operation == "synchronize_type")
                 {
@@ -263,6 +275,18 @@ internal static class LibraryWritePlanReader
                 }
             }
         });
+    }
+
+    // Instantiation copies a global version into the project library under the same GUIDs (P8).
+    private static bool InProjectLibrary(ProjectBase project, LibraryType type, LibraryTypeVersion version)
+    {
+        try
+        {
+            return LibraryTypeTargets.Type(((Siemens.Engineering.Project)project).ProjectLibrary!, null, null, type.Guid.ToString("D"))
+                .Versions.Any(x => x.Guid == version.Guid);
+        }
+        catch (WorkerOperationException ex) when (ex.FailureCategory is WorkerFailureCategories.TargetNotFound or WorkerFailureCategories.TargetAmbiguous)
+        { return false; }
     }
 
     private static LibraryTypeResultInfo Describe(LibraryType type) => new()

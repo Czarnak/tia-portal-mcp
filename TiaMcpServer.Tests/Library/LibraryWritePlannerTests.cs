@@ -29,6 +29,28 @@ public sealed class LibraryWritePlannerTests
     }
 
     [Fact]
+    public async Task Planner_CreateSynchronizeInstantiateChain_EachNamesItsProducer()
+    {
+        using var f = await Fixture.Create();
+        var project = new LibraryIdentityInfo { Scope = "project", Kind = "library" };
+        var global = new LibraryIdentityInfo { Scope = "global", Kind = "library", LibraryPath = @"C:\Libs\Fixture.al21" };
+        var created = new LibraryIdentityInfo { Scope = "project", Kind = "type", FolderKind = "types", Name = "Motor" };
+        f.PutFor("a", new() { Library = project, Target = created });
+        // A synchronize whose source comes from an earlier item describes its type by selector (worker plan reader).
+        f.PutFor("b", new() { Library = global, MissingTargets = [created], Type = new() { TypeName = "Motor" } });
+        f.PutFor("c", new() { Library = project, MissingTargets = [new() { Scope = "global", Kind = "type", FolderKind = "types",
+            LibraryPath = global.LibraryPath, Name = "Motor" }] });
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([
+            new() { OperationId = "a", Operation = "create_type", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor" },
+            new() { OperationId = "b", Operation = "synchronize_type", SourceScope = "project", TypeName = "Motor", Scope = "global", LibraryPath = global.LibraryPath },
+            new() { OperationId = "c", Operation = "instantiate_type_version", SourceScope = "global", SourceLibraryPath = global.LibraryPath,
+                TypeName = "Motor", PlcName = "PLC" }]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(1, result.Plan.Items[1].Effect!.CreatedByItem);
+        Assert.Equal(2, result.Plan.Items[2].Effect!.CreatedByItem);
+    }
+
+    [Fact]
     public async Task Planner_UnrelatedMissingTarget_FailsCall()
     {
         using var f = await Fixture.Create();

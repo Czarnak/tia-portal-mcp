@@ -251,7 +251,7 @@ internal static class LibraryTypeWriter
 
     // A block's plc_read XML is a bundle (.xml plus .s7dcl/.s7res); only its Simatic ML document is
     // staged, and an edited companion is refused rather than silently dropped, as in plc_write.
-    private static string SimaticMl(IEngineeringServiceProvider instance, string name, string content, string fresh)
+    internal static string SimaticMl(IEngineeringServiceProvider instance, string name, string content, string fresh)
     {
         if (instance is not PlcBlock) return content;
         var submitted = BlockImportBundleParser.Parse(name + ".xml", content);

@@ -112,6 +112,81 @@ public sealed class LibraryWritePlanReaderTests
         Assert.Single(version.FindInstancesCalls);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(null)]
+    public void Plan_CreateTypeVersion_ReplacedInWorkOnlyWithReplaceInWork(bool? replaceInWork)
+    {
+        var (item, _, _) = CreateTypeVersionFixture();
+        item.ReplaceInWork = replaceInWork;
+        var plan = Plan(item);
+        Assert.Equal(replaceInWork == true, plan.Type!.ReplacedInWork);
+        Assert.Equal(replaceInWork != true, plan.Notes?.Any(note => note.Contains("replaceInWork")) == true);
+    }
+
+    [Fact]
+    public void Plan_Instantiate_GlobalVersionAlreadyInProject_NoProjectLibraryNote()
+    {
+        AddPlc();
+        var library = AddLibrary();
+        var type = library.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { Parent = type, TypeObject = type, Guid = Guid.NewGuid(), IsDefault = true };
+        type.Versions.Items.Add(version);
+        var local = project.ProjectLibrary!.TypeFolder.AddType("Motor");
+        local.Guid = type.Guid;
+        local.Versions.Items.Add(new CodeBlockLibraryTypeVersion { Parent = local, TypeObject = local, Guid = version.Guid });
+        var plan = Plan(new() { Operation = "instantiate_type_version", SourceScope = "global", SourceLibraryName = "Fixture", TypeName = "Motor", PlcName = "PLC" });
+        Assert.Null(plan.Notes);
+    }
+
+    [Fact]
+    public void Plan_Synchronize_SourceTypeFromEarlierItem_DescribesSelector()
+    {
+        AddLibrary();
+        var plan = Plan(new() { Operation = "synchronize_type", SourceScope = "project", TypeName = "New", Scope = "global", LibraryName = "Fixture" });
+        Assert.Equal("type", Assert.Single(plan.MissingTargets!).Kind);
+        Assert.Equal("New", plan.Type!.TypeName);
+        Assert.Equal("global", plan.Library!.Scope);
+    }
+
+    [Fact]
+    public void Plan_CreateTypeVersion_EditedCompanion_FailsLikeApply()
+    {
+        var (item, block, _) = CreateTypeVersionFixture();
+        block.ExportAsDocumentsAction = (directory, _) =>
+        {
+            var file = new FileInfo(Path.Combine(directory.FullName, "Motor.s7dcl"));
+            File.WriteAllText(file.FullName, "companion");
+            return new() { ExportedDocuments = new List<FileInfo> { file } };
+        };
+        var docs = new[] { new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.xml", "Motor.xml", "<Document />"),
+            new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.s7dcl", "Motor.s7dcl", "companion") };
+        item.ExpectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml",
+            TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(docs));
+        docs[1] = new("Motor.s7dcl", "Motor.s7dcl", "edited");
+        item.Content = TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(docs);
+        Assert.Equal(WorkerFailureCategories.ValidationError, Failure(item));
+    }
+
+    private (LibraryWriteRequestInfo Item, FB Block, CodeBlockLibraryTypeVersion Version) CreateTypeVersionFixture()
+    {
+        var plc = AddPlc();
+        var type = project.ProjectLibrary!.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { TypeObject = type, Parent = type,
+            Guid = Guid.NewGuid(), VersionNumber = new(1, 0, 1), State = LibraryTypeVersionState.InWork };
+        type.Versions.Items.Add(version);
+        plc.BlockGroup.Parent = plc;
+        const string xml = "<Document />";
+        var block = new FB { Name = "Motor", Parent = plc.BlockGroup, LibraryTypeInstanceInfo = new() { LibraryTypeVersion = version },
+            ExportAction = (file, _) => File.WriteAllText(file.FullName, xml), ExportAsDocumentsAction = (_, _) => new() };
+        plc.BlockGroup.Blocks.Items.Add(block);
+        var item = new LibraryWriteRequestInfo { Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor",
+            Content = xml, ExpectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml",
+                TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(new[] {
+                    new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.xml", "Motor.xml", xml) })) };
+        return (item, block, version);
+    }
+
     [Fact]
     public void Plan_CreateTypeVersion_ShowsReplacedInWorkAndMultiPlcNote()
     {
@@ -128,11 +203,12 @@ public sealed class LibraryWritePlanReaderTests
         plc.BlockGroup.Blocks.Items.Add(block);
         version.FindInstancesAction = scope => new List<LibraryTypeInstanceInfo> { new() {
             LibraryTypeInstance = new FB { Name = "Motor", Parent = (PlcSoftware)scope }, LibraryTypeVersion = version } };
-        var plan = Plan(new() { Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor",
+        var plan = Plan(new() { Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor", ReplaceInWork = true,
             Content = xml, ExpectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml",
                 TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(new[] {
                     new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.xml", "Motor.xml", xml) })) });
         Assert.Equal(version.Guid.ToString("D"), plan.Type!.VersionGuid);
+        Assert.True(plan.Type.ReplacedInWork);
         Assert.Contains("PLC/Motor", plan.Type.InstancePaths);
         Assert.Contains("more than one PLC", TiaMcpServer.Contracts.Json.WorkerJson.SerializePayload(plan));
     }
