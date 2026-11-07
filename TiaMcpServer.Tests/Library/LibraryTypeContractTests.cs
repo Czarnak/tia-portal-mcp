@@ -56,7 +56,7 @@ public sealed class LibraryTypeContractTests
             { Operation = "delete_type", Scope = "project", TypeName = name, TypeGuid = guid }) is null);
 
     [Theory]
-    [InlineData(null, null, null, false)]
+    [InlineData(null, null, null, true)]
     [InlineData("1.0.0", null, null, true)]
     [InlineData(null, VersionGuid, null, true)]
     [InlineData(null, null, true, true)]
@@ -67,6 +67,16 @@ public sealed class LibraryTypeContractTests
     public void Validate_VersionSelector_AtMostOne(string? number, string? guid, bool? inWork, bool valid)
         => Assert.Equal(valid, LibraryWriteMethods.Validate(new()
             { Operation = "delete_type_version", Scope = "project", TypeName = "Type", VersionNumber = number, VersionGuid = guid, InWork = inWork }) is null);
+
+    [Theory]
+    [InlineData("set_default_type_version")]
+    [InlineData("delete_type_version")]
+    public void Validate_OmittedVersion_SelectsDefault(string operation)
+    {
+        var item = new LibraryWriteItem { OperationId = "a", Operation = operation, Scope = "project", TypeName = "Type" };
+        Assert.True(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+        Assert.Null(LibraryWriteMethods.Validate(LibraryWriteCatalog.ToWorkerRequest(item)));
+    }
 
     [Theory]
     [InlineData(null, Hash, false)]
@@ -116,9 +126,11 @@ public sealed class LibraryTypeContractTests
         Assert.True(LibraryWriteMethods.TouchesProject(new() { Operation = operation, Scope = "project" }));
     }
 
+    public static IEnumerable<object[]> MappingRequests => Requests.Select(row => new object[] { row[0], row[1] });
+
     [Theory]
-    [MemberData(nameof(Requests))]
-    public void OperationFor_MapsTypeMethods(string operation, string json, string allowed)
+    [MemberData(nameof(MappingRequests))]
+    public void OperationFor_MapsTypeMethods(string operation, string json)
     {
         var request = Request(operation, json);
         var method = LibraryWriteMethods.ForItem(request);

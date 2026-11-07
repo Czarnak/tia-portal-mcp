@@ -356,6 +356,33 @@ public sealed class LibraryTypeWriterTests
         VersionGuid = operation is "set_default_type_version" or "delete_type_version" ? version.Guid.ToString("D") : null,
     };
 
+    [Theory]
+    [InlineData("set_default_type_version", 0)]
+    [InlineData("set_default_type_version", 1)]
+    [InlineData("set_default_type_version", 2)]
+    [InlineData("delete_type_version", 0)]
+    [InlineData("delete_type_version", 1)]
+    [InlineData("delete_type_version", 2)]
+    public void OmittedVersion_UsesOnlyUniqueDefault(string operation, int defaults)
+    {
+        var version = Version(false);
+        version.IsDefault = defaults > 0;
+        if (defaults == 2) version.TypeObject.AddVersion("2.0.0", true);
+        var item = Select(operation, version); item.VersionGuid = null;
+        if (defaults == 1)
+            Assert.Equal(version.Guid.ToString("D"), Write(item).Type!.VersionGuid);
+        else
+            Failure(defaults == 0 ? WorkerFailureCategories.TargetNotFound : WorkerFailureCategories.TargetAmbiguous, () => Write(item));
+    }
+
+    [Fact]
+    public void Release_OmittedVersion_UsesInWorkInsteadOfDefault()
+    {
+        var version = Version();
+        version.TypeObject.AddVersion("1.0.0", true);
+        Assert.Equal(version.Guid.ToString("D"), Write(Item("release_type_version")).Type!.VersionGuid);
+    }
+
     [Fact]
     public void SetDefault_ReportsBeforeAfter()
     {

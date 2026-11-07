@@ -107,8 +107,7 @@ public static class LibraryWriteMethods
         if (TypeOperations.Contains(item.Operation) && item.Operation is not ("create_type" or "create_type_version"))
         {
             if (LibrarySelectorRules.CheckType(item.TypeName, item.TypeGuid, item.FolderPath) is { } typeError) return typeError;
-            if (LibrarySelectorRules.CheckVersion(item.VersionNumber, item.VersionGuid, item.InWork,
-                item.Operation is "set_default_type_version" or "delete_type_version") is { } versionError) return versionError;
+            if (LibrarySelectorRules.CheckVersion(item.VersionNumber, item.VersionGuid, item.InWork, false) is { } versionError) return versionError;
         }
         if (item.Operation == "create_type"
             && (item.FolderPath is { Count: > 32 } || item.FolderPath?.Any(string.IsNullOrWhiteSpace) == true))
