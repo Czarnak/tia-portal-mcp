@@ -431,9 +431,11 @@ internal sealed class Ctx
             ?? throw new ProbeSetupException("No Member" + (section == null ? "" : " in section " + section) + " in the " + name + " export.");
         first.AddAfterSelf(new XElement(first.Name.Namespace + "Member", new XAttribute("Name", "probeAdded"), new XAttribute("Datatype", "Int")));
         doc.Root?.Elements().Where(e => e.Name.LocalName == "DocumentInfo").Remove();
-        var dir = Directory.CreateDirectory(Out("edited"));
-        doc.Save(Path.Combine(dir.FullName, name + ".xml"), SaveOptions.DisableFormatting);
-        return dir;
+        Directory.CreateDirectory(Out("edited"));
+        doc.Save(Path.Combine(Out("edited"), name + ".xml"), SaveOptions.DisableFormatting);
+        // Not the DirectoryInfo that CreateDirectory returns: on .NET Framework its OriginalPath is only the leaf
+        // name, and Openness rejects it as "The argument 'dirInfo' cannot be a relative path" (run 4).
+        return new DirectoryInfo(Out("edited"));
     }
 
     // Members whose XML Datatype names a user type (quoted), read from a fresh export.
