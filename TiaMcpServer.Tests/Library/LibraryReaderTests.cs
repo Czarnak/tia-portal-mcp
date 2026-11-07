@@ -15,6 +15,32 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryReaderTests
 {
+    [Fact]
+    public void Read_ListVersions_ByTypeName()
+    {
+        var type = AddGlobal("Lib", @"C:\Libs\Lib.al21").TypeFolder.AddFolder("Area").AddType("Motor");
+        type.AddVersion("2.0.0", true);
+        type.AddVersion("1.0.0");
+        var page = Read("library_global_list_versions", new LibraryQueryInfo { Scope = "global", LibraryName = "Lib", TypeName = "Motor" });
+        Assert.Equal(new[] { "1.0.0", "2.0.0" }, page.Items.Select(x => x.VersionNumber));
+        Assert.All(page.Items, x => Assert.Equal(new[] { "Area" }, x.Identity.FolderPath));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("2.0.0")]
+    public void Read_ListDependencies_ByTypeNameAndDefaultOrNumber(string? number)
+    {
+        var library = AddGlobal("Lib", @"C:\Libs\Lib.al21");
+        var type = library.TypeFolder.AddFolder("Area").AddType("Motor");
+        type.AddVersion("1.0.0");
+        var current = type.AddVersion("2.0.0", true);
+        var dependency = library.TypeFolder.AddType("Dependency").AddVersion("1.0.0");
+        current.Dependencies.Items.Add(dependency);
+        var page = Read("library_global_list_dependencies", new LibraryQueryInfo { Scope = "global", LibraryName = "Lib", TypeName = "Motor", VersionNumber = number });
+        Assert.Equal(dependency.Guid.ToString("D"), Assert.Single(page.Items).Identity.VersionGuid);
+    }
+
     private const string ListChildren = "library_global_list_children";
     private const string ListGlobal = "library_list_global_libraries";
 

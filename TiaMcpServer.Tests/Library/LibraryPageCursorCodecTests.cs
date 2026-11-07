@@ -117,7 +117,9 @@ public sealed class LibraryPageCursorCodecTests
     [InlineData("folderKind")]
     [InlineData("folderPath")]
     [InlineData("typeGuid")]
+    [InlineData("typeName")]
     [InlineData("versionGuid")]
+    [InlineData("versionNumber")]
     [InlineData("direction")]
     public void QueryHash_DiffersByEachSelector(string field)
     {
@@ -133,7 +135,9 @@ public sealed class LibraryPageCursorCodecTests
                 case "folderKind": i.FolderKind = "masterCopies"; break;
                 case "folderPath": i.FolderPath = new List<string> { "A" }; break;
                 case "typeGuid": i.TypeGuid = TypeGuid; break;
+                case "typeName": i.TypeName = "Motor"; break;
                 case "versionGuid": i.VersionGuid = TypeGuid; break;
+                case "versionNumber": i.VersionNumber = "1.0.0"; break;
                 default: i.Direction = "dependents"; break;
             }
         });
