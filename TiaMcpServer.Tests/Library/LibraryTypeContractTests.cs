@@ -99,6 +99,8 @@ public sealed class LibraryTypeContractTests
     [InlineData("-1.0.0")]
     [InlineData("1.a.0")]
     [InlineData(" 1.0.0")]
+    [InlineData("2147483648.0.0")]
+    [InlineData("999999999999999999999999999.0.0")]
     public void VersionRules_Rejects000AndNonNumeric(string version)
         => Assert.NotNull(LibraryVersionRules.Check(version));
 
@@ -106,7 +108,7 @@ public sealed class LibraryTypeContractTests
     [InlineData("1.0.0")]
     [InlineData("0.1.0")]
     [InlineData("0.0.1")]
-    [InlineData("999999999999999999999999999.0.0")]
+    [InlineData("2147483647.0.0")]
     public void VersionRules_Accepts100And010And001(string version)
         => Assert.Null(LibraryVersionRules.Check(version));
 
