@@ -215,6 +215,17 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private async Task<WriteReport<TEffect, TVerification>> RunLeasedAsync()
     {
         _cancellationToken.ThrowIfCancellationRequested();
+        if (!_call.DryRun && !_domain.PlansBeforeApply(Items)
+            && !(ConfirmationMode == ConfirmationMode.AskUser && _domain.ConfirmsCall(Items)))
+        {
+            if (ConfirmationMode == ConfirmationMode.Policy)
+            {
+                _auditConfirmation = new("policy", "not_requested");
+            }
+
+            return await MutateAndVerifyAsync().ConfigureAwait(false);
+        }
+
         var plan = await _domain.PlanAsync(Items).ConfigureAwait(false);
         if (!plan.Success)
         {
@@ -393,7 +404,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     {
         _cancellationToken.ThrowIfCancellationRequested();
         var item = Items[index];
-        if (_plans[index]!.DependsOn is not null)
+        if (_plans[index]?.DependsOn is not null)
         {
             var failure = await ReplanAsync(index).ConfigureAwait(false);
             if (failure is not null)
@@ -420,6 +431,11 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     /// <summary>Re-plans a dependent item and applies the late acknowledge rule to its guards.</summary>
     private async Task<WriteToolError?> ReplanAsync(int index)
     {
+        if (_plans[index]?.DependsOn is null)
+        {
+            return null;
+        }
+
         var item = Items[index];
         var replan = await _domain.ReplanAsync(item).ConfigureAwait(false);
         if (!replan.Success)
@@ -449,8 +465,11 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     {
         var index = items.FindIndex(
             item => string.Equals(item.Status, OperationBatchStatus.Failed, StringComparison.Ordinal));
+        var mutated = index >= 0 && _mutated[index]
+            && (items[index].Result is not null
+                || !WorkerFailureCategories.IsPreconditionRefusal(items[index].Failure?.Category));
         var message = items.Count < 2 || index < 0 ? null
-            : _mutated[index] ? WriteExecution.PartialWriteMessage
+            : mutated ? WriteExecution.PartialWriteMessage
             : index > 0 ? WriteExecution.PartialWriteNotMutatedMessage
             : null;
         if (message is null)
