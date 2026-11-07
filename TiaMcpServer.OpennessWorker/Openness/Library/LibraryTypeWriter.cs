@@ -21,6 +21,11 @@ internal static class LibraryTypeWriter
             case "create_type": return CreateType(portal, project, item);
             case "create_type_version": return CreateVersion(project, item);
             case "release_type_version": return Release(portal, project, item);
+            case "set_default_type_version": return SetDefault(portal, project, item);
+            case "synchronize_type": return Synchronize(portal, project, item);
+            case "instantiate_type_version": return Instantiate(portal, project, item);
+            case "delete_type":
+            case "delete_type_version": return Delete(portal, project, item);
             default: throw new WorkerOperationException(WorkerFailureCategories.ValidationError, "Unknown library type write operation.");
         }
     }
@@ -153,6 +158,109 @@ internal static class LibraryTypeWriter
             SetVersion(outcome, version);
             outcome.DefaultAfter = DefaultNumber(type);
             return new() { Library = LibraryIdentities.Identity(project, library), Type = outcome };
+        }
+        catch (Exception ex) { throw WithOutcome(ex, outcome); }
+    }
+
+    private static LibraryWriteResultInfo SetDefault(TiaPortal portal, ProjectBase project, LibraryWriteRequestInfo item)
+    {
+        var library = LibraryWriteTargets.Library(portal, project, item.Scope, item.LibraryPath, item.LibraryName);
+        var type = LibraryTypeTargets.Type(library, item.TypeName, item.FolderPath, item.TypeGuid);
+        var version = LibraryTypeTargets.Version(type, item.VersionNumber, item.VersionGuid, item.InWork);
+        _ = LibraryTypeTargets.Kind(version);
+        var outcome = Describe(type);
+        SetVersion(outcome, version);
+        outcome.DefaultBefore = DefaultNumber(type);
+        try
+        {
+            version.SetAsDefault();
+            outcome.DefaultAfter = DefaultNumber(type);
+            return new() { Library = LibraryIdentities.Identity(project, library), Type = outcome };
+        }
+        catch (Exception ex) { throw WithOutcome(ex, outcome); }
+    }
+
+    private static LibraryWriteResultInfo Synchronize(TiaPortal portal, ProjectBase project, LibraryWriteRequestInfo item)
+    {
+        var source = LibraryWriteTargets.Library(portal, project, item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName);
+        var target = LibraryWriteTargets.Library(portal, project, item.Scope, item.LibraryPath, item.LibraryName);
+        var type = LibraryTypeTargets.Type(source, item.TypeName, item.FolderPath, item.TypeGuid);
+        foreach (var version in type.Versions) _ = LibraryTypeTargets.Kind(version);
+        var guid = type.Guid.ToString("D");
+        LibraryType? before = null;
+        try { before = LibraryTypeTargets.Type(target, null, null, guid); }
+        catch (WorkerOperationException ex) when (ex.FailureCategory == WorkerFailureCategories.TargetNotFound) { }
+        var outcome = Describe(before ?? type);
+        outcome.DefaultBefore = before is null ? null : DefaultNumber(before);
+        try
+        {
+            type.UpdateLibrary(target, DeleteUnusedVersionsMode.DoNotDelete,
+                StructureConflictResolutionMode.CancelIfStructureConflicts, ForceUpdateMode.SetOnlyHigherUpdatedVersionAsDefault);
+            var updated = LibraryTypeTargets.Type(target, null, null, guid);
+            var defaultBefore = outcome.DefaultBefore;
+            outcome = Describe(updated);
+            outcome.DefaultBefore = defaultBefore;
+            outcome.DefaultAfter = DefaultNumber(updated);
+            return new() { Library = LibraryIdentities.Identity(project, target), Type = outcome };
+        }
+        catch (Exception ex) { throw WithOutcome(ex, outcome); }
+    }
+
+    private static LibraryWriteResultInfo Instantiate(TiaPortal portal, ProjectBase project, LibraryWriteRequestInfo item)
+    {
+        var source = LibraryWriteTargets.Library(portal, project, item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName);
+        var type = LibraryTypeTargets.Type(source, item.TypeName, item.FolderPath, item.TypeGuid);
+        var version = LibraryTypeTargets.Version(type, item.VersionNumber, item.VersionGuid, item.InWork);
+        _ = LibraryTypeTargets.Kind(version);
+        var plc = PlcSoftwareLocator.FindUnique(project, item.PlcName).Software;
+        var path = item.PlcFolderPath ?? new List<string>();
+        var destination = version is CodeBlockLibraryTypeVersion
+            ? (object)BlockTargetResolver.FindBlockGroup(plc.BlockGroup, path)
+            : PlcTypeTargetResolver.FindTypeGroup(plc.TypeGroup, path);
+        var outcome = Describe(type);
+        SetVersion(outcome, version);
+        try
+        {
+            IEngineeringServiceProvider instance = version switch
+            {
+                CodeBlockLibraryTypeVersion block => ((PlcBlockGroup)destination).Blocks.CreateFrom(block, UpdatePathsMode.ThrowIfPathsConflict),
+                PlcTypeLibraryTypeVersion data => ((PlcTypeGroup)destination).Types.CreateFrom(data, UpdatePathsMode.ThrowIfPathsConflict),
+                _ => throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Unsupported library version kind."),
+            };
+            var link = instance.GetService<LibraryTypeInstanceInfo>()
+                ?? throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed, "The created instance has no library type link.");
+            outcome = Describe(link.LibraryTypeVersion.TypeObject);
+            SetVersion(outcome, link.LibraryTypeVersion);
+            outcome.InstancePaths.Add(LibraryTypeTargets.InstancePath(instance));
+            return new() { Library = LibraryIdentities.Identity(project, ((Siemens.Engineering.Project)project).ProjectLibrary!), Type = outcome };
+        }
+        catch (Exception ex) { throw WithOutcome(ex, outcome); }
+    }
+
+    private static LibraryWriteResultInfo Delete(TiaPortal portal, ProjectBase project, LibraryWriteRequestInfo item)
+    {
+        var library = LibraryWriteTargets.Library(portal, project, item.Scope, item.LibraryPath, item.LibraryName);
+        var type = LibraryTypeTargets.Type(library, item.TypeName, item.FolderPath, item.TypeGuid);
+        var outcome = Describe(type);
+        var identity = LibraryIdentities.Identity(project, library);
+        var folder = LibraryReader.TypeFolder(library, outcome.FolderPath);
+        var guid = type.Guid;
+        var version = item.Operation == "delete_type_version"
+            ? LibraryTypeTargets.Version(type, item.VersionNumber, item.VersionGuid, item.InWork) : null;
+        var versions = version is null ? type.Versions.ToList() : new List<LibraryTypeVersion> { version };
+        foreach (var selected in versions) _ = LibraryTypeTargets.Kind(selected);
+        var numbers = versions.Select(x => x.VersionNumber.ToString()).ToList();
+        if (version is not null) SetVersion(outcome, version);
+        var discard = version?.State == LibraryTypeVersionState.InWork;
+        try
+        {
+            if (version is null) type.Delete();
+            else if (discard) version.Discard();
+            else version.Delete();
+            if (discard) outcome.Discarded = true;
+            else outcome.DeletedVersions = numbers;
+            outcome.TypeDeleted = version is null || !folder.Types.Any(x => x.Guid == guid);
+            return new() { Library = identity, Type = outcome };
         }
         catch (Exception ex) { throw WithOutcome(ex, outcome); }
     }

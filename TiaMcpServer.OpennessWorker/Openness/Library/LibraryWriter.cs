@@ -112,11 +112,13 @@ internal static class LibraryWriter
             case "create_master_copy":
                 var plcSource = LibraryWriteTargets.PlcSource(project, item);
                 var expectedName = LibraryWriteTargets.PlcSourceName(plcSource);
+                RequireAvailableName(expectedName);
                 return Created(copies.Create(plcSource), expectedName);
             case "copy_master_copy":
                 var source = LibraryWriteTargets.Library(portal, project, item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName);
                 var sourceCopy = LibraryReader.Exact(LibraryReader.CopyFolder(source, item.SourceFolderPath).MasterCopies
                     .Where(x => x.Name == item.Name), "source master copy");
+                RequireAvailableName(item.Name!);
                 return Created(copies.CreateFrom(sourceCopy), item.Name!);
             case "instantiate_master_copy":
                 var masterCopy = LibraryReader.Exact(copies.Where(x => x.Name == item.Name), "master copy");
@@ -139,6 +141,12 @@ internal static class LibraryWriter
         }
 
         LibraryWriteResultInfo Result(ILibrary root) => new() { Library = LibraryIdentities.Identity(project, root) };
+
+        void RequireAvailableName(string name)
+        {
+            if (copies.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, "library_master_copy_exists");
+        }
 
         LibraryWriteResultInfo Created(MasterCopy copy, string expectedName)
         {

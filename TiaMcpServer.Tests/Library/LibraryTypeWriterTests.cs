@@ -338,4 +338,217 @@ public sealed class LibraryTypeWriterTests
         Assert.Null(response.EngineeringError);
         Assert.Empty(old.TypeObject.Versions.CreateFromDocumentsCalls);
     }
+
+    private static LibraryWriteRequestInfo Select(string operation, LibraryTypeVersion version) => new()
+    {
+        Operation = operation, Scope = "project", TypeGuid = version.TypeObject.Guid.ToString("D"),
+        VersionGuid = operation is "set_default_type_version" or "delete_type_version" ? version.Guid.ToString("D") : null,
+    };
+
+    [Fact]
+    public void SetDefault_ReportsBeforeAfter()
+    {
+        var selected = Version(false);
+        selected.TypeObject.AddVersion("2.0.0", true);
+        var result = Write(Select("set_default_type_version", selected));
+        Assert.Equal("2.0.0", result.Type!.DefaultBefore);
+        Assert.Equal("1.0.1", result.Type.DefaultAfter);
+        Assert.Equal(selected.Guid.ToString("D"), result.Type.VersionGuid);
+        Assert.True(selected.IsDefault);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Synchronize_UsesPinnedModes_ReportsTargetDefaults(bool existing)
+    {
+        var sourceVersion = Version(false); sourceVersion.IsDefault = true;
+        var target = new UserGlobalLibrary { Name = "Target", Path = new FileInfo(@"C:\Libraries\Target.al21") };
+        portal.GlobalLibraries.Items.Add(target);
+        LibraryType? targetType = existing ? target.TypeFolder.AddFolder("Destination").AddType("TargetName", sourceVersion.TypeObject.Guid) : null;
+        targetType?.AddVersion("3.0.0", true);
+        sourceVersion.TypeObject.UpdateLibraryAction = (library, delete, structure, force) =>
+        {
+            Assert.Same(target, library);
+            Assert.Equal(DeleteUnusedVersionsMode.DoNotDelete, delete);
+            Assert.Equal(StructureConflictResolutionMode.CancelIfStructureConflicts, structure);
+            Assert.Equal(ForceUpdateMode.SetOnlyHigherUpdatedVersionAsDefault, force);
+            targetType ??= target.TypeFolder.AddFolder("Destination").AddType("TargetName", sourceVersion.TypeObject.Guid);
+            if (!existing) targetType.AddVersion("1.0.1", true);
+        };
+        var item = new LibraryWriteRequestInfo { Operation = "synchronize_type", SourceScope = "project", Scope = "global",
+            LibraryName = "Target", TypeName = "Motor" };
+        var result = Write(item);
+        Assert.Equal("global", result.Library.Scope);
+        Assert.Equal(targetType!.Guid.ToString("D"), result.Type!.TypeGuid);
+        Assert.Equal("TargetName", result.Type.TypeName);
+        Assert.Equal(new[] { "Destination" }, result.Type.FolderPath);
+        Assert.Equal(existing ? "3.0.0" : null, result.Type.DefaultBefore);
+        Assert.Equal(existing ? "3.0.0" : "1.0.1", result.Type.DefaultAfter);
+        Assert.Single(sourceVersion.TypeObject.UpdateLibraryCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Instantiate_CodeBlockAndPlcType(bool udt)
+    {
+        var library = new UserGlobalLibrary { Name = "Source", Path = new FileInfo(@"C:\Libraries\Source.al21") };
+        portal.GlobalLibraries.Items.Add(library);
+        var sourceType = library.TypeFolder.AddType("SourceType");
+        LibraryTypeVersion selected = udt ? new PlcTypeLibraryTypeVersion() : new CodeBlockLibraryTypeVersion();
+        selected.Parent = sourceType; selected.TypeObject = sourceType; selected.Guid = Guid.NewGuid();
+        selected.State = LibraryTypeVersionState.Committed; selected.VersionNumber = new(1, 0, 1); selected.IsDefault = true;
+        sourceType.Versions.Items.Add(selected);
+        var targetType = project.ProjectLibrary!.TypeFolder.AddType("ActualTarget");
+        var targetVersion = new CodeBlockLibraryTypeVersion { Parent = targetType, TypeObject = targetType,
+            Guid = Guid.NewGuid(), VersionNumber = new(1, 0, 1), State = LibraryTypeVersionState.Committed };
+        targetType.Versions.Items.Add(targetVersion);
+        var blockFolder = plc.BlockGroup.Groups.Create("Destination/Blocks"); blockFolder.Parent = plc.BlockGroup;
+        var typeFolder = new PlcTypeUserGroup { Name = "Destination/Types", Parent = plc.TypeGroup };
+        plc.TypeGroup.Groups.Items.Add(typeFolder);
+        plc.TypeGroup.Parent = plc;
+        void Check(LibraryTypeVersion version, UpdatePathsMode mode)
+        { Assert.Same(selected, version); Assert.Equal(UpdatePathsMode.ThrowIfPathsConflict, mode); }
+        blockFolder.Blocks.CreateFromVersionAction = (version, mode) =>
+        {
+            Check(version, mode);
+            var block = new FB { Name = "Native", Parent = blockFolder };
+            block.LibraryTypeInstanceInfo = new() { LibraryTypeVersion = targetVersion, LibraryTypeInstance = block };
+            return block;
+        };
+        typeFolder.Types.CreateFromVersionAction = (version, mode) =>
+        {
+            Check(version, mode);
+            var type = new PlcType { Name = "Native", Parent = typeFolder };
+            type.LibraryTypeInstanceInfo = new() { LibraryTypeVersion = targetVersion, LibraryTypeInstance = type };
+            return type;
+        };
+        var item = new LibraryWriteRequestInfo { Operation = "instantiate_type_version", SourceScope = "global",
+            SourceLibraryName = "Source", TypeName = "SourceType", PlcName = "PLC",
+            PlcFolderPath = new() { udt ? "Destination/Types" : "Destination/Blocks" } };
+        var result = Write(item);
+        Assert.Equal("project", result.Library.Scope);
+        Assert.Equal(targetType.Guid.ToString("D"), result.Type!.TypeGuid);
+        Assert.Equal(targetVersion.Guid.ToString("D"), result.Type.VersionGuid);
+        Assert.Equal(new[] { udt ? "PLC/Destination%2FTypes/Native" : "PLC/Destination%2FBlocks/Native" }, result.Type.InstancePaths);
+        Assert.Empty(selected.FindInstancesCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeleteType_NoInstanceScan_NativeRefusalIsEngineeringRejected(bool refused)
+    {
+        var version = Version(false); var guid = version.TypeObject.Guid.ToString("D");
+        version.FindInstancesAction = _ => throw new InvalidOperationException("Apply must not scan instances.");
+        if (refused) version.TypeObject.DeleteAction = () => throw new EngineeringTargetInvocationException("Native refusal");
+        var item = Select("delete_type", version);
+        if (refused)
+        {
+            var failure = Failure(WorkerFailureCategories.EngineeringRejected, () => Write(item));
+            Assert.NotNull(failure.EngineeringError);
+            Assert.Equal(guid, failure.LibraryWriteOutcome!.Type!.TypeGuid);
+            Assert.Empty(failure.LibraryWriteOutcome.Type.DeletedVersions);
+        }
+        else
+        {
+            var result = Write(item);
+            Assert.Equal("Motor", result.Type!.TypeName);
+            Assert.Equal(guid, result.Type.TypeGuid);
+            Assert.Equal(new[] { "1.0.1" }, result.Type.DeletedVersions);
+            Assert.True(result.Type.TypeDeleted);
+            Assert.True(version.TypeObject.Disposed);
+        }
+        Assert.Empty(version.FindInstancesCalls);
+    }
+
+    [Fact]
+    public void DeleteVersion_InWork_Discards()
+    {
+        var version = Version(); var called = false;
+        version.DiscardAction = () => { called = true; version.TypeObject.Versions.Items.Remove(version); version.Disposed = true; };
+        version.DeleteAction = () => throw new InvalidOperationException("An in-work version must be discarded.");
+        var item = Select("delete_type_version", version); item.VersionGuid = null; item.InWork = true;
+        var result = Write(item);
+        Assert.True(called);
+        Assert.True(result.Type!.Discarded);
+        Assert.Empty(result.Type.DeletedVersions);
+        Assert.False(result.Type.TypeDeleted);
+        Assert.Empty(version.FindInstancesCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeleteVersion_LastVersion_ReportsTypeDeleted(bool inWork)
+    {
+        var version = Version(inWork); var type = version.TypeObject; var guid = type.Guid.ToString("D");
+        void Remove() { type.Delete(); version.Disposed = true; }
+        version.DeleteAction = Remove; version.DiscardAction = Remove;
+        var result = Write(Select("delete_type_version", version));
+        Assert.Equal(guid, result.Type!.TypeGuid);
+        Assert.Equal("Motor", result.Type.TypeName);
+        Assert.True(result.Type.TypeDeleted);
+        Assert.Equal(inWork, result.Type.Discarded == true);
+        Assert.Equal(inWork ? Array.Empty<string>() : new[] { "1.0.1" }, result.Type.DeletedVersions);
+        Assert.Empty(version.FindInstancesCalls);
+    }
+
+    [Theory]
+    [InlineData("set_default_type_version")]
+    [InlineData("delete_type")]
+    [InlineData("delete_type_version")]
+    [InlineData("synchronize_type")]
+    public void GlobalOnlyTypeOperations_WorkOnLocalSession(string operation)
+    {
+        var library = new UserGlobalLibrary { Name = "Source", Path = new FileInfo(@"C:\Libraries\Source.al21") };
+        portal.GlobalLibraries.Items.Add(library);
+        var type = library.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { Parent = type, TypeObject = type, Guid = Guid.NewGuid(),
+            VersionNumber = new(1, 0, 1), State = LibraryTypeVersionState.Committed, IsDefault = true };
+        type.Versions.Items.Add(version);
+        var item = Select(operation, version); item.Scope = "global"; item.LibraryName = "Source";
+        if (operation == "synchronize_type")
+        {
+            item.SourceScope = "global"; item.SourceLibraryName = "Source";
+            type.UpdateLibraryAction = (_, _, _, _) => { };
+        }
+        var result = LibraryWriter.Write(portal, new Siemens.Engineering.Multiuser.MultiuserProject(), LibraryWriteMethods.ForItem(item), item);
+        Assert.Equal("global", result.Library.Scope);
+    }
+
+    [Theory]
+    [InlineData("set_default_type_version")]
+    [InlineData("delete_type")]
+    [InlineData("delete_type_version")]
+    [InlineData("synchronize_type")]
+    [InlineData("instantiate_type_version")]
+    public void RemainingOperations_UnsupportedVersionKind_Refused(string operation)
+    {
+        var type = project.ProjectLibrary!.TypeFolder.AddType("Unsupported");
+        var version = type.AddVersion("1.0.1", true);
+        var item = Select(operation, version);
+        if (operation is "synchronize_type" or "instantiate_type_version")
+        {
+            item.SourceScope = "project";
+            if (operation == "instantiate_type_version") { item.Scope = null; item.PlcName = "PLC"; }
+        }
+        Failure(WorkerFailureCategories.TargetKindUnsupported, () => Write(item));
+        Assert.Empty(type.UpdateLibraryCalls);
+        Assert.Empty(plc.BlockGroup.Blocks.CreateFromVersionCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeleteVersion_FatalAndCurrentDisposal_RetainOutcome(bool fatal)
+    {
+        var version = Version(false); var item = Select("delete_type_version", version); long revision = 0;
+        version.DeleteAction = () => { revision++; throw (fatal ? new NonRecoverableException("Lost") : new EngineeringException("Disconnected")); };
+        var response = WorkerExecution.Execute(() => { Write(item); return new WorkerResponse { Success = true }; }, () => revision, true);
+        Assert.Equal(WorkerFailureCategories.PortalLost, response.FailureCategory);
+        Assert.Null(response.EngineeringError);
+        Assert.Equal("Motor", response.LibraryWriteOutcome!.Type!.TypeName);
+    }
 }

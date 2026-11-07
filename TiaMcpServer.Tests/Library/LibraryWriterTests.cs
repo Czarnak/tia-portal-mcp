@@ -280,8 +280,8 @@ public sealed class LibraryWriterTests
         var item = Item(copy ? "copy_master_copy" : "create_master_copy");
         if (copy)
         {
-            item.Name = "Source"; item.SourceScope = "global"; item.SourceLibraryName = "Fixture";
-            library.MasterCopyFolder.AddCopy("Source");
+            item.Name = "Source"; item.SourceScope = "project";
+            project.ProjectLibrary!.MasterCopyFolder.AddCopy("Source");
             library.MasterCopyFolder.MasterCopies.CreateFromAction = _ => library.MasterCopyFolder.AddCopy("Source_1");
         }
         else
@@ -293,6 +293,40 @@ public sealed class LibraryWriterTests
         var failure = Assert.Throws<WorkerOperationException>(() => Write(item));
         Assert.Equal(WorkerFailureCategories.PostconditionFailed, failure.FailureCategory);
         Assert.Equal("Source_1", failure.LibraryWriteOutcome!.ActualName);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void CreateMasterCopy_CaseCollision_GuardBlockedAtMutation(bool copy, bool folderOnly)
+    {
+        var library = AddLibrary();
+        if (folderOnly) library.MasterCopyFolder.AddFolder("source");
+        else library.MasterCopyFolder.AddCopy("source");
+        var calls = 0;
+        library.MasterCopyFolder.MasterCopies.CreateAction = _ => { calls++; return library.MasterCopyFolder.AddCopy("Source"); };
+        library.MasterCopyFolder.MasterCopies.CreateFromAction = _ => { calls++; return library.MasterCopyFolder.AddCopy("Source"); };
+        var item = Item(copy ? "copy_master_copy" : "create_master_copy");
+        if (copy)
+        {
+            item.SourceScope = "project"; item.Name = "Source";
+            project.ProjectLibrary!.MasterCopyFolder.AddCopy("Source");
+        }
+        else
+        {
+            AddPlc().BlockGroup.Blocks.Items.Add(new FB { Name = "Source" });
+            item.PlcName = "PLC"; item.PlcKind = "block"; item.PlcObjectName = "Source";
+        }
+        if (folderOnly) Assert.Equal("Source", Write(item).ActualName);
+        else
+        {
+            var failure = Assert.Throws<WorkerOperationException>(() => Write(item));
+            Assert.Equal(WorkerFailureCategories.GuardBlocked, failure.FailureCategory);
+            Assert.Contains("library_master_copy_exists", failure.Message);
+        }
+        Assert.Equal(folderOnly ? 1 : 0, calls);
     }
 
     [Fact]

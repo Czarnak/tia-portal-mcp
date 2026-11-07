@@ -1,4 +1,7 @@
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Contracts.Library;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Library;
@@ -51,5 +54,29 @@ public sealed class LibraryWorkerDispatchTests
         Assert.Contains(handler == "PlanLibraryWrite"
             ? "LibraryWriteMethods.GlobalPlan or LibraryWriteMethods.ProjectPlan => PlanLibraryWrite(request),"
             : "var m when LibraryWriteMethods.All.Contains(m, StringComparer.Ordinal) => WriteLibrary(request),", Program);
+    }
+
+    [Fact]
+    public void Dispatch_EveryTypeMethodReachesWriter()
+    {
+        Assert.Contains("var m when LibraryWriteMethods.All.Contains(m, StringComparer.Ordinal) => WriteLibrary(request),", Program);
+        var writer = File.ReadAllText(Path.Combine(RepositoryFiles.Root, "TiaMcpServer.OpennessWorker", "Openness", "Library", "LibraryWriter.cs"));
+        Assert.Contains("if (LibraryWriteMethods.TypeOperations.Contains(item.Operation))", writer);
+        Assert.Contains("return LibraryTypeWriter.Write(portal, project, method, item);", writer);
+        foreach (var operation in LibraryWriteMethods.TypeOperations)
+            Assert.Contains("library_project_" + operation, LibraryWriteMethods.All);
+    }
+
+    [Fact]
+    public void Capability_ProjectAndGlobalTypeMethods()
+    {
+        foreach (var method in LibraryWriteMethods.All.Where(x => LibraryWriteMethods.TypeOperations.Any(operation => x.EndsWith("_" + operation, StringComparison.Ordinal))))
+        {
+            var global = method.StartsWith("library_global_", StringComparison.Ordinal);
+            Assert.Equal(global ? "library_write" : "library_project_write", ProjectCapabilityCatalog.OperationFor(method));
+            Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.StandaloneProject, method));
+            Assert.Equal(global, ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, method));
+            Assert.Equal(OperationCapability.ProjectMutation, OperationPolicyCatalog.GetCapability(method));
+        }
     }
 }
