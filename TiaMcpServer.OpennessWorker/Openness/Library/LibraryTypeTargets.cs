@@ -74,12 +74,13 @@ internal static class LibraryTypeTargets
             if (seen.Count >= MaxDepth || seen.Any(x => ReferenceEquals(x, current)))
                 throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "The instance owner path is cyclic or exceeds 64 levels.");
             seen.Add(current);
+            // The PLC's root (system) groups are not plcFolderPath segments.
             var name = current switch
             {
                 PlcBlock block => block.Name,
                 PlcType type => type.Name,
-                PlcBlockGroup group => group.Name,
-                PlcTypeGroup group => group.Name,
+                PlcBlockGroup group when group.Parent is not PlcSoftware => group.Name,
+                PlcTypeGroup group when group.Parent is not PlcSoftware => group.Name,
                 PlcSoftware plc => plc.Name,
                 _ => null,
             };

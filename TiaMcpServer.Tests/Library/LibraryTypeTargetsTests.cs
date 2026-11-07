@@ -146,6 +146,17 @@ public sealed class LibraryTypeTargetsTests
     }
 
     [Fact]
+    public void InstancePath_OmitsPlcRootGroups_MatchesPlcFolderPath()
+    {
+        var plc = new PlcSoftware { Name = "PLC" };
+        var blocks = new PlcBlockUserGroup { Name = "Program blocks", Parent = plc };
+        var area = new PlcBlockUserGroup { Name = "Area", Parent = blocks };
+        Assert.Equal("PLC/Area/Motor", LibraryTypeTargets.InstancePath(new FB { Name = "Motor", Parent = area }));
+        var types = new PlcTypeGroup { Name = "PLC data types", Parent = plc };
+        Assert.Equal("PLC/Data", LibraryTypeTargets.InstancePath(new PlcType { Name = "Data", Parent = types }));
+    }
+
+    [Fact]
     public void InstancePath_EscapesSegmentsAndRejectsCycles()
     {
         var group = new PlcBlockUserGroup { Name = "Area/One" };
