@@ -198,6 +198,19 @@ public sealed partial class LibraryTypeWriterTests
         Assert.Equal(directory.FullName, directory.ToString()); Assert.False(Directory.Exists(directory.FullName));
     }
     [Fact]
+    public void CreateFromDocuments_SourceAlwaysPassesNewDirectoryInfo()
+    {
+        // net48: the DirectoryInfo returned by Directory.CreateDirectory has a leaf-only OriginalPath that Portal
+        // rejects as relative; the doubles run on net10 and cannot see it, so pin the source.
+        var source = File.ReadAllText(Path.Combine(TiaMcpServer.Tests.TestSupport.RepositoryFiles.Root,
+            "TiaMcpServer.OpennessWorker", "Openness", "Library", "LibraryTypeWriter.cs"));
+        var calls = System.Text.RegularExpressions.Regex.Matches(source, @"CreateFromDocuments\(\s*([^,]*),");
+        Assert.Equal(2, calls.Count);
+        Assert.All(calls, call => Assert.StartsWith("new DirectoryInfo(", call.Groups[1].Value));
+        Assert.DoesNotContain("= Directory.CreateDirectory(", source);
+    }
+
+    [Fact]
     public void CreateTypeVersion_StaleHash_StateChanged_NoNativeCall()
     {
         var old = VersionImport(false); var item = Item("create_type_version");
