@@ -10,6 +10,26 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryVerificationPolicyTests
 {
     [Fact]
+    public async Task Verification_KeysFromResolvedIdentity()
+    {
+        var a = new LibraryWriteItem { OperationId = "a", Operation = "set_default_type_version", Scope = "project", TypeName = "Alias" };
+        var b = new LibraryWriteItem { OperationId = "b", Operation = "delete_type", Scope = "project", TypeGuid = Guid.NewGuid().ToString() };
+        var effect = Effect(scope: "project") with { Target = null, Type = new() { TypeGuid = b.TypeGuid, TypeName = "Actual" } };
+        Assert.Equal(new[] { "superseded", "trusted" }, await Verify((a, effect), (b, effect)));
+    }
+
+    [Fact]
+    public async Task Verification_AttemptedWithoutOutcome_SupersedesLibrary()
+    {
+        var a = Item("a"); a.LibraryName = "Fixture";
+        var b = Item("b"); b.LibraryName = "Fixture";
+        var verification = await new TrustedWriteVerifier<LibraryWriteItem>([a, b],
+            new LibraryVerificationPolicy(new Dictionary<string, LibraryWriteEffect> { ["a"] = Effect() }))
+            .VerifyAsync(StructuredOperationBatch.FromItems([Succeeded(a),
+                LibraryWritePayloadContract.Project(b, WorkerCallResult.Fail("worker_operation_failed", "failed"))]));
+        Assert.Equal("superseded", Assert.Single(verification.Operations).Check);
+    }
+    [Fact]
     public async Task CanonicalLibraryIdentityUnifiesNameAndPathAliases()
     {
         var first = Item("a"); first.LibraryName = "Fixture";

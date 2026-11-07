@@ -3,6 +3,7 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.Library;
 using Siemens.Engineering.Library.MasterCopies;
+using Siemens.Engineering.Library.Types;
 using Siemens.Engineering.Multiuser;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
@@ -18,6 +19,119 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryWritePlanReaderTests
 {
+    [Fact]
+    public void Plan_MissingType_DoesNotHideMissingPlcDestinationFolder()
+    {
+        AddPlc();
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, Failure(new() { Operation = "instantiate_type_version", SourceScope = "project",
+            TypeName = "New", PlcName = "PLC", PlcFolderPath = ["Missing"] }));
+    }
+    [Fact]
+    public void Plan_MissingDestinationFolder_DoesNotHideMissingPlcSource()
+    {
+        AddLibrary(); AddPlc();
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, Failure(new() { Operation = "create_master_copy", Scope = "global",
+            LibraryName = "Fixture", FolderPath = ["New"], PlcName = "PLC", PlcKind = "block", PlcObjectName = "Missing" }));
+    }
+
+    [Fact]
+    public void Plan_CreateType_ReportsIndependentToolGuardsWithMissingFolder()
+    {
+        var plc = AddPlc();
+        var type = project.ProjectLibrary!.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { Parent = type, TypeObject = type };
+        plc.BlockGroup.Blocks.Items.Add(new FB { Name = "Motor", Parent = plc,
+            LibraryTypeInstanceInfo = new() { LibraryTypeVersion = version } });
+        var plan = Plan(new() { Operation = "create_type", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor", FolderPath = ["New"] });
+        Assert.Equal(new[] { "library_type_name_exists", "library_source_is_type_instance" }, plan.GuardIds);
+        Assert.Equal("New", Assert.Single(plan.MissingTargets!).Name);
+    }
+
+    [Fact]
+    public void Plan_Release_ShowsPrefilledNumberDefaultMoveAndNumberGuard()
+    {
+        var type = project.ProjectLibrary!.TypeFolder.AddType("Motor");
+        var current = new CodeBlockLibraryTypeVersion { Parent = type, TypeObject = type, Guid = Guid.NewGuid(),
+            VersionNumber = new(1, 0, 0), State = LibraryTypeVersionState.InWork };
+        type.Versions.Items.Add(current);
+        type.Versions.Items.Add(new CodeBlockLibraryTypeVersion { Parent = type, TypeObject = type,
+            VersionNumber = new(2, 0, 0), State = LibraryTypeVersionState.Committed, IsDefault = true });
+        var plan = Plan(new() { Operation = "release_type_version", Scope = "project", TypeName = "Motor" });
+        Assert.Equal("1.0.0", plan.Type!.VersionNumber);
+        Assert.Equal("2.0.0", plan.Type.DefaultBefore);
+        Assert.Equal("1.0.0", plan.Type.DefaultAfter);
+        Assert.Contains("library_version_not_higher", plan.GuardIds!);
+        Assert.Empty(current.ReleaseCalls);
+    }
+
+    [Fact]
+    public void Plan_Instantiate_TraversesDependencyClosureWithoutMutation()
+    {
+        AddPlc();
+        var library = AddLibrary();
+        var type = library.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { Parent = type, TypeObject = type, Guid = Guid.NewGuid(), IsDefault = true };
+        type.Versions.Items.Add(version);
+        var dependency = new CodeBlockLibraryTypeVersion { TypeObject = library.TypeFolder.AddType("Dependency"), Guid = Guid.NewGuid() };
+        version.Dependencies.Items.Add(dependency); dependency.Dependencies.Items.Add(version);
+        var plan = Plan(new() { Operation = "instantiate_type_version", SourceScope = "global", SourceLibraryName = "Fixture", TypeName = "Motor", PlcName = "PLC" });
+        Assert.Contains("Dependency", Assert.Single(plan.Dependencies!));
+        Assert.Contains("project library", Assert.Single(plan.Notes!));
+        Assert.Empty(version.FindInstancesCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Plan_Delete_UnreadableEvidenceBlocksButFatalLossEscapes(bool fatal)
+    {
+        AddPlc();
+        var type = project.ProjectLibrary!.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { Parent = type, TypeObject = type };
+        type.Versions.Items.Add(version);
+        version.FindInstancesAction = _ => throw (fatal ? new NonRecoverableException("lost") : new EngineeringNotSupportedException("unreadable"));
+        var item = new LibraryWriteRequestInfo { Operation = "delete_type", Scope = "project", TypeName = "Motor" };
+        if (fatal) Assert.Throws<NonRecoverableException>(() => Plan(item));
+        else Assert.NotNull(Plan(item).Unverifiable);
+    }
+    [Fact]
+    public void Plan_DeleteType_ListsBlockingInstancesAndMasterCopies()
+    {
+        var plc = AddPlc();
+        var block = new FB { Name = "Motor", Parent = plc };
+        var type = project.ProjectLibrary!.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { TypeObject = type, Parent = type,
+            Guid = Guid.NewGuid(), VersionNumber = new(1, 0, 0), State = LibraryTypeVersionState.Committed };
+        type.Versions.Items.Add(version);
+        version.MasterCopiesContainingInstances.Items.Add(project.ProjectLibrary.MasterCopyFolder.AddCopy("Held"));
+        version.FindInstancesAction = _ => new List<LibraryTypeInstanceInfo> { new() { LibraryTypeInstance = block, LibraryTypeVersion = version } };
+        var plan = Plan(new() { Operation = "delete_type", Scope = "project", TypeName = "Motor" });
+        Assert.Equal(type.Guid.ToString("D"), plan.Type!.TypeGuid);
+        Assert.Contains("PLC/Motor", plan.BlockingInstances!);
+        Assert.Contains("Held", plan.MasterCopiesContainingInstances!);
+        Assert.Single(version.FindInstancesCalls);
+    }
+
+    [Fact]
+    public void Plan_CreateTypeVersion_ShowsReplacedInWorkAndMultiPlcNote()
+    {
+        var plc = AddPlc();
+        var other = AddPlc(); other.Name = "Other";
+        var type = project.ProjectLibrary!.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { TypeObject = type, Parent = type,
+            Guid = Guid.NewGuid(), VersionNumber = new(1, 0, 1), State = LibraryTypeVersionState.InWork };
+        type.Versions.Items.Add(version);
+        var block = new FB { Name = "Motor", Parent = plc, LibraryTypeInstanceInfo = new() { LibraryTypeVersion = version } };
+        plc.BlockGroup.Blocks.Items.Add(block);
+        version.FindInstancesAction = scope => new List<LibraryTypeInstanceInfo> { new() {
+            LibraryTypeInstance = new FB { Name = "Motor", Parent = (PlcSoftware)scope }, LibraryTypeVersion = version } };
+        var plan = Plan(new() { Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor",
+            Content = "<Document />", ExpectedContentHash = "xml:sha256:" + new string('a', 64) });
+        Assert.Equal(version.Guid.ToString("D"), plan.Type!.VersionGuid);
+        Assert.Contains("PLC/Motor", plan.Type.InstancePaths);
+        Assert.Contains("more than one PLC", TiaMcpServer.Contracts.Json.WorkerJson.SerializePayload(plan));
+    }
+
     private readonly TiaPortal portal = new();
     private readonly Siemens.Engineering.Project project = new() { Name = "Bound", ProjectLibrary = new ProjectLibrary() };
 
@@ -301,7 +415,7 @@ public sealed class LibraryWritePlanReaderTests
     {
         var folder = AddLibrary().MasterCopyFolder;
         var item = new LibraryWriteRequestInfo { Operation = "delete_master_copy", Scope = "global", LibraryName = "Fixture", Name = "Copy" };
-        Assert.Equal(WorkerFailureCategories.TargetNotFound, Failure(item));
+        Assert.Equal("Copy", Assert.Single(Plan(item).MissingTargets!).Name);
         folder.AddCopy("Copy");
         folder.AddCopy("Copy");
         Assert.Equal(WorkerFailureCategories.TargetAmbiguous, Failure(item));

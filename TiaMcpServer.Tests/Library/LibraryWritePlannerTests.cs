@@ -13,6 +13,34 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryWritePlannerTests
 {
     [Fact]
+    public async Task Planner_TargetCreatedByEarlierItem_CreatedByItem()
+    {
+        using var f = await Fixture.Create();
+        var root = new LibraryIdentityInfo { Scope = "project", Kind = "library" };
+        var target = new LibraryIdentityInfo { Scope = "project", Kind = "type", FolderKind = "types", Name = "Motor" };
+        f.PutFor("a", new() { Library = root, Target = target });
+        f.PutFor("b", new() { Library = root, MissingTargets = [target] });
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([
+            new() { OperationId = "a", Operation = "create_type", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor" },
+            new() { OperationId = "b", Operation = "delete_type", Scope = "project", TypeName = "Motor" }]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(1, result.Plan.Items[1].Effect!.CreatedByItem);
+        Assert.Null(result.Plan.Items[1].DependsOn);
+    }
+
+    [Fact]
+    public async Task Planner_UnrelatedMissingTarget_FailsCall()
+    {
+        using var f = await Fixture.Create();
+        var root = new LibraryIdentityInfo { Scope = "project", Kind = "library" };
+        f.PutFor("a", new() { Library = root, Target = new() { Scope = "project", Kind = "folder", FolderKind = "types", FolderPath = ["New"], Name = "New" } });
+        f.PutFor("b", new() { Library = root, MissingTargets = [new() { Scope = "project", Kind = "type", FolderKind = "types", FolderPath = ["New"], Name = "Missing" }] });
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([
+            new() { OperationId = "a", Operation = "create_folder", Scope = "project", FolderKind = "types", Name = "New" },
+            new() { OperationId = "b", Operation = "delete_type", Scope = "project", TypeName = "Missing", FolderPath = ["New"] }]);
+        Assert.Equal("target_not_found", result.Plan.Error!.Category);
+    }
+    [Fact]
     public async Task PlansEveryItemThroughBoundRouteWithNoDependencies()
     {
         using var f = await Fixture.Create();
@@ -163,6 +191,7 @@ public sealed class LibraryWritePlannerTests
                     $r = $line | ConvertFrom-Json
                     [IO.File]::AppendAllText((Join-Path $Root 'requests'), $line + [Environment]::NewLine)
                     $file = if ($r.method -eq 'hello') { 'hello' } elseif ($r.method -in @('library_global_plan','library_project_plan')) { 'plan' } else { 'status' }
+                    if ($file -eq 'plan' -and (Test-Path (Join-Path $Root ('plan-' + $r.libraryWrite.operationId)))) { $file = 'plan-' + $r.libraryWrite.operationId }
                     [Console]::Out.WriteLine([IO.File]::ReadAllText((Join-Path $Root $file))); [Console]::Out.Flush()
                 }
                 """;
@@ -181,6 +210,9 @@ public sealed class LibraryWritePlannerTests
             var f = new Fixture(); Assert.True((await f.Client.GetProjectStatusAsync(null)).Success); return f;
         }
         public void Put(LibraryWritePlanInfo info) => Raw(WorkerJson.SerializePayload(info));
+        public void PutFor(string id, LibraryWritePlanInfo info) => File.WriteAllText(Path.Combine(directory, "plan-" + id),
+            JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = WorkerJson.SerializePayload(info),
+                SessionIdentity = response.SessionIdentity, ResolvedProjectPath = response.ResolvedProjectPath }, WorkerJson.Envelope));
         public void Raw(string payload) { response.Payload = payload; Save(response); }
         public void Fail(string category, string error) => Save(new() { Success = false, FailureCategory = category, Error = error,
             SessionIdentity = response.SessionIdentity, ResolvedProjectPath = response.ResolvedProjectPath });

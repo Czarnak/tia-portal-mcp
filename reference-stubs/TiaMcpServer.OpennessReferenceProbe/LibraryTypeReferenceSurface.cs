@@ -34,6 +34,8 @@ namespace TiaMcpServer.OpennessReferenceProbe
             Action deleteVersion = version.Delete;
             IInstanceSearchScope scope = plc;
             Func<IInstanceSearchScope, IList<LibraryTypeInstanceInfo>> findInstances = version.FindInstances;
+            Siemens.Engineering.Library.MasterCopies.MasterCopyAssociation masterCopies = version.MasterCopiesContainingInstances;
+            foreach (var copy in masterCopies) { string copyName = copy.Name; }
             LibraryTypeVersion linked = instance.LibraryTypeVersion;
             IEngineeringObject linkedObject = instance.LibraryTypeInstance;
             Version number = version.VersionNumber;

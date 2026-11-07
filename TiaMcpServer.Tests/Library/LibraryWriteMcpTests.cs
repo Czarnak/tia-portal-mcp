@@ -154,17 +154,18 @@ public sealed class LibraryWriteMcpTests
     }
 
     [Fact]
-    public async Task MasterCopyExists_Blocked()
+    public async Task Apply_MasterCopyCollisionAfterEarlierItems_StopsWithGuardBlocked()
     {
         await using var fixture = await Fixture.StartAsync(McpAccessMode.Full);
 
-        var reply = await CallAsync(fixture, Copy("Taken"));
+        var reply = await CallAsync(fixture, Folder(), Copy("Taken"), Lifecycle("save_global"));
 
-        AssertRejected(reply, "guard_blocked", "blocked");
-        var guard = Assert.Single(CanonicalToolDocument.Read(reply).GetProperty("guards").EnumerateArray());
-        Assert.Equal("library_master_copy_exists", guard.GetProperty("id").GetString());
-        Assert.Empty(fixture.Mutations());
-        AssertAudit(fixture, reply, "none", "not_requested", "skipped");
+        var root = Document(reply);
+        Assert.False(reply.IsError);
+        Assert.Equal("guard_blocked", root.GetProperty("batch").GetProperty("operations")[1].GetProperty("failure").GetProperty("category").GetString());
+        Assert.Empty(root.GetProperty("effects").EnumerateArray());
+        Assert.Equal(new[] { "library_global_create_folder", "library_global_copy_master_copy" }, fixture.Mutations());
+        AssertAudit(fixture, reply, "policy", "not_requested", "succeeded", "failed", "skipped");
     }
 
     [Fact]
@@ -176,9 +177,9 @@ public sealed class LibraryWriteMcpTests
 
         var reply = await CallAsync(fixture, item);
 
-        AssertRejected(reply, "target_not_found", "error");
-        Assert.Empty(fixture.Mutations());
-        AssertAudit(fixture, reply, "none", "not_requested", "skipped");
+        AssertAttemptedFailure(reply, "target_not_found");
+        Assert.Equal(new[] { "library_global_create_folder" }, fixture.Mutations());
+        AssertAudit(fixture, reply, "policy", "not_requested", "failed");
     }
 
     [Fact]

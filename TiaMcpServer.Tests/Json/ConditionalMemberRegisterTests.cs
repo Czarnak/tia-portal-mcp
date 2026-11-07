@@ -53,6 +53,11 @@ public sealed class ConditionalMemberRegisterTests
         "LibraryWritePlanInfo.Dependencies",
         // Present when a type plan depends on a type created by an earlier batch item.
         "LibraryWritePlanInfo.CreatedByItem",
+        // Dry-run plans identify exact missing objects for earlier-item matching, tool guards and native evidence.
+        "LibraryWritePlanInfo.MissingTargets",
+        "LibraryWritePlanInfo.GuardIds",
+        "LibraryWritePlanInfo.MasterCopiesContainingInstances",
+        "LibraryWritePlanInfo.Notes",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
         // Worker mutation failures: present only when a Siemens exception caused the failure.

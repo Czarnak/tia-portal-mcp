@@ -100,6 +100,17 @@ public sealed class LibraryTypeWriterTests
     }
 
     [Fact]
+    public void Apply_LaterItemUsesTypeCreatedByEarlierItem()
+    {
+        Conversion();
+        var created = Write(Item("create_type"));
+        var released = Write(Item("release_type_version"));
+        Assert.Equal(created.Type!.TypeGuid, released.Type!.TypeGuid);
+        Assert.Equal("Committed", released.Type.VersionState);
+        Assert.Equal("1.0.1", released.Type.VersionNumber);
+    }
+
+    [Fact]
     public void CreateType_ConvertsInTransaction_LinksInstance()
     {
         Conversion();

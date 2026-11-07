@@ -18,6 +18,7 @@ public sealed class LibraryWriteDomain(OpennessWorkerClient client)
 
     public string ToolName => "library_write";
     public string ContractVersion => LibraryWriteContractVersion.Current;
+    public bool PlansBeforeApply(IReadOnlyList<LibraryWriteItem> items) => false;
 
     public bool ConfirmsCall(IReadOnlyList<LibraryWriteItem> items)
         => items.Any(item => LibraryWriteMethods.LifecycleOperations.Contains(item.Operation, StringComparer.Ordinal));
@@ -39,9 +40,15 @@ public sealed class LibraryWriteDomain(OpennessWorkerClient client)
             }));
 
     public WriteValidation Validate(IReadOnlyList<LibraryWriteItem> items, McpAccessMode accessMode)
-        => WriteValidation.Compose(LibraryWriteCatalog.ValidateWrite(items),
+    {
+        _items = items.ToArray();
+        _guards.Clear();
+        _effects.Clear();
+        _attempted.Clear();
+        return WriteValidation.Compose(LibraryWriteCatalog.ValidateWrite(items),
             () => LibraryWritePayloadBudget.MeasureProtectedCore(items),
             () => LibraryWriteCatalog.ValidateAccessMode(items, accessMode), ToolName);
+    }
 
     public async Task<WritePlan<LibraryWriteEffect>> PlanAsync(IReadOnlyList<LibraryWriteItem> items)
     {
@@ -49,11 +56,9 @@ public sealed class LibraryWriteDomain(OpennessWorkerClient client)
         if (!result.Plan.Success) return result.Plan;
         _items = items.ToArray();
         _guards.Clear();
-        _effects.Clear();
         for (var i = 0; i < items.Count; i++)
         {
             _guards[items[i].OperationId] = result.Guards.GetValueOrDefault(items[i].OperationId) ?? [];
-            _effects[items[i].OperationId] = result.Plan.Items[i].Effect!;
         }
         return result.Plan;
     }
@@ -72,10 +77,23 @@ public sealed class LibraryWriteDomain(OpennessWorkerClient client)
     }
 
     public StructuredOperationItem Project(LibraryWriteItem item, WorkerCallResult result)
-        => LibraryWritePayloadContract.Project(item, result);
+    {
+        var projected = LibraryWritePayloadContract.Project(item, result);
+        if (projected.Result is { } payload)
+        {
+            if (projected.Status == OperationBatchStatus.Succeeded)
+            {
+                var value = Json.CanonicalJson.DeserializeWorkerPayload<LibraryWriteResultInfo>(payload.GetRawText());
+                _effects[item.OperationId] = new(value.Library, value.Target, value.AlreadyOpen, [], false) { Type = value.Type };
+            }
+            else if (result.LibraryWriteOutcome is { } outcome)
+                _effects[item.OperationId] = new(null, null, null, [], false) { Type = outcome.Type };
+        }
+        return projected;
+    }
 
     public async Task<WriteVerification?> VerifyAsync(StructuredOperationBatch batch)
-        => await new TrustedWriteVerifier<LibraryWriteItem>(_items, new LibraryVerificationPolicy(_effects)).VerifyAsync(
+        => await new TrustedWriteVerifier<LibraryWriteItem>(_items, new LibraryVerificationPolicy(_effects, _items)).VerifyAsync(
             StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
 
     public bool VerificationSucceeded(WriteVerification? verification) => verification?.Success == true;

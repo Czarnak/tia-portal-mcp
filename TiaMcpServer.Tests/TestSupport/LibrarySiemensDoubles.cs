@@ -382,6 +382,7 @@ namespace Siemens.Engineering.Library.Types
         public LibraryTypeVersionState State { get; set; }
         public bool IsDefault { get; set; }
         public Library.LibraryComposition<LibraryTypeVersion> Dependencies { get; } = new();
+        public Library.LibraryComposition<Library.MasterCopies.MasterCopy> MasterCopiesContainingInstances { get; } = new();
         public Library.LibraryComposition<LibraryTypeVersion> Dependents { get; } = new();
         public List<(CreateOrReleaseDependenciesMode Mode, Version? Number, string? Author, string? Comment)> ReleaseCalls { get; } = new();
         public Action<CreateOrReleaseDependenciesMode, Version?, string?, string?>? ReleaseAction { get; set; }

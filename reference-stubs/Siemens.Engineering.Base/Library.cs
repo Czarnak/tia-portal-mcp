@@ -125,6 +125,11 @@ namespace Siemens.Engineering.Library.MasterCopies
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.MasterCopies.MasterCopyUserFolder> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
+    public abstract class MasterCopyAssociation : global::System.Collections.Generic.IEnumerable<MasterCopy>
+    {
+        public global::System.Collections.Generic.IEnumerator<MasterCopy> GetEnumerator() => throw new global::System.NotSupportedException();
+        global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
+    }
     public abstract class MasterCopyComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.MasterCopies.MasterCopy>
     {
         public MasterCopy Create(IMasterCopySource masterCopyObject) => throw new global::System.NotSupportedException();
@@ -211,6 +216,7 @@ namespace Siemens.Engineering.Library.Types
         public void Discard() => throw new global::System.NotSupportedException();
         public void Delete() => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IList<LibraryTypeInstanceInfo> FindInstances(IInstanceSearchScope searchScope) => throw new global::System.NotSupportedException();
+        public global::Siemens.Engineering.Library.MasterCopies.MasterCopyAssociation MasterCopiesContainingInstances { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.Library.Types.LibraryTypeVersionAssociation Dependencies { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.Library.Types.LibraryTypeVersionAssociation Dependents { get => throw new global::System.NotSupportedException(); }
         public global::System.Guid Guid { get => throw new global::System.NotSupportedException(); }

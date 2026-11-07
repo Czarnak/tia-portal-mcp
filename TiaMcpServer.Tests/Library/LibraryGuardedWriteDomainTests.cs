@@ -17,6 +17,29 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryGuardedWriteDomainTests
 {
     [Fact]
+    public async Task Apply_LaterItemUsesTypeCreatedByEarlierItem()
+    {
+        using var fixture = await Fixture.Create();
+        var reply = await fixture.Run([
+            new() { OperationId = "a", Operation = "create_type", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor" },
+            new() { OperationId = "b", Operation = "release_type_version", Scope = "project", TypeName = "Motor" }]);
+        var root = reply.StructuredContent!.Value;
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Empty(root.GetProperty("effects").EnumerateArray());
+        Assert.Equal(new[] { "library_project_create_type", "library_project_release_type_version" }, fixture.LibraryRequests.Select(r => r.Method));
+        Assert.Equal(new[] { "superseded", "trusted" }, root.GetProperty("verification").GetProperty("operations").EnumerateArray().Select(x => x.GetProperty("check").GetString()));
+    }
+    [Fact]
+    public async Task Domain_Apply_SkipsPlanning()
+    {
+        using var fixture = await Fixture.Create();
+        var reply = await fixture.Run([Item("a")]);
+        Assert.True(reply.StructuredContent!.Value.GetProperty("success").GetBoolean());
+        Assert.Empty(reply.StructuredContent.Value.GetProperty("effects").EnumerateArray());
+        Assert.Equal("library_global_delete_master_copy", Assert.Single(fixture.LibraryRequests).Method);
+    }
+
+    [Fact]
     public void ConfirmsCall_TrueOnlyWithLifecycleItem()
     {
         using var client = new OpennessWorkerClient(new(null));
@@ -96,7 +119,7 @@ public sealed class LibraryGuardedWriteDomainTests
     }
 
     [Fact]
-    public async Task SuccessfulReplanning_ReplacesVerificationEffects()
+    public async Task Verification_UsesMutationIdentityRatherThanPlannedIdentity()
     {
         using var fixture = await Fixture.Create();
         var items = new[] { Item("a"), Item("b") };
@@ -104,11 +127,10 @@ public sealed class LibraryGuardedWriteDomainTests
         Assert.True((await domain.PlanAsync(items)).Success);
         fixture.PutPlan("C:/Fixture/First.al21", "C:/Fixture/Second.al21");
         Assert.True((await domain.PlanAsync(items)).Success);
-        await domain.MutateAsync(items[0]);
-        var success = domain.Project(items[0], WorkerCallResult.Ok(WorkerJson.SerializePayload(new LibraryWriteResultInfo())));
+        var success = domain.Project(items[0], await domain.MutateAsync(items[0]));
         var batch = StructuredOperationBatch.FromItems([success, StructuredOperationItem.Failed(items[1], "worker_operation_failed", "not attempted", [])]);
         await domain.MutateAsync(items[1]);
-        Assert.Equal("trusted", Assert.Single((await domain.VerifyAsync(batch))!.Operations).Check);
+        Assert.Equal("superseded", Assert.Single((await domain.VerifyAsync(batch))!.Operations).Check);
         await Assert.ThrowsAsync<InvalidOperationException>(() => domain.ReplanAsync(items[0]));
     }
 
@@ -150,12 +172,21 @@ public sealed class LibraryGuardedWriteDomainTests
                     $r = $line | ConvertFrom-Json
                     [IO.File]::AppendAllText((Join-Path $Root 'requests'), $line + [Environment]::NewLine)
                     $file = if ($r.method -eq 'hello') { 'hello' } elseif ($r.method -eq 'library_global_plan') { if ($r.libraryWrite.operationId -eq 'b') { 'plan-b' } else { 'plan' } } elseif ($r.method -eq 'library_global_delete_master_copy') { if ($r.libraryWrite.operationId -eq 'b') { 'failure' } else { 'mutation' } } else { 'status' }
+                    if ($r.method -eq 'library_project_create_type') { $typeCreated = $true; $file = 'type-result' }
+                    if ($r.method -eq 'library_project_release_type_version') { $file = if ($typeCreated) { 'type-result' } else { 'missing-type' } }
                     [Console]::Out.WriteLine([IO.File]::ReadAllText((Join-Path $Root $file))); [Console]::Out.Flush()
                 }
                 """);
             Save("hello", new() { Success = true, ProtocolVersion = WorkerProtocol.Version, Capabilities = WorkerProtocol.RequiredCapabilities.ToList() });
             Save("status", Response("{}"));
-            Save("mutation", Response(WorkerJson.SerializePayload(new LibraryWriteResultInfo())));
+            Save("type-result", Response(WorkerJson.SerializePayload(new LibraryWriteResultInfo {
+                Library = new() { Scope = "project", Kind = "library" },
+                Type = new() { TypeName = "Motor", TypeGuid = Guid.NewGuid().ToString("D"), VersionGuid = Guid.NewGuid().ToString("D") } })));
+            Save("missing-type", new() { Success = false, FailureCategory = "target_not_found", Error = "type has not been created",
+                SessionIdentity = identity, ResolvedProjectPath = identity.ProjectPath });
+            Save("mutation", Response(WorkerJson.SerializePayload(new LibraryWriteResultInfo {
+                Library = new() { Scope = "global", Kind = "library", LibraryPath = "C:/Fixture/First.al21", Name = "Fixture" },
+                Target = new() { Scope = "global", Kind = "masterCopy", FolderKind = "masterCopies", Name = "Copy" } })));
             Save("failure", new() { Success = false, FailureCategory = "worker_operation_failed", Error = "fixture rejection", SessionIdentity = identity, ResolvedProjectPath = identity.ProjectPath });
             PutPlan("C:/Fixture/First.al21");
             var transport = new PersistentWorkerTransport(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"),

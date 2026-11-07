@@ -18,6 +18,8 @@ public static class LibraryWriteCatalog
             if (OperationBatchRules.CheckItem(item, ids) is { } itemError) { errors.Add(itemError); continue; }
             if (LibraryWriteMethods.Validate(ToWorkerRequest(item)) is { } error)
                 errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): {error}");
+            if (item.Content?.Length > StructuredOperationBatchPayloadBudget.MaxItemChars)
+                errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): content exceeds the configured item character budget.");
         }
         return errors.Count == 0 ? OperationValidation.Valid
             : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));

@@ -86,6 +86,14 @@ public sealed class LibraryWritePlanInfo
     public List<string>? Dependencies { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? CreatedByItem { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<LibraryIdentityInfo>? MissingTargets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? GuardIds { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? MasterCopiesContainingInstances { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Notes { get; set; }
 }
 
 public sealed class LibraryWriteResultInfo

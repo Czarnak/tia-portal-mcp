@@ -20,7 +20,7 @@ internal static class LibraryWriteScenario
             return Failure(WorkerFailureCategories.ValidationError, "Invalid scripted library write request.");
 
         var planning = request.Method == LibraryWriteMethods.PlanFor(item);
-        if (planning && (item.LibraryName == "Missing" || item.SourceLibraryName == "Missing"))
+        if (item.LibraryName == "Missing" || item.SourceLibraryName == "Missing")
             return Failure(WorkerFailureCategories.TargetNotFound, "The selected library was not found.");
 
         var library = new LibraryIdentityInfo { Scope = item.Scope ?? "global", Kind = "library",
@@ -37,6 +37,8 @@ internal static class LibraryWriteScenario
 
         if (scenario == "library-write-portal-lost")
             return Failure(WorkerFailureCategories.PortalLost, "The Portal connection was lost during the library write.");
+        if (item.Name == "Taken")
+            return Failure(WorkerFailureCategories.GuardBlocked, "library_master_copy_exists");
         if (item.Name == "Renamed")
             return Failure(WorkerFailureCategories.PostconditionFailed, "The created master copy has a different name.",
                 new LibraryWriteOutcomeInfo { ActualName = "Renamed_1" });
