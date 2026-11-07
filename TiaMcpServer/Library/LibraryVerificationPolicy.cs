@@ -18,8 +18,11 @@ public sealed class LibraryVerificationPolicy(IReadOnlyDictionary<string, Librar
         if (item.Operation is "instantiate_master_copy" or "instantiate_type_version")
         {
             // shortcut: PLC container keys merge case aliases only; replace with resolved PLC evidence when device/software aliases or exact leaves are required.
-            return [Key(["plc", item.PlcName!.ToUpperInvariant(), item.PlcKind ?? "typeInstance",
-                CanonicalJson.Serialize((item.PlcFolderPath ?? []).Select(segment => segment.ToUpperInvariant()).ToArray())])];
+            var plc = Key(["plc", item.PlcName!.ToUpperInvariant(), item.PlcKind ?? "typeInstance",
+                CanonicalJson.Serialize((item.PlcFolderPath ?? []).Select(segment => segment.ToUpperInvariant()).ToArray())]);
+            // A global version and its dependencies also enter the project library (P8), at folders the call cannot predict.
+            return asLater && item.Operation == "instantiate_type_version" && item.SourceScope == "global"
+                ? [plc, Key(["library", "project"])] : [plc];
         }
 
         effects.TryGetValue(item.OperationId, out var effect);

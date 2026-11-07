@@ -49,6 +49,19 @@ public sealed class LibraryVerificationPolicyTests
         return verification.Operations[0].Check;
     }
 
+    [Theory]
+    [InlineData("global", "superseded")]
+    [InlineData("project", "trusted")]
+    public async Task Instantiate_GlobalSource_SupersedesEarlierProjectLibraryItems(string sourceScope, string expected)
+    {
+        var typeGuid = Guid.NewGuid().ToString("D");
+        var delete = new LibraryWriteItem { OperationId = "a", Operation = "delete_type_version", Scope = "project", TypeGuid = typeGuid, InWork = true };
+        var instantiate = new LibraryWriteItem { OperationId = "b", Operation = "instantiate_type_version", SourceScope = sourceScope,
+            TypeGuid = typeGuid, PlcName = "PLC" };
+        var effect = Effect(scope: "project") with { Target = null, Type = new() { TypeGuid = typeGuid, TypeName = "Motor", VersionGuid = Guid.NewGuid().ToString("D") } };
+        Assert.Equal(new[] { expected, "trusted" }, await Verify((delete, effect), (instantiate, effect)));
+    }
+
     [Fact]
     public async Task Verification_KeysFromResolvedIdentity()
     {
