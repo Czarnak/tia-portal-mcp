@@ -69,6 +69,24 @@ public sealed class LibraryVerificationPolicyTests
                 LibraryWritePayloadContract.Project(b, WorkerCallResult.Fail("worker_operation_failed", "failed"))]));
         Assert.Equal("superseded", Assert.Single(verification.Operations).Check);
     }
+
+    [Theory]
+    [InlineData("worker_operation_failed", false, "superseded", "superseded")]
+    [InlineData("target_ambiguous", false, "trusted", "trusted")]
+    [InlineData("worker_operation_failed", true, "superseded", "trusted")]
+    public async Task OutcomeFreeFailure_NameAliasCoversEveryPlausibleLibrary(string category, bool exactPath, string firstCheck, string secondCheck)
+    {
+        var first = Item("a"); first.LibraryPath = @"C:\One\Fixture.al21"; first.LibraryName = null;
+        var second = Item("b"); second.LibraryPath = @"C:\Two\Fixture.al21"; second.LibraryName = null;
+        var later = Item("c"); later.LibraryName = exactPath ? null : "Fixture";
+        later.LibraryPath = exactPath ? first.LibraryPath : null;
+        var items = new[] { first, second, later };
+        var effects = new Dictionary<string, LibraryWriteEffect> { ["a"] = Effect(path: first.LibraryPath), ["b"] = Effect(path: second.LibraryPath) };
+        var result = await new TrustedWriteVerifier<LibraryWriteItem>(items, new LibraryVerificationPolicy(effects, items))
+            .VerifyAsync(StructuredOperationBatch.FromItems([Succeeded(first), Succeeded(second),
+                LibraryWritePayloadContract.Project(later, WorkerCallResult.Fail(category, "uncertain request"))]));
+        Assert.Equal(new[] { firstCheck, secondCheck }, result.Operations.Select(x => x.Check));
+    }
     [Fact]
     public async Task CanonicalLibraryIdentityUnifiesNameAndPathAliases()
     {

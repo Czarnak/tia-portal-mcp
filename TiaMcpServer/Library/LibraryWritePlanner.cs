@@ -77,10 +77,14 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
 
     private static bool Produces(LibraryWriteItem producer, LibraryWriteEffect effect, LibraryWriteItem consumer, LibraryIdentityInfo missing)
     {
+        if (effect.Library is not { } library || library.Scope != missing.Scope) return false;
+        if (library.Scope != "project" && !string.Equals(library.LibraryPath, missing.LibraryPath, StringComparison.OrdinalIgnoreCase)) return false;
+        if (missing.Kind == "inWorkTypeVersion")
+            return consumer.Operation == "release_type_version" && producer.Operation == "create_type_version"
+                && missing.TypeGuid is not null && string.Equals(effect.Type?.TypeGuid, missing.TypeGuid, StringComparison.OrdinalIgnoreCase);
         var kind = producer.Operation switch
         { "create_folder" => "folder", "create_master_copy" or "copy_master_copy" => "masterCopy", "create_type" or "synchronize_type" => "type", _ => null };
-        if (kind is null || kind != missing.Kind || effect.Library is not { } library || library.Scope != missing.Scope) return false;
-        if (library.Scope != "project" && !string.Equals(library.LibraryPath, missing.LibraryPath, StringComparison.OrdinalIgnoreCase)) return false;
+        if (kind is null || kind != missing.Kind) return false;
         var name = effect.Target?.Name ?? effect.Type?.TypeName;
         var path = effect.Target?.FolderPath ?? effect.Type?.FolderPath;
         if (name is null || path is null) return false;

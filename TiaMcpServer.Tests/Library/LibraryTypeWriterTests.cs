@@ -16,7 +16,7 @@ using Xunit;
 
 namespace TiaMcpServer.Tests.Library;
 
-public sealed class LibraryTypeWriterTests
+public sealed partial class LibraryTypeWriterTests
 {
     private const string Xml = "<Document><SW.Blocks.FB /></Document>";
     private readonly TiaPortal portal = new();

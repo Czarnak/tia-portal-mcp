@@ -378,8 +378,12 @@ namespace Siemens.Engineering.Library.Types
         private Guid guid;
         public Guid Guid { get => Live(guid); set => guid = value; }
         public LibraryType TypeObject { get; set; } = null!;
-        public Version VersionNumber { get; set; } = new(0, 0, 1);
-        public LibraryTypeVersionState State { get; set; }
+        private Version versionNumber = new(0, 0, 1);
+        private LibraryTypeVersionState state;
+        public Func<Version>? ReadVersionNumber { get; set; }
+        public Func<LibraryTypeVersionState>? ReadState { get; set; }
+        public Version VersionNumber { get => ReadVersionNumber?.Invoke() ?? versionNumber; set => versionNumber = value; }
+        public LibraryTypeVersionState State { get => ReadState?.Invoke() ?? state; set => state = value; }
         public bool IsDefault { get; set; }
         public Library.LibraryComposition<LibraryTypeVersion> Dependencies { get; } = new();
         public Library.LibraryComposition<Library.MasterCopies.MasterCopy> MasterCopiesContainingInstances { get; } = new();

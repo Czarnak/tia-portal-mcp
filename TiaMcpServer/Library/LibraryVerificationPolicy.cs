@@ -23,39 +23,46 @@ public sealed class LibraryVerificationPolicy(IReadOnlyDictionary<string, Librar
         }
 
         effects.TryGetValue(item.OperationId, out var effect);
-        var root = Root(effect?.Library, item.Operation == "open_global" ? item.FilePath : null)
-            ?? (asLater ? SelectorRoot(item) : null);
-        if (root is null) return [];
-        if (effect is null) return [Key(root)];
-        if (LibraryWriteMethods.LifecycleOperations.Contains(item.Operation, StringComparer.Ordinal)) return [Key(root)];
+        var root = Root(effect?.Library, item.Operation == "open_global" ? item.FilePath : null);
+        IReadOnlyList<string[]> roots = root is not null ? [root] : asLater ? SelectorRoots(item) : [];
+        return roots.Select(value => ObjectKey(item, effect, value, asLater)).OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static string? ObjectKey(LibraryWriteItem item, LibraryWriteEffect? effect, string[] root, bool asLater)
+    {
+        if (effect is null) return Key(root);
+        if (LibraryWriteMethods.LifecycleOperations.Contains(item.Operation, StringComparer.Ordinal)) return Key(root);
         if (effect.Type is { } type)
         {
             var typeRoot = root.Concat(new[] { "types" }).Concat(type.FolderPath.SelectMany(segment => new[] { "folder", segment }))
                 .Concat(new[] { "type", type.TypeGuid.ToUpperInvariant() });
-            var affectsType = asLater && (type.TypeDeleted == true || type.ReplacedInWork == true);
-            return [Key(!affectsType && type.VersionGuid is { } guid && item.Operation is "create_type_version" or "delete_type_version"
-                ? typeRoot.Concat(new[] { "version", guid.ToUpperInvariant() }) : typeRoot)];
+            var affectsType = asLater && (type.TypeDeleted == true || type.ReplacedInWork == true
+                || item.Operation == "delete_type_version" && type.TypeDeleted is null
+                || item.Operation == "create_type_version" && type.ReplacedInWork is null);
+            return Key(!affectsType && type.VersionGuid is { } guid && item.Operation is "create_type_version" or "delete_type_version"
+                ? typeRoot.Concat(new[] { "version", guid.ToUpperInvariant() }) : typeRoot);
         }
-        if (effect.Target is not { } target) return asLater ? [Key(root)] : [];
+        if (effect.Target is not { } target) return asLater ? Key(root) : null;
         var components = root.Concat(new[] { target.FolderKind! })
             .Concat(target.FolderPath.SelectMany(segment => new[] { "folder", segment }));
         if (target.Kind == "masterCopy") components = components.Concat(new[] { "masterCopy", target.Name.ToUpperInvariant() });
-        return [Key(components)];
+        return Key(components);
     }
 
-    private string[]? SelectorRoot(LibraryWriteItem item)
+    private IReadOnlyList<string[]> SelectorRoots(LibraryWriteItem item)
     {
-        if (item.Scope == "project" || item.Operation is "create_type" or "create_type_version") return ["library", "project"];
-        if (item.LibraryPath is { } path) return Root(null, path);
-        if (item.LibraryName is not { } name) return null;
+        if (item.Scope == "project" || item.Operation is "create_type" or "create_type_version") return [["library", "project"]];
+        if (item.LibraryPath is { } path) return Root(null, path) is { } exact ? [exact] : [];
+        if (item.LibraryName is not { } name) return [];
+        var roots = new List<string[]>();
         foreach (var entry in effects)
         {
             var library = entry.Value.Library;
             if (library?.Scope == "global" && (library.LibraryName == name || library.Name == name
                 || items?.Any(i => i.OperationId == entry.Key && i.LibraryName == name) == true))
-                return Root(library, null);
+                if (Root(library, null) is { } root) roots.Add(root);
         }
-        return ["library", "globalName", name];
+        return roots.Count > 0 ? roots : [["library", "globalName", name]];
     }
 
     private static string[]? Root(LibraryIdentityInfo? library, string? openPath)

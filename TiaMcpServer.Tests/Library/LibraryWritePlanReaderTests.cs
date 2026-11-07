@@ -121,12 +121,17 @@ public sealed class LibraryWritePlanReaderTests
         var version = new CodeBlockLibraryTypeVersion { TypeObject = type, Parent = type,
             Guid = Guid.NewGuid(), VersionNumber = new(1, 0, 1), State = LibraryTypeVersionState.InWork };
         type.Versions.Items.Add(version);
-        var block = new FB { Name = "Motor", Parent = plc, LibraryTypeInstanceInfo = new() { LibraryTypeVersion = version } };
+        plc.BlockGroup.Parent = plc;
+        const string xml = "<Document />";
+        var block = new FB { Name = "Motor", Parent = plc.BlockGroup, LibraryTypeInstanceInfo = new() { LibraryTypeVersion = version },
+            ExportAction = (file, _) => File.WriteAllText(file.FullName, xml), ExportAsDocumentsAction = (_, _) => new() };
         plc.BlockGroup.Blocks.Items.Add(block);
         version.FindInstancesAction = scope => new List<LibraryTypeInstanceInfo> { new() {
             LibraryTypeInstance = new FB { Name = "Motor", Parent = (PlcSoftware)scope }, LibraryTypeVersion = version } };
         var plan = Plan(new() { Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor",
-            Content = "<Document />", ExpectedContentHash = "xml:sha256:" + new string('a', 64) });
+            Content = xml, ExpectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml",
+                TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(new[] {
+                    new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.xml", "Motor.xml", xml) })) });
         Assert.Equal(version.Guid.ToString("D"), plan.Type!.VersionGuid);
         Assert.Contains("PLC/Motor", plan.Type.InstancePaths);
         Assert.Contains("more than one PLC", TiaMcpServer.Contracts.Json.WorkerJson.SerializePayload(plan));

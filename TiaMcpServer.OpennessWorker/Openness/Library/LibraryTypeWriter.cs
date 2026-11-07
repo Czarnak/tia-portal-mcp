@@ -40,13 +40,13 @@ internal static class LibraryTypeWriter
         var name = LibraryWriteTargets.PlcSourceName(source);
         try
         {
-            _ = LibraryTypeTargets.Type(library, name, null, null);
+            _ = LibraryWriter.GuardEvidence(() => LibraryTypeTargets.Type(library, name, null, null));
             throw Blocked("library_type_name_exists");
         }
         catch (WorkerOperationException ex) when (ex.FailureCategory == WorkerFailureCategories.TargetNotFound) { }
         catch (WorkerOperationException ex) when (ex.FailureCategory == WorkerFailureCategories.TargetAmbiguous)
         { throw Blocked("library_type_name_exists"); }
-        if (((IEngineeringServiceProvider)source).GetService<LibraryTypeInstanceInfo>() is not null)
+        if (LibraryWriter.GuardEvidence(() => ((IEngineeringServiceProvider)source).GetService<LibraryTypeInstanceInfo>()) is not null)
             throw Blocked("library_source_is_type_instance");
 
         var group = ((IEngineeringObject)source).Parent;
@@ -97,27 +97,7 @@ internal static class LibraryTypeWriter
             throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Only FB, FC and PLC data type instances are supported.");
         var type = current.TypeObject;
         var replaced = type.Versions.Any(x => x.State == LibraryTypeVersionState.InWork);
-        var name = LibraryWriteTargets.PlcSourceName((Siemens.Engineering.Library.MasterCopies.IMasterCopySource)instance);
-        string fresh;
-        try
-        {
-            var plc = PlcSoftwareLocator.FindUnique(project, item.PlcName).Software;
-            fresh = instance switch
-            {
-                PlcBlock block => BlockExporter.ExportXml(new ResolvedBlockTarget(plc.ExternalSourceGroup,
-                    (PlcBlockGroup)((IEngineeringObject)block).Parent!, block, name), LibraryTypeTargets.InstancePath(instance)),
-                PlcType plcType => PlcTypeExporter.Export(new ResolvedTypeTarget(plc.ExternalSourceGroup,
-                    (PlcTypeGroup)((IEngineeringObject)plcType).Parent!, plcType, name), "xml"),
-                _ => throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Unsupported PLC type instance."),
-            };
-        }
-        catch (Exception ex) when (OpennessExceptions.IsRecoverable(ex))
-        {
-            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, "library_state_unverifiable",
-                engineeringError: ex is EngineeringException native ? WorkerExecution.Describe(native)
-                    : (ex as WorkerOperationException)?.EngineeringError);
-        }
-        PlcWritePreconditions.RequireContentHash(item.ExpectedContentHash, "xml", fresh);
+        var name = RequireContentHash(project, item, instance);
         var outcome = Describe(type);
         var directory = TempDirectory();
         try
@@ -147,8 +127,11 @@ internal static class LibraryTypeWriter
         var version = LibraryTypeTargets.InWork(type);
         _ = LibraryTypeTargets.Kind(version);
         var requested = item.VersionNumber is null ? null : System.Version.Parse(item.VersionNumber);
-        var number = requested ?? version.VersionNumber;
-        if (type.Versions.Any(x => x.State == LibraryTypeVersionState.Committed && number.CompareTo(x.VersionNumber) <= 0))
+        if (LibraryWriter.GuardEvidence(() =>
+        {
+            var number = requested ?? version.VersionNumber;
+            return type.Versions.Any(x => x.State == LibraryTypeVersionState.Committed && number.CompareTo(x.VersionNumber) <= 0);
+        }))
             throw Blocked("library_version_not_higher");
         var outcome = Describe(type);
         outcome.DefaultBefore = DefaultNumber(type);
@@ -263,6 +246,34 @@ internal static class LibraryTypeWriter
             return new() { Library = identity, Type = outcome };
         }
         catch (Exception ex) { throw WithOutcome(ex, outcome); }
+    }
+
+    internal static string RequireContentHash(ProjectBase project, LibraryWriteRequestInfo item, IEngineeringServiceProvider instance)
+    {
+        if (instance is not (FB or FC or PlcType))
+            throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Only FB, FC and PLC data type instances are supported.");
+        var name = LibraryWriteTargets.PlcSourceName((Siemens.Engineering.Library.MasterCopies.IMasterCopySource)instance);
+        string fresh;
+        try
+        {
+            var plc = PlcSoftwareLocator.FindUnique(project, item.PlcName).Software;
+            fresh = instance switch
+            {
+                PlcBlock block => BlockExporter.ExportXml(new ResolvedBlockTarget(plc.ExternalSourceGroup,
+                    (PlcBlockGroup)((IEngineeringObject)block).Parent!, block, name), LibraryTypeTargets.InstancePath(instance)),
+                PlcType plcType => PlcTypeExporter.Export(new ResolvedTypeTarget(plc.ExternalSourceGroup,
+                    (PlcTypeGroup)((IEngineeringObject)plcType).Parent!, plcType, name), "xml"),
+                _ => throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Unsupported PLC type instance."),
+            };
+        }
+        catch (Exception ex) when (OpennessExceptions.IsRecoverable(ex))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, "library_state_unverifiable",
+                engineeringError: ex is EngineeringException native ? WorkerExecution.Describe(native)
+                    : (ex as WorkerOperationException)?.EngineeringError);
+        }
+        PlcWritePreconditions.RequireContentHash(item.ExpectedContentHash, "xml", fresh);
+        return name;
     }
 
     private static string? DefaultNumber(LibraryType type) => type.Versions.FirstOrDefault(x => x.IsDefault)?.VersionNumber.ToString();

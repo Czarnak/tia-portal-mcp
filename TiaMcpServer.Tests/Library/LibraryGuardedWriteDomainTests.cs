@@ -152,11 +152,12 @@ public sealed class LibraryGuardedWriteDomainTests
         => new() { OperationId = id, Operation = operation, Scope = "global", LibraryName = "Fixture", Name = "Copy" };
 
     // Script only the external peer: planning, dispatch, stop semantics and verification stay real.
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         private readonly string directory = Path.Combine(Path.GetTempPath(), "library-domain-" + Guid.NewGuid().ToString("N"));
         private readonly WorkerSessionIdentity identity;
         public OpennessWorkerClient Client { get; }
+        public int Prompts { get; private set; }
         public WorkerRequest[] LibraryRequests => File.ReadAllLines(Path.Combine(directory, "requests"))
             .Select(l => JsonSerializer.Deserialize<WorkerRequest>(l, WorkerJson.Request)!).Where(r => r.Method.StartsWith("library_", StringComparison.Ordinal)).ToArray();
         private Fixture()
@@ -174,6 +175,8 @@ public sealed class LibraryGuardedWriteDomainTests
                     $file = if ($r.method -eq 'hello') { 'hello' } elseif ($r.method -eq 'library_global_plan') { if ($r.libraryWrite.operationId -eq 'b') { 'plan-b' } else { 'plan' } } elseif ($r.method -eq 'library_global_delete_master_copy') { if ($r.libraryWrite.operationId -eq 'b') { 'failure' } else { 'mutation' } } else { 'status' }
                     if ($r.method -eq 'library_project_create_type') { $typeCreated = $true; $file = 'type-result' }
                     if ($r.method -eq 'library_project_release_type_version') { $file = if ($typeCreated) { 'type-result' } else { 'missing-type' } }
+                    $recorded = if ($r.method -in @('library_global_plan','library_project_plan')) { 'recorded-plan-' + $r.libraryWrite.operationId } else { 'recorded-mutation-' + $r.libraryWrite.operationId }
+                    if (Test-Path (Join-Path $Root $recorded)) { $file = $recorded }
                     [Console]::Out.WriteLine([IO.File]::ReadAllText((Join-Path $Root $file))); [Console]::Out.Flush()
                 }
                 """);
@@ -207,11 +210,23 @@ public sealed class LibraryGuardedWriteDomainTests
             Library = new() { Scope = "global", Kind = "library", LibraryPath = path, Name = "Fixture" },
             Target = new() { Scope = "global", Kind = "masterCopy", FolderKind = "masterCopies", Name = "Copy" }
         }));
-        public Task<ModelContextProtocol.Protocol.CallToolResult> Run(LibraryWriteItem[] items, bool dryRun = false)
+        public void PutResponse(string id, WorkerResponse response, bool plan = false)
         {
-            var gate = new FakeWriteBindingGate { AccessMode = McpAccessMode.Full, CurrentBinding = Client.BindingSnapshot };
+            response.SessionIdentity = identity;
+            response.ResolvedProjectPath = identity.ProjectPath;
+            Save("recorded-" + (plan ? "plan-" : "mutation-") + id, response);
+        }
+        public Task<ModelContextProtocol.Protocol.CallToolResult> Run(LibraryWriteItem[] items, bool dryRun = false, bool readWrite = false)
+        {
+            var gate = new FakeWriteBindingGate { AccessMode = readWrite ? McpAccessMode.ReadWrite : McpAccessMode.Full, CurrentBinding = Client.BindingSnapshot };
+            var confirmation = new UserConfirmation(true, (_, _) =>
+            {
+                Prompts++;
+                return ValueTask.FromResult(new ModelContextProtocol.Protocol.ElicitResult { Action = "accept",
+                    Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) } });
+            }, TimeSpan.FromSeconds(5));
             return new WriteExecution(gate, new RecordingAuditSink(gate), new(LibraryGuardDefinitions.Definitions), TimeProvider.System)
-                .RunAsync(new LibraryWriteDomain(Client), new WriteCall<LibraryWriteItem>(items, dryRun));
+                .RunAsync(new LibraryWriteDomain(Client), new WriteCall<LibraryWriteItem>(items, dryRun), new(confirmation));
         }
         private WorkerResponse Response(string payload) => new() { Success = true, Payload = payload, SessionIdentity = identity, ResolvedProjectPath = identity.ProjectPath };
         private void Save(string file, WorkerResponse value) => File.WriteAllText(Path.Combine(directory, file), JsonSerializer.Serialize(value, WorkerJson.Envelope));

@@ -166,6 +166,7 @@ internal static class LibraryWritePlanReader
         if (item.Operation == "create_type_version")
         {
             var instance = LibraryTypeTargets.Instance(project, item);
+            LibraryTypeWriter.RequireContentHash(project, item, instance.instance);
             type = instance.version.TypeObject;
             plan.Type = Describe(type);
             plan.Type.InstancePaths.Add(LibraryTypeTargets.InstancePath(instance.instance));
@@ -199,10 +200,18 @@ internal static class LibraryWritePlanReader
         plan.Type = Describe(type);
         if (item.Operation is not ("delete_type" or "synchronize_type"))
         {
-            version = item.Operation == "release_type_version" ? LibraryTypeTargets.InWork(type)
-                : LibraryTypeTargets.Version(type, item.VersionNumber, item.VersionGuid, item.InWork);
-            _ = LibraryTypeTargets.Kind(version);
-            SetVersion(plan.Type, version);
+            if (item.Operation == "release_type_version")
+            {
+                var missingVersion = LibraryIdentities.Child(sourceRoot, "types", plan.Type.FolderPath, "inWorkTypeVersion", type.Name);
+                missingVersion.TypeGuid = plan.Type.TypeGuid;
+                version = Missing(plan, missingVersion, () => LibraryTypeTargets.InWork(type));
+            }
+            else version = LibraryTypeTargets.Version(type, item.VersionNumber, item.VersionGuid, item.InWork);
+            if (version is not null)
+            {
+                _ = LibraryTypeTargets.Kind(version);
+                SetVersion(plan.Type, version);
+            }
         }
         else foreach (var selected in type.Versions) _ = LibraryTypeTargets.Kind(selected);
         if (item.Operation == "instantiate_type_version")
@@ -216,9 +225,9 @@ internal static class LibraryWritePlanReader
             plan.Type.DefaultBefore = type.Versions.FirstOrDefault(x => x.IsDefault)?.VersionNumber.ToString();
             if (item.Operation == "release_type_version")
             {
-                var number = item.VersionNumber is null ? version!.VersionNumber : System.Version.Parse(item.VersionNumber);
-                plan.Type.DefaultAfter = number.ToString();
-                if (type.Versions.Any(x => x.State == LibraryTypeVersionState.Committed && number.CompareTo(x.VersionNumber) <= 0)) Guard("library_version_not_higher");
+                var number = item.VersionNumber is null ? version?.VersionNumber : System.Version.Parse(item.VersionNumber);
+                plan.Type.DefaultAfter = number?.ToString();
+                if (number is not null && type.Versions.Any(x => x.State == LibraryTypeVersionState.Committed && number.CompareTo(x.VersionNumber) <= 0)) Guard("library_version_not_higher");
             }
             if (item.Operation is "delete_type" or "delete_type_version")
             {

@@ -9,6 +9,7 @@ using Siemens.Engineering.SW.Types;
 using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Library;
@@ -144,7 +145,7 @@ internal static class LibraryWriter
 
         void RequireAvailableName(string name)
         {
-            if (copies.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
+            if (GuardEvidence(() => copies.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))))
                 throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, "library_master_copy_exists");
         }
 
@@ -158,6 +159,16 @@ internal static class LibraryWriter
             result.ActualName = actualName;
             result.Target = LibraryIdentities.Child(result.Library, "masterCopies", segments, "masterCopy", actualName);
             return result;
+        }
+    }
+
+    internal static T GuardEvidence<T>(Func<T> read)
+    {
+        try { return read(); }
+        catch (Exception ex) when (ex is not WorkerOperationException && OpennessExceptions.IsRecoverable(ex))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, "library_state_unverifiable",
+                engineeringError: ex is EngineeringException native ? WorkerExecution.Describe(native) : null);
         }
     }
 
