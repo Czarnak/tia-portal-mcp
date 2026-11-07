@@ -1,7 +1,11 @@
 # Library types (`library_write` PR 3) — design
 
-Date: 2026-11-07. Status: approved 2026-11-07; revised the same day after Task 0 (revision awaiting
-review). Issue: Refs #218, PR 3 of N.
+Date: 2026-11-07. Status: approved 2026-11-07; revised the same day after Task 0 and the revision
+approved. Issue: Refs #218, PR 3 of N.
+
+Owner decisions on the revision: `edit_type_version` is dropped; `create_type_version` requires
+`expectedContentHash`; content is SimaticML XML only for now; release numbers get no range cap, only
+`0.0.0` is denied.
 
 **Revision after Task 0** ([native probe report](../acceptance/reports/2026-11-07-library-types-native-probes.md)):
 `edit_type_version` is replaced by `create_type_version`, which writes a type's content from SimaticML,
