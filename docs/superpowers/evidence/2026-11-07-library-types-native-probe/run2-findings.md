@@ -23,8 +23,13 @@ PLC_2 compiles report one unrelated error (`ltErrors:0`); `IsConsistent` still f
 `plc_write`'s `update_block_logic` and `update_type_content` both import with `ImportOptions.Override`, which
 deletes the target first. Portal refuses to delete an in-work test instance, so neither can change the
 content of a type being edited. The spec's edit → `plc_write` → release flow does not work as written.
-The refusal is clean (nothing changed). Released instances can be deleted (P7c2, P8 setups), so the block is
-specific to the test instance (inference).
+Nothing changed, but the refusal is **not** silent: during both imports Portal showed a modal UI dialog,
+"Library test environment cannot be closed", which the owner had to confirm by hand (the step waited 50 s in
+P11c and 45 s in P12c; every other step took under 9 s). The dialog did not go through the Openness
+`Confirmation` event (the record has no confirmations), so an unattended worker would block on it until its
+request timeout. That is a hazard of today's `plc_write` on any type test instance, independent of PR 3.
+Whether the import failed because of the dialog answer or regardless of it is unknown. Released instances
+can be deleted (P7c2, P8 setups) with no dialog, so the block is specific to the test instance (inference).
 
 Candidate routes for a run 3 (unprobed):
 
