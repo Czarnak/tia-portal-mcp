@@ -40,7 +40,7 @@ public sealed partial class LibraryTypeWriterTests
     private LibraryWriteRequestInfo Item(string operation) => operation == "release_type_version"
         ? new() { Operation = operation, Scope = "project", TypeName = "Motor" }
         : new() { Operation = operation, PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor",
-            Content = operation == "create_type_version" ? Xml : null,
+            Content = operation == "create_type_version" ? Bundle() : null,
             ExpectedContentHash = operation == "create_type_version" ? ContentHashRules.Compute("xml", Bundle()) : null };
     private static string Bundle() => BlockBundleFormat.Compose(new[] { new BlockImportDocument("Motor.xml", "Motor.xml", Xml) });
     private LibraryWriteResultInfo Write(LibraryWriteRequestInfo item)
@@ -310,6 +310,41 @@ public sealed partial class LibraryTypeWriterTests
     }
 
     [Fact]
+    public void CreateTypeVersion_EditedCompanion_ValidationError_NoNativeCall()
+    {
+        var old = VersionImport(false);
+        source.ExportAsDocumentsAction = (directory, _) =>
+        {
+            var file = new FileInfo(Path.Combine(directory.FullName, "Motor.s7dcl"));
+            File.WriteAllText(file.FullName, "companion");
+            return new() { ExportedDocuments = new List<FileInfo> { file } };
+        };
+        var item = Item("create_type_version");
+        item.ExpectedContentHash = ContentHashRules.Compute("xml", BlockBundleFormat.Compose(new[]
+        {
+            new BlockImportDocument("Motor.xml", "Motor.xml", Xml),
+            new BlockImportDocument("Motor.s7dcl", "Motor.s7dcl", "companion"),
+        }));
+        item.Content = BlockBundleFormat.Compose(new[]
+        {
+            new BlockImportDocument("Motor.xml", "Motor.xml", Xml),
+            new BlockImportDocument("Motor.s7dcl", "Motor.s7dcl", "edited"),
+        });
+        var failure = Failure(WorkerFailureCategories.ValidationError, () => Write(item));
+        Assert.Null(failure.LibraryWriteOutcome);
+        Assert.Empty(old.TypeObject.Versions.CreateFromDocumentsCalls);
+    }
+
+    [Fact]
+    public void CreateTypeVersion_BundleWithoutSimaticMl_ValidationError_NoNativeCall()
+    {
+        var old = VersionImport(false); var item = Item("create_type_version");
+        item.Content = BlockBundleFormat.Compose(new[] { new BlockImportDocument("Motor.s7dcl", "Motor.s7dcl", "companion") });
+        Failure(WorkerFailureCategories.ValidationError, () => Write(item));
+        Assert.Empty(old.TypeObject.Versions.CreateFromDocumentsCalls);
+    }
+
+    [Fact]
     public void CreateTypeVersion_PlcUdt_UsesSanitizedXmlHash()
     {
         var type = project.ProjectLibrary!.TypeFolder.AddType("Data");
@@ -320,8 +355,13 @@ public sealed partial class LibraryTypeWriterTests
         plc.TypeGroup.Types.Items.Add(udt);
         udt.LibraryTypeInstanceInfo = new() { LibraryTypeVersion = version, LibraryTypeInstance = udt };
         udt.ExportAction = (file, _) => File.WriteAllText(file.FullName, "<Document><DocumentInfo>volatile</DocumentInfo><SW.Types.PlcStruct /></Document>");
-        type.Versions.CreateFromDocumentsAction = (_, _, _, _) => new() { CreatedVersion = version };
-        var item = Item("create_type_version"); item.PlcKind = "plcType"; item.PlcObjectName = "Data";
+        const string content = "<Document><SW.Types.PlcStruct /></Document>";
+        type.Versions.CreateFromDocumentsAction = (directory, name, _, _) =>
+        {
+            Assert.Equal(content, File.ReadAllText(Path.Combine(directory.FullName, name + ".xml")));
+            return new() { CreatedVersion = version };
+        };
+        var item = Item("create_type_version"); item.PlcKind = "plcType"; item.PlcObjectName = "Data"; item.Content = content;
         item.ExpectedContentHash = ContentHashRules.Compute("xml", BlockXmlSanitizer.RemoveDocumentInfo("<Document><DocumentInfo>volatile</DocumentInfo><SW.Types.PlcStruct /></Document>"));
         Assert.Equal("Data", Write(item).Type!.TypeName);
     }

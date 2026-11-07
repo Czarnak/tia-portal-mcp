@@ -97,12 +97,13 @@ internal static class LibraryTypeWriter
             throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Only FB, FC and PLC data type instances are supported.");
         var type = current.TypeObject;
         var replaced = type.Versions.Any(x => x.State == LibraryTypeVersionState.InWork);
-        var name = RequireContentHash(project, item, instance);
+        var (name, fresh) = RequireContentHash(project, item, instance);
+        var document = SimaticMl(instance, name, item.Content!, fresh);
         var outcome = Describe(type);
         var directory = TempDirectory();
         try
         {
-            File.WriteAllText(Path.Combine(directory, name + ".xml"), item.Content);
+            File.WriteAllText(Path.Combine(directory, name + ".xml"), document);
             var version = type.Versions.CreateFromDocuments(new DirectoryInfo(directory), name,
                 item.ReplaceInWork == true ? CreateOptions.Override : CreateOptions.None, LibraryImportOptions.None).CreatedVersion
                 ?? throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed, "Version creation returned no created version.");
@@ -248,7 +249,20 @@ internal static class LibraryTypeWriter
         catch (Exception ex) { throw WithOutcome(ex, outcome); }
     }
 
-    internal static string RequireContentHash(ProjectBase project, LibraryWriteRequestInfo item, IEngineeringServiceProvider instance)
+    // A block's plc_read XML is a bundle (.xml plus .s7dcl/.s7res); only its Simatic ML document is
+    // staged, and an edited companion is refused rather than silently dropped, as in plc_write.
+    private static string SimaticMl(IEngineeringServiceProvider instance, string name, string content, string fresh)
+    {
+        if (instance is not PlcBlock) return content;
+        var submitted = BlockImportBundleParser.Parse(name + ".xml", content);
+        var xml = BlockImportRouting.SelectAuthoritativeDocument(submitted);
+        if (submitted.Documents.Count > 1)
+            BlockImportRouting.EnsureOnlyAuthoritativeDocumentChanged(submitted,
+                BlockImportBundleParser.Parse(xml.LogicalName, fresh), xml.LogicalName);
+        return xml.Content;
+    }
+
+    internal static (string Name, string Fresh) RequireContentHash(ProjectBase project, LibraryWriteRequestInfo item, IEngineeringServiceProvider instance)
     {
         if (instance is not (FB or FC or PlcType))
             throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Only FB, FC and PLC data type instances are supported.");
@@ -273,7 +287,7 @@ internal static class LibraryTypeWriter
                     : (ex as WorkerOperationException)?.EngineeringError);
         }
         PlcWritePreconditions.RequireContentHash(item.ExpectedContentHash, "xml", fresh);
-        return name;
+        return (name, fresh);
     }
 
     private static string? DefaultNumber(LibraryType type) => type.Versions.FirstOrDefault(x => x.IsDefault)?.VersionNumber.ToString();
