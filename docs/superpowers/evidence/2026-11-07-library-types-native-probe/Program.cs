@@ -416,15 +416,24 @@ internal sealed class Ctx
     {
         var type = F.Obj(plc, name) as PlcType ?? throw new ProbeSetupException(name + " on " + plc.Name + " is not a PlcType.");
         var group = type.Parent as PlcTypeGroup ?? throw new ProbeSetupException(name + " parent is not a PlcTypeGroup.");
-        var doc = XDocument.Load(ExportFile(plc, name, "toEdit"), LoadOptions.PreserveWhitespace);
-        var first = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "Member") ?? throw new ProbeSetupException("No Member in the " + name + " export.");
-        first.AddAfterSelf(new XElement(first.Name.Namespace + "Member", new XAttribute("Name", "probeAdded"), new XAttribute("Datatype", "Int")));
-        doc.Root?.Elements().Where(e => e.Name.LocalName == "DocumentInfo").Remove();
-        Directory.CreateDirectory(Out("edited"));
-        var edited = Path.Combine(Out("edited"), name + ".xml");
-        doc.Save(edited, SaveOptions.DisableFormatting);
+        var edited = Path.Combine(EditedExport(plc, name, null).FullName, name + ".xml");
         var imported = Step("PlcTypeComposition.Import(Override)", () => group.Types.Import(new FileInfo(edited), ImportOptions.Override));
         Note("importedTypes", Describe.Safe(() => imported.Select(x => x.Name).ToList()));
+    }
+
+    // Fresh export of the object with "probeAdded : Int" inserted after the first member of the named section
+    // (any section when null) and DocumentInfo removed, alone in out\edited\<name>.xml. Returns the directory.
+    internal DirectoryInfo EditedExport(PlcSoftware plc, string name, string section)
+    {
+        var doc = XDocument.Load(ExportFile(plc, name, "toEdit"), LoadOptions.PreserveWhitespace);
+        var first = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "Member"
+                && (section == null || (string)e.Ancestors().FirstOrDefault(a => a.Name.LocalName == "Section")?.Attribute("Name") == section))
+            ?? throw new ProbeSetupException("No Member" + (section == null ? "" : " in section " + section) + " in the " + name + " export.");
+        first.AddAfterSelf(new XElement(first.Name.Namespace + "Member", new XAttribute("Name", "probeAdded"), new XAttribute("Datatype", "Int")));
+        doc.Root?.Elements().Where(e => e.Name.LocalName == "DocumentInfo").Remove();
+        var dir = Directory.CreateDirectory(Out("edited"));
+        doc.Save(Path.Combine(dir.FullName, name + ".xml"), SaveOptions.DisableFormatting);
+        return dir;
     }
 
     // Members whose XML Datatype names a user type (quoted), read from a fresh export.
@@ -740,6 +749,27 @@ internal static class Catalog
         c.Note("linkAfterImport", Describe.Safe(() => Describe.Link(F.Obj(c.Plc2, name))));
     }
 
+    // LibraryTypeVersionComposition.CreateFromDocuments on the project type from c.Docs (an EditedExport), then
+    // compile, read content, release whatever is in work as 0.0.2 and read content again (P16a-d).
+    private static void NewVersionFromDocuments(Ctx c, string name, PlcSoftware testTarget, CreateOptions option, string tag)
+    {
+        var type = F.Type(c.PL, name);
+        var r = c.Step("Versions.CreateFromDocuments(" + option + (testTarget == null ? "" : ", " + testTarget.Name) + ")", () => testTarget == null
+            ? type.Versions.CreateFromDocuments(c.Docs, name, option, LibraryImportOptions.None)
+            : type.Versions.CreateFromDocuments(c.Docs, name, F.Group(testTarget, name), option, LibraryImportOptions.None));
+        c.Note("versionCreate", r);
+        c.Note("versionsAfterCreate", Describe.Safe(() => F.Versions(F.Type(c.PL, name))));
+        c.Note("linkAfterCreate", Describe.Safe(() => Describe.Link(F.Obj(c.Plc2, name))));
+        c.CompileFirst(c.Plc2, name, "afterCreate");
+        c.Note("contentAfterCreate", Describe.Safe(() => c.Content(c.Plc2, name, "afterCreate")));
+        var inWork = c.Step("find-in-work", () => F.InWork(F.Type(c.PL, name)));
+        c.Step("Release(0.0.2)", () => inWork.Release(Ctx.NoDeps, V2, "probe", tag));
+        c.Note("versionsAfterRelease", Describe.Safe(() => F.Versions(F.Type(c.PL, name))));
+        c.Note("linkAfterRelease", Describe.Safe(() => Describe.Link(F.Obj(c.Plc2, name))));
+        c.CompileFirst(c.Plc2, name, "afterRelease");
+        c.Note("contentAfterRelease", Describe.Safe(() => c.Content(c.Plc2, name, "afterRelease")));
+    }
+
     // Adds "probeAdded : Int;" after the "b : Int;" member line of LT_Udt's .s7dcl text, keeping indent and line ending.
     private static string AddDclMember(string text)
     {
@@ -982,6 +1012,18 @@ internal static class Catalog
                 c.CompileFirst(c.Plc2, Names.Udt, "afterImport");
                 c.Note("contentAfterImport", Describe.Safe(() => c.Content(c.Plc2, Names.Udt, "afterImport")));
             }),
+        C("P16a", "Versions.CreateFromDocuments(Override) on LT_Udt with an in-work version (edited, compiled PLC_2 test instance), from its export plus a member: overwrites the in-work version and its test instance? Then release 0.0.2.",
+            c => { MakeAndRelease(Names.Udt)(c); c.EditVia(Names.Udt); c.CompileFirst(c.Plc2, Names.Udt, "inWork"); c.Docs = c.EditedExport(c.Plc2, Names.Udt, null); },
+            Before(Names.Udt, c => NewVersionFromDocuments(c, Names.Udt, null, CreateOptions.Override, "P16a")), After(Names.Udt)),
+        C("P16b", "Versions.CreateFromDocuments(None) with test environment PLC_2 on LT_Udt (released 0.0.1 only, compiled PLC_2 instance), from its export plus a member: new in-work version, where is its test instance? Then release 0.0.2.",
+            c => { MakeAndRelease(Names.Udt)(c); c.CompileFirst(c.Plc2, Names.Udt, "released"); c.Docs = c.EditedExport(c.Plc2, Names.Udt, null); },
+            Before(Names.Udt, c => NewVersionFromDocuments(c, Names.Udt, c.Plc2, CreateOptions.None, "P16b")), After(Names.Udt)),
+        C("P16c", "P16b without a test environment.",
+            c => { MakeAndRelease(Names.Udt)(c); c.CompileFirst(c.Plc2, Names.Udt, "released"); c.Docs = c.EditedExport(c.Plc2, Names.Udt, null); },
+            Before(Names.Udt, c => NewVersionFromDocuments(c, Names.Udt, null, CreateOptions.None, "P16c")), After(Names.Udt)),
+        C("P16d", "P16a for the FB LT_Fb with an Input member added.",
+            c => { MakeAndRelease(Names.Fb)(c); c.EditVia(Names.Fb); c.CompileFirst(c.Plc2, Names.Fb, "inWork"); c.Docs = c.EditedExport(c.Plc2, Names.Fb, "Input"); },
+            Before(Names.Fb, c => NewVersionFromDocuments(c, Names.Fb, null, CreateOptions.Override, "P16d")), After(Names.Fb)),
         H("P13b", "Release the in-work version with a null version number (and null author/comment).",
             "Version validation may run in Portal itself (see T7Z, which killed Portal).",
             c => c.MakeTypeInPlc2(Names.Udt), Before(Names.Udt, c => c.Working.Release(Ctx.NoDeps, null, null, null)), After(Names.Udt)),
@@ -1469,7 +1511,7 @@ internal static class SelfTest
 {
     private static readonly string[] ExpectedIds =
         { "P1u", "P1u-notx", "P1f", "P1r-after-import", "P1r-after-delete", "P1n", "P3", "P3b", "P4", "P4c", "P5", "P6", "P7a", "P7b", "P7c", "P7c2", "P7d",
-          "P8", "P9", "P10", "P11", "P11c", "P12", "P12c", "P15a", "P15b", "P15c", "P15d", "P13b", "P14a", "P14b", "P14c" };
+          "P8", "P9", "P10", "P11", "P11c", "P12", "P12c", "P15a", "P15b", "P15c", "P15d", "P16a", "P16b", "P16c", "P16d", "P13b", "P14a", "P14b", "P14c" };
     private static readonly string[] CrashRisk = { "P13b", "P14a", "P14b" };
 
     private static void Assert(bool ok, string what) { if (!ok) throw new Exception("Self-test failed: " + what); }

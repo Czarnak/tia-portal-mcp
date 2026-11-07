@@ -65,7 +65,7 @@ this order and each with a new `--work`:
         --disposable-root <root> --project <root>\<proj>\<proj>.ap21 ^
         --library <root>\<lib>\<lib>.al21 --work <root>\probe-run-1
 
-Use `--case P1u,P9` instead of `--all` for selected cases (run 2: `--case P1n,P3b,P4c,P7c2,P7d,P10,P11c,P12c`; run 3: `--case P15a,P15b,P15c,P15d`). Run the crash-risk cases **last and
+Use `--case P1u,P9` instead of `--all` for selected cases (run 2: `--case P1n,P3b,P4c,P7c2,P7d,P10,P11c,P12c`; run 3: `--case P15a,P15b,P15c,P15d`; run 4: `--case P16a,P16b,P16c,P16d`). Run the crash-risk cases **last and
 alone**, one per run, each with its own new `--work`, and check Portal is still alive after each:
 
     ... --case P13b --work <root>\probe-p13b
@@ -113,6 +113,10 @@ customer identifiers anyway: Siemens messages can quote text the redaction does 
 | `P15b` | Released `0.0.1`, edited, compiled; `LT_Fb` test instance through `ExportAsDocuments` and unchanged `ImportFromDocuments(Override)` into its group |
 | `P15c` | As `P15b` for `LT_Udt` with a member added after `b : Int;` in the `.s7dcl`; compile, release `0.0.2`, compare content |
 | `P15d` | Released `0.0.1`, compiled, not edited; `update_type_content` XML route (`Types.Import(file, ImportOptions.Override)`) with an added member |
+| `P16a` | Released `0.0.1`, edited, compiled; `type.Versions.CreateFromDocuments(Override)` from the test instance export plus a member; compile, release `0.0.2`, compare content |
+| `P16b` | Released `0.0.1` only, compiled; `type.Versions.CreateFromDocuments(None)` with test environment PLC_2 from the export plus a member; then as `P16a` |
+| `P16c` | `P16b` without a test environment |
+| `P16d` | `P16a` for `LT_Fb` with an `Input` member added |
 | `P13b` | Crash risk. Release the new in-work version with a null number, author and comment |
 | `P14a` | Crash risk. Release the new in-work version as `1.0.0` |
 | `P14b` | Crash risk. Release as `0.1.0` |
