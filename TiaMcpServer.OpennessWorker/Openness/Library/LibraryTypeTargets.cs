@@ -79,8 +79,8 @@ internal static class LibraryTypeTargets
             {
                 PlcBlock block => block.Name,
                 PlcType type => type.Name,
-                PlcBlockGroup group when group.Parent is not PlcSoftware => group.Name,
-                PlcTypeGroup group when group.Parent is not PlcSoftware => group.Name,
+                PlcBlockGroup group when current.Parent is not PlcSoftware => group.Name,
+                PlcTypeGroup group when current.Parent is not PlcSoftware => group.Name,
                 PlcSoftware plc => plc.Name,
                 _ => null,
             };
