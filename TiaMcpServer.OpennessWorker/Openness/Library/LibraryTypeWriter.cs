@@ -100,9 +100,9 @@ internal static class LibraryTypeWriter
             fresh = instance switch
             {
                 PlcBlock block => BlockExporter.ExportXml(new ResolvedBlockTarget(plc.ExternalSourceGroup,
-                    (PlcBlockGroup)block.Parent!, block, name), LibraryTypeTargets.InstancePath(instance)),
+                    (PlcBlockGroup)((IEngineeringObject)block).Parent!, block, name), LibraryTypeTargets.InstancePath(instance)),
                 PlcType plcType => PlcTypeExporter.Export(new ResolvedTypeTarget(plc.ExternalSourceGroup,
-                    (PlcTypeGroup)plcType.Parent!, plcType, name), "xml"),
+                    (PlcTypeGroup)((IEngineeringObject)plcType).Parent!, plcType, name), "xml"),
                 _ => throw new WorkerOperationException(WorkerFailureCategories.TargetKindUnsupported, "Unsupported PLC type instance."),
             };
         }
