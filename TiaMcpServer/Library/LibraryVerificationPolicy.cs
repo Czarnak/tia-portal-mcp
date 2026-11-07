@@ -32,7 +32,8 @@ public sealed class LibraryVerificationPolicy(IReadOnlyDictionary<string, Librar
         {
             var typeRoot = root.Concat(new[] { "types" }).Concat(type.FolderPath.SelectMany(segment => new[] { "folder", segment }))
                 .Concat(new[] { "type", type.TypeGuid.ToUpperInvariant() });
-            return [Key(type.VersionGuid is { } guid && item.Operation is "create_type_version" or "delete_type_version"
+            var affectsType = asLater && (type.TypeDeleted == true || type.ReplacedInWork == true);
+            return [Key(!affectsType && type.VersionGuid is { } guid && item.Operation is "create_type_version" or "delete_type_version"
                 ? typeRoot.Concat(new[] { "version", guid.ToUpperInvariant() }) : typeRoot)];
         }
         if (effect.Target is not { } target) return asLater ? [Key(root)] : [];

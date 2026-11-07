@@ -58,6 +58,18 @@ public sealed class ConditionalMemberRegisterTests
         "LibraryWritePlanInfo.GuardIds",
         "LibraryWritePlanInfo.MasterCopiesContainingInstances",
         "LibraryWritePlanInfo.Notes",
+        // Present when a planned type operation has resolved type evidence.
+        "LibraryWriteEffect.Type",
+        // Present when a type/version delete preview inventories PLC instances.
+        "LibraryWriteEffect.BlockingInstances",
+        // Present when a type/version delete preview inventories containing master copies.
+        "LibraryWriteEffect.MasterCopiesContainingInstances",
+        // Present when an instantiate/synchronize preview computes the dependency closure.
+        "LibraryWriteEffect.Dependencies",
+        // Present for conversion, multi-PLC test-instance uncertainty, or global instantiation notes.
+        "LibraryWriteEffect.Notes",
+        // Present when every unresolved target is supplied by earlier items; identifies the latest producer.
+        "LibraryWriteEffect.CreatedByItem",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
         // Worker mutation failures: present only when a Siemens exception caused the failure.
@@ -92,6 +104,7 @@ public sealed class ConditionalMemberRegisterTests
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingResult))
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingInfo))
             .Append(typeof(TiaMcpServer.ProjectLifecycle.LifecycleEffects))
+            .Append(typeof(TiaMcpServer.Library.LibraryWriteEffect))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(IsWhenWritingNullConditional)
