@@ -281,6 +281,7 @@ internal sealed class Ctx
     internal DirectoryInfo Docs;          // last setup export, consumed by the act
     internal LibraryType Made;            // type created by MakeTypeInPlc2
     internal LibraryTypeVersion Working;  // current in-work version from setup
+    internal LibraryTypeFolder Folder;    // nested type folder made in setup (P1n)
     private int exports;
     private List<object> steps;
     internal readonly Dictionary<string, object> Notes = new Dictionary<string, object>();
@@ -389,6 +390,41 @@ internal sealed class Ctx
     {
         try { return m.Path ?? ""; }
         catch (Exception ex) when (!Program.IsFatal(ex)) { return "<unreadable>"; }
+    }
+
+    // Objects placed by library operations stay inconsistent (not exportable) until compiled (run 1: P4, P8, P12).
+    // Records IsConsistent, compiles the PLC, records IsConsistent again. Never inside a transaction.
+    internal void CompileFirst(PlcSoftware plc, string name, string key)
+    {
+        Note(key + "ConsistentBefore", Describe.Safe(() => F.Consistent(F.Obj(plc, name))));
+        Note(key + "Compile", Describe.Safe(() => Compile(plc, plc.Name)));
+        Note(key + "ConsistentAfter", Describe.Safe(() => F.Consistent(F.Obj(plc, name))));
+    }
+
+    internal string ExportFile(PlcSoftware plc, string name, string label) =>
+        Path.Combine(ExportXml(F.Obj(plc, name), name, label).FullName, name + ".xml");
+
+    internal object Content(PlcSoftware plc, string name, string label)
+    {
+        var file = ExportFile(plc, name, label);
+        return new { hash = F.ContentHash(file), members = F.MemberNames(file) };
+    }
+
+    // plc_write update_type_content's XML route (worker PlcTypeImporter.ImportXml): export, add a top-level
+    // member "probeAdded : Int", drop DocumentInfo as plc_read does, PlcTypeComposition.Import(file, Override).
+    internal void ImportWithExtraMember(PlcSoftware plc, string name)
+    {
+        var type = F.Obj(plc, name) as PlcType ?? throw new ProbeSetupException(name + " on " + plc.Name + " is not a PlcType.");
+        var group = type.Parent as PlcTypeGroup ?? throw new ProbeSetupException(name + " parent is not a PlcTypeGroup.");
+        var doc = XDocument.Load(ExportFile(plc, name, "toEdit"), LoadOptions.PreserveWhitespace);
+        var first = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "Member") ?? throw new ProbeSetupException("No Member in the " + name + " export.");
+        first.AddAfterSelf(new XElement(first.Name.Namespace + "Member", new XAttribute("Name", "probeAdded"), new XAttribute("Datatype", "Int")));
+        doc.Root?.Elements().Where(e => e.Name.LocalName == "DocumentInfo").Remove();
+        Directory.CreateDirectory(Out("edited"));
+        var edited = Path.Combine(Out("edited"), name + ".xml");
+        doc.Save(edited, SaveOptions.DisableFormatting);
+        var imported = Step("PlcTypeComposition.Import(Override)", () => group.Types.Import(new FileInfo(edited), ImportOptions.Override));
+        Note("importedTypes", Describe.Safe(() => imported.Select(x => x.Name).ToList()));
     }
 
     // Members whose XML Datatype names a user type (quoted), read from a fresh export.
@@ -505,6 +541,21 @@ internal static class F
         XDocument.Load(xmlPath).Descendants().Local("Member").Any(m => (string)m.Attribute("Datatype") == datatype
             && (sections.Length == 0 || sections.Contains((string)m.Ancestors().Local("Section").FirstOrDefault()?.Attribute("Name"))));
 
+    internal static object Consistent(IEngineeringServiceProvider o) =>
+        o is PlcBlock b ? (object)b.IsConsistent : o is PlcType t ? (object)t.IsConsistent : "not a PlcBlock or PlcType";
+
+    internal static List<string> MemberNames(string xmlPath) =>
+        XDocument.Load(xmlPath).Descendants().Local("Member").Select(m => (string)m.Attribute("Name") + ":" + (string)m.Attribute("Datatype")).ToList();
+
+    // SHA-256 of the export without DocumentInfo (it carries the export time).
+    internal static string ContentHash(string xmlPath)
+    {
+        var doc = XDocument.Load(xmlPath);
+        doc.Root?.Elements().Local("DocumentInfo").Remove();
+        using (var sha = System.Security.Cryptography.SHA256.Create())
+            return BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(doc.ToString(SaveOptions.DisableFormatting)))).Replace("-", "");
+    }
+
     internal static bool AnyUserType(string xmlPath) =>
         XDocument.Load(xmlPath).Descendants().Local("Member").Any(m => ((string)m.Attribute("Datatype") ?? "").Contains("\""));
 
@@ -527,7 +578,8 @@ internal static class F
 // -> CreateFromDocuments into the same PLC group -> link check -> CommitOnDispose -> dispose.
 internal static class Route
 {
-    internal static void Convert(Ctx c, PlcSoftware plc, string name, bool transaction, string throwAfter)
+    // folder: target type folder, the project library's root when null.
+    internal static void Convert(Ctx c, PlcSoftware plc, string name, bool transaction, string throwAfter, LibraryTypeFolder folder = null)
     {
         ExclusiveAccess access = null;
         Transaction tx = null;
@@ -541,7 +593,7 @@ internal static class Route
             }
             c.Step("delete-original", () => F.Delete(F.Obj(plc, name)));
             if (throwAfter == "delete") throw new DeliberateRollbackException("Deliberate failure after the delete, before the import.");
-            var r = c.Step("CreateFromDocuments", () => c.PL.TypeFolder.Types.CreateFromDocuments(c.Docs, name, F.Group(plc, name), LibraryImportOptions.None));
+            var r = c.Step("CreateFromDocuments", () => (folder ?? c.PL.TypeFolder).Types.CreateFromDocuments(c.Docs, name, F.Group(plc, name), LibraryImportOptions.None));
             c.Note("created", F.Created(r));
             // Record only: a missing or renamed instance must not skip the commit.
             c.Note("link", c.Step("link-check", () => Describe.Safe(() => F.LinkCheck(F.Obj(plc, name), r.CreatedType))));
@@ -561,7 +613,8 @@ internal static class Route
     private static void Dispose(Ctx c, string stage, IDisposable d, bool surface)
     {
         var keep = c.Stage;
-        try { c.Step(stage, d.Dispose); }
+        // Not surfacing means another exception is propagating: a successful Dispose must not relabel its stage.
+        try { c.Step(stage, d.Dispose); if (!surface) c.Stage = keep; }
         catch (Exception ex) when (!Program.IsFatal(ex))
         {
             c.Held = true;
@@ -613,6 +666,46 @@ internal static class Catalog
         sourceDefault = Describe.Safe(() => Describe.Ver(F.Default(F.Type(c.PL, Names.Udt))))
     };
 
+    private const CreateOrReleaseDependenciesMode AutoDeps = CreateOrReleaseDependenciesMode.AutomaticallyCreateOrReleaseDependenciesIfRequired;
+
+    private static object McInstances(Ctx c) => Describe.Safe(() => F.Type(c.PL, Names.Udt).Versions
+        .Select(v => new { number = v.VersionNumber.ToString(), masterCopies = v.MasterCopiesContainingInstances.Select(m => m.Name).ToList() }).ToList());
+
+    // Chain plus a project master copy of the PLC_2 LT_Udt instance (P7c, P7c2).
+    private static void ChainWithMasterCopy(Ctx c)
+    {
+        c.Chain(Names.Udt);
+        c.At("MasterCopies.Create(" + Names.Plc2 + " " + Names.Udt + ")");
+        var mc = c.PL.MasterCopyFolder.MasterCopies.Create(F.Source(F.Obj(c.Plc2, Names.Udt)));
+        c.Note("masterCopy", Describe.Safe(() => mc.Name));
+        c.Note("masterCopiesContainingInstances", McInstances(c));
+    }
+
+    // Re-imports the PLC_2 LT_Fb instance with only its block title changed, through the worker's
+    // plc_write update_block_logic XML call (P12, P12c).
+    private static void ReimportTitle(Ctx c, string title)
+    {
+        var block = F.Block(c.Plc2, Names.Fb);
+        var exported = Path.Combine(c.Step("PlcBlock.Export", () => c.ExportXml(block, Names.Fb)).FullName, Names.Fb + ".xml");
+        var doc = XDocument.Load(exported, LoadOptions.PreserveWhitespace);
+        var text = F.BlockTitleText(doc) ?? throw new ProbeSetupException("No block-level Title or Comment text in the export.");
+        c.Note("titleBefore", text.Value);
+        text.Value = title;
+        // plc_read hands callers XML without DocumentInfo (BlockXmlSanitizer.RemoveDocumentInfo); mirror that.
+        doc.Root?.Elements().Where(e => e.Name.LocalName == "DocumentInfo").Remove();
+        var edited = Path.Combine(c.Out("edited"), Names.Fb + ".xml");
+        Directory.CreateDirectory(c.Out("edited"));
+        doc.Save(edited, SaveOptions.DisableFormatting);
+        var group = block.Parent as PlcBlockGroup ?? throw new ProbeSetupException("Block parent is not a PlcBlockGroup.");
+        // Same native call and options as the worker's plc_write update_block_logic XML route
+        // (TiaMcpServer.OpennessWorker/Openness/Block/BlockImporter.cs, ImportDocuments):
+        //     target.Group.Blocks.Import(new FileInfo(xmlPath), ImportOptions.Override);
+        var imported = c.Step("PlcBlockComposition.Import(Override)", () => group.Blocks.Import(new FileInfo(edited), ImportOptions.Override));
+        c.Note("imported", Describe.Safe(() => imported.Select(x => x.Name).ToList()));
+        c.Note("linkAfterImport", Describe.Safe(() => Describe.Link(F.Block(c.Plc2, Names.Fb))));
+        c.Note("inWorkGuid", Describe.Safe(() => c.Working.Guid.ToString()));
+    }
+
     private static void Sync(Ctx c, string step)
     {
         c.Step("UpdateLibrary(" + step + ")", () => F.Type(c.PL, Names.Udt).UpdateLibrary(c.Extra, DeleteUnusedVersionsMode.DoNotDelete,
@@ -632,6 +725,20 @@ internal static class Catalog
             ExportPlc1(Names.Udt), Before(Names.Udt, c => Route.Convert(c, c.Plc1, Names.Udt, true, "import")), c => Route.Inspect(c, c.Plc1, Names.Udt, false)),
         C("P1r-after-delete", "P1u route, deliberate failure right after deleting the original: is LT_Udt restored?",
             ExportPlc1(Names.Udt), Before(Names.Udt, c => Route.Convert(c, c.Plc1, Names.Udt, true, "delete")), c => Route.Inspect(c, c.Plc1, Names.Udt, false)),
+        C("P1n", "P1u route into the nested project-library type folder LT_Folder/LT_Sub (made in setup): is the type created there and linked?",
+            c =>
+            {
+                ExportPlc1(Names.Udt)(c);
+                c.At("TypeFolder.Folders.Create(LT_Folder/LT_Sub)");
+                c.Folder = c.PL.TypeFolder.Folders.Create("LT_Folder").Folders.Create("LT_Sub");
+            },
+            Before(Names.Udt, c => Route.Convert(c, c.Plc1, Names.Udt, true, null, c.Folder)),
+            c =>
+            {
+                c.Note("inNestedFolder", Describe.Safe(() => c.Folder.Types.Select(t => t.Name).ToList()));
+                c.Note("inRootFolder", Describe.Safe(() => c.PL.TypeFolder.Types.Select(t => t.Name).ToList()));
+                Route.Inspect(c, c.Plc1, Names.Udt, false);
+            }),
         C("P3", "Convert LT_FbUdt (uses the plain UDT LT_Udt) with the P1u route; if created, release 0.0.1. Does a type for LT_Udt appear?",
             ExportPlc1(Names.FbUdt),
             Before(Names.FbUdt, c =>
@@ -645,8 +752,26 @@ internal static class Catalog
                 c.Note("udtTypeAfterRelease", F.Named(c.PL, Names.Udt));
             }),
             c => { c.Note("udtTypeAfter", Describe.Safe(() => F.Named(c.PL, Names.Udt))); Route.Inspect(c, c.Plc1, Names.FbUdt, true); }),
+        C("P3b", "P3 releasing with AutomaticallyCreateOrReleaseDependenciesIfRequired: does Portal make the plain LT_Udt a type and release it too?",
+            ExportPlc1(Names.FbUdt),
+            Before(Names.FbUdt, c =>
+            {
+                Route.Convert(c, c.Plc1, Names.FbUdt, true, null);
+                var inWork = c.Step("find-in-work", () => F.InWork(F.Type(c.PL, Names.FbUdt)));
+                c.Step("Release(0.0.1, automatic dependencies)", () => inWork.Release(AutoDeps, V1, "probe", "P3b"));
+                c.Note("versionsAfterRelease", Describe.Safe(() => F.Versions(F.Type(c.PL, Names.FbUdt))));
+                c.Note("udtTypeAfterRelease", Describe.Safe(() => F.Named(c.PL, Names.Udt)));
+            }),
+            c =>
+            {
+                c.Note("udtPlc1Link", Describe.Safe(() => Describe.Link(F.Obj(c.Plc1, Names.Udt))));
+                Route.Inspect(c, c.Plc1, Names.FbUdt, true);
+            }),
         C("P4", "Source already a type instance: export the PLC_2 LT_Udt instance (released 0.0.1), delete it and CreateFromDocuments again into PLC_2 in one transaction. Second type, refusal or relink?",
             c => { MakeAndRelease(Names.Udt)(c); c.Docs = c.ExportXml(F.Obj(c.Plc2, Names.Udt), Names.Udt); },
+            Before(Names.Udt, c => Route.Convert(c, c.Plc2, Names.Udt, true, null)), After(Names.Udt)),
+        C("P4c", "P4 with PLC_2 compiled before the export (run 1's P4 export was refused as inconsistent): second type, refusal or relink?",
+            c => { MakeAndRelease(Names.Udt)(c); c.CompileFirst(c.Plc2, Names.Udt, "setup"); c.Docs = c.ExportXml(F.Obj(c.Plc2, Names.Udt), Names.Udt); },
             Before(Names.Udt, c => Route.Convert(c, c.Plc2, Names.Udt, true, null)), After(Names.Udt)),
         C("P5", "Version GUID and number: in-work after create (P13a), across Release 0.0.1, Edit and Release 0.0.2.",
             c => c.MakeTypeInPlc2(Names.Udt),
@@ -685,16 +810,18 @@ internal static class Catalog
         C("P7b", "Delete version 0.0.2 (default, linked by the PLC_2 instance).",
             c => c.Chain(Names.Udt), Before(Names.Udt, c => F.Find(F.Type(c.PL, Names.Udt), V2).Delete()), After(Names.Udt)),
         C("P7c", "LibraryType.Delete while a project master copy holds a PLC_2 instance.",
+            ChainWithMasterCopy, Before(Names.Udt, c => F.Type(c.PL, Names.Udt).Delete()), After(Names.Udt)),
+        C("P7c2", "LibraryType.Delete when only a project master copy holds an instance (the PLC_2 instance is deleted in setup).",
             c =>
             {
-                c.Chain(Names.Udt);
-                c.At("MasterCopies.Create(" + Names.Plc2 + " " + Names.Udt + ")");
-                var mc = c.PL.MasterCopyFolder.MasterCopies.Create(F.Source(F.Obj(c.Plc2, Names.Udt)));
-                c.Note("masterCopy", Describe.Safe(() => mc.Name));
-                c.Note("masterCopiesContainingInstances", Describe.Safe(() => F.Type(c.PL, Names.Udt).Versions
-                    .Select(v => new { number = v.VersionNumber.ToString(), masterCopies = v.MasterCopiesContainingInstances.Select(m => m.Name).ToList() }).ToList()));
+                ChainWithMasterCopy(c);
+                c.Step("Delete PLC_2 instance", () => F.Delete(F.Obj(c.Plc2, Names.Udt)));
+                c.Note("masterCopiesContainingInstancesAfterInstanceDelete", McInstances(c));
             },
             Before(Names.Udt, c => F.Type(c.PL, Names.Udt).Delete()), After(Names.Udt)),
+        C("P7d", "Delete the non-default released version 0.0.2 while the PLC_2 instance links to it (0.0.1 set as default in setup).",
+            c => { c.Chain(Names.Udt); c.Step("SetAsDefault(0.0.1)", () => F.Find(F.Type(c.PL, Names.Udt), V1).SetAsDefault()); },
+            Before(Names.Udt, c => F.Find(F.Type(c.PL, Names.Udt), V2).Delete()), After(Names.Udt)),
         C("P8", "Instantiate a global type version the project library lacks into PLC_2 (setup: LT_Udt type made in the project, released 0.0.1, synchronized into the global copy, then its PLC_2 instance and project type deleted).",
             c =>
             {
@@ -745,29 +872,42 @@ internal static class Catalog
         C("P11", "Discard the in-work version (released 0.0.1 exists): what happens to the PLC_2 test instance?",
             c => { MakeAndRelease(Names.Udt)(c); c.EditVia(Names.Udt); },
             Before(Names.Udt, c => c.Working.Discard()), After(Names.Udt)),
+        C("P11c", "Discard after a real content change: the in-work PLC_2 LT_Udt instance gets a member through the update_type_content XML route, then Discard. Does the instance return to the released 0.0.1 content?",
+            c =>
+            {
+                MakeAndRelease(Names.Udt)(c);
+                c.CompileFirst(c.Plc2, Names.Udt, "released");
+                c.Note("releasedContent", c.Content(c.Plc2, Names.Udt, "released"));
+                c.EditVia(Names.Udt);
+                c.CompileFirst(c.Plc2, Names.Udt, "inWork");
+                c.ImportWithExtraMember(c.Plc2, Names.Udt);
+                c.Note("linkAfterChange", Describe.Safe(() => Describe.Link(F.Obj(c.Plc2, Names.Udt))));
+                c.CompileFirst(c.Plc2, Names.Udt, "changed");
+                c.Note("changedContent", c.Content(c.Plc2, Names.Udt, "changed"));
+            },
+            Before(Names.Udt, c => c.Step("Discard", () => F.InWork(F.Type(c.PL, Names.Udt)).Discard())),
+            c =>
+            {
+                After(Names.Udt)(c);
+                c.CompileFirst(c.Plc2, Names.Udt, "afterDiscard");
+                c.Note("contentAfterDiscard", Describe.Safe(() => c.Content(c.Plc2, Names.Udt, "afterDiscard")));
+            }),
         C("P12", "Re-import an in-work FB test instance through the update_block_logic XML route with only its title changed: still linked to the in-work version?",
             c => { MakeAndRelease(Names.Fb)(c); c.EditVia(Names.Fb); },
+            Before(Names.Fb, c => ReimportTitle(c, "probe P12 title edit")), After(Names.Fb)),
+        C("P12c", "P12 with the in-work PLC_2 test instance compiled before the export; then release the in-work version as 0.0.2. Still linked after the import, and does the release keep the edited title?",
+            c => { MakeAndRelease(Names.Fb)(c); c.EditVia(Names.Fb); c.CompileFirst(c.Plc2, Names.Fb, "inWork"); },
             Before(Names.Fb, c =>
             {
-                var block = F.Block(c.Plc2, Names.Fb);
-                var exported = Path.Combine(c.Step("PlcBlock.Export", () => c.ExportXml(block, Names.Fb)).FullName, Names.Fb + ".xml");
-                var doc = XDocument.Load(exported, LoadOptions.PreserveWhitespace);
-                var text = F.BlockTitleText(doc) ?? throw new ProbeSetupException("No block-level Title or Comment text in the export.");
-                c.Note("titleBefore", text.Value);
-                text.Value = "probe P12 title edit";
-                // plc_read hands callers XML without DocumentInfo (BlockXmlSanitizer.RemoveDocumentInfo); mirror that.
-                doc.Root?.Elements().Where(e => e.Name.LocalName == "DocumentInfo").Remove();
-                var edited = Path.Combine(c.Out("edited"), Names.Fb + ".xml");
-                Directory.CreateDirectory(c.Out("edited"));
-                doc.Save(edited, SaveOptions.DisableFormatting);
-                var group = block.Parent as PlcBlockGroup ?? throw new ProbeSetupException("Block parent is not a PlcBlockGroup.");
-                // Same native call and options as the worker's plc_write update_block_logic XML route
-                // (TiaMcpServer.OpennessWorker/Openness/Block/BlockImporter.cs, ImportDocuments):
-                //     target.Group.Blocks.Import(new FileInfo(xmlPath), ImportOptions.Override);
-                var imported = c.Step("PlcBlockComposition.Import(Override)", () => group.Blocks.Import(new FileInfo(edited), ImportOptions.Override));
-                c.Note("imported", Describe.Safe(() => imported.Select(x => x.Name).ToList()));
-                c.Note("linkAfterImport", Describe.Safe(() => Describe.Link(F.Block(c.Plc2, Names.Fb))));
-                c.Note("inWorkGuid", Describe.Safe(() => c.Working.Guid.ToString()));
+                ReimportTitle(c, "probe P12c title edit");
+                c.CompileFirst(c.Plc2, Names.Fb, "afterImport");
+                var inWork = c.Step("find-in-work", () => F.InWork(F.Type(c.PL, Names.Fb)));
+                c.Note("inWorkBeforeRelease", Describe.Ver(inWork));
+                c.Step("Release(0.0.2)", () => inWork.Release(Ctx.NoDeps, V2, "probe", "P12c"));
+                c.Note("versionsAfterRelease", Describe.Safe(() => F.Versions(F.Type(c.PL, Names.Fb))));
+                c.Note("linkAfterRelease", Describe.Safe(() => Describe.Link(F.Block(c.Plc2, Names.Fb))));
+                c.CompileFirst(c.Plc2, Names.Fb, "afterRelease");
+                c.Note("titleAfterRelease", Describe.Safe(() => F.BlockTitleText(XDocument.Load(c.ExportFile(c.Plc2, Names.Fb, "afterRelease")))?.Value));
             }), After(Names.Fb)),
         H("P13b", "Release the in-work version with a null version number (and null author/comment).",
             "Version validation may run in Portal itself (see T7Z, which killed Portal).",
@@ -1255,7 +1395,8 @@ internal sealed class FixtureCheck
 internal static class SelfTest
 {
     private static readonly string[] ExpectedIds =
-        { "P1u", "P1u-notx", "P1f", "P1r-after-import", "P1r-after-delete", "P3", "P4", "P5", "P6", "P7a", "P7b", "P7c", "P8", "P9", "P10", "P11", "P12", "P13b", "P14a", "P14b", "P14c" };
+        { "P1u", "P1u-notx", "P1f", "P1r-after-import", "P1r-after-delete", "P1n", "P3", "P3b", "P4", "P4c", "P5", "P6", "P7a", "P7b", "P7c", "P7c2", "P7d",
+          "P8", "P9", "P10", "P11", "P11c", "P12", "P12c", "P13b", "P14a", "P14b", "P14c" };
     private static readonly string[] CrashRisk = { "P13b", "P14a", "P14b" };
 
     private static void Assert(bool ok, string what) { if (!ok) throw new Exception("Self-test failed: " + what); }

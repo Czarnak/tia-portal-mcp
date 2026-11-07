@@ -33,7 +33,7 @@ the library distinctive role-style names of at least 6 characters (for example `
 | Instance DB | `LT_Fb_DB` | instance DB of `LT_Fb` |
 | Caller | `LT_Caller` FC | calls `LT_Fb` with `LT_Fb_DB` |
 | FB using plain UDT | `LT_FbUdt` in the PLC_1 blocks root | static or input member of type `"LT_Udt"`; not a type instance |
-| Know-how protected FB | `LT_FbKhp` | optional; `P10` records `fixtureMissing` if absent |
+| Know-how protected FB | `LT_FbKhp` in PLC_1 | optional; `P10` records `fixtureMissing` if absent |
 | Global library | | writable: no read-only file, not write-protected (`P8` opens its copy read-write); no type named `LT_*` (`P8` builds its own) |
 | Project library | | no type or master copy named `LT_*` |
 | Baseline | | no compile error under an `LT_*` object; other PLC_1 compile errors are recorded as the baseline and do not fail the check |
@@ -65,7 +65,7 @@ this order and each with a new `--work`:
         --disposable-root <root> --project <root>\<proj>\<proj>.ap21 ^
         --library <root>\<lib>\<lib>.al21 --work <root>\probe-run-1
 
-Use `--case P1u,P9` instead of `--all` for selected cases. Run the crash-risk cases **last and
+Use `--case P1u,P9` instead of `--all` for selected cases (run 2: `--case P1n,P3b,P4c,P7c2,P7d,P10,P11c,P12c`). Run the crash-risk cases **last and
 alone**, one per run, each with its own new `--work`, and check Portal is still alive after each:
 
     ... --case P13b --work <root>\probe-p13b
@@ -90,18 +90,25 @@ customer identifiers anyway: Siemens messages can quote text the redaction does 
 | `P1f` | `P1u` route for `LT_Fb` (block group); compile PLC_1 and `LT_Caller` |
 | `P1r-after-import` | `P1u` route, deliberate failure after the link check; the transaction is disposed without commit |
 | `P1r-after-delete` | `P1u` route, deliberate failure right after the delete |
+| `P1n` | `P1u` route into a nested project-library type folder `LT_Folder/LT_Sub` created in setup |
 | `P3` | `P1u` route for `LT_FbUdt`; if created, release its in-work version as `0.0.1` |
+| `P3b` | `P3` releasing with `AutomaticallyCreateOrReleaseDependenciesIfRequired` |
 | `P4` | `LT_Udt` type made in PLC_2 and released `0.0.1`; export the PLC_2 instance, delete it and `CreateFromDocuments` again into PLC_2 in one transaction |
+| `P4c` | `P4` with PLC_2 compiled before the export (run 1: the uncompiled instance was not exportable) |
 | `P5` | Version GUID and number after create, across release `0.0.1`, edit and release `0.0.2` (also P13a) |
 | `P6` | Chain (released `0.0.1`, `0.0.2`); `SetAsDefault` on `0.0.1` |
 | `P7a` | Chain; `LibraryType.Delete` |
 | `P7b` | Chain; delete version `0.0.2` |
 | `P7c` | Chain plus a project master copy of the PLC_2 instance; `LibraryType.Delete` |
+| `P7c2` | `P7c` with the PLC_2 instance deleted in setup, so only the master copy holds an instance |
+| `P7d` | Chain plus `SetAsDefault(0.0.1)`; delete the non-default `0.0.2` the PLC_2 instance links to |
 | `P8` | Setup: `LT_Udt` type made in PLC_2 and released `0.0.1`, synchronized into the global library copy, then its PLC_2 instance and project type deleted. Act: instantiate the global default version into PLC_2 |
 | `P9` | Chain; `UpdateLibrary` into a fresh empty library: a) initial, b) after releasing `0.0.3` and setting `0.0.1` as default, c) after releasing `0.0.4` |
 | `P10` | Export `LT_FbKhp` |
 | `P11` | Released `0.0.1` plus an in-work version; `Discard` it |
+| `P11c` | Released `0.0.1`, edited, a member added to the in-work PLC_2 instance through the worker's `update_type_content` XML call (`Types.Import(file, ImportOptions.Override)`), compiled; `Discard`; content compared (members, hash without `DocumentInfo`) |
 | `P12` | `LT_Fb` type made in PLC_2, released `0.0.1`, edited; re-import the in-work test instance's XML with only the block title changed (whitespace kept, `DocumentInfo` removed as `plc_read` does), through the worker's `update_block_logic` XML call (`Blocks.Import(file, ImportOptions.Override)`) |
+| `P12c` | `P12` with the in-work test instance compiled before the export; then compile and release the in-work version as `0.0.2`, and read the title back |
 | `P13b` | Crash risk. Release the new in-work version with a null number, author and comment |
 | `P14a` | Crash risk. Release the new in-work version as `1.0.0` |
 | `P14b` | Crash risk. Release as `0.1.0` |
