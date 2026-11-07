@@ -33,31 +33,44 @@ following remain open.
 - **Disposed `GlobalLibraryInfo`.** A disposed info fails the whole item rather than one "no longer
   exists" row. Add per-row liveness if live evidence shows infos can be disposed.
 
-**Carried to the `library_write` plan (PR 2 input)**
+## Open: library_write follow-ups (2026-11-07)
 
-Native-rejection probes run before PR 2 is planned.
+[`library_write`](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write) delivered the
+lifecycle, folder and master-copy slice ([ADR-0016](adr/0016-library-write-staging-and-lifecycle-prompt.md),
+[live report](superpowers/acceptance/reports/2026-11-07-library-write-live-verification.md)). It closed the
+carried Portal-identity, per-call capability gate, lifecycle set, admission accounting, outcome plumbing and
+snapshot-drop items; the `verify` RPC and `Take(6)` code were not ported. The following remain open.
 
-- Portal identity is not part of `WriteBindingPreparation`, the `WriteRun` lease or confirmation
-  rechecks, which compare `ProjectBindingSnapshot` only.
-- `WriteRun` gates on the tool name. Pick a per-call seam aligned with the host (`Invocation.cs`) and
-  worker (`Program.cs`) per-method gates, or keep it fail-closed for v1.
-- Lifecycle: the contribution picks the lifecycle operations by position (`Take(6)`) and classifies them
-  `ProjectMutation`; the Portal write route also runs `Execute` without the mutates flag. Name the set,
-  its capability and the per-operation `ConfirmsEveryCall`.
-- `release_type_version` and `synchronize_type` make multi-step default changes with no transaction or
-  receipt.
-- Mixed guards: `library_collision`, `library_state_unverifiable`, `library_unsaved_changes` (eight uses,
-  five are release preconditions) and `library_read_only` (which also covers access-mode mismatch).
-- Admission accounting: the contributed `Validate` skips `WriteValidation.Compose(MeasureProtectedCore...)`.
+**PR 3: versioned types** (see the probe report's "Consequences")
+
+- Operations: `create_type`, `create_type_version`, `edit_type_version`, `release_type_version`,
+  `set_default_type_version`, `synchronize_type`, `instantiate_type_version`, `delete_type`,
+  `delete_type_version`.
+- Validate the version number before `Release`: reject `0.0.0` (T7Z killed Portal) and a number equal to or
+  lower than an existing version (T7, T8 are accepted natively).
+- Never use `CreateOptions.Override` (T4 replaced an in-work version and deleted a test instance);
+  `CreateFromDocuments` creates duplicate-name types (T1), so check for collisions.
+- `UpdateLibrary` and type-version instantiation pull in dependencies (T17, T20); the preview must show the
+  dependency closure. Deleting the only version removes the whole type (T11).
+- `release_type_version` and `synchronize_type` change the default in several steps with no transaction;
+  decide on a receipt.
+- Stage approved XML into an operation-owned directory before import (sidecar race).
+- Mixed guards from the contribution (`library_collision`, `library_unsaved_changes`, `library_read_only`)
+  need a decision against the four guards `library_write` registered.
 - An oversized item `result` is omitted whole; commit and partial-move facts need a compact rewrite.
-- Typed outcome plumbing touches about 15 copy sites, and `PersistentWorkerTransport` validates only
-  VCI and Network outcomes.
-- All four validation helpers reflect into `LibraryWriter.Verify` and use `Verified` as oracle. The probe
-  convention is `docs/superpowers/acceptance/reports/inputs/<date>-<topic>-native-probe/`.
-- Remove the `verify` RPC and `LibraryWriteVerification`; stage approved XML (sidecar race); decide one
-  operation per call versus the 1-50 convention.
-- Library mutations must drop library read snapshots for the touched library, as HMI mutations do
-  (`HmiSnapshotStore.DropFor`).
+- Reuse the item-aware confirmation, the per-item capability hook, the write capabilities and the typed
+  outcome validation.
+
+**Still deferred after PR 3:** `update_type_instances` (`UpdateProject` removed 56 unused instances despite
+`DoNotDelete`; needs a transaction with an inventory check), `replace_master_copy`, `move_master_copy`,
+`move_master_copy_folder`. Library upgrade on open/retrieve, library metadata writes, project-library writes on
+local sessions and unbound (Portal-only) global operations are also outside the delivered slice.
+
+**Not live-verified (offline tests only):** a native master-copy rename (`postcondition_failed` with
+`actualName`); `Close` throwing after a save; `library_state_unverifiable`; a delete preview over 200 entries;
+`plcType`/`tagTable` sources, `typeGroup`/`tagTableGroup` destinations and nested `plcFolderPath`; a types
+folder with dependents (F6); `save`/`close`/`archive` on a non-user global library; an `open_global` mode
+change (G4); Portal loss during a library write.
 
 ## Open: VCI follow-ups (2026-10-16)
 

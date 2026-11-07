@@ -66,6 +66,9 @@ public static class McpToolRegistration
                 (services, _, message) => WriteRejection(new Vci.VciWriteDomain(Client(services),
                     services.GetRequiredService<Vci.VciBreadcrumbLocation>()), message),
                 closeNestedSchemas: true),
+            [typeof(Library.LibraryWriteTools)] = builder => builder.WithClosedTools(typeof(Library.LibraryWriteTools),
+                (services, _, message) => WriteRejection(new Library.LibraryWriteDomain(Client(services)), message),
+                closeNestedSchemas: true),
             [typeof(ProjectWriteTools)] = builder => builder.WithClosedTools(typeof(ProjectWriteTools),
                 (services, tool, message) => WriteRejection(new LifecycleWriteDomain(Client(services), new LifecycleWriteItem(tool)), message),
                 closeNestedSchemas: false),
@@ -81,7 +84,7 @@ public static class McpToolRegistration
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.Compile))
             builder.WithProductionTools(typeof(ProjectEngineeringTools));
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectMutation))
-            foreach (var type in new[] { typeof(NetworkWriteTools), typeof(PlcWriteTools), typeof(Hmi.HmiWriteTools), typeof(Vci.VciWriteTools) })
+            foreach (var type in new[] { typeof(NetworkWriteTools), typeof(PlcWriteTools), typeof(Hmi.HmiWriteTools), typeof(Vci.VciWriteTools), typeof(Library.LibraryWriteTools) })
                 builder.WithProductionTools(type);
         if (OperationPolicyCatalog.IsCapabilityAllowed(mode, OperationCapability.ProjectLifecycle))
             builder.WithProductionTools(typeof(ProjectWriteTools));
@@ -109,9 +112,9 @@ public static class McpToolRegistration
             WritePhases.Error, false, new WriteToolError(ValidationError, message), [], [], [], null, default))), isError: true);
 }
 
-/// <summary>The one production guard catalog: lifecycle, Network, PLC, HMI and VCI guard definitions.</summary>
+/// <summary>The one production guard catalog for every guarded write domain.</summary>
 public static class WriteGuardRegistration
 {
     public static WriteGuardCatalog ProductionCatalog()
-        => new(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions).Concat(PlcGuardDefinitions.Definitions).Concat(Hmi.HmiGuardDefinitions.Definitions).Concat(Vci.VciGuardDefinitions.Definitions));
+        => new(LifecycleWriteDomain.GuardDefinitions.Concat(NetworkGuardDefinitions.Definitions).Concat(PlcGuardDefinitions.Definitions).Concat(Hmi.HmiGuardDefinitions.Definitions).Concat(Vci.VciGuardDefinitions.Definitions).Concat(Library.LibraryGuardDefinitions.Definitions));
 }

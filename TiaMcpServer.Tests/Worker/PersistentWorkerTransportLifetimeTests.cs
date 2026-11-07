@@ -12,6 +12,59 @@ namespace TiaMcpServer.Tests.Worker;
 public sealed class PersistentWorkerTransportLifetimeTests
 {
     [Theory]
+    [InlineData("\"LibraryWriteOutcome\":{\"saved\":true,\"actualName\":null}")]
+    [InlineData("\"libraryWriteOutcome\":null,\"libraryWriteOutcome\":{\"saved\":true,\"actualName\":null}")]
+    [InlineData("\"libraryWriteOutcome\":null,\"LibraryWriteOutcome\":null")]
+    [InlineData("\"libraryWriteOutcome\":{\"Saved\":true,\"actualName\":null}")]
+    [InlineData("\"libraryWriteOutcome\":{\"saved\":true}")]
+    [InlineData("\"libraryWriteOutcome\":{\"actualName\":null}")]
+    [InlineData("\"libraryWriteOutcome\":{\"saved\":null,\"saved\":true,\"actualName\":null}")]
+    [InlineData("\"libraryWriteOutcome\":{\"saved\":true,\"actualName\":null,\"PRIVATE_MARKER\":1}")]
+    [InlineData("\"libraryWriteOutcome\":{\"saved\":\"true\",\"actualName\":null}")]
+    [InlineData("\"libraryWriteOutcome\":[]")]
+    public async Task Transport_MalformedLibraryOutcome_IsProtocolError(string member)
+    {
+        using var wire = new ConfigureWireFixture("{\"success\":false,\"failureCategory\":\"worker_operation_failed\",\"error\":\"PRIVATE_MARKER\",\"warnings\":[\"PRIVATE_MARKER\"]," + member + "}");
+        var response = await wire.Transport.SendAsync(new() { Method = "library_global_close_global" });
+        Assert.False(response.Success);
+        Assert.Equal("protocol_error", response.FailureCategory);
+        Assert.Null(response.LibraryWriteOutcome);
+        Assert.Null(response.Payload);
+        Assert.Null(response.EngineeringError);
+        Assert.Null(response.Warnings);
+        Assert.Null(response.SessionIdentity);
+        Assert.DoesNotContain("PRIVATE_MARKER", response.Error);
+        var next = await wire.Transport.SendAsync(new() { Method = "get_project_status" });
+        Assert.True(next.Success, next.Error);
+        Assert.Equal("2", next.Payload);
+        Assert.Equal(new[] { "library_global_close_global", "get_project_status" }, File.ReadAllLines(wire.RequestLog));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(",\"libraryWriteOutcome\":null")]
+    public async Task LibraryFailure_AbsentOrNullOutcome_IsAllowed(string member)
+    {
+        using var wire = new ConfigureWireFixture("{\"success\":false,\"failureCategory\":\"worker_operation_failed\",\"error\":\"Synthetic failure\"" + member + "}");
+        var response = await wire.Transport.SendAsync(new() { Method = "library_global_close_global" });
+        Assert.Equal("worker_operation_failed", response.FailureCategory);
+        Assert.Null(response.LibraryWriteOutcome);
+    }
+
+    [Theory]
+    [InlineData(true, "Renamed")]
+    [InlineData(null, null)]
+    public async Task LibraryFailure_ValidOutcome_PreservesNullableMembers(bool? saved, string? actualName)
+    {
+        var outcome = JsonSerializer.Serialize(new { saved, actualName });
+        using var wire = new ConfigureWireFixture("{\"success\":false,\"failureCategory\":\"worker_operation_failed\",\"error\":\"Synthetic failure\",\"libraryWriteOutcome\":" + outcome + "}");
+        var response = await wire.Transport.SendAsync(new() { Method = "library_global_close_global" });
+        Assert.Equal("worker_operation_failed", response.FailureCategory);
+        Assert.Equal(saved, response.LibraryWriteOutcome!.Saved);
+        Assert.Equal(actualName, response.LibraryWriteOutcome.ActualName);
+    }
+
+    [Theory]
     [InlineData("\"configureNetworkDeviceOutcome\":{\"deviceName\":\"PLC_1\"}")]
     [InlineData("\"configureNetworkDeviceOutcome\":{\"deviceName\":\"PLC_1\",\"messages\":[]}")]
     [InlineData("\"configureNetworkDeviceOutcome\":{\"deviceName\":\"PLC_1\",\"appliedSettings\":{}}")]

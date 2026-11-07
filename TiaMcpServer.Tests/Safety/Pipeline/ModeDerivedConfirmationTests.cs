@@ -65,6 +65,64 @@ public sealed class ModeDerivedConfirmationTests
     }
 
     [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task ReadWrite_ItemAwareDomain_PromptsOnlyWhenItemsRequire(bool requires, int expectedPrompts)
+    {
+        var gate = new FakeWriteBindingGate { AccessMode = McpAccessMode.ReadWrite };
+        var domain = new FakeWriteDomain(gate)
+        {
+            ConfirmsEveryCall = !requires,
+            ConfirmsCallOverride = items => items.Any(item => item.Operation == "lifecycle")
+        };
+        var audit = new RecordingAuditSink(gate);
+        var prompts = 0;
+        var confirmation = new UserConfirmation(true, (_, _) =>
+        {
+            Assert.Equal(0, domain.MutationCount);
+            Assert.True(gate.LeaseActive);
+            prompts++;
+            return ValueTask.FromResult(Confirmed());
+        }, TimeSpan.FromSeconds(1));
+        var result = await new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System)
+            .RunAsync(domain, new WriteCall<FakeWriteItem>(
+                [new("a", "content"), new("b", requires ? "lifecycle" : "content")], false), new(confirmation));
+
+        Assert.False(result.IsError == true);
+        Assert.Equal(expectedPrompts, prompts);
+        Assert.Equal(2, domain.MutationCount);
+        Assert.Equal(new WriteAuditConfirmation(expectedPrompts == 1 ? "user" : "none",
+            expectedPrompts == 1 ? "confirmed" : "not_requested"), Assert.Single(audit.Records).Confirmation);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Full_ItemAwareDomain_NeverPrompts_AuditsPolicy(bool requires)
+    {
+        var gate = new FakeWriteBindingGate { AccessMode = McpAccessMode.Full };
+        var domain = new FakeWriteDomain(gate)
+        {
+            ConfirmsCallOverride = items => items.Any(item => item.Operation == "lifecycle")
+        };
+        var audit = new RecordingAuditSink(gate);
+        var prompts = 0;
+        var confirmation = new UserConfirmation(true, (_, _) =>
+        {
+            prompts++;
+            return ValueTask.FromResult(new ElicitResult { Action = "decline" });
+        }, TimeSpan.FromSeconds(1));
+        var result = await new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System)
+            .RunAsync(domain, new WriteCall<FakeWriteItem>(
+                [new("a", "content"), new("b", requires ? "lifecycle" : "content")], false), new(confirmation));
+
+        Assert.False(result.IsError == true);
+        Assert.Equal(0, prompts);
+        Assert.Equal(2, domain.MutationCount);
+        Assert.Equal(new WriteAuditConfirmation("policy", "not_requested"), Assert.Single(audit.Records).Confirmation);
+    }
+
+    [Theory]
     [InlineData(UserConfirmationOutcomes.Declined)]
     [InlineData(UserConfirmationOutcomes.Cancelled)]
     [InlineData(UserConfirmationOutcomes.TimedOut)]

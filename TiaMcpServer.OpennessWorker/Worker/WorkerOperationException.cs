@@ -3,6 +3,7 @@ using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Contracts.Vci;
+using TiaMcpServer.Contracts.Library;
 
 namespace TiaMcpServer.OpennessWorker.Worker;
 
@@ -29,6 +30,8 @@ public sealed class WorkerOperationException : Exception
 
     public VciWriteOutcomeInfo? VciWriteOutcome { get; }
 
+    public LibraryWriteOutcomeInfo? LibraryWriteOutcome { get; }
+
     /// <summary>The Siemens exception this wraps, so a call site that catches one can forward it instead of flattening it to text.</summary>
     public EngineeringErrorInfo? EngineeringError { get; }
 
@@ -42,7 +45,8 @@ public sealed class WorkerOperationException : Exception
         HmiWriteOutcomeInfo? hmiWriteOutcome = null,
         VciWriteOutcomeInfo? vciWriteOutcome = null,
         EngineeringErrorInfo? engineeringError = null,
-        ConfigureNetworkDeviceResultInfo? configureNetworkDeviceOutcome = null)
+        ConfigureNetworkDeviceResultInfo? configureNetworkDeviceOutcome = null,
+        LibraryWriteOutcomeInfo? libraryWriteOutcome = null)
         : base(message)
     {
         if (!WorkerFailureCategories.IsKnown(failureCategory))
@@ -57,6 +61,7 @@ public sealed class WorkerOperationException : Exception
         BlockImportOutcome = blockImportOutcome;
         HmiWriteOutcome = hmiWriteOutcome;
         VciWriteOutcome = vciWriteOutcome;
+        LibraryWriteOutcome = libraryWriteOutcome;
         EngineeringError = engineeringError;
         ConfigureNetworkDeviceOutcome = configureNetworkDeviceOutcome;
     }

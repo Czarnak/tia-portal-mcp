@@ -811,6 +811,7 @@ public partial class OpennessWorkerClient
                 ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
                 HmiWriteOutcome = result.HmiWriteOutcome,
                 VciWriteOutcome = result.VciWriteOutcome,
+                LibraryWriteOutcome = result.LibraryWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState
             };
@@ -832,6 +833,7 @@ public partial class OpennessWorkerClient
                     ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
                     HmiWriteOutcome = result.HmiWriteOutcome,
                     VciWriteOutcome = result.VciWriteOutcome,
+                    LibraryWriteOutcome = result.LibraryWriteOutcome,
                     BlockImportOutcome = result.BlockImportOutcome,
                     DispatchState = result.DispatchState
                 };
@@ -858,6 +860,7 @@ public partial class OpennessWorkerClient
                 ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
                 HmiWriteOutcome = result.HmiWriteOutcome,
                 VciWriteOutcome = result.VciWriteOutcome,
+                LibraryWriteOutcome = result.LibraryWriteOutcome,
                 BlockImportOutcome = result.BlockImportOutcome,
                 DispatchState = result.DispatchState
             };
@@ -872,6 +875,7 @@ public partial class OpennessWorkerClient
             ConfigureNetworkDeviceOutcome = result.ConfigureNetworkDeviceOutcome,
             HmiWriteOutcome = result.HmiWriteOutcome,
             VciWriteOutcome = result.VciWriteOutcome,
+            LibraryWriteOutcome = result.LibraryWriteOutcome,
             BlockImportOutcome = result.BlockImportOutcome,
             DispatchState = result.DispatchState
         };

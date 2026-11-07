@@ -8,6 +8,26 @@ namespace TiaMcpServer.Tests.Worker;
 
 public sealed class WorkerExecutionTests
 {
+    [Fact]
+    public void LibraryOutcome_SurvivesPortalLostReclassification()
+    {
+        var revision = 0L;
+        var outcome = new TiaMcpServer.Contracts.Library.LibraryWriteOutcomeInfo { Saved = true, ActualName = "Renamed" };
+        var exception = new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "x", libraryWriteOutcome: outcome);
+        var result = WorkerExecution.Execute(() => { revision++; throw exception; }, () => revision, mutates: true);
+        Assert.Equal(WorkerFailureCategories.PortalLost, result.FailureCategory);
+        Assert.Null(result.EngineeringError);
+        Assert.Same(outcome, result.LibraryWriteOutcome);
+    }
+
+    [Fact]
+    public void LibraryOutcome_WithoutDisposal_IsRethrown()
+    {
+        var exception = new WorkerOperationException(WorkerFailureCategories.PostconditionFailed, "x",
+            libraryWriteOutcome: new TiaMcpServer.Contracts.Library.LibraryWriteOutcomeInfo { ActualName = "Renamed" });
+        Assert.Same(exception, Assert.Throws<WorkerOperationException>(() => WorkerExecution.Execute(() => throw exception, () => 0, mutates: true)));
+    }
+
     [Theory]
     [InlineData(true, true, WorkerFailureCategories.EngineeringRejected)]
     [InlineData(true, false, WorkerFailureCategories.WorkerOperationFailed)]

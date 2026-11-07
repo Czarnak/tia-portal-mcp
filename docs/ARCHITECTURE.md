@@ -84,15 +84,16 @@ for client limits and mutation recovery.
 
 ### Read-write mode
 
-Read-write exposes twenty tools: eight observation tools, `bind_project`, `compile_check`,
-`network_write`, `plc_write`, `hmi_write`, `vci_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
-`SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`. The four domain write tools
-never elicit; every actual lifecycle call asks once through client form elicitation.
+Read-write exposes twenty-one tools: eight observation tools, `bind_project`, `compile_check`,
+`network_write`, `plc_write`, `hmi_write`, `vci_write`, `library_write`, and six lifecycle tools. It permits `Observe`, `TemporaryExport`,
+`SessionSelection`, `Compile`, `ProjectMutation`, and `ProjectLifecycle`. The four data write tools
+never elicit; `library_write` asks once only when a call contains a global-library lifecycle operation, and every actual
+project lifecycle call asks once through client form elicitation.
 Reads never bind, switch, or open; `bind_project` selects an already-open project.
 
 ### Full mode
 
-Full exposes the same twenty tools and permits the same capabilities; it adds no tools or
+Full exposes the same twenty-one tools and permits the same capabilities; it adds no tools or
 operations. Lifecycle runs under policy without server elicitation. Block guards stop the call in
 every mode. PLC run/stop (`start_plc`/`stop_plc`) was removed; `OperationCapability.OnlineControl`
 remains as a reserved value with no operation and is permitted in no mode.
@@ -222,6 +223,7 @@ A deeper direct-Openness selector resolver and depth-pruned traversal remains a 
 | `plc_write` | Preview or apply up to 50 ordered PLC software writes (blocks, types, block groups, tag tables, tags, user constants) through the guarded pipeline. |
 | `hmi_write` | Preview or apply ordered Unified HMI tag and alarm writes. |
 | `vci_write` | Preview or apply ordered standalone VCI workspace, export, sync and mapping writes. |
+| `library_write` | Preview or apply up to 50 ordered global-library lifecycle, folder and master-copy writes. |
 
 ### Lifecycle tools in read-write and full
 
@@ -377,7 +379,7 @@ null and active connection observation `unknown` without a supported owner/endpo
 Explicit endpoint inventory has separate attachment/endpoint-scoped history; refresh timestamps
 do not create identity churn or prove an active-session reconnection. Capability descriptions
 grant no permission. Strict required-member/coherence decoding precedes existing 60,000-value
-and 180,000-document budgets. Current counts are 9/20/20 (read-only/read-write/full).
+and 180,000-document budgets. Current counts are 9/21/21 (read-only/read-write/full).
 PR4's [scoped live report](superpowers/acceptance/reports/2026-10-08-multiuser-pr4-live-verification.md)
 retains both failed noninteractive offline opens, UI-assisted success, restoration and
 unexecuted rows. Content/session/markings/mutations remain undelivered; see the
@@ -843,6 +845,14 @@ libraries (exact name or case-insensitive full path). The worker raises `binding
 or Portal-attachment loss and never opens, retrieves, saves, closes or changes a library. Operation reference:
 [Library operations summary](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md).
 
+### Library writes (`library_write`)
+
+`library_write` is an `IWriteDomain` (`LibraryWriteDomain`) on `Safety/Pipeline`, shaped like `vci_write`: `LibraryWriteCatalog` validates the 1-50 flat `LibraryWriteItem`s through `LibraryWriteMethods.Validate` (closed members per operation, selector rules shared with `library_read` through `LibrarySelectorRules`), `LibraryWritePlanner` makes one Observe plan call per item and fires the guards, and the shared run mutates in caller order, stops at the first failure and verifies with `TrustedWriteVerifier` (no read-back). Contracts in `TiaMcpServer.Contracts/Library` hold the method names, the closed member rules and the wire models; the worker (`Openness/Library`) resolves targets (`LibraryWriteTargets`), plans (`LibraryWritePlanReader`) and mutates (`LibraryWriter`), each operation through one `ProjectMutation` method that re-resolves its own targets because there is no plan handoff.
+
+Two hooks on `IWriteDomain` make the pipeline item-aware without changing the other domains: `ConfirmsCall(items)` replaces the read of `ConfirmsEveryCall` in `WriteRun` (defaulting to it), so a read-write call prompts once when it contains a lifecycle item and never otherwise; and `CapabilityOperations(items)` replaces the single tool-name check in the host capability gate (defaulting to `[ToolName]`), so each item is checked as its worker method (`library_global_*` to `library_write`, `library_project_*` to `library_project_write`). A mixed call with one unsupported item is refused whole before any mutation. Decision record: [ADR-0016](adr/0016-library-write-staging-and-lifecycle-prompt.md).
+
+Global-library lifecycle acts on any user global library open in the bound Portal; it is Portal-scope and not covered by the standalone-only project lifecycle rule. The binding snapshot already carries the Portal process id, which the lease and rechecks compare. The typed `LibraryWriteOutcomeInfo` (`saved`, `actualName`) travels in the conditional `libraryWriteOutcome` worker response member, validated by `PersistentWorkerTransport` before the permissive reader, like the Network and VCI outcomes. Hazards, member rules and the live-verified scope are in the [library operations summary](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write).
+
 ### Typed Network payload registry
 
 `TiaMcpServer/Network/NetworkPayloadContract.cs` is the decoder of direct public Network worker
@@ -1226,7 +1236,7 @@ acceptance boundaries.
 ### Guarded write pipeline (foundation and lifecycle)
 
 `TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaced the token flow.
-The six lifecycle tools, `network_write`, `plc_write`, `hmi_write` and `vci_write` use it. Network, PLC, HMI and VCI have no server
+The six lifecycle tools, `network_write`, `plc_write`, `hmi_write`, `vci_write` and `library_write` use it. Network, PLC, HMI and VCI have no server
 elicitation; lifecycle read-write confirms every actual call.
 The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
 are recorded separately; client acceptance does not prove that a person saw the consequence.

@@ -12,6 +12,10 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\TemporaryDirectoryCleanup.cs" Link="Infrastructure\TemporaryDirectoryCleanup.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Infrastructure\PageSnapshots.cs" Link="Infrastructure\PageSnapshots.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryReader.cs" Link="Library\LibraryReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryWriteTargets.cs" Link="Library\LibraryWriteTargets.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryWritePlanReader.cs" Link="Library\LibraryWritePlanReader.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryWriter.cs" Link="Library\LibraryWriter.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypeTargetResolver.cs" Link="Plc\PlcTypeTargetResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerExecution.cs" Link="Worker\WorkerExecution.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\SubnetLifecycleService.cs" Link="Network\SubnetLifecycleService.cs" />

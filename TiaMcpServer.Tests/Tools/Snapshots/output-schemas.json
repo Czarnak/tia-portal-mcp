@@ -7192,6 +7192,827 @@
     ],
     "additionalProperties": false
   },
+  "library_write": {
+    "type": "object",
+    "properties": {
+      "tool": {
+        "type": "string"
+      },
+      "contractVersion": {
+        "type": "string"
+      },
+      "phase": {
+        "type": "string"
+      },
+      "success": {
+        "type": "boolean"
+      },
+      "error": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "guards": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "acknowledged": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "severity",
+            "operationId",
+            "message",
+            "acknowledged"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "effects": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "operationId": {
+              "type": "string"
+            },
+            "effect": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "library": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "scope": {
+                      "type": "string"
+                    },
+                    "libraryPath": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "libraryName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "folderKind": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "folderPath": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "typeGuid": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "versionGuid": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "target": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "scope": {
+                      "type": "string"
+                    },
+                    "libraryPath": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "libraryName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "folderKind": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "folderPath": {
+                      "$ref": "#/properties/effects/items/properties/effect/properties/library/properties/folderPath",
+                      "items": {}
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "typeGuid": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "versionGuid": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "alreadyOpen": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "folderContents": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string"
+                      },
+                      "libraryPath": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "libraryName": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "folderKind": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "folderPath": {
+                        "$ref": "#/properties/effects/items/properties/effect/properties/library/properties/folderPath",
+                        "items": {}
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "typeGuid": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "versionGuid": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "contentsTruncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "library",
+                "target",
+                "alreadyOpen",
+                "folderContents",
+                "contentsTruncated"
+              ],
+              "additionalProperties": false
+            },
+            "omission": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "limitChars": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "originalChars": {
+                  "type": "integer"
+                },
+                "retryTool": {
+                  "type": "string"
+                },
+                "guidance": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "identifier": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "name",
+                    "identifier"
+                  ],
+                  "default": null,
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "reason",
+                "limitChars",
+                "originalChars",
+                "retryTool",
+                "guidance"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "operationId",
+            "effect",
+            "omission"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "batch": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "operationCount": {
+            "type": "integer"
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "succeeded": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "omitted": {
+                "type": "integer"
+              },
+              "skipped": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "succeeded",
+              "failed",
+              "omitted",
+              "skipped"
+            ],
+            "additionalProperties": false
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "operationId": {
+                  "type": "string"
+                },
+                "operation": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "result": true,
+                "failure": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "category": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "blockImportOutcome": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "importStage": {
+                          "type": "string"
+                        },
+                        "importResultState": {
+                          "type": "string"
+                        },
+                        "targetMutationCommitted": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "compileStage": {
+                          "type": "string"
+                        },
+                        "compileReport": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "scope": {
+                              "type": "string"
+                            },
+                            "blockPath": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "plcs": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "plcName": {
+                                    "type": "string"
+                                  },
+                                  "deviceName": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "state": {
+                                    "type": "string"
+                                  },
+                                  "errorCount": {
+                                    "type": "integer"
+                                  },
+                                  "warningCount": {
+                                    "type": "integer"
+                                  },
+                                  "messages": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "description": {
+                                          "type": "string"
+                                        },
+                                        "path": {
+                                          "type": "string"
+                                        },
+                                        "severity": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "diagnosticNotes": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "totalErrorCount": {
+                              "type": "integer"
+                            },
+                            "totalWarningCount": {
+                              "type": "integer"
+                            },
+                            "overallState": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "compileDetailsOmitted": {
+                          "type": "boolean"
+                        },
+                        "finalReadStage": {
+                          "type": "string"
+                        },
+                        "targetPresent": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "contentRelation": {
+                          "type": "string"
+                        },
+                        "temporarySourceState": {
+                          "type": "string"
+                        }
+                      },
+                      "default": null,
+                      "additionalProperties": false
+                    },
+                    "engineeringError": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "inner": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "default": null,
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "category",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                },
+                "omission": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "reason": {
+                      "type": "string"
+                    },
+                    "limitChars": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "originalChars": {
+                      "type": "integer"
+                    },
+                    "retryTool": {
+                      "type": "string"
+                    },
+                    "guidance": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "$ref": "#/properties/effects/items/properties/omission/properties/subject",
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "reason",
+                    "limitChars",
+                    "originalChars",
+                    "retryTool",
+                    "guidance"
+                  ],
+                  "additionalProperties": false
+                },
+                "skipReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "operationId",
+                "operation",
+                "status",
+                "result",
+                "failure",
+                "omission",
+                "skipReason",
+                "warnings"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "originalChars": {
+                "type": "integer"
+              },
+              "presentedChars": {
+                "type": "integer"
+              },
+              "omittedResultCount": {
+                "type": "integer"
+              },
+              "omittedWarningCount": {
+                "type": "integer"
+              },
+              "affectedOperationIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "truncated",
+              "originalChars",
+              "presentedChars",
+              "omittedResultCount",
+              "omittedWarningCount",
+              "affectedOperationIds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "operationCount",
+          "counts",
+          "operations",
+          "truncation"
+        ],
+        "additionalProperties": false
+      },
+      "verification": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "operationId": {
+                  "type": "string"
+                },
+                "success": {
+                  "type": "boolean"
+                },
+                "check": {
+                  "type": "string"
+                },
+                "expected": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "actual": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "operationId",
+                "success",
+                "check",
+                "expected",
+                "actual",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "omission": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "limitChars": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "originalChars": {
+                "type": "integer"
+              },
+              "retryTool": {
+                "type": "string"
+              },
+              "guidance": {
+                "type": "string"
+              },
+              "subject": {
+                "$ref": "#/properties/effects/items/properties/omission/properties/subject",
+                "default": null
+              }
+            },
+            "required": [
+              "reason",
+              "limitChars",
+              "originalChars",
+              "retryTool",
+              "guidance"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "operations",
+          "omission"
+        ],
+        "additionalProperties": false
+      },
+      "omission": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "limitChars": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "originalChars": {
+            "type": "integer"
+          },
+          "retryTool": {
+            "type": "string"
+          },
+          "guidance": {
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/properties/effects/items/properties/omission/properties/subject",
+            "default": null
+          }
+        },
+        "required": [
+          "reason",
+          "limitChars",
+          "originalChars",
+          "retryTool",
+          "guidance"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "tool",
+      "contractVersion",
+      "phase",
+      "success",
+      "error",
+      "warnings",
+      "guards",
+      "effects",
+      "batch",
+      "verification",
+      "omission"
+    ],
+    "additionalProperties": false
+  },
   "network_read": {
     "type": "object",
     "properties": {

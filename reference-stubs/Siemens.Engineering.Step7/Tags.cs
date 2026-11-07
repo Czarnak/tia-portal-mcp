@@ -49,7 +49,7 @@ namespace Siemens.Engineering.SW.Tags
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
-    public abstract class PlcTagTable : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.IEngineeringServiceProvider
+    public abstract class PlcTagTable : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.IEngineeringServiceProvider, global::Siemens.Engineering.Library.MasterCopies.IMasterCopySource
     {
         public global::Siemens.Engineering.SW.Tags.PlcSystemConstantComposition SystemConstants { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.SW.Tags.PlcTagComposition Tags { get => throw new global::System.NotSupportedException(); }
@@ -66,6 +66,7 @@ namespace Siemens.Engineering.SW.Tags
     }
     public abstract class PlcTagTableComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.SW.Tags.PlcTagTable>
     {
+        public global::Siemens.Engineering.SW.Tags.PlcTagTable CreateFrom(global::Siemens.Engineering.Library.MasterCopies.MasterCopy sourceMasterCopy, global::Siemens.Engineering.Library.MasterCopies.MasterCopyMode copyMode) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.SW.Tags.PlcTagTable> GetEnumerator() => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.Tags.PlcTagTable Find(string name) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.Tags.PlcTagTable Create(string name) => throw new global::System.NotSupportedException();

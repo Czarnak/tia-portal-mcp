@@ -62,6 +62,9 @@ public partial class OpennessWorkerClient
     public Task<WorkerCallResult> WriteVciAsync(string method, TiaMcpServer.Contracts.Vci.VciWriteRequestInfo write)
         => SendBoundProjectRequestAsync(method, null, request => request.VciWrite = write, "{}");
 
+    public Task<WorkerCallResult> WriteLibraryAsync(string method, TiaMcpServer.Contracts.Library.LibraryWriteRequestInfo write)
+        => SendBoundProjectRequestAsync(method, null, request => request.LibraryWrite = write, "{}");
+
     /// <summary>Runs one hmi_read operation; <paramref name="method"/> is the hmi_-prefixed worker method.</summary>
     public Task<WorkerCallResult> ReadHmiAsync(string method, HmiQueryInfo query)
     {

@@ -264,7 +264,7 @@ internal static class LibraryReader
     }
 
     /// <summary>Folders before entries, each by ordinal name.</summary>
-    private static IEnumerable<object> ChildRows(ILibrary library, LibraryQueryInfo query)
+    internal static IEnumerable<object> ChildRows(ILibrary library, LibraryQueryInfo query)
     {
         if (query.FolderKind == "types")
         {
@@ -466,29 +466,15 @@ internal static class LibraryReader
         {
             if (!owners.TryGetValue(library, out var identity))
             {
-                var global = library as GlobalLibrary;
-                identity = new LibraryIdentityInfo
-                {
-                    Scope = global is null ? "project" : "global", Kind = "library",
-                    Name = global?.Name ?? project.Name, LibraryName = global?.Name, LibraryPath = global?.Path?.FullName,
-                };
+                identity = LibraryIdentities.Identity(project, library);
                 owners.Add(library, identity);
             }
 
-            return Copy(identity);
+            return LibraryIdentities.Copy(identity);
         }
 
-        private static LibraryIdentityInfo Copy(LibraryIdentityInfo x) => new()
-        {
-            Scope = x.Scope, LibraryName = x.LibraryName, LibraryPath = x.LibraryPath, Kind = x.Kind, Name = x.Name,
-        };
-
         private static LibraryIdentityInfo Child(LibraryIdentityInfo root, string folderKind, IEnumerable<string> path, string kind, string name)
-            => new()
-            {
-                Scope = root.Scope, LibraryName = root.LibraryName, LibraryPath = root.LibraryPath,
-                FolderKind = folderKind, FolderPath = path.ToList(), Kind = kind, Name = name,
-            };
+            => LibraryIdentities.Child(root, folderKind, path, kind, name);
 
         /// <summary>An unsupported flag is null with a diagnostic, never false; any other failure fails the read.</summary>
         private static bool? Optional(Func<object?> read, string member, LibraryEntryInfo entry)
@@ -523,4 +509,30 @@ internal static class LibraryReader
             }
         }
     }
+}
+
+/// <summary>Uncached identity builders; each reader retains ownership of its own identity cache.</summary>
+internal static class LibraryIdentities
+{
+    internal static LibraryIdentityInfo Identity(ProjectBase project, ILibrary library)
+    {
+        var global = library as GlobalLibrary;
+        return new LibraryIdentityInfo
+        {
+            Scope = global is null ? "project" : "global", Kind = "library",
+            Name = global?.Name ?? project.Name, LibraryName = global?.Name, LibraryPath = global?.Path?.FullName,
+        };
+    }
+
+    internal static LibraryIdentityInfo Copy(LibraryIdentityInfo x) => new()
+    {
+        Scope = x.Scope, LibraryName = x.LibraryName, LibraryPath = x.LibraryPath, Kind = x.Kind, Name = x.Name,
+    };
+
+    internal static LibraryIdentityInfo Child(LibraryIdentityInfo root, string folderKind, IEnumerable<string> path, string kind, string name)
+        => new()
+        {
+            Scope = root.Scope, LibraryName = root.LibraryName, LibraryPath = root.LibraryPath,
+            FolderKind = folderKind, FolderPath = path.ToList(), Kind = kind, Name = name,
+        };
 }

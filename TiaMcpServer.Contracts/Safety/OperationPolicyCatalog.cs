@@ -165,6 +165,9 @@ public static class OperationPolicyCatalog
             dict[method] = OperationCapability.ProjectMutation;
         foreach (var method in LibraryReadMethods.All)
             dict[method] = OperationCapability.Observe;
+        foreach (var method in LibraryWriteMethods.All)
+            dict[method] = method == LibraryWriteMethods.GlobalPlan || method == LibraryWriteMethods.ProjectPlan
+                ? OperationCapability.Observe : OperationCapability.ProjectMutation;
         foreach (var method in VciMethods.Read)
             dict[method] = OperationCapability.Observe;
         dict[VciMethods.Plan] = OperationCapability.Observe;

@@ -56,11 +56,9 @@ public static class ArchiveModeNames
         var isCompressedMode = string.Equals(normalizedMode, Compressed, StringComparison.OrdinalIgnoreCase)
             || string.Equals(normalizedMode, DiscardRestorableDataAndCompressed, StringComparison.OrdinalIgnoreCase);
 
-        if (!isCompressedMode || archiveName.EndsWith(CompressedFileExtension, StringComparison.OrdinalIgnoreCase))
-        {
-            return archiveName;
-        }
-
-        return archiveName + CompressedFileExtension;
+        return isCompressedMode ? EnsureExtension(archiveName, CompressedFileExtension) : archiveName;
     }
+
+    public static string EnsureExtension(string name, string extension)
+        => name.EndsWith(extension, StringComparison.OrdinalIgnoreCase) ? name : name + extension;
 }

@@ -3,6 +3,7 @@ using TiaMcpServer.Contracts.Network;
 using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Vci;
+using TiaMcpServer.Contracts.Library;
 
 namespace TiaMcpServer.Contracts.Worker;
 
@@ -46,6 +47,10 @@ public class WorkerResponse
     /// <summary>Typed VCI mutation evidence; omitted for unrelated methods.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public VciWriteOutcomeInfo? VciWriteOutcome { get; set; }
+
+    /// <summary>Partial library mutation evidence; omitted unless a saved close or renamed master copy fails.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LibraryWriteOutcomeInfo? LibraryWriteOutcome { get; set; }
 
     /// <summary>
     /// Non-fatal degradation notes captured from the worker's Console.Error while THIS

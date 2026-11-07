@@ -12,14 +12,14 @@
 
 MCP server for Siemens SIMATIC TIA Portal V21. It lets MCP clients and AI agents inspect a running TIA Portal project through the Siemens Openness API.
 
-The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, WinCC Unified HMI inspection and guarded tag-table/tag/alarm writes, standalone VCI workspace operations, read-only library inspection, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
+The current implementation covers project discovery and lifecycle operations, PLC block export/import, tag table reads, guarded PLC software writes, hardware/network discovery, WinCC Unified HMI inspection and guarded tag-table/tag/alarm writes, standalone VCI workspace operations, library inspection and guarded library writes, cross-reference diagnostics, hardware catalog search, guarded network-device provisioning, and compile/check diagnostics.
 
 ## Tools
 
-The server exposes 9 tools in `read-only`, 20 in `read-write` (the startup default), and the same 20 in `full`.
+The server exposes 9 tools in `read-only`, 21 in `read-write` (the startup default), and the same 21 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls, asking once per actual lifecycle call.
 `full` adds no tools or operations; it only runs lifecycle calls without the prompt. Every write tool
-(`plc_write`, `network_write`, `hmi_write`, `vci_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
+(`plc_write`, `network_write`, `hmi_write`, `vci_write`, `library_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no
 safety tokens and no PLC run/stop.
 
 ### PLC reads and cross-references
@@ -40,6 +40,10 @@ safety tokens and no PLC run/stop.
 ### Library reads
 
 - `library_read` - run up to 50 read-only library operations in one call: `list_global_libraries`, `inspect_library`, `list_children`, `list_versions` and `list_dependencies`. Registered in every access mode, structured JSON with `contractVersion` `1.0`. It needs a verified binding like every content tool (`bind_project` first) and never opens, retrieves, saves, closes or changes a library. `list_global_libraries` lists every global library available in the bound Portal (system, corporate and user) with `libraryType` and `isOpen`; only libraries already open in TIA Portal can be read further. Project-library reads work on standalone projects. Paged operations take `offset`/`limit` (1-200, default 100) or the returned `nextCursor`, which continues a frozen row set with live values. A flag that cannot be read is null with a diagnostic, never false. See the [library operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md) for fields, paging and the live-verified scope.
+
+### Library writes
+
+- `library_write(operations, dryRun=false)` - 12 operations in read-write/full, up to 50 caller-ordered items, write contract `2.0` (`library_read` stays `1.0`): global-library lifecycle (`create_global`, `open_global`, `retrieve_global`, `save_global`, `close_global`, `archive_global`), folders (`create_folder`, `delete_folder`) and master copies (`create_master_copy`, `copy_master_copy`, `instantiate_master_copy`, `delete_master_copy`). Folder and master-copy items work on the project library (standalone projects only) and on global libraries open in the bound Portal. It executes by default, previews with `dryRun:true`, stops at the first failure and never rolls back. Every call needs a verified binding. In read-write, a call containing at least one lifecycle operation asks once; a content-only call never asks, and full never asks. `close_global` requires `closeAction` (`save` or `discard`); discarding raises the `library_discards_changes` info guard. An archive name gets `.zal21` when missing. A master copy whose name collides (case-insensitively) is blocked by `library_master_copy_exists`. No item may depend on a library created, opened or retrieved earlier in the same call, so split such work into two calls. See the [library operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write) for members, guards and the live-verified scope.
 
 ### PLC writes
 
@@ -97,7 +101,7 @@ Project-tree callers must use `v3.0.0` or newer: the v2 `startPath` input and ba
 ## Write safety
 
 Every write tool validates input, prepares the exact binding, resolves targets, evaluates guards,
-mutates, verifies, and audits in one call. `plc_write`, `network_write`, `hmi_write` and `vci_write` register only block and
+mutates, verifies, and audits in one call. `plc_write`, `network_write`, `hmi_write`, `vci_write` and `library_write` register only block and
 info guards, so they never prompt. On every write tool `dryRun:true` returns `phase:preview`
 without mutation or a confirmation prompt. In read-write every actual lifecycle call requires one form elicitation
 with explicit acceptance and boolean `confirm:true`, including calls with only info guards or no
@@ -117,7 +121,7 @@ Lifecycle uses pinned binding and transition checks;
 open/create can start unbound, save-as binds the resulting copy, and close clears the binding.
 Lifecycle audits every call, including dry runs and refusals, in `writes-yyyy-MM-dd.jsonl` under
 `%LOCALAPPDATA%\TiaMcpServer\audit`; audit v2 records confirmation by `user`, `policy`, or `none`.
-`plc_write`, `network_write`, `hmi_write` and `vci_write` also record one audit v2 per entered call, including previews and denials, with confirmation `none` in read-write and `policy` in full; SDK argument rejection before entry has no write audit. The legacy write audit stream was retired.
+`plc_write`, `network_write`, `hmi_write`, `vci_write` and `library_write` also record one audit v2 per entered call, including previews and denials, with confirmation `none` in read-write and `policy` in full; SDK argument rejection before entry has no write audit. The legacy write audit stream was retired.
 
 The worker never attaches to the first enumerated TIA Portal or selects the first open project. It
 requires an exact path match or a genuinely sole candidate; multiple possible targets fail with
@@ -132,7 +136,7 @@ project is treated as UI-owned. Read-only never opens, creates, saves or closes 
 explicit binding may switch the selected session. Project-tree cursors reject binding changes,
 including a switch away and back to the same path.
 
-`plc_write`, `network_write`, `hmi_write` and `vci_write` pin one verified project binding through planning, ordered mutation, verification and audit, so a concurrent rebind cannot redirect a planned write. Network and HMI do not re-plan per item or perform worker read-back. HMI plans from one initial public-read evidence set per HMI; those reads are sequential and non-atomic. Both domains record completed items as `trusted` or `superseded`. `plc_write` blocks name collisions, `create_block` on an existing block, deleting the default tag table, and unreadable evidence before anything runs; deletes and address overlaps are reported as info.
+`plc_write`, `network_write`, `hmi_write`, `vci_write` and `library_write` pin one verified project binding through planning, ordered mutation, verification and audit, so a concurrent rebind cannot redirect a planned write. Network and HMI do not re-plan per item or perform worker read-back. HMI plans from one initial public-read evidence set per HMI; those reads are sequential and non-atomic. Both domains record completed items as `trusted` or `superseded`. `plc_write` blocks name collisions, `create_block` on an existing block, deleting the default tag table, and unreadable evidence before anything runs; deletes and address overlaps are reported as info.
 
 Lifecycle rejection has top-level `{category,message}` `error` and MCP `isError:true`. An attempted
 write or verification failure instead has `success:false`, `error:null`, and `isError:false`, with
@@ -189,8 +193,8 @@ v3 migration described above.
 
 Supported clients for `tia-mcp install`: Claude Code, Codex, OpenCode, MiMoCode. Servers register in
 **read-only** mode by default (nine tools); add `--access-mode read-write` for edits, compilation,
-and lifecycle with one prompt per actual call (twenty tools). Select `--access-mode full` for
-lifecycle without server elicitation (the same twenty tools).
+and lifecycle with one prompt per actual call (twenty-one tools). Select `--access-mode full` for
+lifecycle without server elicitation (the same twenty-one tools).
 
 Binding to a specific project, every install option, and the full access-mode reference are in the
 [installation guide](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/guides/installation.md). To build from source instead of installing

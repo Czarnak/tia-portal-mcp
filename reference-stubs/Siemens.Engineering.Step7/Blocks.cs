@@ -9,14 +9,14 @@ namespace Siemens.Engineering.SW.Blocks
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
     }
-    public abstract class CodeBlock : global::Siemens.Engineering.SW.Blocks.PlcBlock, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class CodeBlock : global::Siemens.Engineering.SW.Blocks.PlcBlock, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.Library.MasterCopies.IMasterCopySource
     {
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
     }
-    public abstract class DataBlock : global::Siemens.Engineering.SW.Blocks.PlcBlock, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
+    public abstract class DataBlock : global::Siemens.Engineering.SW.Blocks.PlcBlock, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.Library.MasterCopies.IMasterCopySource
     {
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
@@ -78,6 +78,7 @@ namespace Siemens.Engineering.SW.Blocks
     }
     public abstract class PlcBlockComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.SW.Blocks.PlcBlock>
     {
+        public global::Siemens.Engineering.SW.Blocks.PlcBlock CreateFrom(global::Siemens.Engineering.Library.MasterCopies.MasterCopy sourceMasterCopy, global::Siemens.Engineering.Library.MasterCopies.MasterCopyMode copyMode) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IList<global::Siemens.Engineering.SW.Blocks.PlcBlock> Import(global::System.IO.FileInfo path, global::Siemens.Engineering.ImportOptions importOptions) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.DocumentImportResultForBlocks ImportFromDocuments(global::System.IO.DirectoryInfo directoryInfo, string fileNameWithoutExtension, global::Siemens.Engineering.SW.ImportDocumentOptions importDocumentOptions) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.Blocks.PlcBlock Find(string name) => throw new global::System.NotSupportedException();

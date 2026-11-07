@@ -25,6 +25,8 @@ public class WorkerRequest
 {
     public HmiWriteRequestInfo? HmiWrite { get; set; }
 
+    public LibraryWriteRequestInfo? LibraryWrite { get; set; }
+
     #region Common — dispatch and project identity
 
     /// <summary>Operation name, dispatched by the worker's switch in Program.cs.</summary>

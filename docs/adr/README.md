@@ -38,6 +38,7 @@ To add one, copy [TEMPLATE.md](TEMPLATE.md) to `NNNN-<slug>.md` with the next fr
 | [0013](0013-toolchain-and-test-infrastructure.md) | The toolchain moves asymmetrically, and its build and test infrastructure is source-owned and policy-bound | Accepted | process | 2026-09-12 to 2026-10-24 |  |
 | [0014](0014-vci-write-native-rejection-contract.md) | VCI adopts native rejection evidence and accepts Portal's overwrite behavior | Accepted | vci | 2026-10-31 to 2026-11-01 |  |
 | [0015](0015-portal-scope-reads-under-binding-gate.md) | Content tools stay gated on the verified binding and may read Portal-scope objects of the bound Portal | Accepted | binding | 2026-11-04 |  |
+| [0016](0016-library-write-staging-and-lifecycle-prompt.md) | library_write ships in stages, prompts only for global-library lifecycle, and draws no ownership line | Accepted | library | 2026-11-06 |  |
 
 `Record` links an original plan or spec kept verbatim under `records/` because it holds material no ADR carries.
 

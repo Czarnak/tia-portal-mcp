@@ -1,7 +1,25 @@
-// Compile-only V21 declarations (library read subset). No Siemens implementation code.
+// Compile-only V21 declarations (library subset). No Siemens implementation code.
 #nullable disable // V21 net48 signatures have no nullable annotations.
+namespace Siemens.Engineering
+{
+    public enum OpenMode { ReadOnly = 0, ReadWrite = 1 }
+}
+
 namespace Siemens.Engineering.Library
 {
+    public enum LibraryArchivationMode
+    {
+        None = 0,
+        Compressed = 1,
+        DiscardRestorableData = 2,
+        DiscardRestorableDataAndCompressed = 3
+    }
+    public class UserGlobalLibrary : global::Siemens.Engineering.Library.GlobalLibrary
+    {
+        public void Save() => throw new global::System.NotSupportedException();
+        public void Close() => throw new global::System.NotSupportedException();
+        public void Archive(global::System.IO.DirectoryInfo targetDirectory, string targetName, LibraryArchivationMode archivationMode) => throw new global::System.NotSupportedException();
+    }
     public interface ILibrary
     {
         global::Siemens.Engineering.Library.MasterCopies.MasterCopySystemFolder MasterCopyFolder { get; }
@@ -50,6 +68,9 @@ namespace Siemens.Engineering.Library
     }
     public abstract class GlobalLibraryComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.GlobalLibrary>
     {
+        public T Create<T>(global::System.IO.DirectoryInfo targetDirectory, string name) where T : class => throw new global::System.NotSupportedException();
+        public UserGlobalLibrary Open(global::System.IO.FileInfo path, global::Siemens.Engineering.OpenMode openMode) => throw new global::System.NotSupportedException();
+        public UserGlobalLibrary Retrieve(global::System.IO.FileInfo sourcePath, global::System.IO.DirectoryInfo targetDirectory, global::Siemens.Engineering.OpenMode openMode) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IList<global::Siemens.Engineering.Library.GlobalLibraryInfo> GetGlobalLibraryInfos() => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.GlobalLibrary> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
@@ -58,8 +79,11 @@ namespace Siemens.Engineering.Library
 
 namespace Siemens.Engineering.Library.MasterCopies
 {
+    public interface IMasterCopySource { }
+    public enum MasterCopyMode { ThrowIfExists = 0, Rename = 1, Replace = 2 }
     public abstract class MasterCopy : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
+        public void Delete() => throw new global::System.NotSupportedException();
         public string Name { get => throw new global::System.NotSupportedException(); }
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
@@ -81,14 +105,18 @@ namespace Siemens.Engineering.Library.MasterCopies
     }
     public abstract class MasterCopyUserFolder : global::Siemens.Engineering.Library.MasterCopies.MasterCopyFolder
     {
+        public void Delete() => throw new global::System.NotSupportedException();
     }
     public abstract class MasterCopyUserFolderComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.MasterCopies.MasterCopyUserFolder>
     {
+        public MasterCopyUserFolder Create(string name) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.MasterCopies.MasterCopyUserFolder> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
     public abstract class MasterCopyComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.MasterCopies.MasterCopy>
     {
+        public MasterCopy Create(IMasterCopySource masterCopyObject) => throw new global::System.NotSupportedException();
+        public MasterCopy CreateFrom(MasterCopy sourceMasterCopy) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.MasterCopies.MasterCopy> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
@@ -137,9 +165,11 @@ namespace Siemens.Engineering.Library.Types
     }
     public abstract class LibraryTypeUserFolder : global::Siemens.Engineering.Library.Types.LibraryTypeFolder
     {
+        public void Delete() => throw new global::System.NotSupportedException();
     }
     public abstract class LibraryTypeUserFolderComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.Types.LibraryTypeUserFolder>
     {
+        public LibraryTypeUserFolder Create(string name) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.Types.LibraryTypeUserFolder> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }

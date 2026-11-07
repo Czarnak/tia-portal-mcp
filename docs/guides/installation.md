@@ -190,10 +190,11 @@ The server supports three access modes, enforced at discovery, host dispatch, an
 
 - **read-only** - nine tools: eight observation tools plus `bind_project`; no compile, edits, or
   lifecycle.
-- **read-write** (server startup default) - twenty tools: the read-only surface plus
-  `compile_check`, `network_write`, `plc_write`, `hmi_write`, `vci_write`, and all six lifecycle tools. Every actual lifecycle
-  call requires one confirmation form; the four domain write tools never prompt.
-- **full** - the same twenty tools and operations; lifecycle runs without server elicitation.
+- **read-write** (server startup default) - twenty-one tools: the read-only surface plus
+  `compile_check`, `network_write`, `plc_write`, `hmi_write`, `vci_write`, `library_write`, and all six lifecycle tools. Every actual project lifecycle
+  call requires one confirmation form; the four data write tools never prompt, and `library_write` prompts only for a call
+  that contains a global-library lifecycle operation.
+- **full** - the same twenty-one tools and operations; lifecycle runs without server elicitation.
   Unknown operations remain denied.
 
 **Migration:** read-write clients can save, close, and use all lifecycle tools with confirmation.
@@ -239,7 +240,7 @@ The following operations are **not available** in read-only mode:
 
 - `compile_check` (invokes the Siemens compilation API)
 - All project lifecycle operations (`open_project`, `create_project`, `save_project`, `save_project_as`, `archive_project`, `close_project`)
-- All data mutations (`plc_write`, `network_write`, `hmi_write` and `vci_write`)
+- All data mutations (`plc_write`, `network_write`, `hmi_write`, `vci_write` and `library_write`)
 
 In read-only mode, the server operates only on an already-open project. It never opens, creates, saves or closes a project. Explicit `bind_project` can switch the selected session; ordinary reads cannot. Content tools are gated on the verified binding and may also read Portal-scope global libraries of the bound Portal; they fail closed with `binding_conflict` when unbound. Project-tree cursors reject binding changes with `cursor_binding_mismatch`, even after switching back to the original path.
 

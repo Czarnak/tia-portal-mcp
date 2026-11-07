@@ -1,8 +1,8 @@
 # TIA Portal Library Operations
 
-`library_read` is the read-only library tool. It is registered in every access mode (counts 9/20/20), never opens, retrieves, saves, closes or changes a library, and runs up to 50 items per call on the structured JSON contract (`contractVersion:"1.0"`). Items run independently, so a failing item does not stop later ones. Every call needs a verified project binding, including a batch made only of global reads: an unbound call fails whole with `binding_conflict`, so call `bind_project` first. Global reads use the bound Portal.
+`library_read` is the read-only library tool. It is registered in every access mode (counts 9/21/21), never opens, retrieves, saves, closes or changes a library, and runs up to 50 items per call on the structured JSON contract (`contractVersion:"1.0"`). Items run independently, so a failing item does not stop later ones. Every call needs a verified project binding, including a batch made only of global reads: an unbound call fails whole with `binding_conflict`, so call `bind_project` first. Global reads use the bound Portal.
 
-This is the read half of issue #218. Library writes are not part of this surface.
+This is the read half of issue #218. Library writes are the separate `library_write` tool, described in [Writes](#writes-library_write).
 
 The scoped [live verification report](../superpowers/acceptance/reports/2026-11-06-library-read-live-verification.md) covers one bound standalone project and one opened user global library. This page states what that report observed and marks everything else as offline-only or unverified.
 
@@ -88,7 +88,7 @@ Capability labels in the `bind_project` context are not one-to-one with the tool
 
 Verified (one bound standalone project, one opened read-only user global library; see the [report](../superpowers/acceptance/reports/2026-11-06-library-read-live-verification.md)):
 
-- unbound call `binding_conflict`; 9 tools in read-only and 20 in read-write;
+- unbound call `binding_conflict`; 9 tools in read-only and 20 in read-write (before `library_write` existed);
 - `list_global_libraries` over all available libraries, with `libraryType`, `isOpen` and the not-open diagnostic, and paging that matched the full listing;
 - global and project `inspect_library`, `list_children` (folders before entries), `list_versions` and `list_dependencies` in both directions;
 - selector rules, the unopened-library `target_not_found`, and cursor paging with the `offset`, tamper and selector-change failures;
@@ -98,9 +98,47 @@ An earlier run observed a one-time rewrite of library storage files inside an op
 
 Not verified: local sessions (global reads succeeding and project-library `unsupported_capability` are offline only); `cursor_binding_mismatch` after a rebind; a library closed, a library changed, or the Portal lost between pages; duplicate global library names (`target_ambiguous`). Master-copy folders were observed empty only.
 
+## Writes (`library_write`)
+
+`library_write(operations, dryRun=false)` is registered in read-write and full only (counts 9/21/21). Write contract `2.0`; `library_read` stays `1.0`. It takes 1-50 items with unique `operationId`s (at most 256 characters), runs them in caller order, stops at the first failure and never rolls back or replays. `dryRun` defaults to false; `dryRun:true` plans without mutation or prompt. Every call needs a verified binding, global-only calls included. Phases are `preview`, `applied`, `blocked` and `error`; an unknown member or one that does not belong to the operation rejects the whole call with the canonical `validation_error`, with no audit record. One audit v2 record is written per entered call.
+
+| Operation | Required members | Optional members | Native call |
+| --- | --- | --- | --- |
+| `create_global` | `directory`, `name` | none | `GlobalLibraries.Create` |
+| `open_global` | `filePath` (`.al21`), `openMode` (`readOnly`/`readWrite`) | none | `GlobalLibraries.Open` |
+| `retrieve_global` | `filePath` (`.zal21`), `directory`, `openMode` | none | `GlobalLibraries.Retrieve` |
+| `save_global` | `scope:"global"`, library | none | `Save` |
+| `close_global` | `scope:"global"`, library, `closeAction` (`save`/`discard`) | none | `Save` (when `save` and modified), then `Close` |
+| `archive_global` | `scope:"global"`, library, `directory`, `name` | none | `Archive` (`Compressed`) |
+| `create_folder`, `delete_folder` | `scope`, `folderKind`, `name` | library, `folderPath` | `Folders.Create`, `Delete` |
+| `create_master_copy` | `scope`, `plcName`, `plcKind` (source: `block`/`plcType`/`tagTable`), `plcObjectName` | library, `folderPath`, `plcFolderPath` | `MasterCopies.Create` |
+| `copy_master_copy` | `scope`, `sourceScope`, `name` | both libraries and both folder paths | `MasterCopies.CreateFrom` |
+| `instantiate_master_copy` | `scope`, `name`, `plcName`, `plcKind` (destination: `blockGroup`/`typeGroup`/`tagTableGroup`) | library, `folderPath`, `plcFolderPath` | PLC container `CreateFrom(mc, ThrowIfExists)` |
+| `delete_master_copy` | `scope`, `name` | library, `folderPath` | `Delete` |
+
+Library selectors are the `library_read` rules; `copy_master_copy` adds `sourceScope`, `sourceLibraryPath`, `sourceLibraryName` and `sourceFolderPath`. PLC members are prefixed so they do not clash with the library `folderPath` and `name`; an empty `plcFolderPath` is the destination root, and PLC groups match case-insensitively while library folders match ordinally. `directory` and `filePath` must be absolute.
+
+**Confirmation.** In read-write, a call containing at least one of the six lifecycle operations (`create_global`, `open_global`, `retrieve_global`, `save_global`, `close_global`, `archive_global`) asks once through form elicitation, naming each operation and its target; decline, cancel, timeout or transport failure is `access_denied` with nothing mutated. A content-only call (folders and master copies) never prompts, and full never prompts (audit `policy`). There are no acknowledge guards, tokens or public confirmation arguments.
+
+**Capability.** Capability is decided per item. An item that touches the project library or a PLC (any `scope:"project"` selector, either side of `copy_master_copy`, and every `create_master_copy` and `instantiate_master_copy`) uses `library_project_write` (`standaloneOnly`); other items use `library_write` (`projectContent`, allowed on bound local sessions, `notYetDelivered` on server projects). A call with one unsupported item is refused whole with `unsupported_capability` naming that operation, before any mutation. Global-library lifecycle is Portal-scope and is not subject to the project lifecycle's standalone-only rule.
+
+**Guards.** Info: `library_discards_changes` (every `closeAction:"discard"`; the dirty state is not read) and `library_deletes_folder_contents` (`delete_folder` lists contents recursively, capped at 200 entries with `contentsTruncated`; the folder may be a master-copy or a types folder). Block: `library_master_copy_exists` (create or copy into a folder that already holds a master copy of that name, compared case-insensitively; folders are not compared) and `library_state_unverifiable` (an unreadable folder listing or flag). Portal is the refusal authority for everything else, such as non-empty or read-only targets, invalid names, an open in the other mode, saving a read-only library, archiving a dirty library, instantiating over an existing object, and a types folder whose types have dependents.
+
+**Behaviors the tool owns.**
+- `close_global` requires `closeAction`. `save` calls `Save()` only when the library is modified, so a clean read-only library closes with `saved:false`. If `Close` fails after a save, the item fails with the Siemens classification and `libraryWriteOutcome.saved:true`.
+- `save_global`, `close_global` and `archive_global` need a user global library; any other open library is `target_kind_unsupported`.
+- `archive_global` appends `.zal21` when missing (case-insensitive, never doubled) and reports the final `archivePath`.
+- A created or copied master copy that Portal renamed fails `postcondition_failed` with `actualName`.
+- Instantiation always uses `ThrowIfExists`, so an existing object is refused by Portal (`engineering_rejected`).
+- A name-only global selector over two open libraries with the same name is `target_ambiguous`; the path selector resolves.
+- `open_global` always calls `Open`, so `alreadyOpen` reports a plan-time scan, and a mode change on an open library is Portal's refusal. Created, opened and retrieved libraries report the actual path Portal chose (`Path.FullName`), which for `create_global` and `retrieve_global` is `<directory>\<name>\<name>.al21`.
+
+**Not supported.** No item can use a library created, opened or retrieved earlier in the same call (split into two calls); `ReplanAsync` throws. No transactions or rollback, no `ExclusiveAccess`, no read snapshot drop after a write, no versioned types or `UpdateProject`, and verification is `trusted`/`superseded` with no read-back. A native `EngineeringTargetInvocationException` is `engineering_rejected` with `engineeringError`; `portal_lost` takes precedence and invalidates the binding.
+
+**Live-verified scope.** The [live report](../superpowers/acceptance/reports/2026-11-07-library-write-live-verification.md) covers all 12 operations on one standalone project, one user global library and one local session: the read-write prompt (accept and decline), full mode, content-only calls without a prompt, the collision, discard and delete-folder guards, the archive extension, the native instantiate refusal, the duplicate-name selector, the clean-library close, and a global-only call versus a project item on a local session. Offline only: a native master-copy rename, `Close` failing after a save, `library_state_unverifiable`, contents truncation, `plcType`/`tagTable` sources and `typeGroup`/`tagTableGroup` destinations, nested `plcFolderPath`, a types folder with dependents, non-user global libraries, an `open_global` mode change and Portal loss.
+
 ## Known limits
 
 - Global reads need a verified binding. Reading global libraries with no project open is a follow-up.
-- No write operation exists. `library_write` is a separate, later surface.
 
 See [IMPROVEMENT_LOG](../IMPROVEMENT_LOG.md) for open follow-ups and ADR-0015 ([Portal-scope reads under the bound-project gate](../adr/0015-portal-scope-reads-under-binding-gate.md)) for the binding decision.

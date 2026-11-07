@@ -201,27 +201,36 @@ public sealed class LocalSessionCapabilityTests
     [InlineData("compile_check", "compile_check")]
     [InlineData("plc_write", null)]
     [InlineData("network_write", null)]
+    [InlineData("library_write", "library_global_plan")]
     public async Task LocalWriteAndCompile_PassCapabilityGate(string operation, string? workerMethod)
     {
-        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, Amc));
-        using var ui = new FakeWorkerUiOpenProject(Amc);
+        var projectPath = operation == "library_write" ? "C:/Projects/library-write-roundtrip.amc21" : Amc;
+        using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, projectPath));
+        using var ui = new FakeWorkerUiOpenProject(projectPath);
         using var audit = new TempAuditDirectory();
         Directory.CreateDirectory(audit.Path);
         using var log = new FakeWorkerRequestLog(audit.Path);
         await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full, audit.Path);
-        var bound = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = Amc });
+        var bound = await harness.Client.CallToolAsync("bind_project", new Dictionary<string, object?> { ["projectPath"] = projectPath });
         Assert.True(bound.StructuredContent!.Value.GetProperty("success").GetBoolean(), bound.StructuredContent.Value.GetRawText());
 
         var before = log.Methods().Length;
         var response = await harness.Client.CallToolAsync(operation, LocalWriteArguments(operation));
         Assert.DoesNotContain(WorkerFailureCategories.UnsupportedCapability, response.StructuredContent!.Value.GetRawText());
         if (workerMethod is not null) Assert.Contains(workerMethod, log.Methods().Skip(before));
+        if (operation == "library_write")
+        {
+            Assert.True(response.StructuredContent!.Value.GetProperty("success").GetBoolean(), response.StructuredContent.Value.GetRawText());
+            Assert.Equal("preview", response.StructuredContent.Value.GetProperty("phase").GetString());
+            Assert.Equal(new[] { "library_global_plan" }, log.Methods().Skip(before).Where(m => m.StartsWith("library_", StringComparison.Ordinal)));
+        }
     }
 
     private static Dictionary<string, object?> LocalWriteArguments(string operation) => operation switch
     {
         "plc_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "create_block_group", blockPath = "PLC_1/Blocks/New" } }, ["dryRun"] = true },
         "network_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "create_subnet", subnet = new { name = "New", networkType = "Ethernet" } } }, ["dryRun"] = true },
+        "library_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "create_folder", scope = "global", libraryName = "Fixture", folderKind = "masterCopies", folderPath = Array.Empty<string>(), name = "Folder" } }, ["dryRun"] = true },
         _ => new Dictionary<string, object?>()
     };
 
@@ -255,6 +264,7 @@ public sealed class LocalSessionCapabilityTests
     [InlineData("vci_read")]
     [InlineData("vci_write")]
     [InlineData("library_read")]
+    [InlineData("library_write")]
     public async Task LocalUnsupportedOperation_DeniesBeforeWorkerDispatch(string operation)
     {
         using var portals = new FakeWorkerPortals(new FakeWorkerPortals.Entry(42, Amc));
@@ -272,6 +282,7 @@ public sealed class LocalSessionCapabilityTests
             "vci_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "delete_workspace", workspaceName = "Fixture" } } },
             "vci_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "list_workspaces" } } },
             "library_read" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "r1", operation = "inspect_library", scope = "project" } } },
+            "library_write" => new Dictionary<string, object?> { ["operations"] = new[] { new { operationId = "w1", operation = "delete_master_copy", scope = "project", name = "Copy" } }, ["dryRun"] = true },
             "create_project" => new Dictionary<string, object?> { ["projectDirectory"] = audit.Path, ["projectName"] = "New", ["dryRun"] = true },
             "save_project_as" => new Dictionary<string, object?> { ["targetDirectory"] = audit.Path, ["targetName"] = "Copy", ["dryRun"] = true },
             "archive_project" => new Dictionary<string, object?> { ["archiveDirectory"] = audit.Path, ["archiveName"] = "Copy", ["dryRun"] = true },

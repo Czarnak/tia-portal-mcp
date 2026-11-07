@@ -27,6 +27,7 @@ public class WriteValidationTests
     [InlineData("hmi_write")]
     [InlineData("network_write")]
     [InlineData("vci_write")]
+    [InlineData("library_write")]
     public void Compose_ProtectedCoreOverLimitRejectsBeforeAccessValidation(string toolName)
     {
         var result = WriteValidation.Compose(

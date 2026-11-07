@@ -20,7 +20,7 @@ Use `bind_project` in any mode to adopt or switch to an already-open project; a 
 requires `forceRebind:true`. Ordinary PLC reads never bind, switch or open. Only `open_project` and
 `create_project` open projects. Lifecycle runs in read-write with one confirmation form per actual
 call, or in full without server elicitation; block guards stop the call in every mode. The complete
-tool counts are 9/20/20. Read-only never opens, creates, saves or closes a project.
+tool counts are 9/21/21. Read-only never opens, creates, saves or closes a project.
 
 ## PLC reads (`plc_read`)
 
