@@ -365,17 +365,31 @@ internal sealed class Ctx
         At("Compile(" + label + ")");
         var compilable = target.GetService<ICompilable>() ?? throw new ProbeSetupException(label + " has no ICompilable service.");
         var r = compilable.Compile();
-        var flat = Flat(r.Messages).ToList();
+        var flat = Flat(r.Messages, "").ToList();
+        // The fixture project may carry unrelated compile errors (the baseline); only messages under an LT_* object matter.
+        var lt = flat.Where(x => x.Chain.Contains(Names.Prefix) && x.Message.State.ToString() != "Success").ToList();
         return new
         {
             state = r.State.ToString(), errors = r.ErrorCount, warnings = r.WarningCount, messagesTotal = flat.Count,
-            messages = flat.Where(m => m.State.ToString() != "Success").Take(20)
-                .Select(m => new { path = Describe.Safe(() => m.Path), state = m.State.ToString(), description = Describe.Safe(() => m.Description) }).ToList()
+            ltErrors = lt.Count(x => x.Message.State.ToString() == "Error"),
+            ltMessages = lt.Take(40).Select(x => new { chain = x.Chain, state = x.Message.State.ToString(), description = Describe.Safe(() => x.Message.Description) }).ToList(),
+            messages = flat.Where(x => x.Message.State.ToString() != "Success").Take(20)
+                .Select(x => new { path = Describe.Safe(() => x.Message.Path), state = x.Message.State.ToString(), description = Describe.Safe(() => x.Message.Description) }).ToList()
         };
     }
 
-    private static IEnumerable<CompilerResultMessage> Flat(IEnumerable<CompilerResultMessage> messages) =>
-        messages.SelectMany(m => new[] { m }.Concat(Flat(m.Messages)));
+    private static IEnumerable<(CompilerResultMessage Message, string Chain)> Flat(IEnumerable<CompilerResultMessage> messages, string parent) =>
+        messages.SelectMany(m =>
+        {
+            var chain = parent.Length == 0 ? PathOf(m) : parent + " > " + PathOf(m);
+            return new[] { (m, chain) }.Concat(Flat(m.Messages, chain));
+        });
+
+    private static string PathOf(CompilerResultMessage m)
+    {
+        try { return m.Path ?? ""; }
+        catch (Exception ex) when (!Program.IsFatal(ex)) { return "<unreadable>"; }
+    }
 
     // Members whose XML Datatype names a user type (quoted), read from a fresh export.
     internal object UserTypedMembers(PlcSoftware plc, string name) =>
@@ -681,15 +695,28 @@ internal static class Catalog
                     .Select(v => new { number = v.VersionNumber.ToString(), masterCopies = v.MasterCopiesContainingInstances.Select(m => m.Name).ToList() }).ToList()));
             },
             Before(Names.Udt, c => F.Type(c.PL, Names.Udt).Delete()), After(Names.Udt)),
-        C("P8", "Instantiate LT_GlobalType's default version from the global library into PLC_2 (the project library lacks it).",
-            null,
-            Before(Names.GlobalType, c =>
+        C("P8", "Instantiate a global type version the project library lacks into PLC_2 (setup: LT_Udt type made in the project, released 0.0.1, synchronized into the global copy, then its PLC_2 instance and project type deleted).",
+            c =>
             {
-                var gv = F.Default(F.Type(c.Lib, Names.GlobalType));
+                MakeAndRelease(Names.Udt)(c);
+                c.Step("UpdateLibrary(project -> global)", () => F.Type(c.PL, Names.Udt).UpdateLibrary(c.Lib, DeleteUnusedVersionsMode.DoNotDelete,
+                    StructureConflictResolutionMode.CancelIfStructureConflicts, ForceUpdateMode.SetOnlyHigherUpdatedVersionAsDefault));
+                c.Step("Delete PLC_2 instance", () => ((PlcType)F.Obj(c.Plc2, Names.Udt)).Delete());
+                c.Step("Delete project type", () => F.Type(c.PL, Names.Udt).Delete());
+                c.Note("setupState", new
+                {
+                    global = Describe.Safe(() => F.Versions(F.Type(c.Lib, Names.Udt))),
+                    projectHasType = Describe.Safe(() => F.Types(c.PL.TypeFolder).Any(t => t.Name == Names.Udt)),
+                    plc2HasUdt = Describe.Safe(() => F.TryObj(c.Plc2, Names.Udt) != null)
+                });
+            },
+            Before(Names.Udt, c =>
+            {
+                var gv = F.Default(F.Type(c.Lib, Names.Udt));
                 c.Note("globalDefault", Describe.Ver(gv));
                 c.Note("returned", c.Plc2.TypeGroup.Types.CreateFrom(F.As<PlcTypeLibraryTypeVersion>(gv), Throw));
             }),
-            After(Names.GlobalType), LibMode.ReadWrite),
+            After(Names.Udt), LibMode.ReadWrite),
         C("P9", "UpdateLibrary into a fresh library with SetOnlyHigherUpdatedVersionAsDefault: a) initial, b) source default lowered to 0.0.1 after 0.0.3, c) higher 0.0.4 default.",
             c =>
             {
@@ -1199,13 +1226,10 @@ internal sealed class FixtureCheck
             Fb(Names.FbUdt) ?? (F.HasMember(Xml(c.Plc1, Names.FbUdt), "\"" + Names.Udt + "\"", "Static", "Input") ? null : "no Static/Input member of type \"" + Names.Udt + "\""));
         Info(Names.FbKhp + " (optional; P10 records fixtureMissing if absent)", () =>
             F.TryObj(c.Plc1, Names.FbKhp) is PlcBlock b ? (object)new { present = true, isKnowHowProtected = b.IsKnowHowProtected } : new { present = false });
-        Check(Names.GlobalType + " in the global library types root: one released UDT version; absent from the project library by GUID and name", () =>
+        Check("global library has no LT_* type (P8 builds its own)", () =>
         {
-            var t = gl.TypeFolder.Types.Find(Names.GlobalType);
-            if (t == null) return "not in the global library types root";
-            if (t.Versions.Count != 1 || F.Default(t).State != LibraryTypeVersionState.Committed) return "expected one released version";
-            if (!(F.Default(t) is PlcTypeLibraryTypeVersion)) return "default version is " + F.Default(t).GetType().Name + ", not a PLC data type";
-            return F.Types(c.PL.TypeFolder).Any(p => p.Guid == t.Guid || p.Name == Names.GlobalType) ? "project library has a type with its GUID or name" : null;
+            var found = F.Types(gl.TypeFolder).Select(t => t.Name).Where(n => n.StartsWith(Names.Prefix, StringComparison.Ordinal)).ToList();
+            return found.Count == 0 ? null : "found " + string.Join(", ", found);
         });
         Check("project library has no LT_* type or master copy", () =>
         {
@@ -1214,11 +1238,12 @@ internal sealed class FixtureCheck
             return found.Count == 0 ? null : "found " + string.Join(", ", found);
         });
         object baseline = null;
-        Check("PLC_1 software compiles without errors (baseline, on the copy)", () =>
+        // Unrelated compile errors are the baseline the cases compare against; only LT_* errors fail the fixture.
+        Check("PLC_1 compiles with no errors under an LT_* object (other errors are the recorded baseline)", () =>
         {
             baseline = c.Compile(c.Plc1, Names.Plc1);
-            var errors = Convert.ToInt32(baseline.GetType().GetProperty("errors").GetValue(baseline));
-            return errors == 0 ? null : errors + " compile errors";
+            var ltErrors = Convert.ToInt32(baseline.GetType().GetProperty("ltErrors").GetValue(baseline));
+            return ltErrors == 0 ? null : ltErrors + " compile errors under LT_* objects";
         });
 
         var cleanup = runner.Cleanup(c, out bool clean);

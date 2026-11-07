@@ -34,10 +34,9 @@ the library distinctive role-style names of at least 6 characters (for example `
 | Caller | `LT_Caller` FC | calls `LT_Fb` with `LT_Fb_DB` |
 | FB using plain UDT | `LT_FbUdt` in the PLC_1 blocks root | static or input member of type `"LT_Udt"`; not a type instance |
 | Know-how protected FB | `LT_FbKhp` | optional; `P10` records `fixtureMissing` if absent |
-| Global type | `LT_GlobalType` in the global library types root | one released UDT version; no project type with its GUID or name |
-| Global library | | writable: no read-only file, not write-protected (`P8` opens its copy read-write) |
+| Global library | | writable: no read-only file, not write-protected (`P8` opens its copy read-write); no type named `LT_*` (`P8` builds its own) |
 | Project library | | no type or master copy named `LT_*` |
-| Baseline | | PLC_1 software compiles without errors |
+| Baseline | | no compile error under an `LT_*` object; other PLC_1 compile errors are recorded as the baseline and do not fail the check |
 
 The check reports the PLCs' device-item type identifiers and `LT_FbKhp` as information rows; they do
 not fail it. Member and call checks read a fresh XML export of the copy. The baseline compile runs on
@@ -98,7 +97,7 @@ customer identifiers anyway: Siemens messages can quote text the redaction does 
 | `P7a` | Chain; `LibraryType.Delete` |
 | `P7b` | Chain; delete version `0.0.2` |
 | `P7c` | Chain plus a project master copy of the PLC_2 instance; `LibraryType.Delete` |
-| `P8` | Instantiate `LT_GlobalType`'s global default version into PLC_2 |
+| `P8` | Setup: `LT_Udt` type made in PLC_2 and released `0.0.1`, synchronized into the global library copy, then its PLC_2 instance and project type deleted. Act: instantiate the global default version into PLC_2 |
 | `P9` | Chain; `UpdateLibrary` into a fresh empty library: a) initial, b) after releasing `0.0.3` and setting `0.0.1` as default, c) after releasing `0.0.4` |
 | `P10` | Export `LT_FbKhp` |
 | `P11` | Released `0.0.1` plus an in-work version; `Discard` it |
