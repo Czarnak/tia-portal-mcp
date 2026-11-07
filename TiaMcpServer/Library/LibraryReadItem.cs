@@ -29,10 +29,16 @@ public sealed class LibraryReadItem : IOperationBatchItem
     [Description("list_children, list_versions and list_dependencies: exact folder names below the root of the selected folder, at most 32 nonblank segments (not a slash-delimited string). Omit for the root.")]
     public List<string>? FolderPath { get; set; }
 
-    [Description("list_versions and list_dependencies: GUID of the library type. Required.")]
+    [Description("list_versions and list_dependencies: exact library type name within folderPath. Supply this or typeGuid.")]
+    public string? TypeName { get; set; }
+
+    [Description("list_versions and list_dependencies: nonempty GUID of the library type. Supply this or typeName.")]
     public string? TypeGuid { get; set; }
 
-    [Description("list_dependencies only: GUID of the type version. Required.")]
+    [Description("list_dependencies only: exact version number with three numeric parts, excluding 0.0.0. Supply this or versionGuid; omit both to use the default version.")]
+    public string? VersionNumber { get; set; }
+
+    [Description("list_dependencies only: nonempty GUID of the type version. Supply this or versionNumber; omit both to use the default version.")]
     public string? VersionGuid { get; set; }
 
     [Description("list_dependencies only: dependencies (default) or dependents.")]

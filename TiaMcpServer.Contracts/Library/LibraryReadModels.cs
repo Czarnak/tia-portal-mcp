@@ -15,7 +15,9 @@ public sealed class LibraryQueryInfo
     public string? LibraryName { get; set; }
     public string? FolderKind { get; set; }
     public List<string>? FolderPath { get; set; }
+    public string? TypeName { get; set; }
     public string? TypeGuid { get; set; }
+    public string? VersionNumber { get; set; }
     public string? VersionGuid { get; set; }
     public string? Direction { get; set; }
     public int? Offset { get; set; }

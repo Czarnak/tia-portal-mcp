@@ -40,7 +40,7 @@ public sealed class LibraryWriteMethodsTests
         foreach (var member in typeof(LibraryWriteRequestInfo).GetProperties().Where(p => !permitted.Contains(p.Name)))
         {
             var item = Request(operation, json);
-            member.SetValue(item, member.PropertyType == typeof(string) ? "unexpected" : new List<string> { "unexpected" });
+            member.SetValue(item, member.PropertyType == typeof(string) ? "unexpected" : member.PropertyType == typeof(bool?) ? true : new List<string> { "unexpected" });
             Assert.NotNull(LibraryWriteMethods.Validate(item));
         }
     }
@@ -185,10 +185,10 @@ public sealed class LibraryWriteMethodsTests
     [Fact]
     public void OperationFor_MapsEveryMethod()
     {
-        Assert.Equal(12, LibraryWriteMethods.Operations.Length);
-        Assert.Equal(10, LibraryWriteMethods.GlobalLibraryWrites.Length);
-        Assert.Equal(6, LibraryWriteMethods.ProjectLibraryWrites.Length);
-        Assert.Equal(18, LibraryWriteMethods.All.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(20, LibraryWriteMethods.Operations.Length);
+        Assert.Equal(14, LibraryWriteMethods.GlobalLibraryWrites.Length);
+        Assert.Equal(14, LibraryWriteMethods.ProjectLibraryWrites.Length);
+        Assert.Equal(30, LibraryWriteMethods.All.Distinct(StringComparer.Ordinal).Count());
         foreach (var method in LibraryWriteMethods.GlobalLibraryWrites.Append(LibraryWriteMethods.GlobalPlan))
             Assert.Equal("library_write", LibraryWriteMethods.OperationFor(method));
         foreach (var method in LibraryWriteMethods.ProjectLibraryWrites.Append(LibraryWriteMethods.ProjectPlan))
@@ -206,10 +206,10 @@ public sealed class LibraryWriteMethodsTests
     public void Results_KeepNullableMembersWhenNullsAreOtherwiseOmitted()
     {
         var options = new JsonSerializerOptions(Json) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
-        foreach (var value in new object[] { new LibraryWriteRequestInfo(), new LibraryWritePlanInfo(), new LibraryWriteResultInfo(), new LibraryWriteOutcomeInfo() })
+        foreach (var value in new object[] { new LibraryWriteRequestInfo(), new LibraryWritePlanInfo(), new LibraryWriteResultInfo(), new LibraryWriteOutcomeInfo(), new LibraryTypeResultInfo() })
         {
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(value, value.GetType(), options));
-            foreach (var member in value.GetType().GetProperties().Where(p => p.GetValue(value) is null))
+            foreach (var member in value.GetType().GetProperties().Where(p => p.GetValue(value) is null && !p.GetCustomAttributes(typeof(JsonIgnoreAttribute), false).Cast<JsonIgnoreAttribute>().Any(a => a.Condition == JsonIgnoreCondition.WhenWritingNull)))
                 Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty(JsonNamingPolicy.CamelCase.ConvertName(member.Name)).ValueKind);
         }
     }

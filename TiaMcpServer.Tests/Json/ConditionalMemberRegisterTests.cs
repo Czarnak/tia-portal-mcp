@@ -43,6 +43,16 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.VciWriteOutcome",
         // library_write: present after a saved close fails or a master-copy name changes, including portal_lost.
         "WorkerResponse.LibraryWriteOutcome",
+        // library_write type operations: typed plan/result evidence only for type operations.
+        "LibraryWritePlanInfo.Type",
+        "LibraryWriteResultInfo.Type",
+        // Present when a failed type mutation retains typed partial evidence.
+        "LibraryWriteOutcomeInfo.Type",
+        // Present when a type plan observes blocking instances or dependencies.
+        "LibraryWritePlanInfo.BlockingInstances",
+        "LibraryWritePlanInfo.Dependencies",
+        // Present when a type plan depends on a type created by an earlier batch item.
+        "LibraryWritePlanInfo.CreatedByItem",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
         // Worker mutation failures: present only when a Siemens exception caused the failure.
