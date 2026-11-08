@@ -151,7 +151,8 @@ internal sealed class Probe
                 if (system == null) Program.Emit(new { type = "skipped", id = "A3_system", reason = "No installed system library reported by Portal." });
                 else Metadata("A3_system", Call("A3_system", "Open(GlobalLibraryInfo)", () => portal.GlobalLibraries.Open(system)));
             });
-            foreach (var test in new[] { new { id = "A4_long", author = new string('A', 10000) }, new { id = "A4_lines", author = "First line\nSecond line\r\nThird line" } })
+            // A4_long crashed V21 in run 1; keep that evidence and do not repeat the fatal input.
+            foreach (var test in new[] { new { id = "A4_lines", author = "First line\nSecond line\r\nThird line" } })
                 Case(test.id, () =>
                 {
                     if (createType == null) throw new InvalidOperationException("A1 found no usable creation type; A4 cannot be interpreted.");

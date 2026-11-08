@@ -2,7 +2,10 @@
 
 Standalone net48/x64 console for A1-A4 in section 6 of the library-metadata design.
 Calls installed Siemens V21 Openness directly; no MCP server or PLC project is needed.
-Prepared only: no native results have been collected yet.
+Results: [2026-11-08 native probe report](../../2026-11-08-library-metadata-native-probes.md).
+Run 1's 10,000-character author crashed the disposable Portal. That input is now excluded from
+the console; its recorded result is retained as evidence, not repeated. Run 2 completed the
+multiline-author case and repeated A1-A3 successfully.
 
 From this directory:
 
@@ -22,7 +25,7 @@ The probe closes its user libraries and disposes its own Portal session on norma
 | A1 | `IEngineeringComposition.Create(typeof(UserGlobalLibrary), Name/TargetDirectory/Author)`, without `Comment`; returned CLR type and exact author. After native refusal only, try `typeof(GlobalLibrary)` with a different name. |
 | A2 | Typed `Create<UserGlobalLibrary>(directory, name)`; author Portal chooses when omitted. |
 | A3 | Every metadata member on a fresh library, then after saving/closing and reopening read-only; first installed system library if Portal reports one. |
-| A4 | Separate creates with a 10,000-character author and with LF/CRLF line breaks; returned author, lengths, ordinal equality or native exception type. Uses the type selected by A1. |
+| A4 | Run 1 recorded the fatal 10,000-character author. The current console creates only the LF/CRLF author, recording returned text, lengths and ordinal equality. Uses the type selected by A1. |
 
 JSONL records each call, return and exception chain. Metadata getters are independent, preserve
 nulls, and include all comment, language, product and history entries without truncation; array
