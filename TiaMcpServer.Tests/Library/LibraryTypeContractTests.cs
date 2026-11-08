@@ -18,7 +18,7 @@ public sealed class LibraryTypeContractTests
         { "create_type", """{"plcName":"PLC","plcKind":"block","plcObjectName":"Source"}""", "PlcName PlcKind PlcObjectName PlcFolderPath FolderPath" },
         { "create_type_version", """{"plcName":"PLC","plcKind":"plcType","plcObjectName":"Source","content":"<Document/>","expectedContentHash":"xml:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}""", "PlcName PlcKind PlcObjectName Content ExpectedContentHash PlcFolderPath ReplaceInWork" },
         { "release_type_version", """{"scope":"project","typeName":"Type"}""", "Scope TypeName TypeGuid FolderPath VersionNumber Author Comment" },
-        { "set_default_type_version", """{"scope":"project","typeName":"Type","versionNumber":"1.0.0"}""", "Scope LibraryPath LibraryName TypeName TypeGuid FolderPath VersionNumber VersionGuid InWork" },
+        { "set_default_type_version", """{"scope":"project","typeName":"Type","versionNumber":"1.0.0"}""", "Scope LibraryPath LibraryName TypeName TypeGuid FolderPath VersionNumber VersionGuid" },
         { "synchronize_type", """{"sourceScope":"project","scope":"global","libraryName":"Fixture","typeName":"Type"}""", "SourceScope SourceLibraryPath SourceLibraryName Scope LibraryPath LibraryName TypeName TypeGuid FolderPath" },
         { "instantiate_type_version", """{"sourceScope":"project","typeName":"Type","plcName":"PLC"}""", "SourceScope SourceLibraryPath SourceLibraryName TypeName TypeGuid FolderPath VersionNumber VersionGuid InWork PlcName PlcFolderPath" },
         { "delete_type", """{"scope":"project","typeName":"Type"}""", "Scope LibraryPath LibraryName TypeName TypeGuid FolderPath" },
@@ -68,14 +68,25 @@ public sealed class LibraryTypeContractTests
         => Assert.Equal(valid, LibraryWriteMethods.Validate(new()
             { Operation = "delete_type_version", Scope = "project", TypeName = "Type", VersionNumber = number, VersionGuid = guid, InWork = inWork }) is null);
 
-    [Theory]
-    [InlineData("set_default_type_version")]
-    [InlineData("delete_type_version")]
-    public void Validate_OmittedVersion_SelectsDefault(string operation)
+    [Fact]
+    public void Validate_DeleteTypeVersion_OmittedVersionSelectsDefault()
     {
-        var item = new LibraryWriteItem { OperationId = "a", Operation = operation, Scope = "project", TypeName = "Type" };
+        var item = new LibraryWriteItem { OperationId = "a", Operation = "delete_type_version", Scope = "project", TypeName = "Type" };
         Assert.True(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
         Assert.Null(LibraryWriteMethods.Validate(LibraryWriteCatalog.ToWorkerRequest(item)));
+    }
+
+    [Theory]
+    [InlineData(null, null, null, false)]
+    [InlineData(null, null, true, false)]
+    [InlineData("1.0.0", null, null, true)]
+    [InlineData(null, VersionGuid, null, true)]
+    public void Validate_SetDefault_RequiresExactVersion(string? number, string? guid, bool? inWork, bool valid)
+    {
+        var item = new LibraryWriteItem { OperationId = "a", Operation = "set_default_type_version", Scope = "project", TypeName = "Type",
+            VersionNumber = number, VersionGuid = guid, InWork = inWork };
+        Assert.Equal(valid, LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+        Assert.Equal(valid, LibraryWriteMethods.Validate(LibraryWriteCatalog.ToWorkerRequest(item)) is null);
     }
 
     [Theory]

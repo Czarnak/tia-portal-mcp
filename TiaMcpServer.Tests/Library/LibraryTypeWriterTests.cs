@@ -410,9 +410,6 @@ public sealed partial class LibraryTypeWriterTests
     };
 
     [Theory]
-    [InlineData("set_default_type_version", 0)]
-    [InlineData("set_default_type_version", 1)]
-    [InlineData("set_default_type_version", 2)]
     [InlineData("delete_type_version", 0)]
     [InlineData("delete_type_version", 1)]
     [InlineData("delete_type_version", 2)]

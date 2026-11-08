@@ -49,7 +49,7 @@ public sealed class LibraryWriteItem : IOperationBatchItem
     public string? TypeName { get; set; }
     [Description("Nonempty type GUID. Supply this or typeName.")]
     public string? TypeGuid { get; set; }
-    [Description("Three numeric version parts, excluding 0.0.0. Release may omit this; other version selectors accept this or versionGuid or inWork:true.")]
+    [Description("Three numeric version parts, excluding 0.0.0. Release may omit this; set_default_type_version requires this or versionGuid; other version selectors accept this or versionGuid or inWork:true.")]
     public string? VersionNumber { get; set; }
     [Description("Nonempty version GUID, mutually exclusive with versionNumber and inWork.")]
     public string? VersionGuid { get; set; }
