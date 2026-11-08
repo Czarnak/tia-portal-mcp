@@ -148,12 +148,29 @@ ceiling in its own ADR.
 - Where `AccessModeSource` lives (same file as the parser, or its own file).
 - Finding any further docs or tests that pin the old default beyond the lists above.
 
+## Implementation checklist
+
+This change is small enough that this ordered checklist replaces a separate implementation plan.
+Product code is about 40 lines; most of the work is tests and docs.
+
+1. **Flip the three defaults** (host parser, worker, worker client) and run the tests to see what breaks.
+2. **Repair the broken tests.** Tests that pin the old default now pin read-only. Of the 16 tests that build
+   `OpennessWorkerClient` without a policy, the ones that need writes get an explicit `read-write` policy.
+3. **Add the mode source and startup output:** `AccessModeSource`, `AccessModeParseResult.Source`, the
+   `(source)` suffix and the default-only hint line in `Program.cs`, with tests for all four CLI forms,
+   the environment variable and the default.
+4. **Add the `doctor` output:** pass the source through `DoctorCommand` into `DoctorTextRenderer` and
+   `DoctorJsonRenderer` (`accessModeSource`), with tests.
+5. **Update the docs:** fix the six statements of the old default, document the source suffix and
+   `accessModeSource`, add ADR-0017 to `docs/adr/` and its index, then run `verify-docs.py`.
+6. **Prune before merge:** delete this spec in a final `docs: prune working files` commit.
+
 ## Verification
 
 - `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`
 - `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`
 - `python3 -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30`
-- This session has no .NET SDK installed. Installing SDK 10.0.400 or newer here is part of the
-  plan, or verification falls to the maintainer's machine.
+- Implementation and verification run on the maintainer's machine (this cloud session has no
+  .NET SDK).
 - Live TIA Portal check: not needed for the default itself. The worker change is one fallback
   value covered by unit tests, so the PR is "stub build only; the maintainer verifies".
