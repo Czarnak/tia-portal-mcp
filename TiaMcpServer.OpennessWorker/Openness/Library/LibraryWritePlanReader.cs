@@ -247,7 +247,7 @@ internal static class LibraryWritePlanReader
                 plan.Type.DeletedVersions = versions.Select(x => x.VersionNumber.ToString()).ToList();
                 plan.Type.TypeDeleted = version is null || type.Versions.Count() == 1;
                 plan.BlockingInstances = new();
-                Instances(project, versions, plan, plan.BlockingInstances);
+                if (item.Scope == "project") Instances(project, versions, plan, plan.BlockingInstances);
                 plan.MasterCopiesContainingInstances = versions.SelectMany(x => x.MasterCopiesContainingInstances).Select(x => x.Name).Distinct().ToList();
             }
             if (item.Operation is "instantiate_type_version" or "synchronize_type")

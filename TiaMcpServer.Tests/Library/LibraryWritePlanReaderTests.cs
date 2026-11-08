@@ -113,6 +113,49 @@ public sealed class LibraryWritePlanReaderTests
     }
 
     [Theory]
+    [InlineData("delete_type")]
+    [InlineData("delete_type_version")]
+    public void Plan_GlobalDelete_ListsMasterCopiesWithoutSearchingProjectInstances(string operation)
+    {
+        AddPlc();
+        var library = AddLibrary();
+        var type = library.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { TypeObject = type, Parent = type,
+            Guid = Guid.NewGuid(), VersionNumber = new(1, 0, 0), State = LibraryTypeVersionState.Committed, IsDefault = true };
+        type.Versions.Items.Add(version);
+        version.FindInstancesAction = _ => throw new EngineeringTargetInvocationException("The version does not belong to the project.");
+        version.MasterCopiesContainingInstances.Items.Add(library.MasterCopyFolder.AddCopy("Held"));
+
+        var plan = Plan(new() { Operation = operation, Scope = "global", LibraryName = "Fixture", TypeName = "Motor" });
+
+        Assert.Null(plan.Unverifiable);
+        Assert.Empty(version.FindInstancesCalls);
+        Assert.Empty(plan.BlockingInstances!);
+        Assert.Equal(new[] { "Held" }, plan.MasterCopiesContainingInstances);
+    }
+
+    [Theory]
+    [InlineData("delete_type", false)]
+    [InlineData("delete_type", true)]
+    [InlineData("delete_type_version", false)]
+    [InlineData("delete_type_version", true)]
+    public void Plan_GlobalDelete_UnreadableMasterCopiesBlocksButFatalLossEscapes(string operation, bool fatal)
+    {
+        AddPlc();
+        var library = AddLibrary();
+        var type = library.TypeFolder.AddType("Motor");
+        var version = new CodeBlockLibraryTypeVersion { TypeObject = type, Parent = type, IsDefault = true };
+        type.Versions.Items.Add(version);
+        version.MasterCopiesContainingInstances.EnumerationFailure = fatal
+            ? new NonRecoverableException("lost") : new EngineeringNotSupportedException("unreadable");
+        var item = new LibraryWriteRequestInfo { Operation = operation, Scope = "global", LibraryName = "Fixture", TypeName = "Motor" };
+
+        if (fatal) Assert.Throws<NonRecoverableException>(() => Plan(item));
+        else Assert.NotNull(Plan(item).Unverifiable);
+        Assert.Empty(version.FindInstancesCalls);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(null)]
     public void Plan_CreateTypeVersion_ReplacedInWorkOnlyWithReplaceInWork(bool? replaceInWork)
