@@ -35,9 +35,17 @@ internal static class BlockPostconditionVerifier
         if (invocation is null) throw new ArgumentNullException(nameof(invocation));
 
         var outcome = CreateImportOutcome(evidence, invocation, temporarySourceState);
+        if (!evidence.CompileObservation.SessionAvailable)
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.PortalLost,
+                "Block update verification did not complete.",
+                new[] { UncertainStateWarning },
+                outcome);
+        }
+
         if (outcome.ImportStage == "completed"
             && outcome.ImportResultState == "success"
-            && outcome.CompileStage == "succeeded"
             && outcome.FinalReadStage == "succeeded"
             && outcome.TargetPresent == true)
         {

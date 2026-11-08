@@ -337,6 +337,38 @@ public sealed class PlcGuardedWriteDomainTests
     }
 
     [Theory]
+    [InlineData("xml", "failed")]
+    [InlineData("source", "failed")]
+    [InlineData("xml", "unavailable")]
+    [InlineData("source", "unavailable")]
+    public async Task CompletedImportWithCompileFailureKeepsEvidenceAndContinuesBatch(string format, string compileStage)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-compile-" + compileStage);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", format);
+
+        var response = await fixture.RunAsync(false,
+            UpdateBlock("import", "PLC_2/Main", hash, format),
+            CreateTag("next", "AfterImport"));
+
+        Assert.True(response.Success, JsonSerializer.Serialize(response));
+        Assert.Equal(new[] { "succeeded", "succeeded" }, response.Batch!.Operations.Select(item => item.Status));
+        var outcome = response.Batch.Operations[0].Result!.Value.GetProperty("importOutcome");
+        Assert.Equal("success", outcome.GetProperty("importResultState").GetString());
+        Assert.True(outcome.GetProperty("targetMutationCommitted").GetBoolean());
+        Assert.Equal(compileStage, outcome.GetProperty("compileStage").GetString());
+        if (compileStage == "failed")
+            Assert.Equal(1, outcome.GetProperty("compileReport").GetProperty("totalErrorCount").GetInt32());
+        else
+            Assert.Equal(JsonValueKind.Null, outcome.GetProperty("compileReport").ValueKind);
+        Assert.True(response.Verification!.Success);
+        Assert.Equal("contentHash", response.Verification.Operations[0].Check);
+        Assert.Equal(ContentHashRules.Compute(format, "<Block written=\"import\"/>"),
+            response.Verification.Operations[0].ContentHash);
+        Assert.Contains("AfterImport", await fixture.InventoryAsync());
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task UnverifiableEvidenceBlocks(bool dryRun)

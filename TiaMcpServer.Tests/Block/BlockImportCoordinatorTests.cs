@@ -202,6 +202,48 @@ public class BlockImportCoordinatorTests
         Assert.Equal(1, verificationCalls);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Execute_CompileFailureDoesNotFailCompletedImport(bool unavailable)
+    {
+        var calls = new List<string>();
+        var compile = unavailable
+            ? BlockCompileObservation.Unavailable(report: null)
+            : BlockCompileObservation.FromReport(new CompileCheckReport
+            {
+                Scope = "plc",
+                OverallState = "Error",
+                TotalErrorCount = 2,
+                Plcs = { new PlcCompileInfo { PlcName = "PLC", State = "Error", ErrorCount = 2 } }
+            });
+
+        var result = BlockImportCoordinator.Execute(
+            "Main.xml",
+            "<Main />",
+            (_, _, boundary) =>
+            {
+                calls.Add("import");
+                boundary.BeforeSiemensCall();
+                boundary.AfterSiemensCallReturned();
+                boundary.RecordReturnedResult(BlockImportReturnedState.Success);
+            },
+            compileAllowed =>
+            {
+                Assert.True(compileAllowed);
+                calls.Add("compileAndReadBack");
+                return BlockPostconditionEvidence.Import(compile, "succeeded", targetPresent: true);
+            });
+
+        Assert.Equal(new[] { "import", "compileAndReadBack" }, calls);
+        Assert.Equal("Import succeeded.", result.Payload);
+        Assert.Equal("success", result.Outcome.ImportResultState);
+        Assert.True(result.Outcome.TargetMutationCommitted);
+        Assert.Equal(unavailable ? "unavailable" : "failed", result.Outcome.CompileStage);
+        Assert.Equal(unavailable ? null : 2, result.Outcome.CompileReport?.TotalErrorCount);
+        Assert.Empty(result.Warnings);
+    }
+
     [Fact]
     public void Execute_StartedTargetThrowRunsOneFinalObservationWithoutCompileOrRetry()
     {
