@@ -122,6 +122,10 @@ Options:
 - `--verbose` - include diagnostic evidence for each check.
 - `--project` - validate the exact absolute path of an existing `.ap21` project without opening or attaching to TIA Portal.
 
+Doctor reports the resolved access mode and its source: `Access mode: READ-ONLY (default)`
+in text, or adjacent `accessMode` and `accessModeSource` members in JSON. Source values are
+`default`, `option`, and `environment`, with the same precedence as server startup.
+
 Project-selection diagnostics are access-mode aware:
 
 - no project binding is a Warning in every mode, with remediation naming `bind_project`;
@@ -188,9 +192,9 @@ Exit codes: `0` (success), `1` (general failure), `2` (invalid arguments), `3` (
 
 The server supports three access modes, enforced at discovery, host dispatch, and worker dispatch:
 
-- **read-only** - nine tools: eight observation tools plus `bind_project`; no compile, edits, or
+- **read-only** (server startup default) - nine tools: eight observation tools plus `bind_project`; no compile, edits, or
   lifecycle.
-- **read-write** (server startup default) - twenty-one tools: the read-only surface plus
+- **read-write** - twenty-one tools: the read-only surface plus
   `compile_check`, `network_write`, `plc_write`, `hmi_write`, `vci_write`, `library_write`, and all six lifecycle tools. Every actual project lifecycle
   call requires one confirmation form; the four data write tools never prompt, and `library_write` prompts only for a call
   that contains a global-library lifecycle operation.
@@ -220,7 +224,16 @@ $env:TIA_MCP_ACCESS_MODE = 'read-only'
 tia-mcp
 ```
 
-Configuration precedence: CLI argument > environment variable > default (read-write).
+Configuration precedence: CLI argument > environment variable > default (read-only).
+
+**Breaking change:** manual configurations that omit the mode now expose only the read-only
+tools. Add `--access-mode read-write` or `--access-mode full`, or set `TIA_MCP_ACCESS_MODE`
+to the corresponding value, to enable edits, compilation and lifecycle. Installed configurations
+already include an explicit mode and keep their existing permissions.
+
+Startup stderr reports the source, for example `TIA MCP access mode: READ-ONLY (default)`.
+The suffix is `(option)` for any access-mode CLI form and `(environment)` for the environment
+variable. Only the default case also prints a hint explaining how to enable edits.
 
 The mode is resolved once at startup and cannot be changed during the process lifetime. There is no MCP tool that changes the access mode at runtime.
 

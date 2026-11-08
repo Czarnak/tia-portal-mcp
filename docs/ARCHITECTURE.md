@@ -58,10 +58,16 @@ The access mode is resolved once at startup with this precedence:
 
 1. `--access-mode read-only|read-write|full`, `--read-only`, or `--read-write`
 2. `TIA_MCP_ACCESS_MODE`
-3. `read-write` by default
+3. `read-only` by default
 
 Malformed explicit access-mode arguments are rejected instead of silently
 falling back to another mode.
+
+`AccessModeParser` retains the source (`default`, `option`, or `environment`). Startup stderr
+appends it to the access-mode banner and prints an editing hint only for the default case.
+Doctor uses the same parser and suffix; JSON writes `accessModeSource` beside `accessMode`.
+An `OpennessWorkerClient` constructed without an explicit policy also defaults to read-only.
+See [ADR-0018](adr/0018-read-only-default-access-mode.md) for the default decision.
 
 The structured response budgets are resolved next by `Cli/PayloadBudgetParser`, per value:
 `--max-item-chars`/`--max-document-chars`, then `TIA_MCP_MAX_ITEM_CHARS`/`TIA_MCP_MAX_DOCUMENT_CHARS`,
@@ -263,7 +269,7 @@ The host passes its resolved access mode to the worker process. The worker runs
 `WorkerOperationAuthorization` before dispatching any request handler or
 calling Siemens APIs.
 
-Missing worker configuration preserves the historical read-write default.
+Missing worker configuration defaults to read-only.
 Explicit but malformed worker configuration fails closed to read-only, so an
 argument-propagation defect cannot silently enable mutations.
 
