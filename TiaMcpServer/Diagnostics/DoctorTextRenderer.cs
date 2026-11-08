@@ -5,14 +5,14 @@ namespace TiaMcpServer.Diagnostics;
 
 public static class DoctorTextRenderer
 {
-    public static void Render(DoctorReport report, bool verbose, TextWriter writer, McpAccessMode? accessMode = null, WorkerTimeoutParseResult? workerTimeout = null)
+    public static void Render(DoctorReport report, bool verbose, TextWriter writer, McpAccessMode? accessMode = null, WorkerTimeoutParseResult? workerTimeout = null, AccessModeSource accessModeSource = AccessModeSource.Default)
     {
         writer.WriteLine("TIA Portal MCP Environment Doctor");
         writer.WriteLine();
         if (accessMode.HasValue)
         {
             var modeLabel = McpAccessModeNames.ToName(accessMode.Value).ToUpperInvariant();
-            writer.WriteLine($"Access mode: {modeLabel}");
+            writer.WriteLine($"Access mode: {modeLabel} ({AccessModeParseResult.SourceName(accessModeSource)})");
             writer.WriteLine();
         }
 

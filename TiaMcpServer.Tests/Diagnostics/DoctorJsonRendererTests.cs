@@ -9,7 +9,7 @@ namespace TiaMcpServer.Tests.Diagnostics;
 public class DoctorJsonRendererTests
 {
     [Fact]
-    public void Render_WorkerTimeout_WritesValueAndSourceImmediatelyAfterAccessMode()
+    public void Render_WorkerTimeout_WritesValueAndSourceImmediatelyAfterAccessModeSource()
     {
         var report = CreateReport(DiagnosticStatus.Passed, Array.Empty<DiagnosticCheckResult>());
 
@@ -23,8 +23,9 @@ public class DoctorJsonRendererTests
         var names = root.EnumerateObject().Select(property => property.Name).ToArray();
         var accessModeIndex = Array.IndexOf(names, "accessMode");
         Assert.True(accessModeIndex >= 0);
-        Assert.Equal("workerTimeoutMinutes", names[accessModeIndex + 1]);
-        Assert.Equal("workerTimeoutSource", names[accessModeIndex + 2]);
+        Assert.Equal("accessModeSource", names[accessModeIndex + 1]);
+        Assert.Equal("workerTimeoutMinutes", names[accessModeIndex + 2]);
+        Assert.Equal("workerTimeoutSource", names[accessModeIndex + 3]);
     }
 
     [Fact]

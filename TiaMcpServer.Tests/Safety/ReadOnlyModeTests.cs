@@ -43,11 +43,11 @@ public class ReadOnlyModeTests
     #region Configuration Tests
 
     [Fact]
-    public void DefaultMode_IsReadWrite()
+    public void DefaultMode_IsReadOnly()
     {
-        var result = AccessModeParser.Parse(Array.Empty<string>());
+        var result = AccessModeParser.Parse(Array.Empty<string>(), _ => null);
         Assert.True(result.IsValid);
-        Assert.Equal(McpAccessMode.ReadWrite, result.Mode);
+        Assert.Equal(McpAccessMode.ReadOnly, result.Mode);
     }
 
     [Fact]
@@ -476,12 +476,12 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void OpennessWorkerClient_NoPolicy_DefaultsToReadWrite()
+    public void OpennessWorkerClient_NoPolicy_DefaultsToReadOnly()
     {
         var binding = new ProjectSessionBinding(null);
         var client = new OpennessWorkerClient(binding);
 
-        Assert.Equal(McpAccessMode.ReadWrite, client.AccessPolicy.Mode);
+        Assert.Equal(McpAccessMode.ReadOnly, client.AccessPolicy.Mode);
     }
 
     #endregion
@@ -503,10 +503,12 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void WorkerOperationAuthorization_DefaultsToReadWrite()
+    public void WorkerOperationAuthorization_DefaultsToReadOnly()
     {
         var mode = WorkerOperationAuthorization.ParseAccessMode(Array.Empty<string>());
-        Assert.Equal(McpAccessMode.ReadWrite, mode);
+        Assert.Equal(McpAccessMode.ReadOnly, mode);
+        Assert.NotNull(WorkerOperationAuthorization.Authorize(mode, "update_block_logic"));
+        Assert.False(WorkerOperationAuthorization.AllowsTiaConfirmations(mode));
     }
 
     [Fact]
@@ -837,14 +839,14 @@ public class ReadOnlyModeTests
     }
 
     [Fact]
-    public void DoctorCliParser_NoEnvVar_DefaultsToReadWrite()
+    public void DoctorCliParser_NoEnvVar_DefaultsToReadOnly()
     {
         try
         {
             Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
             var options = DoctorCliParser.Parse(Array.Empty<string>());
             Assert.True(options.Valid);
-            Assert.Equal(McpAccessMode.ReadWrite, options.AccessMode);
+            Assert.Equal(McpAccessMode.ReadOnly, options.AccessMode);
         }
         finally
         {
@@ -884,19 +886,18 @@ public class ReadOnlyModeTests
     #region OpennessWorkerClient Without Policy Tests
 
     [Fact]
-    public async Task OpennessWorkerClient_NoPolicy_AllowsAllOperations()
+    public async Task OpennessWorkerClient_NoPolicy_DeniesWritesBeforeTransport()
     {
         var binding = new ProjectSessionBinding(null);
-        // No accessPolicy — should not throw, will fail at transport level (no worker)
-        var client = new OpennessWorkerClient(
+        using var client = new OpennessWorkerClient(
             binding,
             workerExecutablePath: "/nonexistent/path");
 
-        // This will fail with a transport error (worker not found), not access_denied
         var result = await client.UpdateBlockLogicAsync("Main", "yaml");
 
         Assert.False(result.Success);
-        Assert.NotEqual(WorkerFailureCategories.AccessDenied, result.FailureCategory);
+        Assert.Equal(WorkerFailureCategories.AccessDenied, result.FailureCategory);
+        Assert.Equal(WorkerDispatchState.NotSent, result.DispatchState);
     }
 
     #endregion

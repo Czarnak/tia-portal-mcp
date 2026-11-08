@@ -74,7 +74,11 @@ namespace TiaMcpServer
                 return 1;
             }
 
-            Console.Error.WriteLine($"TIA MCP access mode: {McpAccessModeNames.ToName(accessMode).ToUpperInvariant()}");
+            Console.Error.WriteLine($"TIA MCP access mode: {McpAccessModeNames.ToName(accessMode).ToUpperInvariant()} ({AccessModeParseResult.SourceName(accessModeResult.Source)})");
+            if (accessModeResult.Source == AccessModeSource.Default)
+            {
+                Console.Error.WriteLine("No access mode was given. Use --access-mode read-write or --access-mode full (or TIA_MCP_ACCESS_MODE) to enable edits, compilation and lifecycle.");
+            }
             Console.Error.WriteLine($"TIA MCP response budget: {budgetResult.ItemChars} characters per value, {budgetResult.DocumentChars} per response");
             Console.Error.WriteLine($"TIA MCP worker timeout: {workerTimeout.Minutes} minutes");
             if (accessMode == McpAccessMode.ReadOnly)

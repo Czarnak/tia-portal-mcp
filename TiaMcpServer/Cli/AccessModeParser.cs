@@ -2,9 +2,16 @@ using TiaMcpServer.Contracts.Safety;
 
 namespace TiaMcpServer.Cli;
 
+public enum AccessModeSource
+{
+    Default,
+    Option,
+    Environment
+}
+
 /// <summary>
 /// Resolves the <see cref="McpAccessMode"/> from CLI arguments and environment variables.
-/// Precedence: CLI argument > environment variable > default (ReadWrite).
+/// Precedence: CLI argument > environment variable > default (ReadOnly).
 /// </summary>
 public static class AccessModeParser
 {
@@ -101,7 +108,7 @@ public static class AccessModeParser
 
         if (cliMode is not null)
         {
-            return AccessModeParseResult.Ok(cliMode.Value);
+            return AccessModeParseResult.Ok(cliMode.Value, AccessModeSource.Option);
         }
 
         // 2. Check environment variable
@@ -110,13 +117,13 @@ public static class AccessModeParser
         {
             var parsed = ParseValue(envValue);
             return parsed.IsValid
-                ? parsed
+                ? AccessModeParseResult.Ok(parsed.Mode, AccessModeSource.Environment)
                 : AccessModeParseResult.Fail(
                     $"Invalid {EnvVarName} value '{envValue}'. Valid values: 'read-only', 'read-write', 'full'.");
         }
 
         // 3. Default
-        return AccessModeParseResult.Ok(McpAccessMode.ReadWrite);
+        return AccessModeParseResult.Ok(McpAccessMode.ReadOnly, AccessModeSource.Default);
     }
 
     /// <summary>
@@ -140,9 +147,18 @@ public static class AccessModeParser
     }
 }
 
-public sealed record AccessModeParseResult(bool IsValid, McpAccessMode Mode, string? Error)
+public sealed record AccessModeParseResult(bool IsValid, McpAccessMode Mode, AccessModeSource Source, string? Error)
 {
-    public static AccessModeParseResult Ok(McpAccessMode mode) => new(true, mode, null);
+    public static AccessModeParseResult Ok(McpAccessMode mode, AccessModeSource source = AccessModeSource.Option)
+        => new(true, mode, source, null);
 
-    public static AccessModeParseResult Fail(string error) => new(false, default, error);
+    public static AccessModeParseResult Fail(string error) => new(false, default, default, error);
+
+    public static string SourceName(AccessModeSource source) => source switch
+    {
+        AccessModeSource.Default => "default",
+        AccessModeSource.Option => "option",
+        AccessModeSource.Environment => "environment",
+        _ => throw new ArgumentOutOfRangeException(nameof(source), source, null)
+    };
 }

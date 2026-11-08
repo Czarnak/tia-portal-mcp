@@ -74,7 +74,7 @@ public class ReadWriteModeCeilingTests
     }
 
     [Fact]
-    public async Task MissingPolicy_StillEnforcesReadWriteDefault()
+    public async Task MissingPolicy_EnforcesReadOnlyDefault()
     {
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null), workerExecutablePath: "worker-must-not-start.exe");
         var result = await InvokeRaw(client, "start_plc");
