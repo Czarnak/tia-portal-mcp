@@ -31,6 +31,8 @@ Verified raw Openness call/response evidence is kept here, with the probe source
 | `2026-11-08-library-types-preview-diagnostic.jsonl.gz` | [2026-11-08-library-types-live-verification.md](../2026-11-08-library-types-live-verification.md) | Yes. Separate direct Openness calls for each PLC instance search and the global master-copy association; no MCP envelope. | Confirms why global delete planning must not search project PLCs. Stack paths redacted to `<repo>`/`<profile>`. |
 | [2026-11-08-library-types-preview-diagnostic/](2026-11-08-library-types-preview-diagnostic/README.md) | [2026-11-08-library-types-live-verification.md](../2026-11-08-library-types-live-verification.md) | No (source). | Generic net48 fixture/diagnostic helper, build file and provenance README. |
 
+| [2026-11-08-globaldb-software-units/](2026-11-08-globaldb-software-units/README.md) | [2026-11-08-globaldb-software-units-live-verification.md](../2026-11-08-globaldb-software-units-live-verification.md) | Yes. Parsed direct native import exceptions, compiler results, layout getters and cleanup assertions; no MCP envelope. | Nine exact input XML files, two compressed traces and the probe sources. |
+
 Caveats:
 
 - The archived probe source was edited after the run only to remove the project path, so the recorded executable SHA-256 does not match the archived source.
