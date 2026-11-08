@@ -48,12 +48,16 @@ public class BlockSourceGeneratorTests
         Assert.Contains("<ProgrammingLanguage>DB</ProgrammingLanguage>", xml);
     }
 
-    [Fact]
-    public void GlobalDb_source_uses_MemoryLayout_not_an_Optimized_element()
+    [Theory]
+    [InlineData("GLOBALDB")]
+    [InlineData("DB")]
+    public void GlobalDb_source_leaves_memory_layout_to_Portal_for_root_and_unit_imports(string blockType)
     {
-        var xml = BlockSourceGenerator.Generate("MyDb", "GLOBALDB", "DB", obEventClass: null, obNumber: null);
+        var xml = BlockSourceGenerator.Generate("MyDb", blockType, "DB", obEventClass: null, obNumber: null);
 
-        Assert.Contains("<MemoryLayout>Optimized</MemoryLayout>", xml);
+        BlockSourceValidator.Validate(blockType, "DB", xml);
+        var attributes = XDocument.Parse(xml).Descendants("SW.Blocks.GlobalDB").Single().Element("AttributeList")!;
+        Assert.Null(attributes.Element("MemoryLayout"));
         Assert.DoesNotContain("<Optimized>", xml);
     }
 
