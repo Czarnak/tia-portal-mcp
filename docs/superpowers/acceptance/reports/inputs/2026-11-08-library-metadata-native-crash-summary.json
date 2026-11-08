@@ -1,0 +1,11 @@
+{
+  "kind": "derived Portal diagnostic excerpt; not raw Openness",
+  "sourceBundle": "d6e36c5b-f6a6-4eb8-b70b-66719764bf37.dr",
+  "sourceSha256": "4fa30ea1a1d725972cb1951b9c15902830805b16cfe29e0ee5a9472f6801d7b0",
+  "reason": "Openness",
+  "dateTimeUTC": "2026-11-08T18:23:40",
+  "exceptionType": "Siemens.Automation.ProjectManager.CallingContractViolationException",
+  "message": "Author is too long: <10000-character author>",
+  "messageRedaction": "Only the repeated 10000-character author was replaced.",
+  "validationFrame": "Siemens.Automation.ProjectManager.Impl.Tia.ProjectCreator.ValidateParameters(String path, Boolean isLibrary, String author, Version version)"
+}
