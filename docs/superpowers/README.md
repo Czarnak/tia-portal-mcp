@@ -23,6 +23,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-08 | [Block import compilation — scoped live PASS: successful source import with an unrelated PLC compile error, independent compile result, following batch item, fresh content hash and verified cleanup](acceptance/reports/2026-11-08-block-import-compilation-live-verification.md) |
 | 2026-11-07 | [library_write — scoped PASS: all 12 operations, read-write lifecycle prompt and decline, full mode, guards, M1/M5 native refusals, duplicate-name selector, clean read-only close-save, local-session capability split; rename postcondition, close-after-save failure, non-block PLC kinds and Portal loss unverified](acceptance/reports/2026-11-07-library-write-live-verification.md) |
 | 2026-11-06 | [library_read — scoped read verification: all-available global listing (system/corporate/user, `isOpen`), selectors, nested trees, versions, dependencies, snapshot-cursor paging and failures, project library; local session, rebind and between-page changes unverified](acceptance/reports/2026-11-06-library-read-live-verification.md) |
 | 2026-11-01 | [VCI write native rejections — 20 scoped contract/lifecycle variants, 21 qualified timing samples with synchronization regressions retained, native failure evidence, shared verification and restored fixture](acceptance/reports/2026-11-01-vci-write-native-rejections-live-verification.md) |

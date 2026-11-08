@@ -24,7 +24,7 @@ Files: BlockPostconditionVerifier.cs; verifier/coordinator/PLC outcome and batch
 - [x] Verify preserved compile evidence, final verification, actual failures, and later batch execution.
 - [x] Document independent compile results.
 - [x] Run focused tests, installed V21 build, non-packaging suite and docs verification.
-- [ ] Review independently, fix material findings, and commit.
+- [x] Review independently, fix material findings, and commit (0dd0089f).
 
 ## Decisions
 
@@ -43,3 +43,5 @@ Files: BlockPostconditionVerifier.cs; verifier/coordinator/PLC outcome and batch
 - Ruling: leave PLC type import, block creation, and broader pre-existing exception policies unchanged; those have separate contracts outside the requested block-update complaint.
 - Ruling: retain the internal lost-session observation as portal_lost; accepting a fatal loss as ordinary unavailable compilation would invalidate the safety boundary.
 - Ruling: use an installed-assembly build for native acceptance rather than a redundant stub build; no Siemens API signatures changed.
+
+- Native acceptance: successful source import retained one compile error, the next batch item executed, target hash/readback and target-only compile passed, fixtures were freshly absent, and restored PLC compilation had 0 errors. No save.
