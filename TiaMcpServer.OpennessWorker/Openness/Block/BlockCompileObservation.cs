@@ -27,22 +27,24 @@ internal sealed class CompileObservationInput
 
 internal sealed class BlockCompileObservation
 {
-    private BlockCompileObservation(string stage, CompileCheckReport? report, bool detailsOmitted)
+    private BlockCompileObservation(string stage, CompileCheckReport? report, bool detailsOmitted, bool sessionAvailable = true)
     {
         Stage = stage;
         Report = report;
         DetailsOmitted = detailsOmitted;
+        SessionAvailable = sessionAvailable;
     }
 
     public string Stage { get; }
     public CompileCheckReport? Report { get; }
     public bool DetailsOmitted { get; }
+    public bool SessionAvailable { get; }
 
     public static BlockCompileObservation Observe(CompileObservationInput input)
     {
         if (input is null) throw new ArgumentNullException(nameof(input));
         if (!input.TargetSelectionAvailable || !input.SessionAvailable || !input.AllInvocationsAvailable)
-            return Unavailable(input.Report, input.DetailsOmitted);
+            return new BlockCompileObservation("unavailable", input.Report, input.DetailsOmitted, input.SessionAvailable);
         if (input.Report is null)
             return Unavailable(null, input.DetailsOmitted);
 

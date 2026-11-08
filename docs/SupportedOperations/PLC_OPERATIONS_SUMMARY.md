@@ -209,8 +209,12 @@ If the object changed since that read, the call fails with `state_changed` befor
 change between planning and import fails that item with `state_changed`. A document over the value
 budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and cannot be updated through
 `plc_write`. A source declaring more than one object (a `withDependencies` read) is refused.
-Block updates import into the existing block, compile the affected PLC scope, and verify the result
-by re-export (the verification `contentHash`, below); type updates require a declaration whose name matches the target. Import/update never
+Block updates import into the existing block, then compile the affected scope and verify the result
+by re-export (the verification `contentHash`, below). Compilation is reported separately in
+`result.importOutcome.compileStage` and `compileReport`: compiler errors or unavailable compile
+evidence alone do not fail a completed, verified import or skip later batch items. Import success
+does not certify that the PLC compiles. Import, final verification, and Portal-loss failures still
+fail the item. Type updates require a declaration whose name matches the target. Import/update never
 creates, renames, deletes, or upserts the addressed object. A preview can carry a bounded
 `contentDiff` of current versus requested text (see the
 [import/export options](IMPORT_EXPORT_OPTIONS_SUMMARY.md)). A failed `update_block_logic` import

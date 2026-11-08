@@ -33,24 +33,64 @@ public class BlockPostconditionVerifierTests
     }
 
     [Fact]
-    public void VerifyImport_UnavailableCompileMayCarryNoReportAndThrowsSameOutcome()
+    public void VerifyImport_UnavailableCompileDoesNotFailCompletedImport()
     {
         var evidence = BlockPostconditionEvidence.Import(
             BlockCompileObservation.Unavailable(report: null),
             finalReadStage: "succeeded",
             targetPresent: true);
 
+        var outcome = BlockPostconditionVerifier.VerifyImport(
+            evidence,
+            CompletedBoundary().Snapshot(),
+            temporarySourceState: "not_applicable");
+
+        Assert.Equal("unavailable", outcome.CompileStage);
+        Assert.Null(outcome.CompileReport);
+        Assert.True(outcome.TargetMutationCommitted);
+    }
+
+    [Fact]
+    public void VerifyImport_CompilerErrorsDoNotFailCompletedImport()
+    {
+        var evidence = BlockPostconditionEvidence.Import(
+            BlockCompileObservation.FromReport(Report("Error", errors: 2, warnings: 1)),
+            finalReadStage: "succeeded",
+            targetPresent: true);
+
+        var outcome = BlockPostconditionVerifier.VerifyImport(
+            evidence,
+            CompletedBoundary().Snapshot(),
+            temporarySourceState: "removed");
+
+        Assert.Equal("completed", outcome.ImportStage);
+        Assert.Equal("success", outcome.ImportResultState);
+        Assert.True(outcome.TargetMutationCommitted);
+        Assert.Equal("failed", outcome.CompileStage);
+        Assert.Equal(2, outcome.CompileReport!.TotalErrorCount);
+        Assert.Equal(1, outcome.CompileReport.TotalWarningCount);
+        Assert.Equal("succeeded", outcome.FinalReadStage);
+        Assert.True(outcome.TargetPresent);
+    }
+
+    [Fact]
+    public void VerifyImport_LostCompileSessionStillFailsAndPreservesCommittedImport()
+    {
+        var compile = BlockCompileObservation.Observe(new CompileObservationInput(
+            report: null,
+            targetSelectionAvailable: true,
+            sessionAvailable: false,
+            allInvocationsAvailable: false));
+        var evidence = BlockPostconditionEvidence.Import(compile, "succeeded", targetPresent: true);
+
         var exception = Assert.Throws<WorkerOperationException>(() =>
             BlockPostconditionVerifier.VerifyImport(
-                evidence,
-                CompletedBoundary().Snapshot(),
-                temporarySourceState: "not_applicable"));
+                evidence, CompletedBoundary().Snapshot(), "not_applicable"));
 
-        Assert.Equal(WorkerFailureCategories.PostconditionFailed, exception.FailureCategory);
-        Assert.NotNull(exception.BlockImportOutcome);
-        Assert.Equal("unavailable", exception.BlockImportOutcome!.CompileStage);
-        Assert.Null(exception.BlockImportOutcome.CompileReport);
-        Assert.True(exception.BlockImportOutcome.TargetMutationCommitted);
+        Assert.Equal(WorkerFailureCategories.PortalLost, exception.FailureCategory);
+        Assert.True(exception.BlockImportOutcome!.TargetMutationCommitted);
+        Assert.Equal("success", exception.BlockImportOutcome.ImportResultState);
+        Assert.Equal("unavailable", exception.BlockImportOutcome.CompileStage);
     }
 
     [Fact]

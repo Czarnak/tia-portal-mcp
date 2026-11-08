@@ -46,6 +46,13 @@ affected scope and checks the postcondition by freshly resolving and re-exportin
 External-source global DB updates on that path compile the PLC because changing a DB declaration can
 affect dependent blocks.
 
+Import success is independent of that subsequent compilation: a completed successful import with a
+successful final read remains a succeeded item when compilation reports errors or is unavailable.
+Its `result.importOutcome.compileStage` and `compileReport` retain the separate compile result, and
+later batch items continue. Successful import does not mean the PLC compiles. Actual import or final
+verification failures still fail the item; observed Portal loss remains `portal_lost`. Compiler
+descriptions in the import outcome remain sanitized; use `compile_check` for compiler messages.
+
 ### Block-update outcome evidence
 
 `plc_write` reports the non-atomic result of each `update_block_logic` item as an import outcome
