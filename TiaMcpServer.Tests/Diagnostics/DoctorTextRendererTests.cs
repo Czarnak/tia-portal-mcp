@@ -16,7 +16,7 @@ public class DoctorTextRendererTests
         DoctorTextRenderer.Render(report, false, writer, McpAccessMode.ReadWrite,
             new WorkerTimeoutParseResult(true, 10, WorkerTimeoutSource.Option, null));
 
-        Assert.Contains($"Access mode: READ-WRITE{Environment.NewLine}{Environment.NewLine}Worker timeout: 10 minutes (option){Environment.NewLine}", writer.ToString());
+        Assert.Contains($"Access mode: READ-WRITE (default){Environment.NewLine}{Environment.NewLine}Worker timeout: 10 minutes (option){Environment.NewLine}", writer.ToString());
     }
 
     [Fact]

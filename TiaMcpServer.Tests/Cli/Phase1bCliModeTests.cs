@@ -23,7 +23,7 @@ public class Phase1bCliModeTests
             Assert.False(AccessModeParser.Parse(new[] { "--read-write", "--access-mode=full" }).IsValid);
             Assert.False(AccessModeParser.Parse(new[] { "--read-only", "--access-mode=full" }).IsValid);
             Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", null);
-            Assert.Equal(McpAccessMode.ReadWrite, AccessModeParser.Parse(Array.Empty<string>()).Mode);
+            Assert.Equal(McpAccessMode.ReadOnly, AccessModeParser.Parse(Array.Empty<string>()).Mode);
         }
         finally { Environment.SetEnvironmentVariable("TIA_MCP_ACCESS_MODE", previous); }
     }

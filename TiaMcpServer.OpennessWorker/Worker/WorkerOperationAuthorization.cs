@@ -12,7 +12,7 @@ internal static class WorkerOperationAuthorization
 {
     /// <summary>
     /// Parses the access mode from the worker process command-line arguments.
-    /// Missing configuration preserves the historical read-write default. Explicit but malformed
+    /// Missing configuration defaults to read-only. Explicit but malformed
     /// or contradictory configuration fails closed to read-only so a launch or argument-
     /// propagation defect cannot silently enable mutation operations.
     /// </summary>
@@ -73,7 +73,7 @@ internal static class WorkerOperationAuthorization
             }
         }
 
-        return explicitMode ?? McpAccessMode.ReadWrite;
+        return explicitMode ?? McpAccessMode.ReadOnly;
     }
 
     /// <summary>

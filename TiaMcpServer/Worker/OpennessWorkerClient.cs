@@ -34,7 +34,7 @@ public partial class OpennessWorkerClient : IDisposable
         _logger = logger;
         _workerExecutablePathOverride = workerExecutablePath;
         _requestTimeout = requestTimeout ?? DefaultRequestTimeout;
-        _accessPolicy = accessPolicy ?? new Safety.OperationAccessPolicy(McpAccessMode.ReadWrite);
+        _accessPolicy = accessPolicy ?? new Safety.OperationAccessPolicy(McpAccessMode.ReadOnly);
     }
 
     /// <summary>The current access mode policy; every worker request is authorized against it.</summary>

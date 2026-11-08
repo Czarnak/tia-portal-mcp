@@ -16,7 +16,7 @@ The current implementation covers project discovery and lifecycle operations, PL
 
 ## Tools
 
-The server exposes 9 tools in `read-only`, 21 in `read-write` (the startup default), and the same 21 in `full`.
+The server exposes 9 tools in `read-only` (the startup default), 21 in `read-write`, and the same 21 in `full`.
 `read-write` permits in-project edits, compilation and project lifecycle calls, asking once per actual lifecycle call.
 `full` adds no tools or operations; it only runs lifecycle calls without the prompt. Every write tool
 (`plc_write`, `network_write`, `hmi_write`, `vci_write`, `library_write` and the six lifecycle tools) uses one guarded single-call pipeline; there are no

@@ -7,7 +7,7 @@ namespace TiaMcpServer.Diagnostics;
 
 public static class DoctorJsonRenderer
 {
-    public static string Render(DoctorReport report, bool verbose, McpAccessMode? accessMode = null, WorkerTimeoutParseResult? workerTimeout = null)
+    public static string Render(DoctorReport report, bool verbose, McpAccessMode? accessMode = null, WorkerTimeoutParseResult? workerTimeout = null, AccessModeSource accessModeSource = AccessModeSource.Default)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -19,6 +19,7 @@ public static class DoctorJsonRenderer
             if (accessMode.HasValue)
             {
                 writer.WriteString("accessMode", McpAccessModeNames.ToName(accessMode.Value));
+                writer.WriteString("accessModeSource", AccessModeParseResult.SourceName(accessModeSource));
             }
 
             if (workerTimeout is not null)

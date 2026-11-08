@@ -29,7 +29,7 @@ public class RemovedOptionTests
         var result = await StartupProcess.RunAsync(null);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("TIA MCP access mode: READ-WRITE", result.StandardError);
+        Assert.Contains("TIA MCP access mode: READ-ONLY", result.StandardError);
         Assert.DoesNotContain(MigrationMessage, result.StandardError);
     }
 

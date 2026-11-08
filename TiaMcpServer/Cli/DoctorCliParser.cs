@@ -11,6 +11,7 @@ public sealed record DoctorCliOptions(
     McpAccessMode AccessMode,
     string? ParseError)
 {
+    public AccessModeSource AccessModeSource { get; init; }
     public WorkerTimeoutParseResult? WorkerTimeout { get; init; }
 }
 
@@ -145,6 +146,7 @@ public static class DoctorCliParser
 
         return new DoctorCliOptions(true, json, verbose, help, projectPath, accessMode, null)
         {
+            AccessModeSource = accessModeResult.Source,
             WorkerTimeout = workerTimeout
         };
     }

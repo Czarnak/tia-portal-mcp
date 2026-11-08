@@ -7,6 +7,7 @@ using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Library;
 using TiaMcpServer.OperationBatches;
+using TiaMcpServer.Safety;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Safety.Pipeline;
 using TiaMcpServer.Worker;
@@ -166,7 +167,7 @@ public sealed class LibraryGuardedWriteDomainTests
             identity = new() { WorkerSessionId = "domain", SessionGeneration = 1, PortalProcessId = 4242, ProjectPath = Path.Combine(directory, "fixture.ap21") };
             var binding = new ProjectSessionBinding(null);
             Assert.True(binding.BindVerified(identity, false, out _));
-            Client = new(binding);
+            Client = new(binding, accessPolicy: new OperationAccessPolicy(McpAccessMode.ReadWrite));
             File.WriteAllText(Path.Combine(directory, "worker.ps1"), """
                 param([string]$Root)
                 while (($line = [Console]::In.ReadLine()) -ne $null) {

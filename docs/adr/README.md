@@ -40,6 +40,7 @@ To add one, copy [TEMPLATE.md](TEMPLATE.md) to `NNNN-<slug>.md` with the next fr
 | [0015](0015-portal-scope-reads-under-binding-gate.md) | Content tools stay gated on the verified binding and may read Portal-scope objects of the bound Portal | Accepted | binding | 2026-11-04 |  |
 | [0016](0016-library-write-staging-and-lifecycle-prompt.md) | library_write ships in stages, prompts only for global-library lifecycle, and draws no ownership line | Accepted | library | 2026-11-06 |  |
 | [0017](0017-library-writes-apply-without-planning.md) | Library writes apply without a planning pass | Accepted | library | 2026-11-07 |  |
+| [0018](0018-read-only-default-access-mode.md) | Read-only is the default access mode | Accepted | write-safety | 2026-11-08 |  |
 
 `Record` links an original plan or spec kept verbatim under `records/` because it holds material no ADR carries.
 

@@ -64,11 +64,11 @@ public static class DoctorCommand
 
             if (options.Json)
             {
-                output.WriteLine(DoctorJsonRenderer.Render(report, options.Verbose, options.AccessMode, options.WorkerTimeout));
+                output.WriteLine(DoctorJsonRenderer.Render(report, options.Verbose, options.AccessMode, options.WorkerTimeout, options.AccessModeSource));
             }
             else
             {
-                DoctorTextRenderer.Render(report, options.Verbose, output, options.AccessMode, options.WorkerTimeout);
+                DoctorTextRenderer.Render(report, options.Verbose, output, options.AccessMode, options.WorkerTimeout, options.AccessModeSource);
             }
 
             return Task.FromResult(report.HasUnexpectedCheckFailure ? 2 : report.Status == DiagnosticStatus.Failed ? 1 : 0);
