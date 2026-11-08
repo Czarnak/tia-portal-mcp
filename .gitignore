@@ -64,9 +64,6 @@ nunit-*.xml
 *.vsix
 
 .idea/
-
-.claude/settings.local.json
-.codex/config.toml
 priv/
 mcp-inspector-tia.json
 .docs/
@@ -74,3 +71,6 @@ mcp-inspector-tia.json
 # Isolated implementation workspaces
 .worktrees/
 .superpowers/
+.claude/
+.codex/
+.procoder/
