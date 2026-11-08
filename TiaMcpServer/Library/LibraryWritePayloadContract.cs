@@ -19,6 +19,7 @@ public static class LibraryWritePayloadContract
                     return StructuredOperationItem.Failed(item,
                         result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                         result.Error ?? "The library write failed.", result.Warnings);
+                ValidateType(outcome.Type);
                 return new(item.OperationId, item.Operation, OperationBatchStatus.Failed, CanonicalJson.ToElement(outcome),
                     new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                         result.Error ?? "The library write failed."), null, null, result.Warnings);
@@ -27,6 +28,7 @@ public static class LibraryWritePayloadContract
             {
                 ValidateIdentity(value.Library);
                 ValidateIdentity(value.Target);
+                ValidateType(value.Type);
             });
             return new(item.OperationId, item.Operation, OperationBatchStatus.Succeeded, element, null, null, null, result.Warnings);
         }
@@ -42,6 +44,12 @@ public static class LibraryWritePayloadContract
         if (identity?.FolderPath.Any(segment => segment is null) == true) throw new JsonException();
     }
 
+    internal static void ValidateType(LibraryTypeResultInfo? type)
+    {
+        if (type is not null && (type.TypeName is null || type.TypeGuid is null || type.FolderPath is null || type.InstancePaths is null || type.DeletedVersions is null
+            || type.FolderPath.Concat(type.InstancePaths).Concat(type.DeletedVersions).Any(value => value is null))) throw new JsonException();
+    }
+
     internal static void ValidateEnvelopeOutcome(JsonElement envelope)
     {
         if (envelope.ValueKind != JsonValueKind.Object) return;
@@ -51,6 +59,6 @@ public static class LibraryWritePayloadContract
         // Validate raw evidence before the permissive legacy envelope reader normalizes it.
         if (members.Length != 1 || members[0].Name != "libraryWriteOutcome") throw new JsonException();
         if (members[0].Value.ValueKind != JsonValueKind.Null)
-            CanonicalJson.DeserializeWorkerPayload<LibraryWriteOutcomeInfo>(members[0].Value.GetRawText());
+            ValidateType(CanonicalJson.DeserializeWorkerPayload<LibraryWriteOutcomeInfo>(members[0].Value.GetRawText()).Type);
     }
 }

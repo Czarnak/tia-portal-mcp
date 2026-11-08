@@ -33,6 +33,137 @@ public sealed class WriteExecutionTests
             _gate, _audit, FakeWriteDomain.Catalog, new SteppingTimeProvider(TimeSpan.FromMilliseconds(7)));
     }
 
+    [Theory]
+    [InlineData(McpAccessMode.Full, "policy")]
+    [InlineData(McpAccessMode.ReadWrite, "none")]
+    public async Task Apply_DomainOptsOut_DoesNotCallPlanAsync(McpAccessMode mode, string confirmationBy)
+    {
+        _gate.AccessMode = mode;
+        _domain.PlanBeforeApply = false;
+        _domain.ThrowOnCall = "plan";
+
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        Assert.True(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(new[] { "validate", "mutate:a", "project:a", "verify", "compose" }, _domain.Calls);
+        Assert.Empty(doc.GetProperty("effects").EnumerateArray());
+        var audit = Assert.Single(_audit.Records);
+        Assert.Equal(confirmationBy, audit.Confirmation.By);
+        Assert.Equal("not_requested", audit.Confirmation.Outcome);
+        AssertAuditedInsideLease();
+    }
+
+    [Fact]
+    public async Task DryRun_DomainOptsOut_StillPlans()
+    {
+        _domain.PlanBeforeApply = false;
+
+        var (result, doc) = await RunAsync(new[] { Item("a", guards: new[] { Info }) }, dryRun: true);
+
+        AssertOutcome(result, doc, WritePhases.Preview, isError: false, category: null);
+        Assert.Equal(new[] { "validate", "plan", "guards", "compose" }, _domain.Calls);
+        Assert.Single(doc.GetProperty("effects").EnumerateArray());
+        Assert.Equal(Info, GuardById(doc, Info).GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task PromptingCall_DomainOptsOut_StillPlans()
+    {
+        _gate.AccessMode = McpAccessMode.ReadWrite;
+        _domain.PlanBeforeApply = false;
+        _domain.ConfirmsCallOverride = _ => true;
+        var prompts = 0;
+        var confirmation = new UserConfirmation(true, (request, _) =>
+        {
+            Assert.Contains("delete target-a", request.Message);
+            Assert.Equal(0, _domain.MutationCount);
+            prompts++;
+            return ValueTask.FromResult(new ElicitResult
+            {
+                Action = "accept",
+                Content = new Dictionary<string, JsonElement> { ["confirm"] = JsonSerializer.SerializeToElement(true) }
+            });
+        }, TimeSpan.FromSeconds(1));
+
+        var result = await _execution.RunAsync(_domain, Call(new[] { Item("a") }), new(confirmation));
+
+        Assert.False(result.IsError == true);
+        Assert.Equal(1, prompts);
+        Assert.Equal(new[] { "validate", "plan", "guards", "plan", "guards", "mutate:a", "project:a", "verify", "compose" }, _domain.Calls);
+        Assert.Equal("user", Assert.Single(_audit.Records).Confirmation.By);
+    }
+
+    [Fact]
+    public async Task Apply_NoPlan_ItemsRunInOrderAndStopAtFirstFailure()
+    {
+        _domain.PlanBeforeApply = false;
+
+        var (result, doc) = await RunAsync(new[]
+        {
+            Item("a"), Item("b", dependsOn: "a", failWith: WorkerFailureCategories.WorkerOperationFailed), Item("c")
+        });
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        Assert.False(doc.GetProperty("success").GetBoolean());
+        Assert.Equal(new[] { "validate", "mutate:a", "project:a", "mutate:b", "project:b", "verify", "compose" }, _domain.Calls);
+        Assert.Equal(new[] { OperationBatchStatus.Succeeded, OperationBatchStatus.Failed, OperationBatchStatus.Skipped },
+            Strings(doc.GetProperty("batch").GetProperty("operations"), "status"));
+    }
+
+    [Theory]
+    [InlineData(WorkerFailureCategories.GuardBlocked, false)]
+    [InlineData(WorkerFailureCategories.GuardBlocked, true)]
+    [InlineData(WorkerFailureCategories.StateChanged, false)]
+    [InlineData(WorkerFailureCategories.StateChanged, true)]
+    [InlineData(WorkerFailureCategories.TargetNotFound, false)]
+    [InlineData(WorkerFailureCategories.TargetNotFound, true)]
+    public async Task PartialWrite_PreconditionRefusalWithoutOutcome_NotCountedAsMutated(string category, bool earlierSuccess)
+    {
+        _domain.PlanBeforeApply = false;
+        var items = new List<FakeWriteItem>();
+        if (earlierSuccess) items.Add(Item("a"));
+        items.Add(Item("b", failWith: category));
+        items.Add(Item("c"));
+
+        var (result, doc) = await RunAsync(items);
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        var failed = doc.GetProperty("batch").GetProperty("operations")[earlierSuccess ? 1 : 0];
+        Assert.Equal(category, failed.GetProperty("failure").GetProperty("category").GetString());
+        Assert.DoesNotContain(WriteExecution.PartialWriteMessage, Strings(failed.GetProperty("warnings")));
+        if (earlierSuccess)
+        {
+            Assert.Equal(WriteExecution.PartialWriteNotMutatedMessage,
+                GuardById(doc, WriteGuardCatalog.PartialWriteGuardId).GetProperty("message").GetString());
+        }
+        else
+        {
+            Assert.Empty(doc.GetProperty("guards").EnumerateArray());
+        }
+    }
+
+    [Fact]
+    public async Task PartialWrite_PreconditionRefusalWithOutcome_CountedAsMutated()
+    {
+        _domain.PlanBeforeApply = false;
+        _domain.FailureOutcome = JsonSerializer.SerializeToElement(new { changed = true });
+
+        var (_, doc) = await RunAsync(new[] { Item("a", failWith: WorkerFailureCategories.TargetNotFound), Item("b") });
+
+        Assert.Equal(WriteExecution.PartialWriteMessage,
+            GuardById(doc, WriteGuardCatalog.PartialWriteGuardId).GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task DefaultDomain_StillPlansOnApply()
+    {
+        var (result, doc) = await RunAsync(new[] { Item("a") });
+
+        AssertOutcome(result, doc, WritePhases.Applied, isError: false, category: null);
+        Assert.Equal(ApplyA, _domain.Calls);
+    }
+
     [Fact]
     public async Task EmptyCall_IsRejectedBeforeTheGate()
     {

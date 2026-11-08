@@ -33,33 +33,39 @@ following remain open.
 - **Disposed `GlobalLibraryInfo`.** A disposed info fails the whole item rather than one "no longer
   exists" row. Add per-row liveness if live evidence shows infos can be disposed.
 
-## Open: library_write follow-ups (2026-11-07)
+## Open: library_write follow-ups (2026-11-08)
 
-[`library_write`](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write) delivered the
-lifecycle, folder and master-copy slice ([ADR-0016](adr/0016-library-write-staging-and-lifecycle-prompt.md),
-[live report](superpowers/acceptance/reports/2026-11-07-library-write-live-verification.md)). It closed the
-carried Portal-identity, per-call capability gate, lifecycle set, admission accounting, outcome plumbing and
-snapshot-drop items; the `verify` RPC and `Take(6)` code were not ported. The following remain open.
+[`library_write`](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write) delivers 20
+lifecycle, folder, master-copy and versioned FB/FC/PLC UDT operations. [ADR-0016](adr/0016-library-write-staging-and-lifecycle-prompt.md)
+records staging/lifecycle confirmation; [ADR-0017](adr/0017-library-writes-apply-without-planning.md)
+records conditional planning and type conversion. The original [live report](superpowers/acceptance/reports/2026-11-07-library-write-live-verification.md)
+qualifies the first 12 operations; the [type report](superpowers/acceptance/reports/2026-11-08-library-types-live-verification.md)
+records scoped conversion/content-version/default, synchronization, placement, deletion, discard and corrected
+global deletion-preview cases; see the report for exact limits.
 
-**PR 3: versioned types** (see the probe report's "Consequences")
+The type slice supplies name/GUID and number/GUID selectors, transactional plain-object conversion,
+operation-owned SimaticML staging and hash checks for content version creation, guarded release numbering,
+default receipts and resolved-identity supersession. `replaceInWork` makes replacement explicit; no edit
+operation is exposed. Only previews and prompting calls plan; native apply owns its target refusals and
+delete decisions. The old contribution's broad collision/unsaved/read-only guards and verify RPC were not ported.
 
-- Operations: `create_type`, `create_type_version`, `edit_type_version`, `release_type_version`,
-  `set_default_type_version`, `synchronize_type`, `instantiate_type_version`, `delete_type`,
-  `delete_type_version`.
-- Validate the version number before `Release`: reject `0.0.0` (T7Z killed Portal) and a number equal to or
-  lower than an existing version (T7, T8 are accepted natively).
-- Never use `CreateOptions.Override` (T4 replaced an in-work version and deleted a test instance);
-  `CreateFromDocuments` creates duplicate-name types (T1), so check for collisions.
-- `UpdateLibrary` and type-version instantiation pull in dependencies (T17, T20); the preview must show the
-  dependency closure. Deleting the only version removes the whole type (T11).
-- `release_type_version` and `synchronize_type` change the default in several steps with no transaction;
-  decide on a receipt.
-- Stage approved XML into an operation-owned directory before import (sidecar race).
-- Mixed guards from the contribution (`library_collision`, `library_unsaved_changes`, `library_read_only`)
-  need a decision against the four guards `library_write` registered.
-- An oversized item `result` is omitted whole; commit and partial-move facts need a compact rewrite.
-- Reuse the item-aware confirmation, the per-item capability hook, the write capabilities and the typed
-  outcome validation.
+Remaining work:
+
+- Adopt `PlansBeforeApply` in other write domains only after their own adjacent checks, receipts and
+  acknowledge-guard requirements are established.
+- Batch library planning calls if measured timing justifies it; there is one Observe call per preview item.
+- Consider an optional `keepDefault`; current release/synchronize return before/after and never restore the
+  previous default. Callers can add `set_default_type_version` explicitly.
+- Consider requiring a dry run before any delete. This PR leaves preview optional and lets Portal decide
+  apply-time deletion; preview observations are sequential and non-atomic.
+- Guard the `plc_write` type-instance hazard: a test-instance content update can block behind a modal Portal
+  dialog, which does not raise the Openness `Confirmation` event, until answered or timed out. A direct test
+  instance delete showed "Cannot delete or replace (0026:000074)". A released-instance content update can
+  silently unlink it from its type. These are the native probe's P11c/P12c/P15a/P15d findings, not an approved
+  editing route; change content with `create_type_version`.
+- Determine Portal's release-number range safely. `0.0.0` killed Portal in T7Z and is rejected; exactly three
+  numeric Int32 parts are required (maximum 2147483647 each), but this representation bound is not evidence
+  that arbitrary large accepted numbers are safe. Larger release parts remain unprobed.
 
 **Still deferred after PR 3:** `update_type_instances` (`UpdateProject` removed 56 unused instances despite
 `DoNotDelete`; needs a transaction with an inventory check), `replace_master_copy`, `move_master_copy`,
@@ -68,9 +74,13 @@ local sessions and unbound (Portal-only) global operations are also outside the 
 
 **Not live-verified (offline tests only):** a native master-copy rename (`postcondition_failed` with
 `actualName`); `Close` throwing after a save; `library_state_unverifiable`; a delete preview over 200 entries;
-`plcType`/`tagTable` sources, `typeGroup`/`tagTableGroup` destinations and nested `plcFolderPath`; a types
-folder with dependents (F6); `save`/`close`/`archive` on a non-user global library; an `open_global` mode
-change (G4); Portal loss during a library write.
+master-copy `plcType`/`tagTable` sources, `typeGroup`/`tagTableGroup` destinations and nested `plcFolderPath`;
+a types folder with dependents; save/close/archive on a non-user global library; an open mode change; Portal
+loss during a library write. The newer type cases qualify FB/FC/UDT type operations; they do not extend the
+older master-copy source/destination or failure limits listed here. The uncompiled-export refusal remains
+offline-covered and was not reproduced in this fixture: uncompiled ordinary/changed-FB exports succeeded,
+while stale preconversion/prechange hashes failed `state_changed`. A compile-first workflow remains recommended;
+compilation state alone is not an exportability check.
 
 ## Open: VCI follow-ups (2026-10-16)
 

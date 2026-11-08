@@ -44,7 +44,7 @@ public sealed class LibraryWriteCatalogTests
         foreach (var member in typeof(LibraryWriteItem).GetProperties().Where(p => !permitted.Contains(p.Name)))
         {
             var changed = CanonicalJson.Deserialize<LibraryWriteItem>(CanonicalJson.Serialize(item));
-            member.SetValue(changed, member.PropertyType == typeof(string) ? "unexpected" : new List<string> { "unexpected" });
+            member.SetValue(changed, member.PropertyType == typeof(string) ? "unexpected" : member.PropertyType == typeof(bool?) ? true : new List<string> { "unexpected" });
             Assert.False(LibraryWriteCatalog.ValidateWrite([changed]).IsValid);
         }
     }
@@ -54,7 +54,7 @@ public sealed class LibraryWriteCatalogTests
     {
         var item = new LibraryWriteItem();
         foreach (var property in typeof(LibraryWriteItem).GetProperties())
-            property.SetValue(item, property.PropertyType == typeof(string) ? property.Name : new List<string> { property.Name });
+            property.SetValue(item, property.PropertyType == typeof(string) ? property.Name : property.PropertyType == typeof(bool?) ? true : new List<string> { property.Name });
         var request = LibraryWriteCatalog.ToWorkerRequest(item);
         foreach (var property in typeof(LibraryWriteRequestInfo).GetProperties())
             Assert.Equal(typeof(LibraryWriteItem).GetProperty(property.Name)!.GetValue(item), property.GetValue(request));

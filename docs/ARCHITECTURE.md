@@ -223,7 +223,7 @@ A deeper direct-Openness selector resolver and depth-pruned traversal remains a 
 | `plc_write` | Preview or apply up to 50 ordered PLC software writes (blocks, types, block groups, tag tables, tags, user constants) through the guarded pipeline. |
 | `hmi_write` | Preview or apply ordered Unified HMI tag and alarm writes. |
 | `vci_write` | Preview or apply ordered standalone VCI workspace, export, sync and mapping writes. |
-| `library_write` | Preview or apply up to 50 ordered global-library lifecycle, folder and master-copy writes. |
+| `library_write` | Preview or apply up to 50 ordered global-library lifecycle, folder, master-copy and versioned PLC-type writes. |
 
 ### Lifecycle tools in read-write and full
 
@@ -847,11 +847,15 @@ or Portal-attachment loss and never opens, retrieves, saves, closes or changes a
 
 ### Library writes (`library_write`)
 
-`library_write` is an `IWriteDomain` (`LibraryWriteDomain`) on `Safety/Pipeline`, shaped like `vci_write`: `LibraryWriteCatalog` validates the 1-50 flat `LibraryWriteItem`s through `LibraryWriteMethods.Validate` (closed members per operation, selector rules shared with `library_read` through `LibrarySelectorRules`), `LibraryWritePlanner` makes one Observe plan call per item and fires the guards, and the shared run mutates in caller order, stops at the first failure and verifies with `TrustedWriteVerifier` (no read-back). Contracts in `TiaMcpServer.Contracts/Library` hold the method names, the closed member rules and the wire models; the worker (`Openness/Library`) resolves targets (`LibraryWriteTargets`), plans (`LibraryWritePlanReader`) and mutates (`LibraryWriter`), each operation through one `ProjectMutation` method that re-resolves its own targets because there is no plan handoff.
+`library_write` is an `IWriteDomain` (`LibraryWriteDomain`) on `Safety/Pipeline`. `LibraryWriteCatalog` validates 1-50 flat `LibraryWriteItem`s through `LibraryWriteMethods.Validate`; the 20 closed operations include global-library lifecycle, folders, master copies and eight type operations. `LibrarySelectorRules` shares library, name/GUID type and number/GUID version selectors with `library_read`. The shared run mutates in caller order, stops at the first failure and never rolls back the batch or replays. Contracts remain write `2.0` and read `1.0`.
 
-Two hooks on `IWriteDomain` make the pipeline item-aware without changing the other domains: `ConfirmsCall(items)` replaces the read of `ConfirmsEveryCall` in `WriteRun` (defaulting to it), so a read-write call prompts once when it contains a lifecycle item and never otherwise; and `CapabilityOperations(items)` replaces the single tool-name check in the host capability gate (defaulting to `[ToolName]`), so each item is checked as its worker method (`library_global_*` to `library_write`, `library_project_*` to `library_project_write`). A mixed call with one unsupported item is refused whole before any mutation. Decision record: [ADR-0016](adr/0016-library-write-staging-and-lifecycle-prompt.md).
+Three hooks preserve the shared pipeline. `ConfirmsCall(items)` defaults to `ConfirmsEveryCall`, with library calls prompting once only for global-library lifecycle in read-write. `CapabilityOperations(items)` defaults to `[ToolName]`, with library items gated individually as `library_global_*` to `library_write` or `library_project_*` to standalone-only `library_project_write`; any unsupported item refuses the whole call before worker activity. `PlansBeforeApply(items)` defaults to true and returns false for libraries. Planning still runs for every dry run and prompting call. The hook is safe only for domains without acknowledge guards; other domains keep their existing planning behavior. See [ADR-0016](adr/0016-library-write-staging-and-lifecycle-prompt.md) and [ADR-0017](adr/0017-library-writes-apply-without-planning.md).
 
-Global-library lifecycle acts on any user global library open in the bound Portal; it is Portal-scope and not covered by the standalone-only project lifecycle rule. The binding snapshot already carries the Portal process id, which the lease and rechecks compare. The typed `LibraryWriteOutcomeInfo` (`saved`, `actualName`) travels in the conditional `libraryWriteOutcome` worker response member, validated by `PersistentWorkerTransport` before the permissive reader, like the Network and VCI outcomes. Hazards, member rules and the live-verified scope are in the [library operations summary](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write).
+`LibraryWritePlanner` makes one Observe plan call per item only when required. Planned calls can describe targets created earlier with `createdByItem`; a library created/opened/retrieved by a lifecycle item is used in a later prompting call. Unplanned apply returns `effects:[]`: each worker mutation resolves its target and runs tool-owned checks beside its native call, so later items can consume earlier creations. A collision or missing target fails that item after earlier mutations rather than blocking the whole call. `LibraryWriteTargets`, `LibraryWritePlanReader`, `LibraryWriter` and `LibraryTypeWriter` own resolution, preview evidence and mutation.
+
+`create_type` uses `ExclusiveAccess` and one project transaction to replace a plain FB, FC or PLC UDT with a linked library instance. It exports to operation-owned storage, deletes the source, calls `Types.CreateFromDocuments`, checks linkage and commits; failure rolls back the conversion. `create_type_version` resolves a project type through a PLC instance, compares its fresh export to the `plc_read` hash and stages SimaticML XML for `Versions.CreateFromDocuments` without a test-environment argument. `replaceInWork` controls native replacement. Release never creates/releases dependencies automatically. Release, set-default and synchronization report default changes and never restore the prior default. A compile-first workflow is recommended for library-placed PLC objects. Portal can require compilation for inconsistent instances, although current uncompiled-instance exports also succeeded; use a fresh content hash rather than inferring exportability from compilation state. Content updates use the library version route, because `plc_write` is not a type-instance edit path.
+
+Global-library lifecycle is Portal-scope and has no worker-owned/borrowed distinction. Its existing binding lease already carries and rechecks the Portal process id. Library/type identities and conditional `type` details travel in typed success results and `LibraryWriteOutcomeInfo`; `PersistentWorkerTransport` validates raw `libraryWriteOutcome` before the permissive reader. `LibraryVerificationPolicy` derives keys from resolved library/folder/master-copy/type/version identities. `TrustedWriteVerifier` marks completed items `trusted` or `superseded`; it performs no additional native read-back. Type writers supply native receipt evidence separately. An attempted failure without outcome falls back conservatively to library-level supersession, except when it is a precondition refusal. Delete scans are preview/planned-call evidence; native apply decides deletion. Hazards, default behavior and verification scope are in the [library operations summary](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write).
 
 ### Typed Network payload registry
 
@@ -1237,7 +1241,7 @@ acceptance boundaries.
 
 `TiaMcpServer/Safety/Pipeline/` holds the single-call write pipeline that replaced the token flow.
 The six lifecycle tools, `network_write`, `plc_write`, `hmi_write`, `vci_write` and `library_write` use it. Network, PLC, HMI and VCI have no server
-elicitation; lifecycle read-write confirms every actual call.
+elicitation; lifecycle read-write confirms every actual call. A read-write `library_write` call confirms once when it includes global-library lifecycle.
 The pipeline is a consistency and safety mechanism. Client-returned acceptance and mode policy
 are recorded separately; client acceptance does not prove that a person saw the consequence.
 
@@ -1250,9 +1254,11 @@ can make root `success` false while execution statuses and verification truth re
 
 `WriteExecution.RunAsync(domain, call)` owns the order and the safety rules. An
 `IWriteDomain<TItem, TEffect, TVerification, TResponse>` supplies validation, target planning, guard
-evaluation, the mutation, verification, and the response shape.
+evaluation, the mutation, verification, and the response shape. Planning runs for previews,
+prompting calls, or a domain whose `PlansBeforeApply(items)` returns true (the default).
+Library apply opts out; its checks run next to native mutation and its response has no planned effects.
 
-`TrustedWriteVerifier<TItem>` shares the completion/supersedence algorithm for PLC, Network, HMI and VCI.
+`TrustedWriteVerifier<TItem>` shares the completion/supersedence algorithm for PLC, Network, HMI, VCI and Library.
 `IWriteVerificationPolicy<TItem>` supplies object keys, the read tool and any domain read-back.
 A successful item is `superseded` by a later attempted item's equal key or container key unless
 that later failure was a precondition refusal with no result. A non-null failed-item result keeps

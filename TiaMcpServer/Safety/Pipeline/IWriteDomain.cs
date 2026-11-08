@@ -20,6 +20,9 @@ public interface IWriteDomain<TItem, TEffect, TVerification, TResponse>
 
     bool ConfirmsCall(IReadOnlyList<TItem> items) => ConfirmsEveryCall;
 
+    /// <summary>Opting out is safe only for domains without acknowledge guards; previews and prompting calls still plan.</summary>
+    bool PlansBeforeApply(IReadOnlyList<TItem> items) => true;
+
     IEnumerable<string> CapabilityOperations(IReadOnlyList<TItem> items) => new[] { ToolName };
 
     string DescribeForConfirmation(IReadOnlyList<TItem> items, IReadOnlyList<ItemPlan<TEffect>> plans) => ToolName;

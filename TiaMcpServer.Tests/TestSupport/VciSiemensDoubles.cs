@@ -18,8 +18,9 @@ namespace Siemens.Engineering
         public bool Disposed { get; private set; }
         public Transaction Transaction(ITransactionSupport persistence, string description)
         {
-            var transaction = new Transaction((Project)persistence, description) { CanCommit = portal.TransactionCanCommit };
+            var transaction = new Transaction(persistence, description) { CanCommit = portal.TransactionCanCommit };
             portal.Transactions.Add(transaction);
+            portal.TransactionAction?.Invoke(transaction);
             return transaction;
         }
         public void Dispose()
@@ -29,17 +30,20 @@ namespace Siemens.Engineering
         }
     }
 
-    // shortcut: records commit intent only; model rollback when a test needs engineering-state restoration.
+    // State restoration is supplied by each fixture so transactions can cover project and library objects.
     public sealed class Transaction : IDisposable
     {
-        public Transaction(Project project, string description) { Project = project; Description = description; }
-        public Project Project { get; }
+        public Transaction(ITransactionSupport persistence, string description) { Persistence = persistence; Description = description; }
+        public ITransactionSupport Persistence { get; }
+        public Project? Project => Persistence as Project;
         public string Description { get; }
         public bool CanCommit { get; set; } = true;
         public bool CommitRequested { get; private set; }
         public bool Disposed { get; private set; }
         public bool Committed => Disposed && CommitRequested && CanCommit;
         public Exception? DisposeFailure { get; set; }
+        public Action? RollbackAction { get; set; }
+        public Action? CommitAction { get; set; }
         public void CommitOnDispose()
         {
             if (!CanCommit) throw new EngineeringException("Transaction cannot commit.");
@@ -47,7 +51,10 @@ namespace Siemens.Engineering
         }
         public void Dispose()
         {
+            if (Disposed) return;
             if (DisposeFailure is not null) throw DisposeFailure;
+            if (CommitRequested && CanCommit) CommitAction?.Invoke();
+            else RollbackAction?.Invoke();
             Disposed = true;
         }
     }

@@ -105,6 +105,7 @@ public sealed class LibraryReadCatalogTests
         { "list_children", new() { Scope = "project", FolderKind = "types", FolderPath = new() { "A", "B" } } },
         { "list_children", new() { Scope = "global", LibraryPath = Lib, FolderKind = "masterCopies", Limit = 1 } },
         { "list_versions", new() { Scope = "project", TypeGuid = Guid1 } },
+        { "list_dependencies", new() { Scope = "project", TypeGuid = Guid1 } },
         { "list_dependencies", new() { Scope = "global", LibraryName = "Fixture", TypeGuid = Guid1, VersionGuid = Guid2, Direction = "dependents" } },
         { "list_dependencies", new() { Scope = "project", TypeGuid = Guid1, VersionGuid = Guid2 } },
     };
@@ -142,7 +143,6 @@ public sealed class LibraryReadCatalogTests
         { "list_versions", new() { Scope = "project", TypeGuid = Guid1, FolderKind = "types" } },
         { "list_versions", new() { Scope = "project", TypeGuid = Guid1, VersionGuid = Guid2 } },
         { "list_versions", new() { Scope = "project", TypeGuid = Guid1, Direction = "dependencies" } },
-        { "list_dependencies", new() { Scope = "project", TypeGuid = Guid1 } },
         { "list_dependencies", new() { Scope = "project", TypeGuid = Guid1, VersionGuid = Guid.Empty.ToString() } },
         { "list_dependencies", new() { Scope = "project", TypeGuid = Guid1, VersionGuid = Guid2, Direction = "up" } },
         { "list_global_libraries", new() { Scope = "global" } },

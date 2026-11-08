@@ -258,10 +258,7 @@ internal static class LibraryReader
     }
 
     private static LibraryType Type(ILibrary library, LibraryQueryInfo query)
-    {
-        var guid = Guid.Parse(query.TypeGuid!);
-        return Exact(TypeFolder(library, query.FolderPath).Types.Where(x => x.Guid == guid), "library type with that typeGuid");
-    }
+        => LibraryTypeTargets.Type(library, query.TypeName, query.FolderPath, query.TypeGuid);
 
     /// <summary>Folders before entries, each by ordinal name.</summary>
     internal static IEnumerable<object> ChildRows(ILibrary library, LibraryQueryInfo query)
@@ -281,8 +278,7 @@ internal static class LibraryReader
     /// <summary>By owner library and folder path, then type name, then version number.</summary>
     private static IEnumerable<object> DependencyRows(ILibrary library, LibraryQueryInfo query, RowReader rows)
     {
-        var versionGuid = Guid.Parse(query.VersionGuid!);
-        var version = Exact(Type(library, query).Versions.Where(x => x.Guid == versionGuid), "library type version with that versionGuid");
+        var version = LibraryTypeTargets.Version(Type(library, query), query.VersionNumber, query.VersionGuid, null);
         var related = query.Direction == "dependents" ? version.Dependents : version.Dependencies;
         return related
             .Select(x => (Version: x, Owner: rows.OwnerKey(x.TypeObject), Type: x.TypeObject.Name))

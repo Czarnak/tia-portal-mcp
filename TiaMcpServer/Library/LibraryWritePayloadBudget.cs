@@ -46,9 +46,9 @@ public static class LibraryWritePayloadBudget
         return Budget.Apply(Present, () => current.Batch, ItemRoots(), DocumentRoots, maxItemChars, maxDocumentChars);
     }
 
-    // Reserve all four domain guards plus the stopping blockers and partial-write guard.
+    // Reserve every domain guard plus the stopping blockers and partial-write guard.
     internal static int MeasureProtectedCore(IReadOnlyList<LibraryWriteItem> items)
-        => Budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), 4, 3, true,
+        => Budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), LibraryGuardDefinitions.Definitions.Count, 3, true,
             core => new LibraryGuardedWriteResponse("library_write", LibraryWriteContractVersion.Current, WritePhases.Applied, false,
                 core.Error, core.Warnings, core.Guards,
                 items.Select(i => new LibraryWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(), core.Batch,

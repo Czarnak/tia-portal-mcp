@@ -42,7 +42,7 @@ namespace Siemens.Engineering.SW
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
     }
-    public abstract class PlcSoftware : global::Siemens.Engineering.HW.Software, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.IEngineeringServiceProvider
+    public abstract class PlcSoftware : global::Siemens.Engineering.HW.Software, global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.IEngineeringServiceProvider, global::Siemens.Engineering.Library.Types.IInstanceSearchScope
     {
         public global::Siemens.Engineering.SW.Blocks.PlcBlockSystemGroup BlockGroup { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.SW.ExternalSources.PlcExternalSourceSystemGroup ExternalSourceGroup { get => throw new global::System.NotSupportedException(); }

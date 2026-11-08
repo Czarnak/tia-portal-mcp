@@ -49,7 +49,7 @@ public static class LibraryReadMethods
         if (operation == ListGlobalLibraries)
             return query.Scope is not null || query.LibraryPath is not null || query.LibraryName is not null
                 || query.FolderKind is not null || query.FolderPath is not null || query.TypeGuid is not null
-                || query.VersionGuid is not null || query.Direction is not null
+                || query.TypeName is not null || query.VersionNumber is not null || query.VersionGuid is not null || query.Direction is not null
                 ? "list_global_libraries accepts only paging selectors." : null;
 
         if (LibrarySelectorRules.Check(query.Scope, query.LibraryPath, query.LibraryName, query.FolderPath, "") is { } selectorError)
@@ -59,11 +59,11 @@ public static class LibraryReadMethods
         {
             case "inspect_library":
                 return query.FolderKind is not null || query.FolderPath is not null || query.TypeGuid is not null
-                    || query.VersionGuid is not null || query.Direction is not null || query.Offset is not null || query.Limit is not null
+                    || query.TypeName is not null || query.VersionNumber is not null || query.VersionGuid is not null || query.Direction is not null || query.Offset is not null || query.Limit is not null
                     ? "inspect_library accepts only library selectors." : null;
             case "list_children":
                 if (query.FolderKind is not ("types" or "masterCopies")) return "list_children requires folderKind types or masterCopies.";
-                return query.TypeGuid is not null || query.VersionGuid is not null || query.Direction is not null
+                return query.TypeName is not null || query.TypeGuid is not null || query.VersionNumber is not null || query.VersionGuid is not null || query.Direction is not null
                     ? "Type/version selectors are not valid for list_children." : null;
             default:
                 return ValidateVersionRead(operation, query);
@@ -72,15 +72,13 @@ public static class LibraryReadMethods
 
     private static string? ValidateVersionRead(string operation, LibraryQueryInfo query)
     {
-        if (!IsNonEmptyGuid(query.TypeGuid)) return "A nonempty typeGuid is required.";
+        if (LibrarySelectorRules.CheckType(query.TypeName, query.TypeGuid, query.FolderPath) is { } error) return error;
         if (query.FolderKind is not null) return "Version reads use type folders; omit folderKind.";
         if (operation == "list_versions")
-            return query.VersionGuid is not null || query.Direction is not null
-                ? "list_versions accepts no versionGuid or direction." : null;
-        if (!IsNonEmptyGuid(query.VersionGuid)) return "list_dependencies requires a nonempty versionGuid.";
+            return query.VersionNumber is not null || query.VersionGuid is not null || query.Direction is not null
+                ? "list_versions accepts no version selectors or direction." : null;
+        if (LibrarySelectorRules.CheckVersion(query.VersionNumber, query.VersionGuid, null, false) is { } versionError) return versionError;
         return query.Direction is not (null or "dependencies" or "dependents")
             ? "direction must be dependencies or dependents." : null;
     }
-
-    private static bool IsNonEmptyGuid(string? value) => Guid.TryParse(value, out var guid) && guid != Guid.Empty;
 }

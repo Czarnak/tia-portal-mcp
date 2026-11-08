@@ -69,6 +69,10 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public bool ConfirmsEveryCall { get; set; }
 
+    public bool PlanBeforeApply { get; set; } = true;
+
+    public bool PlansBeforeApply(IReadOnlyList<FakeWriteItem> items) => PlanBeforeApply;
+
     public Func<IReadOnlyList<FakeWriteItem>, bool>? ConfirmsCallOverride { get; set; }
 
     public Func<IReadOnlyList<FakeWriteItem>, IEnumerable<string>>? CapabilityOperationsOverride { get; set; }
@@ -200,6 +204,8 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
     /// <summary>Siemens evidence the worker attached to a scripted failure; the domain's own projection ignores it.</summary>
     public EngineeringErrorInfo? FailureEngineeringError { get; set; }
 
+    public JsonElement? FailureOutcome { get; set; }
+
     public StructuredOperationItem Project(FakeWriteItem item, WorkerCallResult result)
     {
         RecordCall($"project:{item.OperationId}");
@@ -208,7 +214,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
                 item.OperationId, item.Operation, OperationBatchStatus.Succeeded,
                 JsonDocument.Parse(result.Payload).RootElement.Clone(), null, null, null, Array.Empty<string>())
             : new StructuredOperationItem(
-                item.OperationId, item.Operation, OperationBatchStatus.Failed, null,
+                item.OperationId, item.Operation, OperationBatchStatus.Failed, FailureOutcome,
                 new StructuredOperationFailure(result.FailureCategory!, result.Error!), null, null, Array.Empty<string>());
     }
 

@@ -30,8 +30,22 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
                 LibraryWritePayloadContract.ValidateIdentity(plan.Library);
                 LibraryWritePayloadContract.ValidateIdentity(plan.Target);
                 foreach (var identity in plan.FolderContents) LibraryWritePayloadContract.ValidateIdentity(identity);
+                LibraryWritePayloadContract.ValidateType(plan.Type);
+                foreach (var values in new[] { plan.BlockingInstances, plan.MasterCopiesContainingInstances, plan.Dependencies, plan.Notes, plan.GuardIds })
+                    if (values?.Any(value => value is null) == true) throw new JsonException();
+                int? createdBy = null;
+                foreach (var missing in plan.MissingTargets ?? [])
+                {
+                    if (missing is null) throw new JsonException();
+                    LibraryWritePayloadContract.ValidateIdentity(missing);
+                    var producer = Enumerable.Range(0, plans.Count).LastOrDefault(index => Produces(items[index], plans[index].Effect!, item, missing), -1);
+                    if (producer < 0) return Failed(WorkerFailureCategories.TargetNotFound, "A required library target does not exist and is not created by an earlier item.");
+                    createdBy = Math.Max(createdBy ?? 0, producer + 1);
+                }
                 plans.Add(ItemPlan<LibraryWriteEffect>.Resolved(new(plan.Library, plan.Target, plan.AlreadyOpen,
-                    plan.FolderContents, plan.ContentsTruncated)));
+                    plan.FolderContents, plan.ContentsTruncated)
+                { Type = plan.Type, BlockingInstances = plan.BlockingInstances, Dependencies = plan.Dependencies,
+                    MasterCopiesContainingInstances = plan.MasterCopiesContainingInstances, Notes = plan.Notes, CreatedByItem = createdBy }));
                 guards[item.OperationId] = Guards(item, plan);
             }
             catch (JsonException)
@@ -52,7 +66,33 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
         if (item.Operation == "close_global" && item.CloseAction == "discard")
             Fire(LibraryGuardDefinitions.DiscardsChanges, "Closing without saving discards any unsaved library changes.");
         if (plan.Unverifiable is not null) Fire(LibraryGuardDefinitions.StateUnverifiable, plan.Unverifiable);
+        foreach (var id in plan.GuardIds ?? [])
+        {
+            var definition = LibraryGuardDefinitions.Definitions.SingleOrDefault(value => value.Id == id);
+            if (definition is null) throw new JsonException();
+            Fire(id, definition.Description);
+        }
         return guards;
+    }
+
+    private static bool Produces(LibraryWriteItem producer, LibraryWriteEffect effect, LibraryWriteItem consumer, LibraryIdentityInfo missing)
+    {
+        if (effect.Library is not { } library || library.Scope != missing.Scope) return false;
+        if (library.Scope != "project" && !string.Equals(library.LibraryPath, missing.LibraryPath, StringComparison.OrdinalIgnoreCase)) return false;
+        if (missing.Kind == "inWorkTypeVersion")
+            return consumer.Operation == "release_type_version" && producer.Operation == "create_type_version"
+                && missing.TypeGuid is not null && string.Equals(effect.Type?.TypeGuid, missing.TypeGuid, StringComparison.OrdinalIgnoreCase);
+        var kind = producer.Operation switch
+        { "create_folder" => "folder", "create_master_copy" or "copy_master_copy" => "masterCopy", "create_type" or "synchronize_type" => "type", _ => null };
+        if (kind is null || kind != missing.Kind) return false;
+        var name = effect.Target?.Name ?? effect.Type?.TypeName;
+        var path = effect.Target?.FolderPath ?? effect.Type?.FolderPath;
+        if (name is null || path is null) return false;
+        if (kind == "type" && missing.TypeGuid is not null)
+            return string.Equals(effect.Type?.TypeGuid ?? effect.Target?.TypeGuid, missing.TypeGuid, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(name, missing.Name, StringComparison.Ordinal)
+            && (kind == "type" && consumer.FolderPath is null || path.SequenceEqual(missing.FolderPath, StringComparer.Ordinal))
+            && (kind != "folder" || effect.Target?.FolderKind == missing.FolderKind);
     }
 
     private static LibraryPlanResult Failed(string category, string message)

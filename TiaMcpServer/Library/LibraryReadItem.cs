@@ -26,13 +26,19 @@ public sealed class LibraryReadItem : IOperationBatchItem
     [Description("list_children only: types or masterCopies.")]
     public string? FolderKind { get; set; }
 
-    [Description("list_children, list_versions and list_dependencies: exact folder names below the root of the selected folder, at most 32 nonblank segments (not a slash-delimited string). Omit for the root.")]
+    [Description("Exact folder names below the root, at most 32 nonblank segments (not a slash-delimited string). list_children: omit for the root. list_versions and list_dependencies: omit to search the whole type tree; supply an empty list to select only root types, or a path to select only that folder.")]
     public List<string>? FolderPath { get; set; }
 
-    [Description("list_versions and list_dependencies: GUID of the library type. Required.")]
+    [Description("list_versions and list_dependencies: exact ordinal library type name. Supply this or typeGuid; folderPath optionally narrows the search. Multiple matches fail target_ambiguous with candidate paths and GUIDs.")]
+    public string? TypeName { get; set; }
+
+    [Description("list_versions and list_dependencies: nonempty GUID of the library type. Supply this or typeName.")]
     public string? TypeGuid { get; set; }
 
-    [Description("list_dependencies only: GUID of the type version. Required.")]
+    [Description("list_dependencies only: exact version number with three numeric parts, excluding 0.0.0. Supply this or versionGuid; omit both to use the default version.")]
+    public string? VersionNumber { get; set; }
+
+    [Description("list_dependencies only: nonempty GUID of the type version. Supply this or versionNumber; omit both to use the default version.")]
     public string? VersionGuid { get; set; }
 
     [Description("list_dependencies only: dependencies (default) or dependents.")]

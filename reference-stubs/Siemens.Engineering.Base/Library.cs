@@ -7,6 +7,18 @@ namespace Siemens.Engineering
 
 namespace Siemens.Engineering.Library
 {
+    public enum LibraryImportOptions { None = 0, SkipInactiveCultures = 1, ActivateInactiveCultures = 2 }
+    public enum TransferResultState { Success = 0, Warning = 1 }
+    public abstract class TypeCreateTransferResults
+    {
+        public Types.LibraryType CreatedType { get => throw new global::System.NotSupportedException(); }
+        public TransferResultState TransferResultState { get => throw new global::System.NotSupportedException(); }
+    }
+    public abstract class VersionCreateTransferResults
+    {
+        public Types.LibraryTypeVersion CreatedVersion { get => throw new global::System.NotSupportedException(); }
+        public TransferResultState TransferResultState { get => throw new global::System.NotSupportedException(); }
+    }
     public enum LibraryArchivationMode
     {
         None = 0,
@@ -113,6 +125,11 @@ namespace Siemens.Engineering.Library.MasterCopies
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.MasterCopies.MasterCopyUserFolder> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
+    public abstract class MasterCopyAssociation : global::System.Collections.Generic.IEnumerable<MasterCopy>
+    {
+        public global::System.Collections.Generic.IEnumerator<MasterCopy> GetEnumerator() => throw new global::System.NotSupportedException();
+        global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
+    }
     public abstract class MasterCopyComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.MasterCopies.MasterCopy>
     {
         public MasterCopy Create(IMasterCopySource masterCopyObject) => throw new global::System.NotSupportedException();
@@ -124,6 +141,22 @@ namespace Siemens.Engineering.Library.MasterCopies
 
 namespace Siemens.Engineering.Library.Types
 {
+    public enum CreateOptions { None = 0, Override = 1 }
+    public enum CreateOrReleaseDependenciesMode { DoNotAutomaticallyCreateOrReleaseDependencies = 0, AutomaticallyCreateOrReleaseDependenciesIfRequired = 1 }
+    public enum UpdatePathsMode { UpdatePathsInTarget = 0, KeepExistingPathsInTarget = 1, ThrowIfPathsConflict = 2 }
+    public enum DeleteUnusedVersionsMode { AutomaticallyDelete = 0, DoNotDelete = 1 }
+    public enum StructureConflictResolutionMode { UpdateStructure = 0, RetainStructure = 1, CancelIfStructureConflicts = 2 }
+    public enum ForceUpdateMode { SetOnlyHigherUpdatedVersionAsDefault = 0, ForceSetAnyUpdatedVersionAsDefault = 1, NoDefaultVersionChange = 2 }
+    public interface IInstanceSearchScope { }
+    public abstract class LibraryTypeInstanceInfo : global::Siemens.Engineering.IEngineeringService
+    {
+        public LibraryTypeVersion LibraryTypeVersion { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.IEngineeringObject LibraryTypeInstance { get => throw new global::System.NotSupportedException(); }
+        object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
+        void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
+        global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
+        global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
+    }
     public enum ConsistencyStatus : int
     {
         None = 0,
@@ -135,6 +168,8 @@ namespace Siemens.Engineering.Library.Types
     }
     public abstract class LibraryType : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
+        public void Delete() => throw new global::System.NotSupportedException();
+        public void UpdateLibrary(global::Siemens.Engineering.Library.ILibrary targetLibrary, DeleteUnusedVersionsMode deleteUnusedVersionsMode, StructureConflictResolutionMode structureConflictResolutionMode, ForceUpdateMode forceUpdateMode) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.Library.Types.LibraryTypeVersionComposition Versions { get => throw new global::System.NotSupportedException(); }
         public global::System.Guid Guid { get => throw new global::System.NotSupportedException(); }
         public string Name { get => throw new global::System.NotSupportedException(); }
@@ -147,6 +182,7 @@ namespace Siemens.Engineering.Library.Types
     }
     public abstract class LibraryTypeComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.Types.LibraryType>
     {
+        public global::Siemens.Engineering.Library.TypeCreateTransferResults CreateFromDocuments(global::System.IO.DirectoryInfo directoryInfo, string fileNameWithoutExtension, global::Siemens.Engineering.IEngineeringObject testEnvironment, global::Siemens.Engineering.Library.LibraryImportOptions libraryImportOptions) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.Types.LibraryType> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
@@ -175,6 +211,12 @@ namespace Siemens.Engineering.Library.Types
     }
     public abstract class LibraryTypeVersion : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance
     {
+        public void Release(CreateOrReleaseDependenciesMode dependenciesMode, global::System.Version versionNumber, string author, string comment) => throw new global::System.NotSupportedException();
+        public void SetAsDefault() => throw new global::System.NotSupportedException();
+        public void Discard() => throw new global::System.NotSupportedException();
+        public void Delete() => throw new global::System.NotSupportedException();
+        public global::System.Collections.Generic.IList<LibraryTypeInstanceInfo> FindInstances(IInstanceSearchScope searchScope) => throw new global::System.NotSupportedException();
+        public global::Siemens.Engineering.Library.MasterCopies.MasterCopyAssociation MasterCopiesContainingInstances { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.Library.Types.LibraryTypeVersionAssociation Dependencies { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.Library.Types.LibraryTypeVersionAssociation Dependents { get => throw new global::System.NotSupportedException(); }
         public global::System.Guid Guid { get => throw new global::System.NotSupportedException(); }
@@ -194,6 +236,7 @@ namespace Siemens.Engineering.Library.Types
     }
     public abstract class LibraryTypeVersionComposition : global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Library.Types.LibraryTypeVersion>
     {
+        public global::Siemens.Engineering.Library.VersionCreateTransferResults CreateFromDocuments(global::System.IO.DirectoryInfo directoryInfo, string fileNameWithoutExtension, CreateOptions createOptions, global::Siemens.Engineering.Library.LibraryImportOptions libraryImportOptions) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Library.Types.LibraryTypeVersion> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }

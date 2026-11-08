@@ -8,6 +8,17 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryWriteCatalogRegistrationTests
 {
     [Fact]
+    public void Registration_CountAssertionsUpdated()
+    {
+        Assert.Equal(20, LibraryWriteMethods.Operations.Length);
+        Assert.Equal(8, LibraryWriteMethods.TypeOperations.Length);
+        Assert.Equal(14, LibraryWriteMethods.GlobalLibraryWrites.Length);
+        Assert.Equal(14, LibraryWriteMethods.ProjectLibraryWrites.Length);
+        Assert.Equal(30, LibraryWriteMethods.All.Length);
+        Assert.Equal(30, LibraryWriteMethods.All.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
     public void WriteMethods_AreProjectMutation_PlansAreObserve()
     {
         foreach (var method in LibraryWriteMethods.All)

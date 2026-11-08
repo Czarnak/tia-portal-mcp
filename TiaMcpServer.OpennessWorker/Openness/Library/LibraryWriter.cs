@@ -9,6 +9,7 @@ using Siemens.Engineering.SW.Types;
 using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Library;
@@ -31,6 +32,8 @@ internal static class LibraryWriter
             throw new WorkerOperationException(WorkerFailureCategories.UnsupportedCapability,
                 "The bound project container does not support this library operation.");
 
+        if (LibraryWriteMethods.TypeOperations.Contains(item.Operation))
+            return LibraryTypeWriter.Write(portal, project, method, item);
         switch (item.Operation)
         {
             case "create_global":
@@ -110,11 +113,13 @@ internal static class LibraryWriter
             case "create_master_copy":
                 var plcSource = LibraryWriteTargets.PlcSource(project, item);
                 var expectedName = LibraryWriteTargets.PlcSourceName(plcSource);
+                RequireAvailableName(expectedName);
                 return Created(copies.Create(plcSource), expectedName);
             case "copy_master_copy":
                 var source = LibraryWriteTargets.Library(portal, project, item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName);
                 var sourceCopy = LibraryReader.Exact(LibraryReader.CopyFolder(source, item.SourceFolderPath).MasterCopies
                     .Where(x => x.Name == item.Name), "source master copy");
+                RequireAvailableName(item.Name!);
                 return Created(copies.CreateFrom(sourceCopy), item.Name!);
             case "instantiate_master_copy":
                 var masterCopy = LibraryReader.Exact(copies.Where(x => x.Name == item.Name), "master copy");
@@ -138,6 +143,12 @@ internal static class LibraryWriter
 
         LibraryWriteResultInfo Result(ILibrary root) => new() { Library = LibraryIdentities.Identity(project, root) };
 
+        void RequireAvailableName(string name)
+        {
+            if (GuardEvidence(() => copies.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))))
+                throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, "library_master_copy_exists");
+        }
+
         LibraryWriteResultInfo Created(MasterCopy copy, string expectedName)
         {
             var actualName = copy.Name;
@@ -148,6 +159,16 @@ internal static class LibraryWriter
             result.ActualName = actualName;
             result.Target = LibraryIdentities.Child(result.Library, "masterCopies", segments, "masterCopy", actualName);
             return result;
+        }
+    }
+
+    internal static T GuardEvidence<T>(Func<T> read)
+    {
+        try { return read(); }
+        catch (Exception ex) when (ex is not WorkerOperationException && OpennessExceptions.IsRecoverable(ex))
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.GuardBlocked, "library_state_unverifiable",
+                engineeringError: ex is EngineeringException native ? WorkerExecution.Describe(native) : null);
         }
     }
 

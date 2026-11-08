@@ -43,6 +43,33 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.VciWriteOutcome",
         // library_write: present after a saved close fails or a master-copy name changes, including portal_lost.
         "WorkerResponse.LibraryWriteOutcome",
+        // library_write type operations: typed plan/result evidence only for type operations.
+        "LibraryWritePlanInfo.Type",
+        "LibraryWriteResultInfo.Type",
+        // Present when a failed type mutation retains typed partial evidence.
+        "LibraryWriteOutcomeInfo.Type",
+        // Present when a type plan observes blocking instances or dependencies.
+        "LibraryWritePlanInfo.BlockingInstances",
+        "LibraryWritePlanInfo.Dependencies",
+        // Present when a type plan depends on a type created by an earlier batch item.
+        "LibraryWritePlanInfo.CreatedByItem",
+        // Dry-run plans identify exact missing objects for earlier-item matching, tool guards and native evidence.
+        "LibraryWritePlanInfo.MissingTargets",
+        "LibraryWritePlanInfo.GuardIds",
+        "LibraryWritePlanInfo.MasterCopiesContainingInstances",
+        "LibraryWritePlanInfo.Notes",
+        // Present when a planned type operation has resolved type evidence.
+        "LibraryWriteEffect.Type",
+        // Present when a type/version delete preview inventories PLC instances.
+        "LibraryWriteEffect.BlockingInstances",
+        // Present when a type/version delete preview inventories containing master copies.
+        "LibraryWriteEffect.MasterCopiesContainingInstances",
+        // Present when an instantiate/synchronize preview computes the dependency closure.
+        "LibraryWriteEffect.Dependencies",
+        // Present for conversion, multi-PLC test-instance uncertainty, or global instantiation notes.
+        "LibraryWriteEffect.Notes",
+        // Present when every unresolved target is supplied by earlier items; identifies the latest producer.
+        "LibraryWriteEffect.CreatedByItem",
         // plc_write: present only on a failed content-import item (update_block_logic).
         "StructuredOperationFailure.BlockImportOutcome",
         // Worker mutation failures: present only when a Siemens exception caused the failure.
@@ -77,6 +104,7 @@ public sealed class ConditionalMemberRegisterTests
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingResult))
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingInfo))
             .Append(typeof(TiaMcpServer.ProjectLifecycle.LifecycleEffects))
+            .Append(typeof(TiaMcpServer.Library.LibraryWriteEffect))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(IsWhenWritingNullConditional)

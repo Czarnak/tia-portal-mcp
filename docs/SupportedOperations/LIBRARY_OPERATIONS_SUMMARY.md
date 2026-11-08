@@ -13,16 +13,16 @@ The scoped [live verification report](../superpowers/acceptance/reports/2026-11-
 | `list_global_libraries` | none (the bound Portal) | none | yes |
 | `inspect_library` | `project` or `global` | library | no |
 | `list_children` | `project` or `global` | library, `folderKind` (`types` or `masterCopies`), optional `folderPath` | yes |
-| `list_versions` | `project` or `global` | library, `typeGuid`, optional `folderPath` | yes |
-| `list_dependencies` | `project` or `global` | library, `typeGuid`, `versionGuid`, optional `direction` (`dependencies` default, or `dependents`), optional `folderPath` | yes |
+| `list_versions` | `project` or `global` | library, `typeName` or `typeGuid`, optional `folderPath` | yes |
+| `list_dependencies` | `project` or `global` | library, `typeName` or `typeGuid`, optional `versionNumber` or `versionGuid` (default version when omitted), optional `direction` (`dependencies` default, or `dependents`), optional `folderPath` | yes |
 
-The items are flat objects: `operationId`, `operation`, and the optional `scope`, `libraryPath`, `libraryName`, `folderKind`, `folderPath`, `typeGuid`, `versionGuid`, `direction`, `offset`, `limit`, `cursor`. An unknown member or a field that does not belong to the operation is a `validation_error` that rejects the whole call.
+The items are flat objects: `operationId`, `operation`, and the optional `scope`, `libraryPath`, `libraryName`, `folderKind`, `folderPath`, `typeName`, `typeGuid`, `versionNumber`, `versionGuid`, `direction`, `offset`, `limit`, `cursor`. An unknown member or a field that does not belong to the operation is a `validation_error` that rejects the whole call.
 
 - **Project scope** reads the bound project's own library. It takes no `libraryPath` or `libraryName`; the identity comes from the binding.
 - **Global scope** needs a non-blank `libraryPath` (absolute drive or UNC path with at least server and share) or `libraryName`. When both are given, both must match. The name is compared exactly (ordinal); the path is normalized with `Path.GetFullPath` and compared case-insensitively. A relative or malformed path is a `validation_error`.
-- **`folderPath`** is a list of exact folder names (at most 32 non-blank segments), never a slash-delimited string. Omit it for the root of the selected folder.
-- **Version operations** take no `folderKind`. The type lookup is non-recursive within the selected type folder.
-- `typeGuid` and `versionGuid` must be non-empty GUIDs.
+- **`folderPath`** is a list of exact folder names (at most 32 non-blank segments), never a slash-delimited string. For `list_children`, omit it for the root. For type selectors, omit it to search the whole type tree, supply `[]` to select only root types, or a path to narrow to that folder.
+- **Type selectors** take exactly one of `typeName` (ordinal exact name) or `typeGuid`. Multiple matches fail `target_ambiguous` with candidate paths and GUIDs. Version operations take no `folderKind`.
+- **Version selectors** take at most one of `versionNumber` or `versionGuid`; `list_dependencies` uses the default version when neither is given. `versionNumber` has three numeric parts, each at most 2147483647, and is not `0.0.0`. GUIDs must be non-empty.
 
 ### Global libraries
 
@@ -100,42 +100,92 @@ Not verified: local sessions (global reads succeeding and project-library `unsup
 
 ## Writes (`library_write`)
 
-`library_write(operations, dryRun=false)` is registered in read-write and full only (counts 9/21/21). Write contract `2.0`; `library_read` stays `1.0`. It takes 1-50 items with unique `operationId`s (at most 256 characters), runs them in caller order, stops at the first failure and never rolls back or replays. `dryRun` defaults to false; `dryRun:true` plans without mutation or prompt. Every call needs a verified binding, global-only calls included. Phases are `preview`, `applied`, `blocked` and `error`; an unknown member or one that does not belong to the operation rejects the whole call with the canonical `validation_error`, with no audit record. One audit v2 record is written per entered call.
+`library_write(operations, dryRun=false)` provides 20 operations in read-write and full (tool counts 9/21/21). Write contract `2.0`; `library_read` stays `1.0`. It takes 1-50 items with unique `operationId`s (at most 256 characters), runs them in caller order, stops at the first failure and never rolls back the batch or replays. Every call needs a verified binding, global-only calls included. An unknown or inapplicable member rejects the whole call with canonical `validation_error` and no audit record. Each entered call writes one audit v2 record.
 
-| Operation | Required members | Optional members | Native call |
+### Operations and selectors
+
+In this table, **library** means `libraryPath` or `libraryName` for global scope; project scope takes neither. **Type** means exactly one of `typeName` or `typeGuid`, with optional `folderPath` as described above. **Version** means at most one of `versionNumber`, `versionGuid`, or `inWork:true`; omission selects the default except where stated.
+
+| Operation | Required members | Optional members | Native route |
 | --- | --- | --- | --- |
 | `create_global` | `directory`, `name` | none | `GlobalLibraries.Create` |
 | `open_global` | `filePath` (`.al21`), `openMode` (`readOnly`/`readWrite`) | none | `GlobalLibraries.Open` |
 | `retrieve_global` | `filePath` (`.zal21`), `directory`, `openMode` | none | `GlobalLibraries.Retrieve` |
 | `save_global` | `scope:"global"`, library | none | `Save` |
-| `close_global` | `scope:"global"`, library, `closeAction` (`save`/`discard`) | none | `Save` (when `save` and modified), then `Close` |
+| `close_global` | `scope:"global"`, library, `closeAction` (`save`/`discard`) | none | `Save` when modified, then `Close` |
 | `archive_global` | `scope:"global"`, library, `directory`, `name` | none | `Archive` (`Compressed`) |
-| `create_folder`, `delete_folder` | `scope`, `folderKind`, `name` | library, `folderPath` | `Folders.Create`, `Delete` |
-| `create_master_copy` | `scope`, `plcName`, `plcKind` (source: `block`/`plcType`/`tagTable`), `plcObjectName` | library, `folderPath`, `plcFolderPath` | `MasterCopies.Create` |
+| `create_folder`, `delete_folder` | `scope`, `folderKind` (`types`/`masterCopies`), `name` | library, `folderPath` | `Folders.Create`, `Delete` |
+| `create_master_copy` | `scope`, `plcName`, `plcKind` (`block`/`plcType`/`tagTable`), `plcObjectName` | library, `folderPath`, `plcFolderPath` | `MasterCopies.Create` |
 | `copy_master_copy` | `scope`, `sourceScope`, `name` | both libraries and both folder paths | `MasterCopies.CreateFrom` |
-| `instantiate_master_copy` | `scope`, `name`, `plcName`, `plcKind` (destination: `blockGroup`/`typeGroup`/`tagTableGroup`) | library, `folderPath`, `plcFolderPath` | PLC container `CreateFrom(mc, ThrowIfExists)` |
+| `instantiate_master_copy` | `scope`, `name`, `plcName`, `plcKind` (`blockGroup`/`typeGroup`/`tagTableGroup`) | library, `folderPath`, `plcFolderPath` | PLC container `CreateFrom(mc, ThrowIfExists)` |
 | `delete_master_copy` | `scope`, `name` | library, `folderPath` | `Delete` |
+| `create_type` | `plcName`, `plcKind` (`block`/`plcType`), `plcObjectName` | `plcFolderPath`, project-library `folderPath` | Convert a plain PLC object with `Types.CreateFromDocuments` in one project transaction |
+| `create_type_version` | `plcName`, `plcKind` (`block`/`plcType`), `plcObjectName`, `content`, `expectedContentHash` | `plcFolderPath`, `replaceInWork` (default false) | Linked project type's `Versions.CreateFromDocuments` |
+| `release_type_version` | `scope:"project"`, type | `versionNumber`, `author`, `comment` | Release the in-work version without automatically creating or releasing dependencies |
+| `set_default_type_version` | `scope`, library, type, exact `versionNumber` or `versionGuid` | none | `SetAsDefault` |
+| `synchronize_type` | `sourceScope`, `scope`, source type | source and target libraries | `UpdateLibrary(DoNotDelete, CancelIfStructureConflicts, SetOnlyHigherUpdatedVersionAsDefault)` |
+| `instantiate_type_version` | `sourceScope`, source type, `plcName` | source library, version, `plcFolderPath` | PLC blocks/types `CreateFrom(version, ThrowIfPathsConflict)` |
+| `delete_type` | `scope`, library, type | none | `LibraryType.Delete` |
+| `delete_type_version` | `scope`, library, type | version | Released version `Delete`; in-work version `Discard` |
 
-Library selectors are the `library_read` rules; `copy_master_copy` adds `sourceScope`, `sourceLibraryPath`, `sourceLibraryName` and `sourceFolderPath`. PLC members are prefixed so they do not clash with the library `folderPath` and `name`; an empty `plcFolderPath` is the destination root, and PLC groups match case-insensitively while library folders match ordinally. `directory` and `filePath` must be absolute.
+`sourceScope`, `sourceLibraryPath`, `sourceLibraryName` and `sourceFolderPath` select the source of `copy_master_copy`. Type synchronization and instantiation use `sourceScope` and source library selectors, with `folderPath` selecting the source type. PLC members are prefixed: `plcName`, `plcKind`, segmented `plcFolderPath`, `plcObjectName`. An empty `plcFolderPath` is the PLC root; PLC groups match case-insensitively and library folders ordinally. `directory` and `filePath` must be absolute. Supported type kinds are FB, FC and PLC UDT; other kinds fail `target_kind_unsupported`.
 
-**Confirmation.** In read-write, a call containing at least one of the six lifecycle operations (`create_global`, `open_global`, `retrieve_global`, `save_global`, `close_global`, `archive_global`) asks once through form elicitation, naming each operation and its target; decline, cancel, timeout or transport failure is `access_denied` with nothing mutated. A content-only call (folders and master copies) never prompts, and full never prompts (audit `policy`). There are no acknowledge guards, tokens or public confirmation arguments.
+`set_default_type_version` requires the exact released version to make default; omission and `inWork` are invalid. `release_type_version` always selects the in-work version and uses Portal's prefilled number when `versionNumber` is omitted. Numbers have three numeric parts, each at most 2147483647, and cannot be `0.0.0`; this is the `System.Version` representation limit, not a verified safe Portal release range.
 
-**Capability.** Capability is decided per item. An item that touches the project library or a PLC (any `scope:"project"` selector, either side of `copy_master_copy`, and every `create_master_copy` and `instantiate_master_copy`) uses `library_project_write` (`standaloneOnly`); other items use `library_write` (`projectContent`, allowed on bound local sessions, `notYetDelivered` on server projects). A call with one unsupported item is refused whole with `unsupported_capability` naming that operation, before any mutation. Global-library lifecycle is Portal-scope and is not subject to the project lifecycle's standalone-only rule.
+### Apply, preview and confirmation
 
-**Guards.** Info: `library_discards_changes` (every `closeAction:"discard"`; the dirty state is not read) and `library_deletes_folder_contents` (`delete_folder` lists contents recursively, capped at 200 entries with `contentsTruncated`; the folder may be a master-copy or a types folder). Block: `library_master_copy_exists` (create or copy into a folder that already holds a master copy of that name, compared case-insensitively; folders are not compared) and `library_state_unverifiable` (an unreadable folder listing or flag). Portal is the refusal authority for everything else, such as non-empty or read-only targets, invalid names, an open in the other mode, saving a read-only library, archiving a dirty library, instantiating over an existing object, and a types folder whose types have dependents.
+The tool plans only for `dryRun:true` or a read-write call containing global-library lifecycle. An ordinary content apply and every full-mode apply resolve each item when it runs and return `effects:[]`; the item `result` records the outcome. A later item can use a type, folder, master copy or library created earlier in an unplanned call. Planned calls show supported earlier-created targets with `createdByItem`; a library created, opened or retrieved by a lifecycle item must be used in a later prompting call.
 
-**Behaviors the tool owns.**
-- `close_global` requires `closeAction`. `save` calls `Save()` only when the library is modified, so a clean read-only library closes with `saved:false`. If `Close` fails after a save, the item fails with the Siemens classification and `libraryWriteOutcome.saved:true`.
-- `save_global`, `close_global` and `archive_global` need a user global library; any other open library is `target_kind_unsupported`.
-- `archive_global` appends `.zal21` when missing (case-insensitive, never doubled) and reports the final `archivePath`.
-- A created or copied master copy that Portal renamed fails `postcondition_failed` with `actualName`.
-- Instantiation always uses `ThrowIfExists`, so an existing object is refused by Portal (`engineering_rejected`).
-- A name-only global selector over two open libraries with the same name is `target_ambiguous`; the path selector resolves.
-- `open_global` always calls `Open`, so `alreadyOpen` reports a plan-time scan, and a mode change on an open library is Portal's refusal. Created, opened and retrieved libraries report the actual path Portal chose (`Path.FullName`), which for `create_global` and `retrieve_global` is `<directory>\<name>\<name>.al21`.
+In read-write, a call containing any of the six global-library lifecycle operations asks once through form elicitation. Decline, cancel, timeout or transport failure is `access_denied` before mutation. Content-only calls, including all eight type operations, never prompt; full never prompts (audit `policy`). A preview never mutates or prompts. There are no acknowledge guards, tokens or public confirmation arguments.
 
-**Not supported.** No item can use a library created, opened or retrieved earlier in the same call (split into two calls); `ReplanAsync` throws. No transactions or rollback, no `ExclusiveAccess`, no read snapshot drop after a write, no versioned types or `UpdateProject`, and verification is `trusted`/`superseded` with no read-back. A native `EngineeringTargetInvocationException` is `engineering_rejected` with `engineeringError`; `portal_lost` takes precedence and invalidates the binding.
+A planned block guard stops the whole call before mutation. The same checks run beside each native mutation; in an unplanned apply, a refusal fails that item after earlier items have run. This changes existing master-copy behavior: a case-insensitive name collision is now an item `guard_blocked` failure, and a missing target is an item `target_not_found`, with earlier successes retained. `library_deletes_folder_contents` is preview/planned-call information. `library_discards_changes` remains on every planned `closeAction:"discard"` call.
 
-**Live-verified scope.** The [live report](../superpowers/acceptance/reports/2026-11-07-library-write-live-verification.md) covers all 12 operations on one standalone project, one user global library and one local session: the read-write prompt (accept and decline), full mode, content-only calls without a prompt, the collision, discard and delete-folder guards, the archive extension, the native instantiate refusal, the duplicate-name selector, the clean-library close, and a global-only call versus a project item on a local session. Offline only: a native master-copy rename, `Close` failing after a save, `library_state_unverifiable`, contents truncation, `plcType`/`tagTable` sources and `typeGroup`/`tagTableGroup` destinations, nested `plcFolderPath`, a types folder with dependents, non-user global libraries, an `open_global` mode change and Portal loss.
+### Capabilities and checks
+
+Capability is decided per item. Any project-library selector on either side, and every `create_master_copy`, `instantiate_master_copy`, `create_type`, `create_type_version`, `release_type_version` and `instantiate_type_version`, uses `library_project_write` (`standaloneOnly`). Other items use `library_write` (`projectContent`, allowed on bound local sessions, `notYetDelivered` on server projects). One unsupported item refuses the whole call before worker activity. Global-library lifecycle is Portal-scope and is not subject to the project lifecycle's standalone-only rule.
+
+| Tool-owned check | Failure |
+| --- | --- |
+| Master-copy create/copy name already exists in the destination folder (OrdinalIgnoreCase) | `guard_blocked`, `library_master_copy_exists` |
+| `create_type` name already exists anywhere in the project library, including another folder | `guard_blocked`, `library_type_name_exists` |
+| `create_type` source is already a type instance, even if its name differs from the type | `guard_blocked`, `library_source_is_type_instance` |
+| Explicit or prefilled release number is not higher than every released version | `guard_blocked`, `library_version_not_higher` |
+| Required check evidence or fresh PLC export cannot be read | `guard_blocked`, `library_state_unverifiable` |
+| `create_type_version` fresh export differs from `expectedContentHash` | `state_changed` |
+| Converted instance does not link to the created type | `postcondition_failed`, conversion transaction rolls back |
+
+`library_discards_changes` and `library_deletes_folder_contents` are info guards; folder previews list contents recursively, capped at 200 with `contentsTruncated`. Checks do not pre-empt native refusal of existing in-work versions, read-only state, name validity, dependencies, placement collisions or apply-time deletes. Delete instance/master-copy scans run only in previews/planned calls. A precondition refusal without an outcome is treated as not mutated; inspect outcome-bearing or native failures before retrying.
+
+### Type workflow and results
+
+`create_type` exports a plain PLC object to operation-owned storage, then uses `ExclusiveAccess` and one project transaction to delete it, create the project-library type and verify its linked replacement before committing. A failed conversion rolls back that transaction; there is no batch rollback. `create_type_version` resolves the type through the selected PLC instance, compares a fresh export with its required `xml:sha256` hash, stages SimaticML XML and calls `Versions.CreateFromDocuments` without a test-environment argument. `replaceInWork:true` permits replacement; without it, Portal decides whether an existing in-work version prevents creation. The result reports `replacedInWork` and instance paths read back from the created version. Live checks observed `replaceInWork:true` create a version when none was in work (`replacedInWork:false`) and replace an existing in-work version (`true`), with compiled content read-back. With instances in more than one PLC, Portal chooses the test instance independently of the requested PLC. The live case supplied the second PLC instance's content/hash but the result identified the first PLC as test instance; released content appeared there and remained absent on the second PLC. Inspect `instancePaths` and read back the reported instance instead of assuming the requested one was changed.
+
+Changing a type: `plc_read` the instance (after `compile_check` if needed), `create_type_version` with the edited content, then `release_type_version`. `plc_write` is not a supported type-instance editing route: writes to a test instance can block behind a modal Portal dialog, and writes to a released instance can silently unlink it from its type. A compile-first workflow is recommended after conversion, instantiation, version creation or release: run `compile_check`, then `plc_read`. Portal can require compilation for inconsistent instances, as earlier native probes observed, but current live cases exported both an uncompiled ordinary instance and an uncompiled FB with changed interface content successfully. A hash from before conversion or content change still fails `state_changed`; uncompiled status alone does not imply an unreadable instance. Release never creates or releases dependencies automatically; make and release required dependency types explicitly. The live sequence released `0.0.1`, created content version `0.0.2`, then successfully released its own prefilled number explicitly; the default moved from `0.0.1` to `0.0.2`.
+
+Releasing a version makes it the type's default version (Portal does this). The tool reports the default before and after and never restores the previous default. To keep it, add `set_default_type_version` to the same call. Synchronize and instantiate include dependencies. Instantiating onto an existing instance of the same type can succeed through Portal's reuse/update behavior. A colliding plain object can cause a native suffixed name (observed `_1`) instead of refusal. Its `ThrowIfPathsConflict` mode does not make every existing object a collision refusal; inspect returned `instancePaths` to locate the actual instance.
+
+Synchronizing a type moves the target library's default only when the source default has a higher number than the target default. The comparison is with the current target default, not its highest owned release: a target default of `0.0.4` stayed unchanged with source default `0.0.2`; after explicitly selecting target default `0.0.1`, the same sync moved it to `0.0.2` even though the target still held `0.0.4`.
+Portal refuses to delete a type or version while linked PLC instances exist. A global type delete and a nondefault global-version delete were also refused when that version was held only by a global master copy. An unused nondefault project version can be deleted; deleting a global type's only version deletes the type (`typeDeleted:true`), and an unused global type can be deleted directly.
+
+Delete previews report PLC paths in `blockingInstances` and linked master-copy names in `masterCopiesContainingInstances`. Global-library type/version previews have no project PLC instance scan (`blockingInstances:[]`); their master-copy associations still identify a global master copy that blocks native deletion. The corrected live candidate returned that evidence for both type and version previews, and an unused global only-version preview was clear before successful deletion. Preview reads are sequential and non-atomic; apply still lets Portal decide the delete.
+
+Discarding an in-work version after a previous release keeps its test instance, relinks it to the last released version and restores that released content (compiled content read-back verified this). Discarding a never-released in-work version deletes its test instance; a later compile/read cannot target it. Do not assume every discard preserves a PLC object.
+
+Type results include type/version GUIDs, native version number/state, instance paths, default changes and delete/replacement facts where applicable. The shared verification entries are `trusted` or `superseded`, derived from resolved identities in success results or failure outcomes; this is distinct from the native evidence collected by a type writer. An attempted failure without an outcome conservatively supersedes earlier items on the selected library, except for a precondition refusal. Inspect `library_read`/`plc_read` before retrying.
+
+### Other behavior and limits
+
+- `close_global` requires `closeAction`; `save` calls `Save()` only when modified, so a clean read-only library closes with `saved:false`. A `Close` failure after a save retains `libraryWriteOutcome.saved:true`.
+- `save_global`, `close_global` and `archive_global` require a user global library (`target_kind_unsupported` otherwise).
+- `archive_global` appends `.zal21` when missing (case-insensitively) and reports `archivePath`.
+- A created/copied master copy renamed by Portal fails `postcondition_failed` with `actualName`; master-copy placement uses `ThrowIfExists`. Creating a global master copy of a linked PLC instance can import that instance's type version into the global library even when the global type already has other versions/defaults.
+- Name-only global selectors over duplicate open names fail `target_ambiguous`; use a path. `open_global` always calls `Open`; `alreadyOpen` is plan-time information when planned. Create/open/retrieve report Portal's returned `Path.FullName`.
+- Library writes do not drop library-read snapshots. No `UpdateProject`, automatic dependency release, type-instance editing through `plc_write`, batch rollback, or default restoration is provided.
+- Native mutation `EngineeringTargetInvocationException` is `engineering_rejected` with `engineeringError`; `portal_lost` takes precedence and invalidates binding. Typed failure outcomes are validated before use; malformed evidence is `protocol_error`.
+
+The [first write live report](../superpowers/acceptance/reports/2026-11-07-library-write-live-verification.md) covers the original 12 operations, lifecycle accept/decline, full mode and local-session capability split. Its stated limits still apply unless superseded by new evidence. See [ADR-0017](../adr/0017-library-writes-apply-without-planning.md) for conditional planning, conversion and default decisions.
+
+The [type live report](../superpowers/acceptance/reports/2026-11-08-library-types-live-verification.md) records FB/FC/UDT conversion and release, content-version creation/replacement with compiled read-back, stale-hash and tool-owned checks, name ambiguity with folder/GUID disambiguation, earlier-item application before a later refusal, default changes and synchronization, native instance placement/reuse/rename, global master-copy deletion blockers and both discard outcomes. Native refusals include self-synchronization, an in-work version as default or instance source, restricted release content and protected/noncompilable conversion sources. The corrected global type/version delete previews also reported master-copy blockers without an unverifiable-state guard. The uncompiled-export `library_state_unverifiable` path remains covered offline and was not reproduced by the current fixture; successful pre-compile exports instead rejected stale hashes with `state_changed`. These cases do not establish hardware/runtime behavior, Portal-loss recovery, large inventories or storage restoration.
 
 ## Known limits
 

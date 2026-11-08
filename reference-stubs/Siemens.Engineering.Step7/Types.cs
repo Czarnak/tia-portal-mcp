@@ -2,8 +2,10 @@
 #nullable disable // V21 net48 signatures have no nullable annotations.
 namespace Siemens.Engineering.SW.Types
 {
+    public abstract class PlcTypeLibraryTypeVersion : global::Siemens.Engineering.Library.Types.LibraryTypeVersion { }
     public abstract class PlcType : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.SW.ExternalSources.IGenerateSource, global::Siemens.Engineering.IEngineeringServiceProvider, global::Siemens.Engineering.Library.MasterCopies.IMasterCopySource
     {
+        public void Delete() => throw new global::System.NotSupportedException();
         public string Name { get => throw new global::System.NotSupportedException(); }
         public void Export(global::System.IO.FileInfo path, global::Siemens.Engineering.ExportOptions exportOptions) => throw new global::System.NotSupportedException();
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
@@ -14,6 +16,7 @@ namespace Siemens.Engineering.SW.Types
     }
     public abstract class PlcTypeComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.SW.Types.PlcType>
     {
+        public PlcType CreateFrom(PlcTypeLibraryTypeVersion sourceVersion, global::Siemens.Engineering.Library.Types.UpdatePathsMode updatePathsMode) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.Types.PlcType CreateFrom(global::Siemens.Engineering.Library.MasterCopies.MasterCopy sourceMasterCopy, global::Siemens.Engineering.Library.MasterCopies.MasterCopyMode copyMode) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IList<global::Siemens.Engineering.SW.Types.PlcType> Import(global::System.IO.FileInfo path, global::Siemens.Engineering.ImportOptions importOptions) => throw new global::System.NotSupportedException();
         public global::Siemens.Engineering.SW.Types.PlcType Find(string name) => throw new global::System.NotSupportedException();

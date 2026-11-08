@@ -7449,6 +7449,129 @@
                 },
                 "contentsTruncated": {
                   "type": "boolean"
+                },
+                "type": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "typeName": {
+                      "type": "string"
+                    },
+                    "typeGuid": {
+                      "type": "string"
+                    },
+                    "folderPath": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "versionNumber": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "versionGuid": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "versionState": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "defaultBefore": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "defaultAfter": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "replacedInWork": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "instancePaths": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "deletedVersions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "discarded": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "typeDeleted": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "blockingInstances": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "masterCopiesContainingInstances": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "dependencies": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "createdByItem": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 }
               },
               "required": [

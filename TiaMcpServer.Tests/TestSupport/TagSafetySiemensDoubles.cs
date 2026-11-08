@@ -28,10 +28,14 @@ namespace Siemens.Engineering
             set { if (!IgnoreNameWrites) name = value; }
         }
         public CrossReference.CrossReferenceService? CrossReferenceService { get; set; }
+        public Library.Types.LibraryTypeInstanceInfo? LibraryTypeInstanceInfo { get; set; }
+        public Exception? LibraryTypeInstanceInfoFailure { get; set; }
         public Exception? CrossReferenceServiceFailure { get; set; }
         public int CrossReferenceServiceRequests { get; private set; }
         public virtual T? GetService<T>() where T : class
         {
+            if (typeof(T) == typeof(Library.Types.LibraryTypeInstanceInfo))
+                return LibraryTypeInstanceInfoFailure is null ? LibraryTypeInstanceInfo as T : throw LibraryTypeInstanceInfoFailure;
             if (typeof(T) != typeof(CrossReference.CrossReferenceService)) return null;
             CrossReferenceServiceRequests++;
             if (CrossReferenceServiceFailure is not null) throw CrossReferenceServiceFailure;
@@ -274,7 +278,7 @@ namespace Siemens.Engineering.HW.Features
 
 namespace Siemens.Engineering.SW
 {
-    public sealed partial class PlcSoftware : NamedObject, IEngineeringServiceProvider
+    public sealed partial class PlcSoftware : NamedObject, IEngineeringServiceProvider, Library.Types.IInstanceSearchScope
     {
         public PlcSoftware()
         {
@@ -390,13 +394,25 @@ namespace Siemens.Engineering.SW.Tags
 
 namespace Siemens.Engineering.SW.Blocks
 {
-    public class PlcBlock : NamedObject, IEngineeringServiceProvider
+    public class PlcBlock : NamedObject, IEngineeringServiceProvider, ExternalSources.IGenerateSource
     {
         public Compiler.ICompilable? CompilerService { get; set; }
         public override T? GetService<T>() where T : class => CompilerService as T ?? base.GetService<T>();
         public int Number { get; set; }
         public bool Deleted { get; private set; }
-        public void Delete() => Deleted = true;
+        public Action? DeleteAction { get; set; }
+        public void Delete()
+        {
+            if (DeleteAction is not null) { DeleteAction(); return; }
+            Deleted = true;
+            if (Parent is PlcBlockGroup group) group.Blocks.Items.Remove(this);
+        }
+        public Action<FileInfo, ExportOptions>? ExportAction { get; set; }
+        public Func<DirectoryInfo, string, DocumentExportResult>? ExportAsDocumentsAction { get; set; }
+        public DocumentExportResult ExportAsDocuments(DirectoryInfo directory, string name)
+            => (ExportAsDocumentsAction ?? throw new InvalidOperationException("Unconfigured block ExportAsDocuments."))(directory, name);
+        public void Export(FileInfo path, ExportOptions options)
+            => (ExportAction ?? throw new InvalidOperationException("Unconfigured block Export."))(path, options);
         public string ProgrammingLanguage { get; set; } = "SCL";
         public string? HeaderAuthor { get; set; }
         public string? HeaderFamily { get; set; }
@@ -404,6 +420,7 @@ namespace Siemens.Engineering.SW.Blocks
         public System.Version? HeaderVersion { get; set; }
     }
     public class CodeBlock : PlcBlock, Library.MasterCopies.IMasterCopySource { }
+    public sealed class CodeBlockLibraryTypeVersion : Library.Types.LibraryTypeVersion { }
     public class DataBlock : PlcBlock, Library.MasterCopies.IMasterCopySource { }
     public sealed class OB : CodeBlock { }
     public sealed class FB : CodeBlock { }
@@ -413,6 +430,13 @@ namespace Siemens.Engineering.SW.Blocks
     public sealed class ArrayDB : DataBlock { }
     public sealed class PlcBlockComposition : Composition<PlcBlock>
     {
+        public List<(CodeBlockLibraryTypeVersion Version, Library.Types.UpdatePathsMode Mode)> CreateFromVersionCalls { get; } = new();
+        public Func<CodeBlockLibraryTypeVersion, Library.Types.UpdatePathsMode, PlcBlock>? CreateFromVersionAction { get; set; }
+        public PlcBlock CreateFrom(CodeBlockLibraryTypeVersion version, Library.Types.UpdatePathsMode mode)
+        {
+            CreateFromVersionCalls.Add((version, mode));
+            return (CreateFromVersionAction ?? throw new InvalidOperationException("Unconfigured block version CreateFrom."))(version, mode);
+        }
         public Func<Library.MasterCopies.MasterCopy, Library.MasterCopies.MasterCopyMode, PlcBlock>? CreateFromAction { get; set; }
         public PlcBlock CreateFrom(Library.MasterCopies.MasterCopy copy, Library.MasterCopies.MasterCopyMode mode)
             => (CreateFromAction ?? throw new InvalidOperationException("Unconfigured block CreateFrom."))(copy, mode);
@@ -463,9 +487,30 @@ namespace Siemens.Engineering.SW.Blocks
 
 namespace Siemens.Engineering.SW.Types
 {
-    public sealed class PlcType : NamedObject, Library.MasterCopies.IMasterCopySource { }
+    public sealed class PlcTypeLibraryTypeVersion : Library.Types.LibraryTypeVersion { }
+    public sealed class PlcType : NamedObject, Library.MasterCopies.IMasterCopySource, ExternalSources.IGenerateSource
+    {
+        public bool Deleted { get; private set; }
+        public Action? DeleteAction { get; set; }
+        public void Delete()
+        {
+            if (DeleteAction is not null) { DeleteAction(); return; }
+            Deleted = true;
+            if (Parent is PlcTypeGroup group) group.Types.Items.Remove(this);
+        }
+        public Action<FileInfo, ExportOptions>? ExportAction { get; set; }
+        public void Export(FileInfo path, ExportOptions options)
+            => (ExportAction ?? throw new InvalidOperationException("Unconfigured type Export."))(path, options);
+    }
     public sealed class PlcTypeComposition : Composition<PlcType>
     {
+        public List<(PlcTypeLibraryTypeVersion Version, Library.Types.UpdatePathsMode Mode)> CreateFromVersionCalls { get; } = new();
+        public Func<PlcTypeLibraryTypeVersion, Library.Types.UpdatePathsMode, PlcType>? CreateFromVersionAction { get; set; }
+        public PlcType CreateFrom(PlcTypeLibraryTypeVersion version, Library.Types.UpdatePathsMode mode)
+        {
+            CreateFromVersionCalls.Add((version, mode));
+            return (CreateFromVersionAction ?? throw new InvalidOperationException("Unconfigured type version CreateFrom."))(version, mode);
+        }
         public Func<Library.MasterCopies.MasterCopy, Library.MasterCopies.MasterCopyMode, PlcType>? CreateFromAction { get; set; }
         public PlcType CreateFrom(Library.MasterCopies.MasterCopy copy, Library.MasterCopies.MasterCopyMode mode)
             => (CreateFromAction ?? throw new InvalidOperationException("Unconfigured type CreateFrom."))(copy, mode);
@@ -481,7 +526,13 @@ namespace Siemens.Engineering.SW.Types
 
 namespace Siemens.Engineering.SW.ExternalSources
 {
-    public sealed class PlcExternalSourceSystemGroup { }
+    public interface IGenerateSource { }
+    public enum GenerateOptions { None = 0, WithDependencies = 1 }
+    public sealed class PlcExternalSourceSystemGroup
+    {
+        public void GenerateSource(IEnumerable<IGenerateSource> sources, FileInfo file, GenerateOptions options)
+            => throw new InvalidOperationException("Unconfigured GenerateSource.");
+    }
 }
 
 namespace Siemens.Engineering.SW.Units

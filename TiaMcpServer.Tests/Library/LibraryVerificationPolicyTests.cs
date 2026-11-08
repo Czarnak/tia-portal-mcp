@@ -9,6 +9,97 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryVerificationPolicyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LastVersionDeletion_SupersedesOwningType(bool failedWithOutcome)
+        => Assert.Equal("superseded", await TypeVersionCheck("set_default_type_version", "delete_type_version", true, false, failedWithOutcome));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReplacedInWork_SupersedesDifferentVersionGuid(bool failedWithOutcome)
+        => Assert.Equal("superseded", await TypeVersionCheck("create_type_version", "create_type_version", false, true, failedWithOutcome));
+
+    [Theory]
+    [InlineData("create_type_version", false)]
+    [InlineData("create_type_version", true)]
+    [InlineData("delete_type_version", false)]
+    [InlineData("delete_type_version", true)]
+    public async Task SiblingVersionWithoutTypeRemovalOrReplacement_RemainsTrusted(string laterOperation, bool failedWithOutcome)
+        => Assert.Equal("trusted", await TypeVersionCheck("create_type_version", laterOperation, false, false, failedWithOutcome));
+
+    private static async Task<string> TypeVersionCheck(string firstOperation, string laterOperation, bool typeDeleted, bool replaced, bool failedWithOutcome)
+    {
+        var first = new LibraryWriteItem { OperationId = "a", Operation = firstOperation, Scope = "project" };
+        var later = new LibraryWriteItem { OperationId = "b", Operation = laterOperation, Scope = "project" };
+        var typeGuid = Guid.NewGuid().ToString("D");
+        var oldVersion = new LibraryTypeResultInfo { TypeName = "Motor", TypeGuid = typeGuid, VersionGuid = Guid.NewGuid().ToString("D") };
+        var newVersion = new LibraryTypeResultInfo { TypeName = "Motor", TypeGuid = typeGuid, VersionGuid = Guid.NewGuid().ToString("D"),
+            TypeDeleted = typeDeleted, ReplacedInWork = replaced };
+        var effects = new Dictionary<string, LibraryWriteEffect>
+        {
+            ["a"] = Effect(scope: "project") with { Target = null, Type = oldVersion },
+            ["b"] = Effect(scope: "project") with { Library = failedWithOutcome ? null : new() { Scope = "project" }, Target = null, Type = newVersion },
+        };
+        var last = failedWithOutcome ? LibraryWritePayloadContract.Project(later,
+            WorkerCallResult.Fail("worker_operation_failed", "read-back failed") with { LibraryWriteOutcome = new() { Type = newVersion } }) : Succeeded(later);
+        var verification = await new TrustedWriteVerifier<LibraryWriteItem>([first, later], new LibraryVerificationPolicy(effects))
+            .VerifyAsync(StructuredOperationBatch.FromItems([Succeeded(first), last]));
+        return verification.Operations[0].Check;
+    }
+
+    [Theory]
+    [InlineData("global", "superseded")]
+    [InlineData("project", "trusted")]
+    public async Task Instantiate_GlobalSource_SupersedesEarlierProjectLibraryItems(string sourceScope, string expected)
+    {
+        var typeGuid = Guid.NewGuid().ToString("D");
+        var delete = new LibraryWriteItem { OperationId = "a", Operation = "delete_type_version", Scope = "project", TypeGuid = typeGuid, InWork = true };
+        var instantiate = new LibraryWriteItem { OperationId = "b", Operation = "instantiate_type_version", SourceScope = sourceScope,
+            TypeGuid = typeGuid, PlcName = "PLC" };
+        var effect = Effect(scope: "project") with { Target = null, Type = new() { TypeGuid = typeGuid, TypeName = "Motor", VersionGuid = Guid.NewGuid().ToString("D") } };
+        Assert.Equal(new[] { expected, "trusted" }, await Verify((delete, effect), (instantiate, effect)));
+    }
+
+    [Fact]
+    public async Task Verification_KeysFromResolvedIdentity()
+    {
+        var a = new LibraryWriteItem { OperationId = "a", Operation = "set_default_type_version", Scope = "project", TypeName = "Alias" };
+        var b = new LibraryWriteItem { OperationId = "b", Operation = "delete_type", Scope = "project", TypeGuid = Guid.NewGuid().ToString() };
+        var effect = Effect(scope: "project") with { Target = null, Type = new() { TypeGuid = b.TypeGuid, TypeName = "Actual" } };
+        Assert.Equal(new[] { "superseded", "trusted" }, await Verify((a, effect), (b, effect)));
+    }
+
+    [Fact]
+    public async Task Verification_AttemptedWithoutOutcome_SupersedesLibrary()
+    {
+        var a = Item("a"); a.LibraryName = "Fixture";
+        var b = Item("b"); b.LibraryName = "Fixture";
+        var verification = await new TrustedWriteVerifier<LibraryWriteItem>([a, b],
+            new LibraryVerificationPolicy(new Dictionary<string, LibraryWriteEffect> { ["a"] = Effect() }))
+            .VerifyAsync(StructuredOperationBatch.FromItems([Succeeded(a),
+                LibraryWritePayloadContract.Project(b, WorkerCallResult.Fail("worker_operation_failed", "failed"))]));
+        Assert.Equal("superseded", Assert.Single(verification.Operations).Check);
+    }
+
+    [Theory]
+    [InlineData("worker_operation_failed", false, "superseded", "superseded")]
+    [InlineData("target_ambiguous", false, "trusted", "trusted")]
+    [InlineData("worker_operation_failed", true, "superseded", "trusted")]
+    public async Task OutcomeFreeFailure_NameAliasCoversEveryPlausibleLibrary(string category, bool exactPath, string firstCheck, string secondCheck)
+    {
+        var first = Item("a"); first.LibraryPath = @"C:\One\Fixture.al21"; first.LibraryName = null;
+        var second = Item("b"); second.LibraryPath = @"C:\Two\Fixture.al21"; second.LibraryName = null;
+        var later = Item("c"); later.LibraryName = exactPath ? null : "Fixture";
+        later.LibraryPath = exactPath ? first.LibraryPath : null;
+        var items = new[] { first, second, later };
+        var effects = new Dictionary<string, LibraryWriteEffect> { ["a"] = Effect(path: first.LibraryPath), ["b"] = Effect(path: second.LibraryPath) };
+        var result = await new TrustedWriteVerifier<LibraryWriteItem>(items, new LibraryVerificationPolicy(effects, items))
+            .VerifyAsync(StructuredOperationBatch.FromItems([Succeeded(first), Succeeded(second),
+                LibraryWritePayloadContract.Project(later, WorkerCallResult.Fail(category, "uncertain request"))]));
+        Assert.Equal(new[] { firstCheck, secondCheck }, result.Operations.Select(x => x.Check));
+    }
     [Fact]
     public async Task CanonicalLibraryIdentityUnifiesNameAndPathAliases()
     {

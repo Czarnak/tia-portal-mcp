@@ -9,6 +9,25 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryWriteBudgetTests
 {
+    [Fact]
+    public void Budget_GuardCountIncludesNewGuard()
+    {
+        var items = new[] { new LibraryWriteItem { OperationId = "a", Operation = "create_type" } };
+        var budget = new GuardedWriteResponseBudget("library_read", "guidance", "diagnostics");
+        var expected = budget.MeasureProtectedCore(items.Select(i => (i.OperationId, i.Operation)).ToArray(), LibraryGuardDefinitions.Definitions.Count, 3, true,
+            core => new LibraryGuardedWriteResponse("library_write", LibraryWriteContractVersion.Current, WritePhases.Applied, false,
+                core.Error, core.Warnings, core.Guards, items.Select(i => new LibraryWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(),
+                core.Batch, new(false, [], core.Omission), core.Omission));
+        Assert.True(LibraryWritePayloadBudget.MeasureProtectedCore(items) >= expected);
+    }
+
+    [Fact]
+    public void OversizedTypeContent_ValidationError()
+    {
+        var item = new LibraryWriteItem { OperationId = "a", Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor",
+            Content = new string('x', StructuredOperationBatchPayloadBudget.MaxItemChars + 1), ExpectedContentHash = "xml:sha256:" + new string('a', 64) };
+        Assert.False(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+    }
     [Theory]
     [InlineData(1000, 20000)]
     [InlineData(20000, 2000)]

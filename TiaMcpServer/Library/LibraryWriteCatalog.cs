@@ -18,6 +18,8 @@ public static class LibraryWriteCatalog
             if (OperationBatchRules.CheckItem(item, ids) is { } itemError) { errors.Add(itemError); continue; }
             if (LibraryWriteMethods.Validate(ToWorkerRequest(item)) is { } error)
                 errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): {error}");
+            if (item.Content?.Length > StructuredOperationBatchPayloadBudget.MaxItemChars)
+                errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): content exceeds the configured item character budget.");
         }
         return errors.Count == 0 ? OperationValidation.Valid
             : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
@@ -38,5 +40,8 @@ public static class LibraryWriteCatalog
         SourceFolderPath = item.SourceFolderPath, Directory = item.Directory, FilePath = item.FilePath,
         OpenMode = item.OpenMode, CloseAction = item.CloseAction, PlcName = item.PlcName, PlcKind = item.PlcKind,
         PlcFolderPath = item.PlcFolderPath, PlcObjectName = item.PlcObjectName,
+        TypeName = item.TypeName, TypeGuid = item.TypeGuid, VersionNumber = item.VersionNumber,
+        VersionGuid = item.VersionGuid, InWork = item.InWork, Author = item.Author, Comment = item.Comment,
+        Content = item.Content, ExpectedContentHash = item.ExpectedContentHash, ReplaceInWork = item.ReplaceInWork,
     };
 }

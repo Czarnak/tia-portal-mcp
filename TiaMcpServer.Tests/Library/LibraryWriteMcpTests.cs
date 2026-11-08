@@ -13,6 +13,122 @@ namespace TiaMcpServer.Tests.Library;
 [Collection("Mcp protocol serial")]
 public sealed class LibraryWriteMcpTests
 {
+    [Fact]
+    public async Task Mcp_CreateTypeThenRelease_OneCall_TwoItemsApplied()
+    {
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.Full);
+        var release = TypeOperation("release_type_version");
+        release["typeName"] = "CreatedType";
+
+        var reply = await CallAsync(fixture, TypeOperation("create_type"), release);
+
+        AssertApplied(reply, "create_type", "release_type_version");
+        Assert.Equal(new[] { "library_project_create_type", "library_project_release_type_version" }, fixture.Mutations());
+        Assert.DoesNotContain("library_project_plan", fixture.Requests.Methods());
+        var items = Document(reply).GetProperty("batch").GetProperty("operations");
+        Assert.Equal("CreatedType", items[0].GetProperty("result").GetProperty("type").GetProperty("typeName").GetString());
+        var released = items[1].GetProperty("result").GetProperty("type");
+        Assert.Equal("CreatedType", released.GetProperty("typeName").GetString());
+        Assert.Equal("1.0.0", released.GetProperty("versionNumber").GetString());
+        Assert.Equal("Committed", released.GetProperty("versionState").GetString());
+        AssertAudit(fixture, reply, "policy", "not_requested", "succeeded", "succeeded");
+    }
+
+    [Theory]
+    [InlineData("create_type")]
+    [InlineData("create_type_version")]
+    [InlineData("release_type_version")]
+    [InlineData("set_default_type_version")]
+    [InlineData("synchronize_type")]
+    [InlineData("instantiate_type_version")]
+    [InlineData("delete_type")]
+    [InlineData("delete_type_version")]
+    public async Task Mcp_TypeOperations_NeverPrompt_ReadWrite(string operation)
+    {
+        var prompts = new List<string>();
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite, Options(prompts, "decline"));
+
+        var reply = await CallAsync(fixture, TypeOperation(operation));
+
+        AssertApplied(reply, operation);
+        Assert.Empty(prompts);
+        Assert.Equal(new[] { "library_project_" + operation }, fixture.Mutations());
+        Assert.DoesNotContain("library_project_plan", fixture.Requests.Methods());
+        Assert.True(Document(reply).GetProperty("batch").GetProperty("operations")[0].GetProperty("result").TryGetProperty("type", out _));
+        AssertAudit(fixture, reply, "none", "not_requested", "succeeded");
+    }
+
+    [Fact]
+    public async Task Mcp_DryRun_ShowsCreatedByItem()
+    {
+        var prompts = new List<string>();
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite, Options(prompts));
+        var release = TypeOperation("release_type_version");
+        release["typeName"] = "CreatedType";
+
+        var reply = await fixture.Harness.Client.CallToolAsync("library_write", new Dictionary<string, object?>
+        {
+            ["operations"] = new[] { TypeOperation("create_type"), release }, ["dryRun"] = true
+        });
+
+        var root = Document(reply);
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal("preview", root.GetProperty("phase").GetString());
+        var effects = root.GetProperty("effects");
+        Assert.Equal(2, effects.GetArrayLength());
+        Assert.False(effects[0].GetProperty("effect").TryGetProperty("createdByItem", out _));
+        Assert.Equal(1, effects[1].GetProperty("effect").GetProperty("createdByItem").GetInt32());
+        Assert.Empty(prompts);
+        Assert.Empty(fixture.Mutations());
+        Assert.Equal(new[] { "library_project_plan", "library_project_plan" },
+            fixture.Requests.Methods().Where(method => method.StartsWith("library_", StringComparison.Ordinal)));
+        AssertAudit(fixture, reply, "none", "not_requested", "skipped", "skipped");
+
+        AssertAttemptedFailure(await CallAsync(fixture, release), "target_not_found");
+    }
+
+    [Fact]
+    public async Task Mcp_CreateTypeVersion_StaleHash_StateChanged()
+    {
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite);
+        var item = TypeOperation("create_type_version");
+        item["expectedContentHash"] = ContentHashRules.Compute("xml", "<Stale />");
+
+        var reply = await CallAsync(fixture, item, Folder());
+
+        var failure = AssertAttemptedFailure(reply, "state_changed");
+        Assert.Equal(JsonValueKind.Null, failure.GetProperty("result").ValueKind);
+        Assert.Equal(new[] { "library_project_create_type_version" }, fixture.Mutations());
+        Assert.Equal("skipped", Document(reply).GetProperty("batch").GetProperty("operations")[1].GetProperty("status").GetString());
+        AssertAudit(fixture, reply, "none", "not_requested", "failed", "skipped");
+    }
+
+    [Fact]
+    public async Task Mcp_ApplyResponse_HasNoEffects()
+    {
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.Full);
+
+        var reply = await CallAsync(fixture, TypeOperation("create_type"));
+
+        AssertApplied(reply, "create_type");
+        Assert.Empty(Document(reply).GetProperty("effects").EnumerateArray());
+        Assert.DoesNotContain("library_project_plan", fixture.Requests.Methods());
+    }
+
+    [Fact]
+    public async Task Mcp_ToolDescription_ListsTwentyOperations()
+    {
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite);
+        var tool = Assert.Single(await fixture.Harness.Client.ListToolsAsync(), tool => tool.Name == "library_write");
+        var description = tool.Description!;
+        var operations = description[(description.IndexOf("writes: ", StringComparison.Ordinal) + "writes: ".Length)..]
+            .Split(". Every", StringSplitOptions.None)[0].Split(", ", StringSplitOptions.None);
+
+        Assert.Equal(20, operations.Length);
+        Assert.Equal(LibraryWriteMethods.Operations, operations);
+        Assert.DoesNotContain("edit_type_version", description);
+    }
+
     [Theory]
     [InlineData("create_global")]
     [InlineData("open_global")]
@@ -154,17 +270,18 @@ public sealed class LibraryWriteMcpTests
     }
 
     [Fact]
-    public async Task MasterCopyExists_Blocked()
+    public async Task Apply_MasterCopyCollisionAfterEarlierItems_StopsWithGuardBlocked()
     {
         await using var fixture = await Fixture.StartAsync(McpAccessMode.Full);
 
-        var reply = await CallAsync(fixture, Copy("Taken"));
+        var reply = await CallAsync(fixture, Folder(), Copy("Taken"), Lifecycle("save_global"));
 
-        AssertRejected(reply, "guard_blocked", "blocked");
-        var guard = Assert.Single(CanonicalToolDocument.Read(reply).GetProperty("guards").EnumerateArray());
-        Assert.Equal("library_master_copy_exists", guard.GetProperty("id").GetString());
-        Assert.Empty(fixture.Mutations());
-        AssertAudit(fixture, reply, "none", "not_requested", "skipped");
+        var root = Document(reply);
+        Assert.False(reply.IsError);
+        Assert.Equal("guard_blocked", root.GetProperty("batch").GetProperty("operations")[1].GetProperty("failure").GetProperty("category").GetString());
+        Assert.Empty(root.GetProperty("effects").EnumerateArray());
+        Assert.Equal(new[] { "library_global_create_folder", "library_global_copy_master_copy" }, fixture.Mutations());
+        AssertAudit(fixture, reply, "policy", "not_requested", "succeeded", "failed", "skipped");
     }
 
     [Fact]
@@ -176,9 +293,9 @@ public sealed class LibraryWriteMcpTests
 
         var reply = await CallAsync(fixture, item);
 
-        AssertRejected(reply, "target_not_found", "error");
-        Assert.Empty(fixture.Mutations());
-        AssertAudit(fixture, reply, "none", "not_requested", "skipped");
+        AssertAttemptedFailure(reply, "target_not_found");
+        Assert.Equal(new[] { "library_global_create_folder" }, fixture.Mutations());
+        AssertAudit(fixture, reply, "policy", "not_requested", "failed");
     }
 
     [Fact]
@@ -229,6 +346,29 @@ public sealed class LibraryWriteMcpTests
         var next = await CallAsync(fixture, Folder());
         AssertRejected(next, "binding_conflict", "error");
         Assert.Equal(methods, fixture.Requests.Methods());
+    }
+
+    private static Dictionary<string, object?> TypeOperation(string operation)
+    {
+        var item = new Dictionary<string, object?> { ["operationId"] = operation, ["operation"] = operation };
+        if (operation is "create_type" or "create_type_version")
+        {
+            item["plcName"] = "PLC";
+            item["plcKind"] = "block";
+            item["plcObjectName"] = operation == "create_type" ? "CreatedType" : "FixtureType";
+            if (operation == "create_type_version")
+            {
+                item["content"] = "<Document />";
+                item["expectedContentHash"] = ContentHashRules.Compute("xml", "<Document />");
+            }
+            return item;
+        }
+        item["typeName"] = "FixtureType";
+        if (operation is "synchronize_type" or "instantiate_type_version") item["sourceScope"] = "project";
+        if (operation != "instantiate_type_version") item["scope"] = "project";
+        if (operation == "instantiate_type_version") item["plcName"] = "PLC";
+        if (operation is "release_type_version" or "set_default_type_version" or "delete_type_version") item["versionNumber"] = "1.0.0";
+        return item;
     }
 
     private static Dictionary<string, object?> Folder() => new()

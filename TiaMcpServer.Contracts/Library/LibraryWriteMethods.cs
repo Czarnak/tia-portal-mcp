@@ -1,3 +1,5 @@
+using TiaMcpServer.Contracts.Shared;
+
 namespace TiaMcpServer.Contracts.Library;
 
 /// <summary>Reachable worker methods and closed selectors for library_write.</summary>
@@ -10,13 +12,19 @@ public static class LibraryWriteMethods
     public static string[] LifecycleOperations { get; } =
         { "create_global", "open_global", "retrieve_global", "save_global", "close_global", "archive_global" };
 
+    public static string[] TypeOperations { get; } =
+    {
+        "create_type", "create_type_version", "release_type_version", "set_default_type_version",
+        "synchronize_type", "instantiate_type_version", "delete_type", "delete_type_version"
+    };
+
     public static string[] Operations { get; } = LifecycleOperations.Concat(new[]
     {
         "create_folder", "delete_folder", "create_master_copy", "copy_master_copy", "instantiate_master_copy", "delete_master_copy"
-    }).ToArray();
+    }).Concat(TypeOperations).ToArray();
 
     public static string[] GlobalLibraryWrites { get; } = Operations
-        .Where(operation => operation is not ("create_master_copy" or "instantiate_master_copy"))
+        .Where(operation => !AlwaysTouchesProject(operation))
         .Select(operation => "library_global_" + operation).ToArray();
 
     public static string[] ProjectLibraryWrites { get; } = Operations.Skip(LifecycleOperations.Length)
@@ -27,7 +35,11 @@ public static class LibraryWriteMethods
 
     public static bool TouchesProject(LibraryWriteRequestInfo item)
         => item.Scope == "project" || item.SourceScope == "project"
-            || item.Operation is "create_master_copy" or "instantiate_master_copy";
+            || AlwaysTouchesProject(item.Operation);
+
+    private static bool AlwaysTouchesProject(string operation)
+        => operation is "create_master_copy" or "instantiate_master_copy" or "create_type"
+            or "create_type_version" or "release_type_version" or "instantiate_type_version";
 
     public static string ForItem(LibraryWriteRequestInfo item)
         => "library_" + (TouchesProject(item) ? "project" : "global") + "_" + item.Operation;
@@ -53,6 +65,14 @@ public static class LibraryWriteMethods
             "copy_master_copy" => "scope libraryPath libraryName folderPath sourceScope sourceLibraryPath sourceLibraryName sourceFolderPath name",
             "instantiate_master_copy" => "scope libraryPath libraryName folderPath name plcName plcKind plcFolderPath",
             "delete_master_copy" => "scope libraryPath libraryName folderPath name",
+            "create_type" => "plcName plcKind plcObjectName plcFolderPath folderPath",
+            "create_type_version" => "plcName plcKind plcObjectName content expectedContentHash plcFolderPath replaceInWork",
+            "release_type_version" => "scope typeName typeGuid folderPath versionNumber author comment",
+            "set_default_type_version" => "scope libraryPath libraryName typeName typeGuid folderPath versionNumber versionGuid",
+            "synchronize_type" => "sourceScope sourceLibraryPath sourceLibraryName scope libraryPath libraryName typeName typeGuid folderPath",
+            "instantiate_type_version" => "sourceScope sourceLibraryPath sourceLibraryName typeName typeGuid folderPath versionNumber versionGuid inWork plcName plcFolderPath",
+            "delete_type" => "scope libraryPath libraryName typeName typeGuid folderPath",
+            "delete_type_version" => "scope libraryPath libraryName typeName typeGuid folderPath versionNumber versionGuid inWork",
             _ => null
         };
         if (allowed is null) return "Unknown library write operation.";
@@ -65,7 +85,11 @@ public static class LibraryWriteMethods
             ("sourceLibraryName", item.SourceLibraryName), ("sourceFolderPath", item.SourceFolderPath),
             ("directory", item.Directory), ("filePath", item.FilePath), ("openMode", item.OpenMode),
             ("closeAction", item.CloseAction), ("plcName", item.PlcName), ("plcKind", item.PlcKind),
-            ("plcFolderPath", item.PlcFolderPath), ("plcObjectName", item.PlcObjectName)
+            ("plcFolderPath", item.PlcFolderPath), ("plcObjectName", item.PlcObjectName),
+            ("typeName", item.TypeName), ("typeGuid", item.TypeGuid),
+            ("versionNumber", item.VersionNumber), ("versionGuid", item.VersionGuid), ("inWork", item.InWork),
+            ("author", item.Author), ("comment", item.Comment), ("content", item.Content),
+            ("expectedContentHash", item.ExpectedContentHash), ("replaceInWork", item.ReplaceInWork)
         })
             if (member.Value is not null && !members.Contains(member.Name, StringComparer.Ordinal))
                 return $"{member.Name} is not valid for {item.Operation}.";
@@ -73,12 +97,29 @@ public static class LibraryWriteMethods
         if (members.Contains("scope"))
         {
             if (LifecycleOperations.Contains(item.Operation) && item.Scope != "global") return "scope must be global.";
+            if (item.Operation == "release_type_version" && item.Scope != "project") return "scope must be project.";
             if (LibrarySelectorRules.Check(item.Scope, item.LibraryPath, item.LibraryName, item.FolderPath, "") is { } error)
                 return error;
         }
-        if (item.Operation == "copy_master_copy"
+        if (members.Contains("sourceScope")
             && LibrarySelectorRules.Check(item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName, item.SourceFolderPath, "source") is { } sourceError)
             return sourceError;
+        if (TypeOperations.Contains(item.Operation) && item.Operation is not ("create_type" or "create_type_version"))
+        {
+            if (LibrarySelectorRules.CheckType(item.TypeName, item.TypeGuid, item.FolderPath) is { } typeError) return typeError;
+            // set_default_type_version names the exact version to make default; the others fall back to the default version.
+            if (LibrarySelectorRules.CheckVersion(item.VersionNumber, item.VersionGuid, item.InWork,
+                item.Operation == "set_default_type_version") is { } versionError) return versionError;
+        }
+        if (item.Operation == "create_type"
+            && (item.FolderPath is { Count: > 32 } || item.FolderPath?.Any(string.IsNullOrWhiteSpace) == true))
+            return "folderPath must contain at most 32 nonblank exact name segments.";
+        if (item.Operation == "create_type_version")
+        {
+            if (string.IsNullOrWhiteSpace(item.Content)) return "content must be nonblank SimaticML XML.";
+            if (!ContentHashRules.TryParse(item.ExpectedContentHash, out var format, out _) || format != "xml")
+                return "expectedContentHash must be an xml:sha256 content hash from plc_read.";
+        }
         if (members.Contains("name") && string.IsNullOrWhiteSpace(item.Name)) return "name must be nonblank.";
         if (members.Contains("directory") && !LibraryReadMethods.IsAbsolutePath(item.Directory)) return "directory must be absolute.";
         if (members.Contains("filePath"))
@@ -96,12 +137,17 @@ public static class LibraryWriteMethods
             if (string.IsNullOrWhiteSpace(item.PlcName)) return "plcName must be nonblank.";
             if (item.PlcFolderPath is { Count: > 32 } || item.PlcFolderPath?.Any(string.IsNullOrWhiteSpace) == true)
                 return "plcFolderPath must contain at most 32 nonblank name segments.";
-            if (item.Operation == "create_master_copy")
+            if (item.Operation is "create_type" or "create_type_version")
+            {
+                if (item.PlcKind is not ("block" or "plcType")) return "plcKind must be block or plcType.";
+                if (string.IsNullOrWhiteSpace(item.PlcObjectName)) return "plcObjectName must be nonblank.";
+            }
+            else if (item.Operation == "create_master_copy")
             {
                 if (item.PlcKind is not ("block" or "plcType" or "tagTable")) return "plcKind must be block, plcType or tagTable.";
                 if (string.IsNullOrWhiteSpace(item.PlcObjectName)) return "plcObjectName must be nonblank.";
             }
-            else if (item.PlcKind is not ("blockGroup" or "typeGroup" or "tagTableGroup"))
+            else if (item.Operation != "instantiate_type_version" && item.PlcKind is not ("blockGroup" or "typeGroup" or "tagTableGroup"))
                 return "plcKind must be blockGroup, typeGroup or tagTableGroup.";
         }
         return null;

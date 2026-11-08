@@ -8,6 +8,37 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryWriteContractDecodeTests
 {
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("unknown")]
+    [InlineData("case")]
+    [InlineData("nullEntry")]
+    public void Decode_TypeOutcome_RawEnvelopeRejectsMalformedNestedEvidence(string defect)
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(WorkerJson.SerializePayload(new LibraryWriteOutcomeInfo { Type = new() }))!;
+        var type = node["type"]!.AsObject();
+        if (defect == "missing") type.Remove("versionGuid");
+        if (defect == "unknown") type["unexpected"] = true;
+        if (defect == "case") { type["VersionGuid"] = type["versionGuid"]?.DeepClone(); type.Remove("versionGuid"); }
+        if (defect == "nullEntry") type["instancePaths"] = new System.Text.Json.Nodes.JsonArray((System.Text.Json.Nodes.JsonNode?)null);
+        using var envelope = System.Text.Json.JsonDocument.Parse("{\"libraryWriteOutcome\":" + node.ToJsonString() + "}");
+        Assert.Throws<System.Text.Json.JsonException>(() => LibraryWritePayloadContract.ValidateEnvelopeOutcome(envelope.RootElement));
+    }
+    [Theory]
+    [InlineData("nullEntry")]
+    [InlineData("nullName")]
+    [InlineData("nullGuid")]
+    public void Decode_TypeOutcome_Malformed_ProtocolError(string defect)
+    {
+        var type = new LibraryTypeResultInfo();
+        if (defect == "nullEntry") type.InstancePaths = [null!];
+        if (defect == "nullName") type.TypeName = null!;
+        if (defect == "nullGuid") type.TypeGuid = null!;
+        var result = LibraryWritePayloadContract.Project(Item, WorkerCallResult.Fail("worker_operation_failed", "failed") with
+        { LibraryWriteOutcome = new() { Type = type } });
+        Assert.Equal("protocol_error", result.Failure!.Category);
+        Assert.Null(result.Result);
+    }
     private static readonly LibraryWriteItem Item = new() { OperationId = "a", Operation = "close_global" };
 
     [Fact]

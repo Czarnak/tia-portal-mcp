@@ -1,6 +1,7 @@
 # ADR-0016: library_write ships in stages, prompts only for global-library lifecycle, and draws no ownership line
 
 **Status:** Accepted
+**Superseded in part by:** [ADR-0017](0017-library-writes-apply-without-planning.md) for intra-call dependencies and conditional planning; lifecycle confirmation, capabilities and ownership remain in force.
 **Decided:** 2026-11-06   **Recorded:** 2026-11-07
 **Area:** library
 **Supersedes:** none. It settles the Portal-identity consequence recorded in [ADR-0015](0015-portal-scope-reads-under-binding-gate.md); the other ADR-0015 decisions remain in force.

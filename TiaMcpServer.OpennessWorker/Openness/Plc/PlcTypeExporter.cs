@@ -35,6 +35,11 @@ internal static class PlcTypeExporter
                 $"No PLC data type was found at '{address.ToDisplayPath()}'.");
         }
 
+        return Export(target, format, withDependencies);
+    }
+
+    internal static string Export(ResolvedTypeTarget target, string format, bool withDependencies = false)
+    {
         var tempDirectory = Path.Combine(
             Path.GetTempPath(), "tia-mcp-type-export-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDirectory);
