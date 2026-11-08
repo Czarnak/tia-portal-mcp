@@ -179,6 +179,11 @@ saves, downloads, or controls a PLC.
 
 `create_block` accepts `FB`, `FC`, `OB`, or `GlobalDB`. Applicable block types support `LAD`, `FBD`, `STL`, `SCL`, and `GRAPH`. `GRAPH` is not supported for `OB`. `STL` FB, FC and OB creation works.
 
+GlobalDB creation leaves the memory layout to Portal's destination default. The generated XML
+omits the writable MemoryLayout assignment, allowing the same document in PLC-root and
+software-unit block folders; software units require optimized access.
+See the [scoped V21 qualification](../superpowers/acceptance/reports/2026-11-08-globaldb-software-units-live-verification.md).
+
 OB creation takes `obEventClass`, a closed set of 15 names, omitted meaning `ProgramCycle`:
 `ProgramCycle`, `Startup`, `TimeOfDay`, `TimeDelayInterrupt`, `CyclicInterrupt`,
 `HardwareInterrupt`, `Status`, `Update`, `Profile`, `TimeErrorInterrupt`, `DiagnosticErrorInterrupt`,
