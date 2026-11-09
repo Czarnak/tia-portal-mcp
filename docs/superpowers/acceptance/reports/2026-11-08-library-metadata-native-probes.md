@@ -3,8 +3,9 @@
 **Verdict:** A1-A4 have been observed across two disposable headless Portal sessions. Metadata reads,
 explicit author creation and multiline author round trips work on this installation. **A 10,000-character
 author crashes Portal**, contradicting the proposed creation-author validation in design section 7.3.
-The owner retained author creation in PR A and explicitly blocked implementation until a safe
-author-length rule is verified and agreed. This is native planning evidence, not MCP feature acceptance.
+The owner subsequently approved an admission cap of 255 UTF-16 code units after reporting
+a 255-character TIA UI limit; the Task 1 decision gate is resolved (see followup below). This is native
+planning evidence and an owner-approved admission decision, not MCP feature acceptance.
 
 ## Provenance and scope
 
@@ -36,7 +37,7 @@ author-length rule is verified and agreed. This is native planning evidence, not
 | A1 | `IEngineeringComposition.Create(typeof(UserGlobalLibrary), {Name, TargetDirectory, Author})`, without `Comment`, returned `UserGlobalLibrary`. `Metadata probe author` read back exactly (21 characters), in both runs. | Use `typeof(UserGlobalLibrary)`. The `GlobalLibrary` fallback was unnecessary and was not tested; do not add a production fallback/retry. |
 | A2 | Typed `Create<UserGlobalLibrary>(directory, name)` returned an author of `""` in both runs. | Preserve the existing omitted-author path. Describe this observed default as empty, not the Windows user; do not promise the same default on every installation. |
 | A3 | All 20 property/collection reads succeeded on the fresh user library, its saved/read-only reopen, and installed system library `Buttons-and-Switches`, in both runs. No unavailable member or native null was observed. | The proposed metadata shape works on these samples. Keep null/diagnostic handling for other libraries and failures; these runs do not exercise it. |
-| A4, long | Creating with 10,000 `A` characters threw `Siemens.Engineering.NonRecoverableException` in run 1. The Portal diagnostic at 18:23:40 UTC records `Reason=Openness`, inner `Siemens.Automation.ProjectManager.CallingContractViolationException`, `Author is too long`, and `ProjectCreator.ValidateParameters` in the stack. No `A4_long` directory existed in the work directory afterwards. | **Contradiction/blocker:** this input is below default `MaxItemChars` but causes fatal loss, not ordinary native rejection. No safe maximum is established by this probe. The fatal input was not repeated. |
+| A4, long | Creating with 10,000 `A` characters threw `Siemens.Engineering.NonRecoverableException` in run 1. The Portal diagnostic at 18:23:40 UTC records `Reason=Openness`, inner `Siemens.Automation.ProjectManager.CallingContractViolationException`, `Author is too long`, and `ProjectCreator.ValidateParameters` in the stack. No `A4_long` directory existed in the work directory afterwards. | **Original contradiction:** this input is below default `MaxItemChars` but causes fatal loss, not ordinary native rejection. No safe maximum is established by this probe. Run 2 excluded the fatal input; the separately authorized attached repeat is recorded below. |
 | A4, multiline | Run 2 created a library with `First line\nSecond line\r\nThird line`; returned length 34 and ordinal equality true. | Preserve accepted text exactly. This sample does not justify rejecting or normalizing line breaks. |
 
 ## A3 metadata detail
@@ -60,12 +61,37 @@ library size, so size is an observation, not an invariant. Empty strings and emp
 empty strings/items in the metadata result. A system library being read-only does not imply its
 `IsWriteProtected` property is true.
 
-## Design ruling and limits
+## Owner resolution and attached-repeat followup (2026-11-09)
 
-The owner chose: **keep author creation; block PR A implementation until a safe author-length rule is
-verified and agreed.** The implementation plan starts with that gate. `MaxItemChars` remains a response/
-request budget; it is insufficient as the only native author-length protection. Do not invent a safe cap
-from the successful 21- and 34-character samples or binary-search towards another crash.
+The owner reports testing the TIA UI directly: a creation author of at most 255 characters is accepted;
+longer input shows an error. The owner approved host fail-fast validation and explicitly said no
+additional cap probe is needed. The agreed creation-author admission rule is nonblank and at most 255
+UTF-16 code units (`string.Length`), with exact text preservation and the effective item budget as an
+additional constraint. The owner's latest instruction also caps release authors now with the same rule:
+a reusable length helper in `TiaMcpServer.Contracts/Shared` is to serve `LibraryWriteMethods` validation
+for `create_global` and `release_type_version`, on host before worker dispatch and worker before native
+calls, with a `validation_error` naming author, maximum and actual length without echoing text. Release
+text/blank handling otherwise stays unchanged. This is owner evidence/approval,
+not a Siemens-documented or independently probed native maximum or Unicode-counting rule.
+
+The owner also authorized and observed one repeat attached to the already-open Portal on 2026-11-09.
+Retained [native events](inputs/2026-11-09-library-metadata-attached-author-10000.jsonl.gz) record one
+direct creation call at 00:29:41.9517024 UTC with 10,000 ASCII `A` characters and no `Comment`, followed
+by `NonRecoverableException` at 00:29:48.6690040 UTC. An external monitor held original process handles;
+its [derived process-exit summary](inputs/2026-11-09-library-metadata-attached-author-10000-process-exits.json)
+records the original Portal PID 42364 exiting -1 at 00:29:48.5902130 UTC and child PID 32520 exiting -1
+at 00:29:51.7538365 UTC, both before helper detach began at 00:29:58.6851946 UTC. The helper returned 2;
+the retained local result states neither helper nor monitor killed these processes. This establishes
+termination in that attached run, not its internal mechanism or the original headless run's process
+state. It does not qualify the owner's UI boundary or Unicode counting. The monitor is process evidence,
+not a native-call trace; the summary is derived from 176 local monitor records and the native events.
+
+The local result reports no remaining test-library directory and no project save, restart, reopen or
+retry. Native events redact private project/profile/work paths; the process summary includes source
+hashes and no private paths. Existing probe sources still exclude the fatal case. No further live test
+was performed for this decision correction; do not repeat the fatal input or search towards another crash.
+
+## Remaining limits
 
 No PR B transaction, comment setter or language setter was tested. No library with unavailable properties,
 null language settings, oversized comments, more than 100 products or more than 50 history entries was

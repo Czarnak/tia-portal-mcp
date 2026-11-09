@@ -131,7 +131,7 @@ documented behaviour are kept under `docs/superpowers/acceptance/reports/inputs/
 
 A probe result that contradicts this design stops the PR and comes back to the owner.
 
-### 6.1 PR A findings and owner gate (2026-11-08)
+### 6.1 PR A findings and owner resolution (2026-11-09)
 
 [A1-A4 report](../acceptance/reports/2026-11-08-library-metadata-native-probes.md): explicit-author
 creation succeeded with `typeof(UserGlobalLibrary)`; the typed omitted-author path returned an empty
@@ -139,13 +139,23 @@ author on this installation. All metadata reads succeeded on fresh, read-only an
 library. The LF/CRLF author round-tripped exactly.
 
 **Contradiction:** a 10,000-character author caused `NonRecoverableException` and a Portal crash report
-with `CallingContractViolationException` / `Author is too long`. Section 7.3's `MaxItemChars`-only rule is
-therefore insufficient; the safe native maximum is not established. Do not treat this as a recoverable
-native refusal, repeat the fatal input or infer a safe cap from the successful short samples.
+with `CallingContractViolationException` / `Author is too long`. The original `MaxItemChars`-only rule was
+therefore insufficient. In a separately authorized attached repeat on 2026-11-09, the original Portal
+and child processes both exited with code -1 before helper detach; see the report's followup. Do not
+treat this as a recoverable native refusal or repeat the fatal input.
 
-**Owner ruling:** keep author creation in PR A, but block implementation until a safe author-length rule
-is verified and agreed. The [PR A implementation plan](../plans/2026-11-08-library-metadata-pr-a.md) begins
-with this gate. Section 7.3 remains pending that explicit correction; no replacement limit is approved.
+**Owner resolution:** the owner reports testing the TIA UI directly: it accepts at most 255 author
+characters and shows an error for longer input. The owner approved keeping author creation with host
+fail-fast validation and said no further cap probe is needed. Section 7.3 records the agreed admission
+rule: nonblank, at most 255 UTF-16 code units (`string.Length`), preserving supplied text exactly, with
+the effective item budget as an additional constraint. The owner's later instruction extends the same
+length cap to `release_type_version` now and requires a reusable author metadata validation helper in
+`TiaMcpServer.Contracts/Shared`. `LibraryWriteMethods` calls that helper for both creation and release;
+the host validates before worker dispatch and the worker before native calls. Release text/blank
+handling otherwise stays unchanged. This is owner evidence and approval, not a Siemens-documented or
+independently probed native maximum or Unicode-counting rule.
+The [PR A implementation plan](../plans/2026-11-08-library-metadata-pr-a.md) Task 1 gate is resolved;
+Tasks 2-6 remain implementation and acceptance work.
 
 **Retention:** retain this complete shared spec and the PR A plan through PR A; there is no documentation
 pruning at the end because PR B needs this spec. PR B's design and probes remain unimplemented.
@@ -199,8 +209,23 @@ metadata: {
 ### 7.3 `create_global` with `author`
 
 - New allowed member `author` on `create_global` (the existing `author` field, today release-only, gains a
-  second use; its description names both). Non-blank; at most `MaxItemChars` characters. Other limits are
-  Portal's (probe A4).
+  second use; its description names both). When supplied, it must be nonblank and at most 255 UTF-16
+  code units (`string.Length`), preserving supplied text exactly: no trimming or LF/CRLF normalization.
+  The same length cap also applies to `release_type_version` author now, per the latest owner resolution
+  in section 6.1; its existing text/blank handling otherwise stays unchanged. Do not impose creation's
+  nonblank rule on release beyond its existing validation.
+- Put the common author metadata length validation in a reusable helper in
+  `TiaMcpServer.Contracts/Shared`; shared `LibraryWriteMethods` validation calls it for both
+  `create_global` and `release_type_version`. The host validates before worker dispatch and the worker
+  before native calls. An overlong author fails `validation_error` with a
+  clear message identifying `author`, maximum 255 and the actual length, without echoing author text.
+  The effective `StructuredOperationBatchPayloadBudget.MaxItemChars` budget remains an additional
+  constraint; raising item/document budgets never weakens the 255-code-unit cap.
+- Boundary checks: accept a nonblank author of length 255; reject lengths 256 and 10,000 before worker
+  dispatch, and independently reject them in worker validation. Count a non-BMP character as two UTF-16
+  code units (127 surrogate pairs plus one ASCII character is 255; 128 pairs is 256). Cover both creation
+  and release, including unchanged release text/blank behavior apart from the cap. Test exact LF/CRLF
+  preservation, including the probed 34-code-unit multiline sample, and preserve the omitted-author path.
 - Omitted: today's typed `Create<UserGlobalLibrary>(dir, name)`, unchanged.
 - Present: `IEngineeringComposition.Create(<type from A1>, {Name, TargetDirectory, Author})`. No `Comment`
   parameter (Portal would write it in an undocumented culture). The returned object is taken with an `as`

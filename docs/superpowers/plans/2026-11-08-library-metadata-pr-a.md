@@ -14,9 +14,13 @@ confirmation remain in place. No new tool, operation, transport method or write 
 **Spec:** [2026-11-08-library-metadata-design.md](../specs/2026-11-08-library-metadata-design.md), sections
 3, 5-7, PR A parts of 10-12; [native results](../acceptance/reports/2026-11-08-library-metadata-native-probes.md).
 
-**Status:** Planning complete; **implementation is blocked at Task 1**. The owner retained author
-creation and required a verified, agreed safe author-length rule before implementation. This plan does
-not approve the original `MaxItemChars`-only rule or choose an unverified replacement maximum.
+**Status:** Task 1's decision gate is resolved and committed; Tasks 2-6 remain unchecked. The owner
+reports a 255-character TIA UI maximum and approved host fail-fast validation without another cap probe.
+The agreed creation-author admission rule is nonblank and at most 255 UTF-16 code units (`string.Length`),
+with the effective item budget as an additional constraint. The latest owner instruction also applies
+the length cap to `release_type_version` now through a reusable helper in `TiaMcpServer.Contracts/Shared`,
+without otherwise changing release text/blank handling. This is owner evidence/approval, not a
+Siemens-documented or independently probed native maximum or Unicode-counting rule.
 
 ## Global Constraints
 
@@ -38,7 +42,8 @@ not approve the original `MaxItemChars`-only rule or choose an unverified replac
 ## Review Focus
 
 - A dangerous author must fail before worker/native creation; test the 10,000-character regression and
-  the eventual approved boundary in Task 4. Do not apply creation-only limits to release authors.
+  255-/256-code-unit boundary in Task 4 for creation and release. Share the length cap without extending
+  creation's nonblank requirement to release beyond its existing validation.
 - Omitted/false metadata must not trigger native metadata getters or expand global inventory reads;
   test this in Task 3, including explicit false on other operations.
 - A recoverable getter failure must preserve the rest of the metadata; security/disposal/fatal failures
@@ -58,23 +63,34 @@ not approve the original `MaxItemChars`-only rule or choose an unverified replac
 - [x] Record the long-author crash, exclude it from reruns, and bring the contradiction to the owner.
 - [x] Record the owner's decision to keep author creation behind the Task 1 gate.
 
-### Task 1: Resolve the author-length blocker before implementation
+### Task 1: Resolve the author-length blocker before implementation (completed)
 
-**Files:** update section 7.3 of the shared spec, this task, and the native report/evidence index if new
-qualification is performed. This is a decision/qualification task, not a production-code task.
+**Files:** update sections 6.1/7.3 of the shared spec, this task, and the native report/evidence index for
+the previously authorized attached repeat. This is a decision/evidence task, not a production-code task.
 
-**Consumes:** A4's fatal 10,000-character input and the successful 21-/34-character samples.
+**Consumes:** A4's fatal 10,000-character input, the successful 21-/34-character samples, the owner's
+reported 255-character UI maximum and approval, and the retained attached-repeat evidence.
 **Produces:** an exact, evidenced creation-author admission rule approved by the owner, including how
 length is counted and where the host and worker enforce it.
 
-- [ ] Establish the safe rule from authoritative Siemens information or a separately reviewed qualification
-  procedure on isolated disposable sessions. Do not repeat the known fatal input or assume an arbitrary
-  smaller value is a verified maximum. The exact safe boundary remains unknown.
-- [ ] Ask the owner to approve that concrete rule, then update section 7.3 and this plan with its exact
-  value and boundary cases. Keep the effective item budget as an additional cap; preserve accepted text,
-  including the probed LF/CRLF sample. Preserve the existing omitted-author path.
-- [ ] Commit the agreed design correction. Only then unblock Tasks 2-6. If the rule cannot be established,
-  leave PR A blocked; do not silently drop author creation or ship the original validation.
+- [x] Record the owner's direct TIA UI test: maximum accepted author is 255 characters; longer input
+  shows an error. The owner explicitly approved host fail-fast validation and no further cap probe.
+  This supersedes the pending request for a rule/approval; it is not independent native qualification.
+- [x] Correct sections 6.1/7.3 with the exact creation admission rule: nonblank, at most 255 UTF-16 code units
+  (`string.Length`). Per the owner's latest instruction, a reusable author metadata length helper in
+  `TiaMcpServer.Contracts/Shared` serves `LibraryWriteMethods` validation for both `create_global` and
+  `release_type_version`, on host before worker dispatch and worker before native calls. Overlength
+  errors identify author, maximum 255 and actual length, without echoing text. Preserve supplied text,
+  including LF/CRLF, and the existing omitted-author path. Release text/blank handling stays unchanged
+  apart from the shared length cap. The effective item budget is an additional constraint; raising budgets
+  never weakens the cap. Task 4 must test 255, 256, 10,000, non-BMP counting and LF/CRLF
+  preservation for creation and release, including rejection before dispatch and independent worker
+  validation. Broader author-field adoption remains an open Improvement Log follow-up.
+- [x] Record the already authorized attached repeat: both original Portal processes exited -1 before
+  helper detach. Retain sanitized native events and a derived process-exit summary in the existing
+  evidence structure/index. Do not change the old probe to rerun the dangerous case; no further live test.
+- [x] Commit the agreed design correction, resolving the Task 1 gate for Tasks 2-6. Leave those tasks
+  unchecked; this decision correction implements no production behavior.
 
 ### Task 2: Shared metadata model and native reader
 
@@ -144,9 +160,10 @@ tests `LibraryReadItemCatalogTests.cs`, `LibraryReadCatalogTests.cs`, `LibraryRe
   expected: passing new tests and existing read/cursor tests.
 - [ ] Commit `feat: expose opt-in global library metadata`.
 
-### Task 4: Creation author and creation metadata
+### Task 4: Shared creation/release author cap and creation metadata
 
 **Files:** `TiaMcpServer.Contracts/Library/LibraryWriteMethods.cs`, `LibraryWriteModels.cs`;
+a reusable author metadata validation helper in `TiaMcpServer.Contracts/Shared/`;
 `TiaMcpServer/Library/LibraryWriteItem.cs`, `LibraryWriteCatalog.cs`, `LibraryWriteDomain.cs`;
 `TiaMcpServer.OpennessWorker/Openness/Library/LibraryWriter.cs`;
 `TiaMcpServer.FakeWorker/Library/LibraryWriteScenario.cs`;
@@ -159,17 +176,20 @@ conditional `LibraryWriteResultInfo.Metadata : LibraryMetadataInfo?` and
 `LibraryWriteOutcomeInfo.Library : LibraryIdentityInfo?`. `Author` already exists in the request/item
 and is already copied by `ToWorkerRequest`; do not duplicate fields or transport methods.
 
-- [ ] Add failing tests for omitted/supplied author, blank author, the exact Task 1 boundaries and effective
-  item-budget boundary; `new string('A', 10000)` must produce `validation_error` without worker/native
-  activity. Check the same safe admission rule at worker validation. Release-author behavior stays intact.
+- [ ] Add failing tests for omitted/supplied creation author, blank creation author, the exact Task 1
+  boundaries (255, 256, 10,000 and non-BMP counting) for creation and release, and effective item-budget
+  checking. `new string('A', 10000)` must produce `validation_error` without worker/native activity.
+  Check the same shared cap at worker validation and preserve release text/blank behavior otherwise.
 - [ ] Add tests for exact multiline text, confirmation text with/without author, dry run making no native
   create/metadata calls, and one lifecycle elicitation in read-write versus none in full.
 - [ ] Add writer tests asserting the supplied path calls `IEngineeringComposition.Create` exactly once
   with `typeof(UserGlobalLibrary)` and exactly `Name`, `TargetDirectory`, `Author` (no `Comment`), while
   omission uses typed `Create<UserGlobalLibrary>`. Both successful paths return the shared metadata.
   Extend the composition double to implement `IEngineeringComposition` rather than using reflection.
-- [ ] Run the affected tests to observe the missing behavior, then add creation-only author admission and
-  effective budget checking; update the existing Author description and confirmation formatting.
+- [ ] Run the affected tests to observe the missing behavior, then implement the common author metadata
+  length helper in `TiaMcpServer.Contracts/Shared` and call it from shared library validation for
+  `create_global` and `release_type_version`. Preserve creation's nonblank rule, effective budget checks
+  and accepted text; update the existing Author description and confirmation formatting.
 - [ ] Replace only the writer's `create_global` branch. Cast the returned object with `as GlobalLibrary`;
   an unexpected return fails `postcondition_failed` and says a library may exist on disk. Capture identity
   before metadata. Do not infer the omitted author, normalize supplied text, save or retry.

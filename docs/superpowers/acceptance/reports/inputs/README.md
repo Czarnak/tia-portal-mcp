@@ -35,12 +35,18 @@ Verified raw Openness call/response evidence is kept here, with the probe source
 | [2026-11-08-library-metadata-native-probe/](2026-11-08-library-metadata-native-probe/README.md) | [2026-11-08-library-metadata-native-probes.md](../2026-11-08-library-metadata-native-probes.md) | No (source). | Run 1 source `2d2f7125`; run 2 source `0757db4c` excludes the fatal author input. |
 | `2026-11-08-library-metadata-native-probes-run1.jsonl.gz`, `-run2.jsonl.gz` | [2026-11-08-library-metadata-native-probes.md](../2026-11-08-library-metadata-native-probes.md) | Yes. Direct native-call stdout: call, return and exception records, with no MCP envelope. | Run 1 ends in fatal Portal loss on the long author; run 2 completes the multiline case. Redactions below. |
 | `2026-11-08-library-metadata-native-crash-summary.json` | [2026-11-08-library-metadata-native-probes.md](../2026-11-08-library-metadata-native-probes.md) | No (derived). | Selected native diagnostic fields and source-bundle SHA-256; the full bundle is not kept here. |
+| `2026-11-09-library-metadata-attached-author-10000.jsonl.gz` | [2026-11-08-library-metadata-native-probes.md](../2026-11-08-library-metadata-native-probes.md) | Yes. Direct native-call event and `NonRecoverableException`, no MCP envelope. | One owner-authorized attached repeat; nine events, private paths redacted. |
+| `2026-11-09-library-metadata-attached-author-10000-process-exits.json` | [2026-11-08-library-metadata-native-probes.md](../2026-11-08-library-metadata-native-probes.md) | No (derived process evidence). | Original Portal/child exit codes and times precede helper detach; source hashes and counts, no private paths. |
 
 Caveats:
 
 - The `2026-11-08-library-metadata-native-probes-run*.jsonl.gz` captures redact work/profile paths and
   the current user's exact name. Author inputs, returned authors and comparisons were checked unchanged.
   The derived crash summary replaces only the 10,000 repeated author characters with a length marker.
+- The attached-repeat native events replace project path, target directory and temporary library name
+  with `<project>`, `<work>` and `<library>`. Other values are unchanged. The process-exit summary is
+  derived from local monitor/native/summary files; their original SHA-256 values identify those inputs,
+  and the sanitized native-event hash identifies the retained compressed trace's uncompressed bytes.
 
 - The archived probe source was edited after the run only to remove the project path, so the recorded executable SHA-256 does not match the archived source.
 - The `ui-P*` case records say `uiCompile: 'pending maintainer return'`. The maintainer's UI outcomes exist only in the checkpoint report text and the P19 PNG.

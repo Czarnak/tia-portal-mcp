@@ -82,6 +82,28 @@ offline-covered and was not reproduced in this fixture: uncompiled ordinary/chan
 while stale preconversion/prechange hashes failed `state_changed`. A compile-first workflow remains recommended;
 compilation state alone is not an exportability check.
 
+## Open: author metadata input caps across all object kinds (2026-11-09)
+
+Owner direction: cap every writable/caller-supplied author metadata field, across all object kinds, at
+255 UTF-16 code units (`string.Length`). Reject overlength input before worker dispatch with a clear
+`validation_error` naming the author field, maximum 255 and actual length, without echoing its text.
+Apply defensive worker validation before native calls where applicable; never truncate, trim or
+normalize accepted text. Preserve existing author values returned by reads exactly, including values
+longer than the input cap: reads are observations, not input admission.
+
+PR A is to introduce a reusable author metadata length validation helper in
+`TiaMcpServer.Contracts/Shared`, called by shared library validation for both `create_global` and
+`release_type_version`. Creation keeps its nonblank rule; release text/blank handling otherwise stays
+unchanged. The shared helper is the adoption point for future author fields.
+
+Inventory all remaining author input paths, including any project/block or other object author fields,
+whether supplied as arguments or embedded in imported content. Record which
+surfaces exist, their shared admission points and boundary tests before implementing the remaining caps.
+The [library metadata owner resolution](superpowers/specs/2026-11-08-library-metadata-design.md#61-pr-a-findings-and-owner-resolution-2026-11-09)
+supplies the creation-author evidence and the shared creation/release cap decision; it does not
+independently qualify every object's native limit. The broader inventory and remaining caps stay open
+here; PR A's scope includes creation and release author caps only.
+
 ## Open: VCI follow-ups (2026-10-16)
 
 The [VCI reference](SupportedOperations/VCI_OPERATIONS_SUMMARY.md) documents the delivered
