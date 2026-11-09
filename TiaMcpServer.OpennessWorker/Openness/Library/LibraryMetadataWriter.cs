@@ -15,70 +15,81 @@ internal static class LibraryMetadataWriter
         var library = (GlobalLibrary)LibraryWriteTargets.Library(portal, project, item.Scope, item.LibraryPath, item.LibraryName);
         var identity = LibraryIdentities.Identity(project, library);
         LibraryMetadataState? before = null, after = null;
-        Exception? pending = null;
+        Exception? pending = null, commitFailure = null, transactionFailure = null;
         try
         {
             using (var access = portal.ExclusiveAccess(item.Operation))
-            using (var transaction = access.Transaction(library, item.Operation))
             {
                 try
                 {
-                    var settings = library.LanguageSettings;
-                    var comments = new List<(MultilingualTextItem Target, string Text)>();
-                    var languages = new Dictionary<string, Language>(StringComparer.Ordinal);
-                    Language Resolve(string culture)
+                    using (var transaction = access.Transaction(library, item.Operation))
                     {
-                        var canonical = CultureNameRules.CanonicalName(culture)!;
-                        if (!languages.TryGetValue(canonical, out var language))
+                        try
                         {
-                            language = settings.Languages.Find(CultureInfo.GetCultureInfo(canonical))
-                                ?? throw Missing("language", canonical);
-                            languages.Add(canonical, language);
-                        }
-                        return language;
-                    }
-                    if (item.Operation == "set_comments")
-                        foreach (var comment in item.Comments!)
-                        {
-                            var language = Resolve(comment.Culture!);
-                            var target = library.Comment.Items.Find(language) ?? throw Missing("comment", language.Culture.Name);
-                            comments.Add((target, comment.Text!));
-                        }
-                    else
-                        foreach (var culture in LibraryMetadataState.RequestedLanguages(item)) Resolve(culture);
+                            var settings = library.LanguageSettings;
+                            var comments = new List<(MultilingualTextItem Target, string Text)>();
+                            var languages = new Dictionary<string, Language>(StringComparer.Ordinal);
+                            Language Resolve(string culture)
+                            {
+                                var canonical = CultureNameRules.CanonicalName(culture)!;
+                                if (!languages.TryGetValue(canonical, out var language))
+                                {
+                                    language = settings.Languages.Find(CultureInfo.GetCultureInfo(canonical))
+                                        ?? throw Missing("language", canonical);
+                                    languages.Add(canonical, language);
+                                }
+                                return language;
+                            }
+                            if (item.Operation == "set_comments")
+                                foreach (var comment in item.Comments!)
+                                {
+                                    var language = Resolve(comment.Culture!);
+                                    var target = library.Comment.Items.Find(language) ?? throw Missing("comment", language.Culture.Name);
+                                    comments.Add((target, comment.Text!));
+                                }
+                            else
+                                foreach (var culture in LibraryMetadataState.RequestedLanguages(item)) Resolve(culture);
 
-                    before = ReadState(library);
-                    foreach (var comment in comments) comment.Target.Text = comment.Text;
-                    if (item.Operation == "set_languages")
-                    {
-                        foreach (var culture in LibraryMetadataState.RequestedLanguages(item))
-                            if (!before.ActiveLanguages.Contains(culture)) settings.ActiveLanguages.Add(languages[culture]);
-                        if (item.EditingLanguage is not null && CultureNameRules.CanonicalName(item.EditingLanguage) != before.EditingLanguage)
-                            settings.EditingLanguage = languages[CultureNameRules.CanonicalName(item.EditingLanguage)!];
-                        if (item.ReferenceLanguage is not null && CultureNameRules.CanonicalName(item.ReferenceLanguage) != before.ReferenceLanguage)
-                            settings.ReferenceLanguage = languages[CultureNameRules.CanonicalName(item.ReferenceLanguage)!];
+                            before = ReadState(library);
+                            foreach (var comment in comments) comment.Target.Text = comment.Text;
+                            if (item.Operation == "set_languages")
+                            {
+                                foreach (var culture in LibraryMetadataState.RequestedLanguages(item))
+                                    if (!before.ActiveLanguages.Contains(culture)) settings.ActiveLanguages.Add(languages[culture]);
+                                if (item.EditingLanguage is not null && CultureNameRules.CanonicalName(item.EditingLanguage) != before.EditingLanguage)
+                                    settings.EditingLanguage = languages[CultureNameRules.CanonicalName(item.EditingLanguage)!];
+                                if (item.ReferenceLanguage is not null && CultureNameRules.CanonicalName(item.ReferenceLanguage) != before.ReferenceLanguage)
+                                    settings.ReferenceLanguage = languages[CultureNameRules.CanonicalName(item.ReferenceLanguage)!];
+                            }
+                            after = new LibraryMetadataState();
+                            ReadState(library, after);
+                            var mismatches = LibraryMetadataState.Mismatches(item, before, after);
+                            if (mismatches.Count != 0)
+                                throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed,
+                                    "Library metadata end-state mismatch: " + string.Join(", ", mismatches));
+                            if (!transaction.CanCommit)
+                                throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed, "The library transaction cannot commit.");
+                        }
+                        catch (Exception exception) { pending = exception; }
+                        // Commit and scope disposal have unknown outcomes on failure, unlike a completed rollback.
+                        if (pending is null)
+                        {
+                            try { transaction.CommitOnDispose(); }
+                            catch (Exception exception) { commitFailure = exception; throw; }
+                        }
                     }
-                    after = new LibraryMetadataState();
-                    ReadState(library, after);
-                    var mismatches = LibraryMetadataState.Mismatches(item, before, after);
-                    if (mismatches.Count != 0)
-                        throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed,
-                            "Library metadata end-state mismatch: " + string.Join(", ", mismatches));
-                    if (!transaction.CanCommit)
-                        throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed, "The library transaction cannot commit.");
                 }
-                catch (Exception exception) { pending = exception; }
-                // Commit and scope disposal have unknown outcomes on failure, unlike a completed rollback.
-                if (pending is null) transaction.CommitOnDispose();
+                catch (Exception exception) { transactionFailure = exception; throw; }
             }
         }
         catch (Exception exception)
         {
-            var originalFatal = pending is NonRecoverableException
-                || pending is WorkerOperationException failure && failure.FailureCategory == WorkerFailureCategories.PortalLost;
-            throw Failure(originalFatal ? pending! : exception,
+            var earlier = new[] { pending, commitFailure, transactionFailure };
+            var originalFatal = earlier.FirstOrDefault(failure => failure is NonRecoverableException
+                || failure is WorkerOperationException wrapped && wrapped.FailureCategory == WorkerFailureCategories.PortalLost);
+            throw Failure(originalFatal ?? exception,
                 "Library metadata state is unknown. Inspect the library before retrying.", null,
-                pending as EngineeringException);
+                earlier.OfType<EngineeringException>().FirstOrDefault());
         }
         if (pending is not null)
             throw Failure(pending, "The library metadata transaction was rolled back.",

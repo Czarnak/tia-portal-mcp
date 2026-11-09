@@ -265,4 +265,66 @@ public sealed class LibraryMetadataWriterTests
         Assert.Null(response.EngineeringError);
         Assert.Null(response.LibraryWriteOutcome);
     }
+
+    [Theory]
+    [InlineData("commit", false)]
+    [InlineData("commit", true)]
+    [InlineData("transaction", false)]
+    public void CommitOrTransactionFatalFailure_WinsOverGenericAccessDisposal(string stage, bool transactionAlsoFails)
+    {
+        var configure = portal.TransactionAction;
+        portal.TransactionAction = transaction =>
+        {
+            configure!(transaction);
+            if (stage == "commit") transaction.CommitOnDisposeFailure = new NonRecoverableException("fatal commit");
+            if (stage == "transaction") transaction.DisposeFailure = new NonRecoverableException("fatal transaction disposal");
+            else if (transactionAlsoFails) transaction.DisposeFailure = new InvalidOperationException("transaction disposal failed");
+        };
+        portal.VciExclusiveAccessDisposeFailure = new InvalidOperationException("access disposal failed");
+        var failure = Assert.Throws<WorkerOperationException>(() => Write(Comments(("en-US", "new"))));
+        Assert.Equal(WorkerFailureCategories.PortalLost, failure.FailureCategory);
+        Assert.Null(failure.EngineeringError);
+        Assert.Null(failure.LibraryWriteOutcome);
+        Assert.Contains("unknown", failure.Message);
+        Assert.Contains("Inspect", failure.Message);
+        Assert.DoesNotContain("rolled back", failure.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("commit", false)]
+    [InlineData("commit", true)]
+    [InlineData("transaction", false)]
+    [InlineData("transaction", true)]
+    public void CommitOrTransactionEngineeringFailure_ReplacedByAccessDisposal_PreservesPortalLossEvidence(string stage, bool portalDisposed)
+    {
+        var revision = 0L;
+        if (portalDisposed) library.Comment.Items.Items[0].TextSetAction = _ => revision++;
+        var configure = portal.TransactionAction;
+        portal.TransactionAction = transaction =>
+        {
+            configure!(transaction);
+            if (stage == "commit")
+            {
+                transaction.CommitOnDisposeFailure = new EngineeringTargetInvocationException("commit failed");
+                transaction.DisposeFailure = new InvalidOperationException("transaction disposal replaced commit failure");
+            }
+            else transaction.DisposeFailure = new EngineeringTargetInvocationException("transaction disposal failed");
+        };
+        portal.VciExclusiveAccessDisposeFailure = new InvalidOperationException("access disposal failed");
+        if (portalDisposed)
+        {
+            var response = WorkerExecution.Execute(() => { Write(Comments(("en-US", "new"))); return new WorkerResponse { Success = true }; }, () => revision, mutates: true);
+            Assert.Equal(WorkerFailureCategories.PortalLost, response.FailureCategory);
+            Assert.Null(response.EngineeringError);
+            Assert.Null(response.LibraryWriteOutcome);
+        }
+        else
+        {
+            var failure = Assert.Throws<WorkerOperationException>(() => Write(Comments(("en-US", "new"))));
+            Assert.Equal("EngineeringTargetInvocationException", failure.EngineeringError?.Type);
+            Assert.Null(failure.LibraryWriteOutcome);
+            Assert.Contains("unknown", failure.Message);
+            Assert.DoesNotContain("rolled back", failure.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }
