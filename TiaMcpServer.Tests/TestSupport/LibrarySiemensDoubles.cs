@@ -8,6 +8,11 @@ using Siemens.Engineering.Library.Types;
 
 namespace Siemens.Engineering
 {
+    public interface IEngineeringComposition
+    {
+        IEngineeringObject? Parent { get; }
+        IEngineeringObject Create(Type type, IEnumerable<KeyValuePair<string, object>> parameters);
+    }
     public enum OpenMode { ReadOnly = 0, ReadWrite = 1 }
     public sealed class EngineeringSecurityException : EngineeringException
     {
@@ -197,11 +202,15 @@ namespace Siemens.Engineering.Library
     /// <see cref="GetGlobalLibraryInfos"/> reports both, like V21; it synthesizes a user info for every opened
     /// library not already listed. <see cref="Open"/> throws so a read that tries to open fails the test.
     /// </summary>
-    public sealed class GlobalLibraryComposition : IEnumerable<GlobalLibrary>
+    public sealed class GlobalLibraryComposition : IEnumerable<GlobalLibrary>, IEngineeringComposition
     {
         public List<GlobalLibrary> Items { get; } = new();
         public List<GlobalLibraryInfo> Available { get; } = new();
         public Func<DirectoryInfo, string, UserGlobalLibrary>? CreateAction { get; set; }
+        public Func<Type, IEnumerable<KeyValuePair<string, object>>, IEngineeringObject>? CreateWithParametersAction { get; set; }
+        public IEngineeringObject? Parent => null;
+        IEngineeringObject IEngineeringComposition.Create(Type type, IEnumerable<KeyValuePair<string, object>> parameters)
+            => (CreateWithParametersAction ?? throw new InvalidOperationException("Unconfigured parameterized library Create."))(type, parameters);
         public Func<FileInfo, OpenMode, UserGlobalLibrary>? OpenAction { get; set; }
         public Func<FileInfo, DirectoryInfo, OpenMode, UserGlobalLibrary>? RetrieveAction { get; set; }
         public T Create<T>(DirectoryInfo directory, string name) where T : class

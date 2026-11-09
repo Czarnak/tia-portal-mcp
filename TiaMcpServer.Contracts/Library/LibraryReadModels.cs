@@ -30,13 +30,18 @@ public sealed class LibraryQueryInfo
 public sealed class LibraryIdentityInfo
 {
     public string Scope { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? LibraryPath { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? LibraryName { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? FolderKind { get; set; }
     public List<string> FolderPath { get; set; } = new();
     public string Kind { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? TypeGuid { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? VersionGuid { get; set; }
 }
 

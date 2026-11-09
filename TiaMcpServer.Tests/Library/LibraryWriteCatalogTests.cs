@@ -3,10 +3,12 @@ using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Json;
 using TiaMcpServer.Library;
+using TiaMcpServer.OperationBatches;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Library;
 
+[Collection(TiaMcpServer.Tests.OperationBatches.ConfiguredPayloadBudgetCollection.Name)]
 public sealed class LibraryWriteCatalogTests
 {
     [Theory]
@@ -66,6 +68,63 @@ public sealed class LibraryWriteCatalogTests
     [InlineData("unitName")]
     public void UnknownPublicMembersAreRejected(string member)
         => Assert.Throws<JsonException>(() => CanonicalJson.Deserialize<LibraryWriteItem>($"{{\"{member}\":\"unsupported\"}}"));
+
+    [Theory]
+    [MemberData(nameof(LibraryWriteMethodsTests.Authors), MemberType = typeof(LibraryWriteMethodsTests))]
+    public void AuthorAdmission_UsesSharedRules(string operation, string? author, bool valid)
+    {
+        var item = CanonicalJson.Deserialize<LibraryWriteItem>(CanonicalJson.Serialize(LibraryWriteMethodsTests.AuthorRequest(operation, author)));
+        item.OperationId = "a";
+        Assert.Equal(valid, LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+        Assert.Equal(author, LibraryWriteCatalog.ToWorkerRequest(item).Author);
+    }
+
+    [Fact]
+    public void AuthorAdmission_UsesEffectiveItemBudgetInAdditionToCap()
+    {
+        var oldItem = StructuredOperationBatchPayloadBudget.MaxItemChars;
+        var oldDocument = StructuredOperationBatchPayloadBudget.MaxDocumentChars;
+        try
+        {
+            StructuredOperationBatchPayloadBudget.Configure(10, oldDocument);
+            var item = new LibraryWriteItem { OperationId = "a", Operation = "create_global", Directory = @"C:\Output", Name = "New", Author = new string('A', 10) };
+            Assert.True(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+            item.Author += "A";
+            Assert.False(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+            StructuredOperationBatchPayloadBudget.Configure(100_000, oldDocument);
+            item.Author = new string('A', 256);
+            Assert.False(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+        }
+        finally { StructuredOperationBatchPayloadBudget.Configure(oldItem, oldDocument); }
+    }
+
+    [Fact]
+    public void CreationMetadataFailure_IdentityRoundtripsIntoFailedItem()
+    {
+        var identity = new LibraryIdentityInfo { Scope = "global", Kind = "library", Name = "New", LibraryName = "New", LibraryPath = @"C:\Output\New.al21" };
+        var outcome = new LibraryWriteOutcomeInfo { Library = identity };
+        var envelope = JsonSerializer.SerializeToElement(new TiaMcpServer.Contracts.Worker.WorkerResponse
+        {
+            Success = false, FailureCategory = "worker_operation_failed", Error = "The library exists; inspect before retrying.", LibraryWriteOutcome = outcome
+        }, TiaMcpServer.Contracts.Json.WorkerJson.Envelope);
+        LibraryWritePayloadContract.ValidateEnvelopeOutcome(envelope);
+        var decoded = CanonicalJson.DeserializeWorkerPayload<LibraryWriteOutcomeInfo>(envelope.GetProperty("libraryWriteOutcome").GetRawText());
+        var item = LibraryWritePayloadContract.Project(new() { OperationId = "a", Operation = "create_global" },
+            TiaMcpServer.Worker.WorkerCallResult.Fail("worker_operation_failed", "The library exists; inspect before retrying.") with { LibraryWriteOutcome = decoded });
+        Assert.Equal("failed", item.Status);
+        Assert.Equal(identity.LibraryPath, item.Result!.Value.GetProperty("library").GetProperty("libraryPath").GetString());
+        Assert.Equal("worker_operation_failed", item.Failure!.Category);
+    }
+
+    [Fact]
+    public void ProjectLibraryIdentity_EnvelopeIncludesExplicitNullMembers()
+    {
+        var identity = JsonSerializer.SerializeToElement(new LibraryIdentityInfo { Scope = "project", Kind = "library" },
+            TiaMcpServer.Contracts.Json.WorkerJson.Envelope);
+        foreach (var member in new[] { "libraryPath", "libraryName", "folderKind", "typeGuid", "versionGuid" })
+            Assert.Equal(JsonValueKind.Null, identity.GetProperty(member).ValueKind);
+        Assert.Equal("project", CanonicalJson.DeserializeWorkerPayload<LibraryIdentityInfo>(identity.GetRawText()).Scope);
+    }
 
     private static LibraryWriteItem Item(string id) => new()
         { OperationId = id, Operation = "delete_master_copy", Scope = "project", Name = "Copy" };

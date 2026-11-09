@@ -57,6 +57,139 @@ public sealed class LibraryWriterTests
     }
 
     [Theory]
+    [MemberData(nameof(LibraryWriteMethodsTests.CreationAuthors), MemberType = typeof(LibraryWriteMethodsTests))]
+    public void CreateGlobal_SelectsExactNativePathAndReturnsMetadata(string? author)
+    {
+        var calls = 0;
+        var library = new UserGlobalLibrary { Name = "New", Path = new FileInfo(@"C:\Output\Native\New.al21") };
+        library.MetadataValues[nameof(library.Author)] = author ?? "Native default";
+        portal.GlobalLibraries.CreateAction = (directory, name) =>
+        {
+            Assert.Null(author);
+            calls++;
+            Assert.Equal(@"C:\Output", directory.FullName);
+            Assert.Equal("New", name);
+            return library;
+        };
+        portal.GlobalLibraries.CreateWithParametersAction = (type, parameters) =>
+        {
+            Assert.NotNull(author);
+            calls++;
+            Assert.Equal(typeof(UserGlobalLibrary), type);
+            var values = parameters.ToDictionary(pair => pair.Key, pair => pair.Value);
+            Assert.Equal(new[] { "Author", "Name", "TargetDirectory" }, values.Keys.Order());
+            Assert.Equal("New", values["Name"]);
+            Assert.Equal(@"C:\Output", Assert.IsType<DirectoryInfo>(values["TargetDirectory"]).FullName);
+            Assert.Equal(author, values["Author"]);
+            return library;
+        };
+        var result = Write(LibraryWriteMethodsTests.AuthorRequest("create_global", author));
+        Assert.Equal(1, calls);
+        Assert.Equal(@"C:\Output\Native\New.al21", result.Library.LibraryPath);
+        var metadata = System.Text.Json.JsonSerializer.SerializeToElement(result).GetProperty("Metadata");
+        Assert.Equal(author ?? "Native default", metadata.GetProperty("Author").GetString());
+        Assert.True(metadata.GetProperty("Complete").GetBoolean());
+        Assert.True(library.MetadataGetCount > 0);
+    }
+
+    [Theory]
+    [MemberData(nameof(LibraryWriteMethodsTests.InvalidAuthors), MemberType = typeof(LibraryWriteMethodsTests))]
+    public void AuthorAdmission_RefusesUnsafeValuesBeforeNativeCalls(string operation, string? author)
+    {
+        portal.GlobalLibrariesFailure = new InvalidOperationException("Must not reach Portal");
+        var failure = Assert.Throws<WorkerOperationException>(() => Write(LibraryWriteMethodsTests.AuthorRequest(operation, author)));
+        Assert.Equal(WorkerFailureCategories.ValidationError, failure.FailureCategory);
+        if (author?.Length > 255)
+        {
+            Assert.Contains("author", failure.Message);
+            Assert.Contains("255", failure.Message);
+            Assert.Contains(author.Length.ToString(), failure.Message);
+            Assert.DoesNotContain(author, failure.Message);
+        }
+    }
+
+    [Fact]
+    public void CreateGlobal_UnexpectedNativeReturn_StatesLibraryMayExist()
+    {
+        portal.GlobalLibraries.CreateWithParametersAction = (_, _) => new ProjectLibrary();
+        var failure = Assert.Throws<WorkerOperationException>(() => Write(LibraryWriteMethodsTests.AuthorRequest("create_global", "Author")));
+        Assert.Equal(WorkerFailureCategories.PostconditionFailed, failure.FailureCategory);
+        Assert.Contains("may exist on disk", failure.Message);
+    }
+
+    [Theory]
+    [MemberData(nameof(LibraryWriteMethodsTests.ReleaseAuthors), MemberType = typeof(LibraryWriteMethodsTests))]
+    public void ReleaseGlobal_PreservesAcceptedAuthorExactly(string? author)
+    {
+        var type = project.ProjectLibrary!.TypeFolder.AddType("FixtureType");
+        var version = new CodeBlockLibraryTypeVersion { TypeObject = type, Parent = type, Guid = Guid.NewGuid(),
+            VersionNumber = new(1, 0, 0), State = Siemens.Engineering.Library.Types.LibraryTypeVersionState.InWork };
+        type.Versions.Items.Add(version);
+        Write(LibraryWriteMethodsTests.AuthorRequest("release_type_version", author));
+        Assert.Equal(author, Assert.Single(version.ReleaseCalls).Author);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreateGlobal_RecoverableMetadataFailure_IsSuccessfulIncompleteMetadata(bool invocation)
+    {
+        var library = new UserGlobalLibrary { Name = "New", Path = new FileInfo(@"C:\Output\New.al21") };
+        library.MetadataFailures[nameof(library.Author)] = invocation
+            ? new EngineeringTargetInvocationException("Unavailable") : new EngineeringNotSupportedException("Unavailable");
+        portal.GlobalLibraries.CreateAction = (_, _) => library;
+        var result = Write(LibraryWriteMethodsTests.AuthorRequest("create_global", null));
+        var metadata = System.Text.Json.JsonSerializer.SerializeToElement(result).GetProperty("Metadata");
+        Assert.False(metadata.GetProperty("Complete").GetBoolean());
+        Assert.Equal(@"C:\Output\New.al21", result.Library.LibraryPath);
+    }
+
+    [Theory]
+    [InlineData("engineering")]
+    [InlineData("fatal")]
+    [InlineData("other")]
+    [InlineData("wrapped")]
+    [InlineData("disposal")]
+    public void CreateGlobal_MetadataFailure_RetainsCapturedIdentityWithoutReadingAgain(string kind)
+    {
+        var library = new UserGlobalLibrary { Name = "New", Path = new FileInfo(@"C:\Output\New.al21") };
+        Exception error = kind switch
+        {
+            "engineering" or "disposal" => new EngineeringException("Metadata failed"),
+            "fatal" => new NonRecoverableException("Metadata failed"),
+            "wrapped" => new WorkerOperationException(WorkerFailureCategories.StateChanged, "Metadata failed"),
+            _ => new InvalidOperationException("Metadata failed")
+        };
+        library.MetadataFailures[nameof(library.Author)] = error;
+        portal.GlobalLibraries.CreateAction = (_, _) => library;
+        if (kind == "disposal")
+        {
+            var response = WorkerExecution.Execute(() => { Write(LibraryWriteMethodsTests.AuthorRequest("create_global", null)); return new() { Success = true }; },
+                () => library.MetadataGetCount, true);
+            Assert.Equal(WorkerFailureCategories.PortalLost, response.FailureCategory);
+            Assert.Null(response.EngineeringError);
+            Assert.Equal(@"C:\Output\New.al21", System.Text.Json.JsonSerializer.SerializeToElement(response.LibraryWriteOutcome).GetProperty("Library").GetProperty("LibraryPath").GetString());
+        }
+        else
+        {
+            var failure = Assert.Throws<WorkerOperationException>(() => Write(LibraryWriteMethodsTests.AuthorRequest("create_global", null)));
+            var category = kind switch
+            {
+                "fatal" => WorkerFailureCategories.PortalLost,
+                "wrapped" => WorkerFailureCategories.StateChanged,
+                _ => WorkerFailureCategories.WorkerOperationFailed
+            };
+            Assert.Equal(category, failure.FailureCategory);
+            Assert.Contains("library exists", failure.Message);
+            Assert.Contains("before retrying", failure.Message);
+            Assert.Equal(@"C:\Output\New.al21", System.Text.Json.JsonSerializer.SerializeToElement(failure.LibraryWriteOutcome).GetProperty("Library").GetProperty("LibraryPath").GetString());
+            if (kind == "engineering") Assert.Equal(error.GetType().Name, failure.EngineeringError!.Type);
+            else Assert.Null(failure.EngineeringError);
+        }
+        Assert.Equal(1, library.MetadataGetCount);
+    }
+
+    [Theory]
     [InlineData(false, "readOnly", OpenMode.ReadOnly)]
     [InlineData(true, "readWrite", OpenMode.ReadWrite)]
     public void OpenGlobal_AlwaysCallsOpen_ReportsObservationAndReturnedPath(bool alreadyOpen, string mode, OpenMode nativeMode)

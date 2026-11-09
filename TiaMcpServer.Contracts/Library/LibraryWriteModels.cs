@@ -98,6 +98,8 @@ public sealed class LibraryWritePlanInfo
 
 public sealed class LibraryWriteResultInfo
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LibraryMetadataInfo? Metadata { get; set; }
     public LibraryIdentityInfo Library { get; set; } = new();
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public LibraryIdentityInfo? Target { get; set; }
@@ -115,6 +117,8 @@ public sealed class LibraryWriteResultInfo
 
 public sealed class LibraryWriteOutcomeInfo
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LibraryIdentityInfo? Library { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public bool? Saved { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]

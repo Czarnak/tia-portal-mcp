@@ -11,7 +11,7 @@ public sealed class LibraryWriteMethodsTests
 
     public static TheoryData<string, string, string> ValidRequests => new()
     {
-        { "create_global", """{"directory":"C:\\Libraries","name":"Fixture"}""", "Directory Name" },
+        { "create_global", """{"directory":"C:\\Libraries","name":"Fixture"}""", "Directory Name Author" },
         { "open_global", """{"filePath":"C:\\Libraries\\Fixture.AL21","openMode":"readOnly"}""", "FilePath OpenMode" },
         { "retrieve_global", """{"filePath":"C:\\Archives\\Fixture.ZAL21","directory":"C:\\Libraries","openMode":"readWrite"}""", "FilePath Directory OpenMode" },
         { "save_global", """{"scope":"global","libraryName":"Fixture"}""", "Scope LibraryPath LibraryName" },
@@ -220,6 +220,49 @@ public sealed class LibraryWriteMethodsTests
     [InlineData("sourceLibraryName", " ", "sourceLibraryName")]
     public void SelectorRules_UsesSourceMemberNames(string member, string value, string expected)
         => Assert.Contains(expected, LibraryWriteMethods.Validate(Changed("copy_master_copy", member, value)));
+
+    public static IEnumerable<object?[]> Authors()
+    {
+        foreach (var operation in new[] { "create_global", "release_type_version" })
+        {
+            yield return new object?[] { operation, null, true };
+            yield return new object?[] { operation, "", operation != "create_global" };
+            yield return new object?[] { operation, " \r\n\t", operation != "create_global" };
+            yield return new object?[] { operation, "  First\nSecond\r\nThird 😀  ", true };
+            yield return new object?[] { operation, new string('A', 255), true };
+            yield return new object?[] { operation, new string('A', 256), false };
+            yield return new object?[] { operation, new string('A', 10000), false };
+            yield return new object?[] { operation, string.Concat(Enumerable.Repeat("😀", 127)) + "A", true };
+            yield return new object?[] { operation, string.Concat(Enumerable.Repeat("😀", 128)), false };
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Authors))]
+    public void AuthorAdmission_SharedHostAndWorkerRules(string operation, string? author, bool valid)
+    {
+        var item = AuthorRequest(operation, author);
+        var error = LibraryWriteMethods.Validate(item);
+        Assert.Equal(valid, error is null);
+        if (author?.Length > 255)
+        {
+            Assert.Contains("author", error);
+            Assert.Contains("255", error);
+            Assert.Contains(author.Length.ToString(), error);
+            Assert.DoesNotContain(author, error!);
+        }
+        Assert.Equal(author, item.Author);
+    }
+
+    public static IEnumerable<object?[]> InvalidAuthors => Authors().Where(row => !(bool)row[2]!).Select(row => row.Take(2).ToArray());
+    public static IEnumerable<object?[]> CreationAuthors => Authors().Where(row => (string)row[0]! == "create_global" && (bool)row[2]!)
+        .Select(row => new[] { row[1] });
+    public static IEnumerable<object?[]> ReleaseAuthors => Authors().Where(row => (string)row[0]! == "release_type_version" && (bool)row[2]!)
+        .Select(row => new[] { row[1] });
+
+    internal static LibraryWriteRequestInfo AuthorRequest(string operation, string? author) => operation == "create_global"
+        ? new() { Operation = operation, Directory = @"C:\Output", Name = "New", Author = author }
+        : new() { Operation = operation, Scope = "project", TypeName = "FixtureType", Author = author };
 
     private static LibraryWriteRequestInfo Request(string operation, string json)
     {

@@ -20,6 +20,8 @@ public static class LibraryWriteCatalog
                 errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): {error}");
             if (item.Content?.Length > StructuredOperationBatchPayloadBudget.MaxItemChars)
                 errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): content exceeds the configured item character budget.");
+            if (item.Author?.Length > StructuredOperationBatchPayloadBudget.MaxItemChars)
+                errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): author exceeds the configured item character budget.");
         }
         return errors.Count == 0 ? OperationValidation.Valid
             : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
