@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TiaMcpServer.Contracts.Library;
+using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.Safety.Pipeline;
@@ -31,6 +32,7 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
                 LibraryWritePayloadContract.ValidateIdentity(plan.Target);
                 foreach (var identity in plan.FolderContents) LibraryWritePayloadContract.ValidateIdentity(identity);
                 LibraryWritePayloadContract.ValidateType(plan.Type);
+                LibraryWritePayloadContract.ValidateMetadataChange(plan.MetadataChange);
                 foreach (var values in new[] { plan.BlockingInstances, plan.MasterCopiesContainingInstances, plan.Dependencies, plan.Notes, plan.GuardIds })
                     if (values?.Any(value => value is null) == true) throw new JsonException();
                 int? createdBy = null;
@@ -44,7 +46,7 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
                 }
                 plans.Add(ItemPlan<LibraryWriteEffect>.Resolved(new(plan.Library, plan.Target, plan.AlreadyOpen,
                     plan.FolderContents, plan.ContentsTruncated)
-                { Type = plan.Type, BlockingInstances = plan.BlockingInstances, Dependencies = plan.Dependencies,
+                { MetadataChange = plan.MetadataChange, Type = plan.Type, BlockingInstances = plan.BlockingInstances, Dependencies = plan.Dependencies,
                     MasterCopiesContainingInstances = plan.MasterCopiesContainingInstances, Notes = plan.Notes, CreatedByItem = createdBy }));
                 guards[item.OperationId] = Guards(item, plan);
             }
@@ -79,6 +81,10 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
     {
         if (effect.Library is not { } library || library.Scope != missing.Scope) return false;
         if (library.Scope != "project" && !string.Equals(library.LibraryPath, missing.LibraryPath, StringComparison.OrdinalIgnoreCase)) return false;
+        if (missing.Kind == "comment")
+            return producer.Operation == "set_languages" && consumer.Operation == "set_comments" && library.Scope == "global"
+                && (producer.ActivateLanguages ?? []).Concat(new[] { producer.EditingLanguage, producer.ReferenceLanguage }.OfType<string>())
+                    .Any(culture => CultureNameRules.CanonicalName(culture) == missing.Name);
         if (missing.Kind == "inWorkTypeVersion")
             return consumer.Operation == "release_type_version" && producer.Operation == "create_type_version"
                 && missing.TypeGuid is not null && string.Equals(effect.Type?.TypeGuid, missing.TypeGuid, StringComparison.OrdinalIgnoreCase);

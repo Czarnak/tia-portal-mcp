@@ -104,6 +104,8 @@ public sealed class LibraryLanguageChangeInfo
 
 public sealed class LibraryWritePlanInfo
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LibraryMetadataChangeInfo? MetadataChange { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public LibraryIdentityInfo? Library { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]

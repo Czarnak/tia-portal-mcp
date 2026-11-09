@@ -61,6 +61,11 @@ internal static class LibraryWritePlanReader
             ? LibraryWriteTargets.UserLibrary(portal, project, item.Scope, item.LibraryPath, item.LibraryName)
             : LibraryWriteTargets.Library(portal, project, item.Scope, item.LibraryPath, item.LibraryName);
         var identity = plan.Library = LibraryIdentities.Identity(project, library);
+        if (item.Operation is "set_comments" or "set_languages")
+        {
+            LibraryMetadataWriter.Plan((GlobalLibrary)library, item, plan);
+            return plan;
+        }
         if (LibraryWriteMethods.LifecycleOperations.Contains(item.Operation, StringComparer.Ordinal))
         {
             plan.AlreadyOpen = true;

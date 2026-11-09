@@ -21,6 +21,7 @@ public static class LibraryWritePayloadContract
                         result.Error ?? "The library write failed.", result.Warnings);
                 ValidateIdentity(outcome.Library);
                 ValidateType(outcome.Type);
+                ValidateMetadataChange(outcome.MetadataChange);
                 return new(item.OperationId, item.Operation, OperationBatchStatus.Failed, CanonicalJson.ToElement(outcome),
                     new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                         result.Error ?? "The library write failed."), null, null, result.Warnings);
@@ -30,6 +31,7 @@ public static class LibraryWritePayloadContract
                 ValidateIdentity(value.Library);
                 ValidateIdentity(value.Target);
                 ValidateType(value.Type);
+                ValidateMetadataChange(value.MetadataChange);
                 LibraryPayloadContract.ValidateMetadata(value.Metadata);
             });
             return new(item.OperationId, item.Operation, OperationBatchStatus.Succeeded, element, null, null, null, result.Warnings);
@@ -53,6 +55,12 @@ public static class LibraryWritePayloadContract
             || type.FolderPath.Concat(type.InstancePaths).Concat(type.DeletedVersions).Any(value => value is null))) throw new JsonException();
     }
 
+    internal static void ValidateMetadataChange(LibraryMetadataChangeInfo? change)
+    {
+        if (change is not null && (change.Comments?.Any(comment => comment is null || comment.Culture is null) == true
+            || change.ActivatedLanguages?.Any(culture => culture is null) == true)) throw new JsonException();
+    }
+
     internal static void ValidateEnvelopeOutcome(JsonElement envelope)
     {
         if (envelope.ValueKind != JsonValueKind.Object) return;
@@ -66,6 +74,7 @@ public static class LibraryWritePayloadContract
             var outcome = CanonicalJson.DeserializeWorkerPayload<LibraryWriteOutcomeInfo>(members[0].Value.GetRawText());
             ValidateIdentity(outcome.Library);
             ValidateType(outcome.Type);
+            ValidateMetadataChange(outcome.MetadataChange);
         }
     }
 }

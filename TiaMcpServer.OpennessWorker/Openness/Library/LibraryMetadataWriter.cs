@@ -10,6 +10,50 @@ namespace TiaMcpServer.OpennessWorker.Openness.Library;
 
 internal static class LibraryMetadataWriter
 {
+    internal static void Plan(GlobalLibrary library, LibraryWriteRequestInfo item, LibraryWritePlanInfo plan)
+    {
+        var before = ReadState(library);
+        var after = new LibraryMetadataState
+        {
+            Comments = new(before.Comments, StringComparer.Ordinal),
+            ActiveLanguages = before.ActiveLanguages.ToList(), ActiveLanguagesRead = true,
+            EditingLanguage = before.EditingLanguage, ReferenceLanguage = before.ReferenceLanguage
+        };
+        var settings = library.LanguageSettings;
+        Language Resolve(string culture) => settings.Languages.Find(CultureInfo.GetCultureInfo(culture))
+            ?? throw Missing("language", culture);
+        if (item.Operation == "set_comments")
+        {
+            foreach (var comment in item.Comments!)
+            {
+                var culture = CultureNameRules.CanonicalName(comment.Culture)!;
+                var language = Resolve(culture);
+                if (library.Comment.Items.Find(language) is null)
+                {
+                    if (before.ActiveLanguages.Contains(culture)) throw Missing("comment", culture);
+                    var root = plan.Library!;
+                    (plan.MissingTargets ??= new()).Add(new LibraryIdentityInfo
+                    {
+                        Scope = root.Scope, LibraryName = root.LibraryName, LibraryPath = root.LibraryPath,
+                        Kind = "comment", Name = culture
+                    });
+                }
+                after.Comments[culture] = comment.Text;
+            }
+        }
+        else
+        {
+            foreach (var culture in LibraryMetadataState.RequestedLanguages(item))
+            {
+                _ = Resolve(culture);
+                if (!after.ActiveLanguages.Contains(culture)) after.ActiveLanguages.Add(culture);
+            }
+            if (item.EditingLanguage is not null) after.EditingLanguage = CultureNameRules.CanonicalName(item.EditingLanguage);
+            if (item.ReferenceLanguage is not null) after.ReferenceLanguage = CultureNameRules.CanonicalName(item.ReferenceLanguage);
+        }
+        plan.MetadataChange = Change(item, before, after);
+    }
+
     internal static LibraryWriteResultInfo Write(TiaPortal portal, ProjectBase project, LibraryWriteRequestInfo item)
     {
         var library = (GlobalLibrary)LibraryWriteTargets.Library(portal, project, item.Scope, item.LibraryPath, item.LibraryName);

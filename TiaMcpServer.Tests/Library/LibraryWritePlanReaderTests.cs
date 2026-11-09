@@ -19,6 +19,103 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryWritePlanReaderTests
 {
+    [Theory]
+    [InlineData("set_comments")]
+    [InlineData("set_languages")]
+    public void MetadataPreview_NeverMutates(string operation)
+    {
+        var library = AddLibrary();
+        var settings = library.LanguageSettings;
+        foreach (var culture in new[] { "en-US", "de-DE", "pl-PL", "fr-FR" }) settings.Languages.Items.Add(Language.Of(culture));
+        settings.ActiveLanguages.Items.Add(settings.Languages.Items[0]);
+        settings.EditingLanguage = settings.ReferenceLanguage = settings.Languages.Items[0];
+        library.Comment.With("en-US", "before").With("de-DE", "unrelated");
+        library.SaveAction = () => throw new InvalidOperationException("Preview saved the library.");
+        library.ReadOnlyFailure = new InvalidOperationException("Portal owns write refusal.");
+        settings.ActiveLanguages.AddAction = _ => throw new InvalidOperationException("Preview activated a language.");
+        settings.EditingLanguageSetAction = settings.ReferenceLanguageSetAction = _ => throw new InvalidOperationException("Preview changed a language.");
+        foreach (var comment in library.Comment.Items.Items)
+            comment.TextSetAction = _ => throw new InvalidOperationException("Preview changed a comment.");
+        var item = new LibraryWriteRequestInfo { Operation = operation, Scope = "global", LibraryName = "Fixture" };
+        if (operation == "set_comments") item.Comments = [new() { Culture = "EN-us", Text = "after" }];
+        else { item.ActivateLanguages = ["en-US", "PL-pl"]; item.EditingLanguage = "fr-FR"; item.ReferenceLanguage = "pl-PL"; }
+
+        var plan = Plan(item);
+        Assert.Null(plan.Target);
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(plan, TiaMcpServer.Contracts.Json.WorkerJson.ExplicitNullPayload);
+        var change = json.GetProperty("metadataChange");
+        if (operation == "set_comments")
+        {
+            var comment = Assert.Single(change.GetProperty("comments").EnumerateArray());
+            Assert.Equal("en-US", comment.GetProperty("culture").GetString());
+            Assert.Equal("before", comment.GetProperty("before").GetString());
+            Assert.Equal("after", comment.GetProperty("after").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, change.GetProperty("activatedLanguages").ValueKind);
+        }
+        else
+        {
+            Assert.Equal(new[] { "pl-PL", "fr-FR" }, change.GetProperty("activatedLanguages").EnumerateArray().Select(x => x.GetString()));
+            Assert.Equal("en-US", change.GetProperty("editingLanguage").GetProperty("before").GetString());
+            Assert.Equal("fr-FR", change.GetProperty("editingLanguage").GetProperty("after").GetString());
+            Assert.Equal("pl-PL", change.GetProperty("referenceLanguage").GetProperty("after").GetString());
+        }
+        Assert.Empty(portal.Transactions);
+        Assert.Equal(new[] { "en-US" }, settings.ActiveLanguages.Items.Select(x => x.Culture.Name));
+        Assert.Equal("before", library.Comment.Items.Items[0].Text);
+        Assert.Null(plan.Unverifiable);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MetadataPreview_NativeFailureEscapesTolerantObserve(bool invocation)
+    {
+        var library = AddLibrary();
+        EngineeringException failure = invocation ? new EngineeringTargetInvocationException("native") : new EngineeringNotSupportedException("native");
+        library.MetadataFailures["LanguageSettings"] = failure;
+        var item = new LibraryWriteRequestInfo { Operation = "set_languages", Scope = "global", LibraryName = "Fixture", EditingLanguage = "en-US" };
+        Assert.Same(failure, Assert.ThrowsAny<EngineeringException>(() => Plan(item)));
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, WorkerExecution.Classify(failure, false));
+        Assert.Empty(portal.Transactions);
+    }
+
+    [Fact]
+    public void MetadataPreview_InactiveCommentHasExactMissingIdentity_UnsupportedOrActiveMissingFails()
+    {
+        var library = AddLibrary();
+        var settings = library.LanguageSettings;
+        settings.Languages.Items.Add(Language.Of("pl-PL"));
+        var item = new LibraryWriteRequestInfo { Operation = "set_comments", Scope = "global", LibraryName = "Fixture",
+            Comments = [new() { Culture = "PL-pl", Text = "new" }] };
+        var plan = Plan(item);
+        var missing = Assert.Single(plan.MissingTargets!);
+        Assert.Equal("comment", missing.Kind); Assert.Equal("pl-PL", missing.Name);
+        Assert.Equal("global", missing.Scope); Assert.Equal(plan.Library!.LibraryPath, missing.LibraryPath);
+        Assert.Empty(missing.FolderPath); Assert.Null(missing.FolderKind);
+        settings.ActiveLanguages.Items.Add(settings.Languages.Items[0]);
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, Failure(item));
+        settings.ActiveLanguages.Items.Clear(); settings.Languages.Items.Clear();
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, Failure(item));
+    }
+
+    [Fact]
+    public void MetadataCalls_UnplannedActivationMakesCommentAvailableToNextItem()
+    {
+        var library = AddLibrary();
+        var settings = library.LanguageSettings;
+        settings.Languages.Items.Add(Language.Of("en-US")); settings.Languages.Items.Add(Language.Of("pl-PL"));
+        settings.ActiveLanguages.Items.Add(settings.Languages.Items[0]);
+        settings.EditingLanguage = settings.ReferenceLanguage = settings.Languages.Items[0];
+        library.Comment.With("en-US", "before");
+        settings.ActiveLanguages.AddAction = language => library.Comment.With(language.Culture.Name, "");
+        var activation = new LibraryWriteRequestInfo { Operation = "set_languages", Scope = "global", LibraryName = "Fixture", ActivateLanguages = ["pl-PL"] };
+        var comment = new LibraryWriteRequestInfo { Operation = "set_comments", Scope = "global", LibraryName = "Fixture", Comments = [new() { Culture = "pl-PL", Text = "new" }] };
+        foreach (var item in new[] { activation, comment })
+            Assert.NotNull(LibraryWriter.Write(portal, project, LibraryWriteMethods.ForItem(item), item).MetadataChange);
+        Assert.Equal("new", library.Comment.Items.Items.Single(x => x.Language.Culture.Name == "pl-PL").Text);
+        Assert.Equal(2, portal.Transactions.Count); Assert.All(portal.Transactions, transaction => Assert.True(transaction.Committed));
+    }
+
     [Fact]
     public void Plan_MissingType_DoesNotHideMissingPlcDestinationFolder()
     {

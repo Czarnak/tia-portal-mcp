@@ -8,6 +8,7 @@ namespace TiaMcpServer.Library;
 public sealed record LibraryWriteEffect(LibraryIdentityInfo? Library, LibraryIdentityInfo? Target, bool? AlreadyOpen,
     IReadOnlyList<LibraryIdentityInfo> FolderContents, bool ContentsTruncated)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public LibraryMetadataChangeInfo? MetadataChange { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public LibraryTypeResultInfo? Type { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<string>? BlockingInstances { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public IReadOnlyList<string>? MasterCopiesContainingInstances { get; init; }

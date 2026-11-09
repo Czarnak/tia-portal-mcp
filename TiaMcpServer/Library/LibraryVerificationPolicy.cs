@@ -33,6 +33,7 @@ public sealed class LibraryVerificationPolicy(IReadOnlyDictionary<string, Librar
 
     private static string? ObjectKey(LibraryWriteItem item, LibraryWriteEffect? effect, string[] root, bool asLater)
     {
+        if (item.Operation is "set_comments" or "set_languages") return Key(root.Concat(new[] { "metadata" }));
         if (effect is null) return Key(root);
         if (LibraryWriteMethods.LifecycleOperations.Contains(item.Operation, StringComparer.Ordinal)) return Key(root);
         if (effect.Type is { } type)
