@@ -21,6 +21,7 @@ public sealed class PersistentWorkerTransportLifetimeTests
     [InlineData("\"libraryWriteOutcome\":{\"saved\":null,\"saved\":true,\"actualName\":null}")]
     [InlineData("\"libraryWriteOutcome\":{\"saved\":true,\"actualName\":null,\"PRIVATE_MARKER\":1}")]
     [InlineData("\"libraryWriteOutcome\":{\"saved\":\"true\",\"actualName\":null}")]
+    [InlineData("\"libraryWriteOutcome\":{\"saved\":null,\"actualName\":null,\"metadataChange\":{\"comments\":[null],\"activatedLanguages\":null,\"editingLanguage\":null,\"referenceLanguage\":null}}")]
     [InlineData("\"libraryWriteOutcome\":[]")]
     public async Task Transport_MalformedLibraryOutcome_IsProtocolError(string member)
     {

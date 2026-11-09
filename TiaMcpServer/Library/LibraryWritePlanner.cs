@@ -32,7 +32,9 @@ public sealed class LibraryWritePlanner(OpennessWorkerClient client)
                 LibraryWritePayloadContract.ValidateIdentity(plan.Target);
                 foreach (var identity in plan.FolderContents) LibraryWritePayloadContract.ValidateIdentity(identity);
                 LibraryWritePayloadContract.ValidateType(plan.Type);
-                LibraryWritePayloadContract.ValidateMetadataChange(plan.MetadataChange);
+                if (item.Operation is "set_comments" or "set_languages" && plan.Library is not null && plan.MetadataChange is null)
+                    throw new JsonException();
+                LibraryWritePayloadContract.ValidateMetadataChange(plan.MetadataChange, item, successful: true);
                 foreach (var values in new[] { plan.BlockingInstances, plan.MasterCopiesContainingInstances, plan.Dependencies, plan.Notes, plan.GuardIds })
                     if (values?.Any(value => value is null) == true) throw new JsonException();
                 int? createdBy = null;

@@ -112,7 +112,7 @@ internal static class LibraryMetadataWriter
                                 throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed,
                                     "Library metadata end-state mismatch: " + string.Join(", ", mismatches));
                             if (!transaction.CanCommit)
-                                throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed, "The library transaction cannot commit.");
+                                throw new WorkerOperationException(WorkerFailureCategories.WorkerOperationFailed, "The library transaction cannot commit.");
                         }
                         catch (Exception exception) { pending = exception; }
                         // Commit and scope disposal have unknown outcomes on failure, unlike a completed rollback.
@@ -152,6 +152,7 @@ internal static class LibraryMetadataWriter
     {
         foreach (var comment in library.Comment.Items)
             state.Comments.Add(comment.Language.Culture.Name, comment.Text);
+        state.CommentsRead = true;
         var settings = library.LanguageSettings;
         state.ActiveLanguages = settings.ActiveLanguages.Select(x => x.Culture.Name).ToList();
         state.ActiveLanguagesRead = true;
@@ -167,7 +168,8 @@ internal static class LibraryMetadataWriter
                 var culture = CultureNameRules.CanonicalName(comment.Culture)!;
                 before.Comments.TryGetValue(culture, out var oldText);
                 string? newText = null;
-                after?.Comments.TryGetValue(culture, out newText);
+                var observed = after is not null && after.Comments.TryGetValue(culture, out newText);
+                if (observed || after?.CommentsRead == true) newText ??= "";
                 return new LibraryCommentChangeInfo { Culture = culture, Before = oldText, After = newText };
             }).ToList(),
             ActivatedLanguages = item.Operation != "set_languages" || after?.ActiveLanguagesRead != true ? null

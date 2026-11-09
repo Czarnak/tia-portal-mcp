@@ -470,7 +470,7 @@ public class McpToolSchemaTests
     }
 
     [Fact]
-    public void LibraryMetadataSchemas_ExposeOnlyPrAInputsAndKeepOperationsClosed()
+    public void LibraryMetadataSchemas_ExposeAuthorAndMetadataWritesAndKeepOperationsClosed()
     {
         var read = Tool(typeof(TiaMcpServer.Library.LibraryReadTools), "LibraryRead").ProtocolTool.InputSchema;
         var readItem = read.GetProperty("properties").GetProperty("operations").GetProperty("items");
@@ -483,6 +483,8 @@ public class McpToolSchemaTests
         var properties = writeItem.GetProperty("properties");
         Assert.True(properties.TryGetProperty("author", out var author));
         Assert.Contains("255 UTF-16 code units", author.GetProperty("description").GetString());
+        foreach (var name in new[] { "comments", "activateLanguages", "editingLanguage", "referenceLanguage" })
+            Assert.True(properties.TryGetProperty(name, out _), name);
         Assert.False(properties.TryGetProperty("creationLanguage", out _));
         Assert.False(properties.TryGetProperty("metadataChange", out _));
     }

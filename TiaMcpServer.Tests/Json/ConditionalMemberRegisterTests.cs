@@ -47,6 +47,13 @@ public sealed class ConditionalMemberRegisterTests
         "LibraryEntryInfo.Metadata",
         // Present only after create_global succeeds and reads metadata.
         "LibraryWriteResultInfo.Metadata",
+        // Present when a metadata operation has a planned or observed comment/language change.
+        "LibraryWritePlanInfo.MetadataChange",
+        "LibraryWriteResultInfo.MetadataChange",
+        // Present when a failed metadata attempt retains before/after observations.
+        "LibraryWriteOutcomeInfo.MetadataChange",
+        // Present on an effect carrying metadata plan or mutation observations.
+        "LibraryWriteEffect.MetadataChange",
         // Present when creation succeeded but metadata collection failed after identity capture.
         "LibraryWriteOutcomeInfo.Library",
         // library_write type operations: typed plan/result evidence only for type operations.

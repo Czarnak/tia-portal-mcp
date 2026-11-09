@@ -9,6 +9,7 @@ internal sealed class LibraryMetadataState
     public List<string> ActiveLanguages { get; set; } = new();
     public string? EditingLanguage { get; set; }
     public string? ReferenceLanguage { get; set; }
+    internal bool CommentsRead { get; set; }
     internal bool ActiveLanguagesRead { get; set; }
     public static IReadOnlyList<string> Mismatches(LibraryWriteRequestInfo item, LibraryMetadataState before, LibraryMetadataState after)
     {

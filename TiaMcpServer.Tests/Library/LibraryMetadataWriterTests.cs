@@ -80,6 +80,35 @@ public sealed class LibraryMetadataWriterTests
         Assert.Null(result.Metadata);
     }
 
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("", true)]
+    [InlineData("new", false)]
+    [InlineData("new", true)]
+    public void RemovedComment_ReportsObservedEmptyTextBeforeAnyLaterFailure(string requestedText, bool laterGetterFailure)
+    {
+        var target = library.Comment.Items.Items[0];
+        target.TextSetAction = _ =>
+        {
+            library.Comment.Items.Items.Remove(target);
+            if (laterGetterFailure) library.LanguageSettings.ActiveLanguages.EnumerationFailure = new EngineeringException("later getter");
+        };
+        if (laterGetterFailure || requestedText.Length != 0)
+        {
+            var failure = Assert.Throws<WorkerOperationException>(() => Write(Comments(("en-US", requestedText))));
+            Assert.Equal(laterGetterFailure ? WorkerFailureCategories.WorkerOperationFailed : WorkerFailureCategories.PostconditionFailed, failure.FailureCategory);
+            Assert.Equal("", Assert.Single(failure.LibraryWriteOutcome!.MetadataChange!.Comments!).After);
+            Assert.Equal(1, rollbacks);
+            Assert.Equal(readsAtRollback, library.MetadataGetCount);
+        }
+        else
+        {
+            var result = Write(Comments(("en-US", requestedText)));
+            Assert.Equal("", Assert.Single(result.MetadataChange!.Comments!).After);
+            Assert.Equal(1, commits);
+        }
+    }
+
     [Fact]
     public void Languages_AutoactivateInOrderAndSkipAlreadyActiveAndUnchangedSettings()
     {
@@ -124,6 +153,9 @@ public sealed class LibraryMetadataWriterTests
         Assert.Equal(1, rollbacks); Assert.Equal(0, commits);
         Assert.Equal(readsAtRollback, library.MetadataGetCount);
         Assert.False(portal.Transactions[0].CommitRequested);
+        Assert.Equal(stage == "setter" ? WorkerFailureCategories.EngineeringRejected
+            : stage == "mismatch" ? WorkerFailureCategories.PostconditionFailed : WorkerFailureCategories.WorkerOperationFailed,
+            failure.FailureCategory);
         var change = Assert.IsType<LibraryMetadataChangeInfo>(failure.LibraryWriteOutcome!.MetadataChange);
         Assert.Equal("before", change.Comments![0].Before);
         Assert.Equal(stage == "setter" ? null : "new", change.Comments[0].After);

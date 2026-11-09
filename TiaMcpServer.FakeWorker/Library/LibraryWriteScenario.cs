@@ -10,17 +10,18 @@ namespace TiaMcpServer.FakeWorker.Library;
 internal static class LibraryWriteScenario
 {
     private static bool _createdType;
+    private static bool _metadataLanguageActive;
 
     public static string Handle(string line, string scenario)
     {
         var request = JsonSerializer.Deserialize<WorkerRequest>(line, WorkerJson.Envelope)!;
         if (request.LibraryWrite is not { } item || LibraryWriteMethods.Validate(item) is not null
             || !(LibraryWriteMethods.LifecycleOperations.Contains(item.Operation, StringComparer.Ordinal)
-                || item.Operation is "create_folder" or "copy_master_copy"
+                || item.Operation is "create_folder" or "copy_master_copy" or "set_comments" or "set_languages"
                 || LibraryWriteMethods.TypeOperations.Contains(item.Operation, StringComparer.Ordinal))
             || request.Method != LibraryWriteMethods.PlanFor(item) && request.Method != LibraryWriteMethods.ForItem(item)
             || scenario == "library-write-roundtrip.amc21"
-                && (request.Method != LibraryWriteMethods.GlobalPlan || item.Operation != "create_folder"))
+                && (item.Operation == "create_folder" && request.Method != LibraryWriteMethods.GlobalPlan))
             return Failure(WorkerFailureCategories.ValidationError, "Invalid scripted library write request.");
 
         var planning = request.Method == LibraryWriteMethods.PlanFor(item);
@@ -34,6 +35,8 @@ internal static class LibraryWriteScenario
         var library = new LibraryIdentityInfo { Scope = item.Scope ?? "global", Kind = "library",
             Name = item.LibraryName ?? item.Name ?? "Fixture", LibraryName = item.LibraryName ?? item.Name ?? "Fixture",
             LibraryPath = item.LibraryPath ?? item.FilePath ?? "C:/Fixture/Library.al21" };
+        if (item.Operation is "set_comments" or "set_languages")
+            return MetadataOperation(item, library, planning);
         var target = new LibraryIdentityInfo { Scope = library.Scope,
             Kind = item.Operation == "create_folder" ? "folder" : "masterCopy", Name = item.Name ?? "Folder",
             LibraryName = library.LibraryName, LibraryPath = library.LibraryPath,
@@ -56,6 +59,38 @@ internal static class LibraryWriteScenario
             AlreadyOpen = true, ActualName = lifecycle ? null : item.Name,
             Saved = item.Operation == "save_global" ? true : null,
             ArchivePath = item.Operation == "archive_global" ? "C:/Fixture/Archive.zal21" : null });
+    }
+
+    private static string MetadataOperation(LibraryWriteRequestInfo item, LibraryIdentityInfo library, bool planning)
+    {
+        var change = new LibraryMetadataChangeInfo
+        {
+            Comments = item.Operation == "set_comments" ? item.Comments!.Select(comment => new LibraryCommentChangeInfo
+                { Culture = CultureNameRules.CanonicalName(comment.Culture)!, Before = null, After = comment.Text }).ToList() : null,
+            ActivatedLanguages = item.Operation == "set_languages" ? ["pl-PL"] : null,
+            EditingLanguage = item.EditingLanguage is null ? null : new() { Before = "en-US", After = CultureNameRules.CanonicalName(item.EditingLanguage) },
+            ReferenceLanguage = item.ReferenceLanguage is null ? null : new() { Before = "en-US", After = CultureNameRules.CanonicalName(item.ReferenceLanguage) }
+        };
+        if (planning)
+            return Success(new LibraryWritePlanInfo { Library = library, MetadataChange = change,
+                MissingTargets = item.Operation == "set_comments" && !_metadataLanguageActive
+                    ? [new() { Scope = "global", Kind = "comment", LibraryPath = library.LibraryPath, Name = "pl-PL" }] : null });
+        if (item.LibraryName == "MalformedMetadata")
+            return """{"success":false,"failureCategory":"worker_operation_failed","error":"PRIVATE_METADATA","libraryWriteOutcome":{"saved":null,"actualName":null,"metadataChange":{"comments":[null],"activatedLanguages":null,"editingLanguage":null,"referenceLanguage":null}}}""";
+        if (item.LibraryName is "CommentsRefused" or "LanguagesRefused" or "PortalLost")
+        {
+            var lost = item.LibraryName == "PortalLost";
+            var language = item.Operation == "set_languages";
+            if (change.Comments is not null) change.Comments.ForEach(comment => comment.After = null);
+            if (language) { change.ActivatedLanguages = null; change.EditingLanguage!.After = null; change.ReferenceLanguage!.After = null; }
+            return JsonSerializer.Serialize(new WorkerResponse { Success = false,
+                FailureCategory = lost ? WorkerFailureCategories.PortalLost : language ? WorkerFailureCategories.EngineeringRejected : WorkerFailureCategories.WorkerOperationFailed,
+                Error = "Synthetic localized native refusal", LibraryWriteOutcome = new() { Library = library, MetadataChange = change },
+                EngineeringError = lost ? null : new() { Type = language ? "EngineeringTargetInvocationException" : "EngineeringNotSupportedException", Message = "Synthetic localized native refusal" }
+            }, WorkerJson.Envelope);
+        }
+        if (item.Operation == "set_languages") _metadataLanguageActive = true;
+        return Success(new LibraryWriteResultInfo { Library = library, MetadataChange = change });
     }
 
     private static string TypeOperation(LibraryWriteRequestInfo item, bool planning)
