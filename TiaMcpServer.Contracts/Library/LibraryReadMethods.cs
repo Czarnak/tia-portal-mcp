@@ -45,6 +45,10 @@ public static class LibraryReadMethods
     public static string? Validate(string operation, LibraryQueryInfo query)
     {
         if (!Operations.Contains(operation, StringComparer.Ordinal)) return "Unknown library read operation.";
+        if (query.IncludeMetadata is not null && operation != "inspect_library")
+            return "includeMetadata is only valid for inspect_library.";
+        if (query.IncludeMetadata == true && query.Scope == "project")
+            return "Metadata is available for global libraries only.";
         if (query.Offset < 0 || query.Limit is < 1 or > MaxLimit) return "offset must be nonnegative; limit must be 1 to 200.";
         if (operation == ListGlobalLibraries)
             return query.Scope is not null || query.LibraryPath is not null || query.LibraryName is not null

@@ -13,6 +13,7 @@ public sealed class LibraryQueryInfo
     public string? Scope { get; set; }
     public string? LibraryPath { get; set; }
     public string? LibraryName { get; set; }
+    public bool? IncludeMetadata { get; set; }
     public string? FolderKind { get; set; }
     public List<string>? FolderPath { get; set; }
     public string? TypeName { get; set; }
@@ -41,6 +42,9 @@ public sealed class LibraryIdentityInfo
 
 public sealed class LibraryEntryInfo
 {
+    /// <summary>Present only for global inspect_library with includeMetadata:true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LibraryMetadataInfo? Metadata { get; set; }
     public LibraryIdentityInfo Identity { get; set; } = new();
     public string? Namespace { get; set; }
     public string? VersionNumber { get; set; }

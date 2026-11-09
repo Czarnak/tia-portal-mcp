@@ -123,9 +123,13 @@ namespace Siemens.Engineering.Library
 
         public Dictionary<string, object?> MetadataValues { get; } = new();
         public Dictionary<string, Exception> MetadataFailures { get; } = new();
+        public int MetadataGetCount { get; private set; }
         private T Metadata<T>(string member, T fallback)
-            => MetadataFailures.TryGetValue(member, out var failure) ? throw failure
+        {
+            MetadataGetCount++;
+            return MetadataFailures.TryGetValue(member, out var failure) ? throw failure
                 : Live(MetadataValues.TryGetValue(member, out var value) ? (T)value! : fallback);
+        }
         public string? Author => Metadata(nameof(Author), (string?)string.Empty);
         public string? Version => Metadata(nameof(Version), (string?)string.Empty);
         public string? Family => Metadata(nameof(Family), (string?)string.Empty);

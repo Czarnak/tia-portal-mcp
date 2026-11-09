@@ -31,6 +31,63 @@ public sealed class LibraryReadToolsTests
     private static ValueTask<CallToolResult> CallAsync(McpProtocolTestHarness harness, params object[] operations)
         => harness.Client.CallToolAsync("library_read", new Dictionary<string, object?> { ["operations"] = operations });
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GlobalInspect_MetadataIsOptIn(bool? includeMetadata)
+    {
+        await using var harness = await McpProtocolTestHarness.StartAsync<LibraryReadTools>(
+            startupProjectPath: Scenario, accessMode: McpAccessMode.ReadOnly);
+        var result = await CallAsync(harness,
+            new { operationId = "inspect", operation = "inspect_library", scope = "global", libraryName = "Fixture", includeMetadata });
+
+        Assert.False(result.IsError);
+        var entry = Items(result)[0].GetProperty("result").GetProperty("items")[0];
+        Assert.Equal(includeMetadata == true, entry.TryGetProperty("metadata", out var metadata));
+        if (includeMetadata == true) Assert.Equal("Fixture author", metadata.GetProperty("author").GetString());
+    }
+
+    [Fact]
+    public async Task ProjectMetadataTrue_ValidationErrorBeforeDispatch()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario, McpAccessMode.ReadOnly);
+        var before = log.Methods().Length;
+
+        var result = await LibraryReadTools.LibraryRead(client, NewCodec(), new[]
+        {
+            new LibraryReadItem { OperationId = "inspect", Operation = "inspect_library", Scope = "project", IncludeMetadata = true },
+        });
+
+        Assert.True(result.IsError);
+        var error = CanonicalToolDocument.Read(result).GetProperty("error");
+        Assert.Equal("validation_error", error.GetProperty("category").GetString());
+        Assert.Contains("Metadata is available for global libraries only.", error.GetProperty("message").GetString());
+        Assert.DoesNotContain(log.Methods().Skip(before), method => method.StartsWith("library_", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("true")]
+    [InlineData(1)]
+    public async Task IncludeMetadata_NonBoolean_IsCanonicalShapeRejection(object includeMetadata)
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        await using var harness = await McpProtocolTestHarness.StartAsync<LibraryReadTools>(
+            startupProjectPath: Scenario, accessMode: McpAccessMode.ReadOnly);
+        var before = log.Methods().Length;
+
+        var result = await CallAsync(harness,
+            new { operationId = "inspect", operation = "inspect_library", scope = "global", libraryName = "Fixture", includeMetadata });
+
+        ArgumentRejectionAssert.IsCanonicalValidationError(result, "library_read");
+        Assert.DoesNotContain(log.Methods().Skip(before), method => method.StartsWith("library_", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task Unbound_AnyBatch_WholeCallBindingConflict()
     {

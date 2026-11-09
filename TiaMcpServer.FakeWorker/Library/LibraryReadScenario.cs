@@ -48,6 +48,7 @@ internal static class LibraryReadScenario
         IsModified = null,
         LibraryType = query.Scope == "project" ? null : "user",
         IsOpen = query.Scope == "project" ? null : true,
+        Metadata = query.IncludeMetadata == true ? new LibraryMetadataInfo { Author = "Fixture author", Complete = true } : null,
         Diagnostics = { "isModified unavailable in fixture" },
     };
 

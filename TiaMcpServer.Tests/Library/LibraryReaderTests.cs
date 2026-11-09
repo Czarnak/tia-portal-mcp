@@ -15,6 +15,61 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryReaderTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InspectGlobal_ReadOnlySystemLibrary_MetadataGettersAreOptIn(bool? includeMetadata)
+    {
+        var library = AddGlobal("System", @"C:\Libs\System.al21");
+        AddAvailable("System", @"C:\Libs\System.al21", GlobalLibraryType.System);
+        library.MetadataValues[nameof(library.Author)] = "System author";
+        var query = Global("System");
+        query.IncludeMetadata = includeMetadata;
+
+        var entry = Assert.Single(Read("library_global_inspect_library", query).Items);
+
+        Assert.True(entry.IsReadOnly);
+        Assert.Equal("system", entry.LibraryType);
+        Assert.False(library.Modified);
+        if (includeMetadata == true)
+        {
+            Assert.Equal("System author", entry.Metadata?.Author);
+            Assert.True(library.MetadataGetCount > 0);
+        }
+        else
+        {
+            Assert.Null(entry.Metadata);
+            Assert.Equal(0, library.MetadataGetCount);
+        }
+    }
+
+    [Fact]
+    public void ListGlobalLibraries_NeverReadsMetadata()
+    {
+        var library = AddGlobal("Lib", @"C:\Libs\Lib.al21");
+        Assert.Null(Assert.Single(Read(ListGlobal, new LibraryQueryInfo()).Items).Metadata);
+        Assert.Equal(0, library.MetadataGetCount);
+    }
+
+    [Fact]
+    public void InspectProject_MetadataTrue_IsValidationErrorBeforeNativeAccess()
+    {
+        portal.GlobalLibrariesFailure = new InvalidOperationException("Native access must not happen.");
+        var failure = Assert.Throws<WorkerOperationException>(() => LibraryReader.Read(portal, null!,
+            "library_project_inspect_library", new LibraryQueryInfo { Scope = "project", IncludeMetadata = true }, store));
+        Assert.Equal(WorkerFailureCategories.ValidationError, failure.FailureCategory);
+        Assert.Equal("Metadata is available for global libraries only.", failure.Message);
+    }
+
+    [Fact]
+    public void InspectProject_MetadataFalse_BehavesLikeOmission()
+    {
+        project.ProjectLibrary = new ProjectLibrary();
+        var entry = Assert.Single(Read("library_project_inspect_library", new LibraryQueryInfo { Scope = "project", IncludeMetadata = false }).Items);
+        Assert.Null(entry.Metadata);
+    }
+
     [Fact]
     public void Read_ListVersions_ByTypeName()
     {
