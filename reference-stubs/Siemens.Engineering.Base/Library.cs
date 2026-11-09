@@ -39,6 +39,18 @@ namespace Siemens.Engineering.Library
     }
     public abstract class GlobalLibrary : global::Siemens.Engineering.IEngineeringObject, global::Siemens.Engineering.IEngineeringInstance, global::Siemens.Engineering.ITransactionSupport, global::Siemens.Engineering.Library.ILibrary
     {
+        public string Author { get => throw new global::System.NotSupportedException(); }
+        public string Version { get => throw new global::System.NotSupportedException(); }
+        public string Family { get => throw new global::System.NotSupportedException(); }
+        public string Copyright { get => throw new global::System.NotSupportedException(); }
+        public string LastModifiedBy { get => throw new global::System.NotSupportedException(); }
+        public global::System.DateTime CreationTime { get => throw new global::System.NotSupportedException(); }
+        public global::System.DateTime LastModified { get => throw new global::System.NotSupportedException(); }
+        public long Size { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.MultilingualText Comment { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.LanguageSettings LanguageSettings { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.UsedProductComposition UsedProducts { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.HistoryEntryComposition HistoryEntries { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.Library.MasterCopies.MasterCopySystemFolder MasterCopyFolder { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.Library.Types.LibraryTypeSystemFolder TypeFolder { get => throw new global::System.NotSupportedException(); }
         public bool IsModified { get => throw new global::System.NotSupportedException(); }

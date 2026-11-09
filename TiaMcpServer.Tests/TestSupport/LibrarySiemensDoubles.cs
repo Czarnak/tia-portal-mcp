@@ -9,6 +9,26 @@ using Siemens.Engineering.Library.Types;
 namespace Siemens.Engineering
 {
     public enum OpenMode { ReadOnly = 0, ReadWrite = 1 }
+    public sealed class EngineeringSecurityException : EngineeringException
+    {
+        public EngineeringSecurityException(string message) : base(message) { }
+    }
+    public sealed class UsedProduct
+    {
+        private string? name;
+        public Exception? NameFailure { get; set; }
+        public string? Name { get => NameFailure is null ? name : throw NameFailure; set => name = value; }
+        public string? Version { get; set; }
+    }
+    public sealed class UsedProductComposition : Library.LibraryComposition<UsedProduct> { }
+    public sealed class HistoryEntry
+    {
+        private string? text;
+        public Exception? TextFailure { get; set; }
+        public DateTime DateTime { get; set; }
+        public string? Text { get => TextFailure is null ? text : throw TextFailure; set => text = value; }
+    }
+    public sealed class HistoryEntryComposition : Library.LibraryComposition<HistoryEntry> { }
     public sealed partial class TiaPortal
     {
         private readonly Library.GlobalLibraryComposition globalLibraries = new();
@@ -100,6 +120,28 @@ namespace Siemens.Engineering.Library
     {
         private string name = string.Empty;
         private FileInfo? path;
+
+        public Dictionary<string, object?> MetadataValues { get; } = new();
+        public Dictionary<string, Exception> MetadataFailures { get; } = new();
+        private T Metadata<T>(string member, T fallback)
+            => MetadataFailures.TryGetValue(member, out var failure) ? throw failure
+                : Live(MetadataValues.TryGetValue(member, out var value) ? (T)value! : fallback);
+        public string? Author => Metadata(nameof(Author), (string?)string.Empty);
+        public string? Version => Metadata(nameof(Version), (string?)string.Empty);
+        public string? Family => Metadata(nameof(Family), (string?)string.Empty);
+        public string? Copyright => Metadata(nameof(Copyright), (string?)string.Empty);
+        public string? LastModifiedBy => Metadata(nameof(LastModifiedBy), (string?)string.Empty);
+        public DateTime CreationTime => Metadata(nameof(CreationTime), default(DateTime));
+        public DateTime LastModified => Metadata(nameof(LastModified), default(DateTime));
+        public long Size => Metadata(nameof(Size), 0L);
+        private readonly MultilingualText comment = new();
+        private readonly LanguageSettings languageSettings = new();
+        private readonly UsedProductComposition products = new();
+        private readonly HistoryEntryComposition history = new();
+        public MultilingualText Comment => Metadata(nameof(Comment), comment);
+        public LanguageSettings LanguageSettings => Metadata(nameof(LanguageSettings), languageSettings);
+        public UsedProductComposition UsedProducts => Metadata(nameof(UsedProducts), products);
+        public HistoryEntryComposition HistoryEntries => Metadata(nameof(HistoryEntries), history);
 
         public Exception? NameFailure { get; set; }
         public string Name { get => NameFailure is null ? Live(name) : throw NameFailure; set => name = value; }

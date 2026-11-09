@@ -73,3 +73,42 @@ public sealed class LibraryPageInfo
     public bool Complete { get; set; }
     public List<string> Diagnostics { get; set; } = new();
 }
+
+public sealed class LibraryMetadataInfo
+{
+    public string? Author { get; set; }
+    public string? Version { get; set; }
+    public string? Family { get; set; }
+    public string? Copyright { get; set; }
+    public string? LastModifiedBy { get; set; }
+    public string? CreationTime { get; set; }
+    public string? LastModified { get; set; }
+    public long? SizeKilobytes { get; set; }
+    public List<LibraryCommentInfo>? Comments { get; set; }
+    public List<string>? SupportedLanguages { get; set; }
+    public List<string>? ActiveLanguages { get; set; }
+    public string? EditingLanguage { get; set; }
+    public string? ReferenceLanguage { get; set; }
+    public List<LibraryUsedProductInfo>? UsedProducts { get; set; }
+    public List<LibraryHistoryEntryInfo>? History { get; set; }
+    public bool Complete { get; set; }
+    public List<string> Diagnostics { get; set; } = new();
+}
+
+public sealed class LibraryCommentInfo
+{
+    public string? Culture { get; set; }
+    public string? Text { get; set; }
+}
+
+public sealed class LibraryUsedProductInfo
+{
+    public string? Name { get; set; }
+    public string? Version { get; set; }
+}
+
+public sealed class LibraryHistoryEntryInfo
+{
+    public string? DateTime { get; set; }
+    public string? Text { get; set; }
+}

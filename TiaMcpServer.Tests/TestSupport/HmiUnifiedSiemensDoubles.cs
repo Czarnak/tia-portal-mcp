@@ -20,7 +20,8 @@ namespace Siemens.Engineering
 
     public sealed class Language
     {
-        public CultureInfo Culture { get; set; } = CultureInfo.InvariantCulture;
+        private CultureInfo culture = CultureInfo.InvariantCulture;
+        public CultureInfo Culture { get => CultureFailure is null ? culture : throw CultureFailure; set => culture = value; }
         public Exception? CultureFailure { get; set; }
         public static Language Of(string culture) => new() { Culture = CultureInfo.GetCultureInfo(culture) };
     }
@@ -40,6 +41,7 @@ namespace Siemens.Engineering
     public sealed class LanguageSettings
     {
         private Language? editing, reference;
+        public LanguageComposition Languages { get; } = new();
         public LanguageAssociation ActiveLanguages { get; } = new();
         public Exception? EditingLanguageFailure { get; set; }
         public Exception? ReferenceLanguageFailure { get; set; }
@@ -54,6 +56,8 @@ namespace Siemens.Engineering
             set => reference = value;
         }
     }
+
+    public sealed class LanguageComposition : Library.LibraryComposition<Language> { }
 
     public abstract partial class ProjectBase
     {
@@ -75,7 +79,8 @@ namespace Siemens.Engineering
     public sealed class MultilingualTextItemComposition : IEnumerable<MultilingualTextItem>
     {
         public List<MultilingualTextItem> Items { get; } = new();
-        public IEnumerator<MultilingualTextItem> GetEnumerator() => Items.GetEnumerator();
+        public Exception? EnumerationFailure { get; set; }
+        public IEnumerator<MultilingualTextItem> GetEnumerator() => EnumerationFailure is null ? Items.GetEnumerator() : throw EnumerationFailure;
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
