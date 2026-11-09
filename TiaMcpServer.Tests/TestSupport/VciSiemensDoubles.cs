@@ -44,8 +44,10 @@ namespace Siemens.Engineering
         public Exception? DisposeFailure { get; set; }
         public Action? RollbackAction { get; set; }
         public Action? CommitAction { get; set; }
+        public Exception? CommitOnDisposeFailure { get; set; }
         public void CommitOnDispose()
         {
+            if (CommitOnDisposeFailure is not null) throw CommitOnDisposeFailure;
             if (!CanCommit) throw new EngineeringException("Transaction cannot commit.");
             CommitRequested = true;
         }
