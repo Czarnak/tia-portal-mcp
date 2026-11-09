@@ -1,7 +1,7 @@
 # Global-library metadata (`library_read` / `library_write`) — design
 
 Refs #218. Two PRs: **PR A** reads metadata and sets the author at creation; **PR B** edits comments and
-languages. Neither closes #218.
+languages. Owner direction on 2026-11-09 makes PR B the final agreed slice intended to close #218.
 
 ## 1. Intent
 
@@ -165,7 +165,7 @@ fault injection remain unqualified by Task 6.
 pruning at the end because PR B needs this spec. PR B's [Task 0 console](../acceptance/reports/inputs/2026-11-09-library-metadata-pr-b-native-probe/README.md)
 has run B1-B10; PR B product changes remain unimplemented.
 
-### 6.2 PR B findings, unresolved acceptance expectation (2026-11-09)
+### 6.2 PR B findings and owner resolution (2026-11-09)
 
 [B1-B10 report](../acceptance/reports/2026-11-09-library-metadata-pr-b-native-probes.md): normal and
 separate B8 probe processes both exited 0 with no case failures. Transactions exposed new text before
@@ -174,12 +174,22 @@ B8 was rejected recoverably at `Text.set` with `EngineeringTargetInvocationExcep
 reported a 32767 system limit. The library remained unchanged. No boundary maximum was independently
 established and no new input cap has been approved.
 
-**Contradiction awaiting owner resolution:** section 12 expects `engineering_rejected` for a read-only
+**Observed acceptance mismatch:** section 12 originally expected `engineering_rejected` for a read-only
 library. B6's comment setter instead threw `EngineeringNotSupportedException`; the existing classifier
 and section 8.3 imply `worker_operation_failed` with `engineeringError`. B6 language activation threw
 `EngineeringTargetInvocationException`, implying `engineering_rejected`. Both failed at their setters
 after transaction creation and left full metadata unchanged. These categories are inferred from native
-types and existing code, not observed MCP responses. No classifier or design decision was changed.
+types and existing code, not observed MCP responses.
+
+**Owner resolution:** rely on TIA for behavior it already guards. Preserve native type-based
+classification: read-only comments can be `worker_operation_failed`, and read-only language activation
+can be `engineering_rejected`. Do not add a read-only guard or a 32767-character comment cap; keep the
+effective host item budget and let Portal refuse admitted text. The designed end-state check remains
+for ignored/altered changes and unintended side effects. No extra verify RPC or read after failure.
+
+The [PR B implementation plan](../plans/2026-11-09-library-metadata-pr-b.md) includes live acceptance,
+permanent documentation, pruning of the retained PR A plan/shared spec and PR B working files, followed
+by the final empty contributor-credit commit. PR B's eventual PR description will use `Closes #218`.
 
 ## 7. PR A — read metadata, author at creation
 
@@ -284,7 +294,8 @@ Request rules (host and worker `Validate`):
   or comparison. Whether the library supports it is Portal's answer (§8.3).
 - `comments`: non-empty; each entry has a culture and a non-null `text`; canonical cultures unique. `""`
   clears that language's comment. Languages not named stay unchanged.
-- The sum of all comment text lengths in one item is at most `MaxItemChars`.
+- The host checks the sum of all comment text lengths in one item against effective `MaxItemChars`.
+  Shared worker validation retains request-shape/culture rules; no new worker budget setting is added.
 - `activateLanguages`: if present, non-empty, canonical cultures unique. An already active language is
   skipped (no `Add` call), so repeating an activation changes nothing. Editing and reference language are
   set only when they differ from the current value.
@@ -496,7 +507,8 @@ with author, both returning metadata; a library opened read-only and a system li
 
 **PR B**: set one and two comments, clear one, an inactive culture (`target_not_found`), an unsupported
 culture (`target_not_found`); activate a language and set editing/reference; set editing to an inactive
-language (B5 behaviour); a library opened read-only (`engineering_rejected` and the attached state); dry run
+language (B5 behaviour); a library opened read-only (comments: `worker_operation_failed`, language
+activation: `engineering_rejected`, with native exception evidence and attached state); dry run
 of each; one dry run with `set_languages` activating a language and `set_comments` for it (`createdByItem`),
 and the same pair applied in one call; a multi-line comment read back exactly; one call mixing `create_master_copy` and `set_comments` on the same library (master copy stays
 `trusted`); `close_global` with `discard` after an edit (edits gone, metadata item `superseded`);
