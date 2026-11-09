@@ -41,6 +41,7 @@ To add one, copy [TEMPLATE.md](TEMPLATE.md) to `NNNN-<slug>.md` with the next fr
 | [0016](0016-library-write-staging-and-lifecycle-prompt.md) | library_write ships in stages, prompts only for global-library lifecycle, and draws no ownership line | Accepted | library | 2026-11-06 |  |
 | [0017](0017-library-writes-apply-without-planning.md) | Library writes apply without a planning pass | Accepted | library | 2026-11-07 |  |
 | [0018](0018-read-only-default-access-mode.md) | Read-only is the default access mode | Accepted | write-safety | 2026-11-08 |  |
+| [0019](0019-library-metadata-transactions.md) | Global-library metadata edits use native transactions and end-state checks | Accepted | library | 2026-11-09 |  |
 
 `Record` links an original plan or spec kept verbatim under `records/` because it holds material no ADR carries.
 

@@ -1,8 +1,11 @@
 # Native library metadata probe - PR B, Task 0
 
-Standalone net48/x64 console for B1-B10 in [the design, section 6](../../../../specs/2026-11-08-library-metadata-design.md).
+Standalone net48/x64 console for the native metadata cases behind
+[ADR-0019](../../../../../adr/0019-library-metadata-transactions.md) and the
+[operation reference](../../../../../SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#comment-and-language-edits).
 Results: [2026-11-09 native probe report](../../2026-11-09-library-metadata-pr-b-native-probes.md).
-Both runs completed; the read-only comment exception differs from the design's acceptance expectation.
+Both runs completed; read-only comments and language activation produce different native exception types,
+as recorded in the report.
 Uses installed Siemens V21 Openness directly, following the PR A console pattern; no MCP server or PLC project is needed.
 
 From this directory:

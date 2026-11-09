@@ -69,8 +69,11 @@ Remaining work:
 
 **Still deferred after PR 3:** `update_type_instances` (`UpdateProject` removed 56 unused instances despite
 `DoNotDelete`; needs a transaction with an inventory check), `replace_master_copy`, `move_master_copy`,
-`move_master_copy_folder`. Library upgrade on open/retrieve, library comment/language editing (PR B), project-library writes on
-local sessions and unbound (Portal-only) global operations are also outside the delivered slice.
+`move_master_copy_folder`. Library upgrade on open/retrieve, project-library writes on local sessions and unbound (Portal-only)
+global operations are also outside the delivered slice. Global comment/language editing is delivered
+by PR B; [scoped acceptance](superpowers/acceptance/reports/2026-11-09-library-metadata-pr-b-live-verification.md)
+and [ADR-0019](adr/0019-library-metadata-transactions.md) record its limits. Language removal, an optional
+expected-text hash for comments and project-library metadata remain follow-ups; none is implemented.
 
 **Not live-verified (offline tests only):** a native master-copy rename (`postcondition_failed` with
 `actualName`); `Close` throwing after a save; `library_state_unverifiable`; a delete preview over 200 entries;
