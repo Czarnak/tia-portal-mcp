@@ -15,7 +15,7 @@ qualification; it does not claim other Portal versions, concurrent editing or ha
   The Debug worker is a different build and was not substituted for the installed candidate.
 - Host SHA-256: `e16ff30a73a1397298842eedc6f6cc6b38a3adf5142007a85fe5070d412390f9`.
   Worker SHA-256: `343007aa4c9e314f9defbf7f0079a9e6ae61a3e9bab1b8950052c16e7822609f`.
-  All three hashes and original receipt hashes are in the [provenance index](inputs/2026-11-09-library-metadata-pr-b-provenance.json).
+  All three hashes and summarized private-evidence provenance are in the [provenance index](inputs/2026-11-09-library-metadata-pr-b-provenance.json).
 - The installed full-mode MCP tool verified the exact authorized disposable project in Portal PID
   `33000`, with `isModified:false`. The other Portal, PID `14140`, was not attached or used.
   Full-mode worker PID `17168` resolved to the installed package; worker PID `41020` was also observed
@@ -29,7 +29,8 @@ qualification; it does not claim other Portal versions, concurrent editing or ha
 
 ## Acceptance matrix
 
-Receipt labels below identify JSONL records in the [sanitized MCP trace](inputs/2026-11-09-library-metadata-pr-b-mcp.jsonl.gz).
+Receipt labels below identify the verified MCP records retained in ignored local scratch.
+MCP-level traces are not retained in the repository, as required by `AGENTS.md`.
 An expected rejection is a passed acceptance case. A failed item is not a successful mutation.
 
 | Case | Evidence and observed result | Verdict |
@@ -73,19 +74,20 @@ or unexpected product failure occurred. Native Task 0 was reused rather than rer
 
 ## Evidence verification and cleanup
 
-- Retained trace: 43 MCP receipts, 28 audit records matched by original canonical response hash,
-  and two bidirectional read-write wire records, totalling 73 JSONL records.
+- Private evidence: 43 MCP receipts, 28 audit records matched by original canonical response hash,
+  and two bidirectional read-write wire records, totalling 73 JSONL records, retained only in ignored
+  local scratch. This permanent report retains summarized acceptance facts rather than MCP traces.
 - 99 offline assertions passed: text/structured equality for every receipt, exact Unicode/newlines,
   expected categories and typed outcomes, metadata preservation, persistence/discard, supersession,
   exact per-request elicitation counts, matching audits, installed/Release binary identity and cleanup.
   The reused bridge's native-free self-check passed. Its lifecycle answers are automated protocol
   evidence; they do not prove a human saw a prompt.
-- Sanitized compressed SHA-256: `e6a7041c72cb93d99fb406939f12b7237c19d3bc013168cfab93a64b19e5e0d5`.
-  Uncompressed SHA-256: `79a764dcf53c739c1b7538b033284e5e8d8b4c42bc13c2aeaa11e4233e71830c`.
-  Decompression/parsing and sanitization were checked. Audit `responseHash` identifies original
-  private bytes; sanitized `responseText` is reserialized and must not be used to recompute that hash.
-- Private raw receipts, wire files, process provenance and the offline assertion script remain in
-  ignored local scratch. A Windows-default text-decoding issue in the offline packager was fixed to
+- The private archive hashes are recorded in the provenance index; the archive itself is not committed.
+  Decompression/parsing and sanitization were checked before it was moved to ignored scratch.
+  Original audit `responseHash` identifies the private canonical bytes and differs from hashes of
+  reserialized sanitized text. Original per-receipt hashes also remain in private scratch.
+- Private raw receipts, wire files, audit details, process provenance, the sanitized archive and the
+  offline assertion script remain in ignored local scratch. A Windows-default text-decoding issue in the offline packager was fixed to
   explicit UTF-8 before verification; it did not affect the MCP request or native text round trip.
 - The fresh library was closed with discard, its directory was deleted, and the staging test created
   no directory. The original user library was neither opened nor changed. The existing project
