@@ -469,6 +469,24 @@ public class McpToolSchemaTests
         Assert.True(open.Length == 0, "Open input schemas: " + string.Join(", ", open));
     }
 
+    [Fact]
+    public void LibraryMetadataSchemas_ExposeOnlyPrAInputsAndKeepOperationsClosed()
+    {
+        var read = Tool(typeof(TiaMcpServer.Library.LibraryReadTools), "LibraryRead").ProtocolTool.InputSchema;
+        var readItem = read.GetProperty("properties").GetProperty("operations").GetProperty("items");
+        Assert.False(readItem.GetProperty("additionalProperties").GetBoolean());
+        Assert.Equal("boolean", readItem.GetProperty("properties").GetProperty("includeMetadata")
+            .GetProperty("type")[0].GetString());
+        var write = Tool(typeof(TiaMcpServer.Library.LibraryWriteTools), "LibraryWrite").ProtocolTool.InputSchema;
+        var writeItem = write.GetProperty("properties").GetProperty("operations").GetProperty("items");
+        Assert.False(writeItem.GetProperty("additionalProperties").GetBoolean());
+        var properties = writeItem.GetProperty("properties");
+        Assert.True(properties.TryGetProperty("author", out var author));
+        Assert.Contains("255 UTF-16 code units", author.GetProperty("description").GetString());
+        Assert.False(properties.TryGetProperty("creationLanguage", out _));
+        Assert.False(properties.TryGetProperty("metadataChange", out _));
+    }
+
     /// <summary>
     /// The snapshot is the tools/list outputSchema on main. Wrapped tools skip the SDK's legacy-wire
     /// reshaping, so the legacy protocol is compared too; on main both protocols emit the same schemas.

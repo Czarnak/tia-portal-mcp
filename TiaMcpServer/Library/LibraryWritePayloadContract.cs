@@ -19,6 +19,7 @@ public static class LibraryWritePayloadContract
                     return StructuredOperationItem.Failed(item,
                         result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
                         result.Error ?? "The library write failed.", result.Warnings);
+                ValidateIdentity(outcome.Library);
                 ValidateType(outcome.Type);
                 return new(item.OperationId, item.Operation, OperationBatchStatus.Failed, CanonicalJson.ToElement(outcome),
                     new(result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed,
@@ -29,6 +30,7 @@ public static class LibraryWritePayloadContract
                 ValidateIdentity(value.Library);
                 ValidateIdentity(value.Target);
                 ValidateType(value.Type);
+                LibraryPayloadContract.ValidateMetadata(value.Metadata);
             });
             return new(item.OperationId, item.Operation, OperationBatchStatus.Succeeded, element, null, null, null, result.Warnings);
         }
@@ -41,7 +43,8 @@ public static class LibraryWritePayloadContract
 
     internal static void ValidateIdentity(LibraryIdentityInfo? identity)
     {
-        if (identity?.FolderPath.Any(segment => segment is null) == true) throw new JsonException();
+        if (identity is not null && (identity.Scope is null || identity.Kind is null || identity.Name is null
+            || identity.FolderPath is null || identity.FolderPath.Any(segment => segment is null))) throw new JsonException();
     }
 
     internal static void ValidateType(LibraryTypeResultInfo? type)
@@ -59,6 +62,10 @@ public static class LibraryWritePayloadContract
         // Validate raw evidence before the permissive legacy envelope reader normalizes it.
         if (members.Length != 1 || members[0].Name != "libraryWriteOutcome") throw new JsonException();
         if (members[0].Value.ValueKind != JsonValueKind.Null)
-            ValidateType(CanonicalJson.DeserializeWorkerPayload<LibraryWriteOutcomeInfo>(members[0].Value.GetRawText()).Type);
+        {
+            var outcome = CanonicalJson.DeserializeWorkerPayload<LibraryWriteOutcomeInfo>(members[0].Value.GetRawText());
+            ValidateIdentity(outcome.Library);
+            ValidateType(outcome.Type);
+        }
     }
 }

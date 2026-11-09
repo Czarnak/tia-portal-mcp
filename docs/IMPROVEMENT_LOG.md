@@ -91,10 +91,11 @@ Apply defensive worker validation before native calls where applicable; never tr
 normalize accepted text. Preserve existing author values returned by reads exactly, including values
 longer than the input cap: reads are observations, not input admission.
 
-PR A is to introduce a reusable author metadata length validation helper in
+PR A now implements the reusable `AuthorMetadataRules` helper in
 `TiaMcpServer.Contracts/Shared`, called by shared library validation for both `create_global` and
-`release_type_version`. Creation keeps its nonblank rule; release text/blank handling otherwise stays
-unchanged. The shared helper is the adoption point for future author fields.
+`release_type_version` before host dispatch and defensively before native calls. Offline boundary
+regressions pass. Creation keeps its nonblank rule; release text/blank handling otherwise stays
+unchanged. Live acceptance remains pending. The shared helper is the adoption point for future author fields.
 
 Inventory all remaining author input paths, including any project/block or other object author fields,
 whether supplied as arguments or embedded in imported content. Record which

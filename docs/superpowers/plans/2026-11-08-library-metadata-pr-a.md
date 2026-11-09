@@ -14,7 +14,10 @@ confirmation remain in place. No new tool, operation, transport method or write 
 **Spec:** [2026-11-08-library-metadata-design.md](../specs/2026-11-08-library-metadata-design.md), sections
 3, 5-7, PR A parts of 10-12; [native results](../acceptance/reports/2026-11-08-library-metadata-native-probes.md).
 
-**Status:** Task 1's decision gate is resolved and committed; Tasks 2-6 remain unchecked. The owner
+**Status:** Tasks 1-5 are implemented and their offline gates pass (8,618 non-Packaging tests,
+39 Packaging tests, 95% aggregate coverage with the existing CI settings). Independent final review
+is pending. Task 6 remains unchecked: live acceptance and post-acceptance public documentation
+have not been performed. The owner
 reports a 255-character TIA UI maximum and approved host fail-fast validation without another cap probe.
 The agreed creation-author admission rule is nonblank and at most 255 UTF-16 code units (`string.Length`),
 with the effective item budget as an additional constraint. The latest owner instruction also applies
@@ -109,25 +112,25 @@ in the shared library namespace. Metadata has exactly the section 7.2 members; u
 (`long?` for KB size), nullable collections, `Complete` and a non-null `Diagnostics` list. Date/time values
 are ISO 8601 strings, not JSON-serialized native DateTime/proxy objects.
 
-- [ ] Write reader tests before implementation: `Read_PreservesEmptyValuesAndNullLanguages`,
+- [x] Write reader tests before implementation: `Read_PreservesEmptyValuesAndNullLanguages`,
   `Read_SortsCommentsAndLanguagesOrdinally`, `Read_CapsProductsAt100AndHistoryAt50`,
   `Read_DoesNotCapCommentsOrLanguages`, `Read_RecoverableGetterFailurePreservesOtherMembers`, and
   `Read_SecurityDisposedAndFatalFailuresEscape`. Assert original native order for capped lists,
   `Complete=false` plus a cap diagnostic only when a list actually exceeds its cap; exactly 100/50 is
   complete. Keep empty comments. Legitimate null languages do not generate failure diagnostics.
-- [ ] Extend only needed Siemens-shaped doubles/stubs from installed V21 reflection: metadata getters,
+- [x] Extend only needed Siemens-shaped doubles/stubs from installed V21 reflection: metadata getters,
   language enumeration, product/history entries. Failure hooks must distinguish the two recoverable
   property exception types from other engineering exceptions. Link the new worker reader into the test
   project explicitly, as existing worker library sources are linked.
-- [ ] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~LibraryMetadataReaderTests"` and
+- [x] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~LibraryMetadataReaderTests"` and
   observe the relevant missing-reader/behavior failure before adding production logic.
-- [ ] Implement the single reader. Read each member independently; a recoverable failure in a collection
+- [x] Implement the single reader. Read each member independently; a recoverable failure in a collection
   or its elements nulls that collection with a diagnostic. Preserve native nulls/empty strings; cap only
   products/history, examining one extra entry to detect truncation. No setters or lifecycle calls.
-- [ ] Regenerate/verify stubs with `pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Update`, then
+- [x] Regenerate/verify stubs with `pwsh -NoProfile -File scripts/verify-reference-stubs.ps1 -Update`, then
   the same command without `-Update`. Run the reader tests, serial reference-stub solution build and
   Packaging tests. Expected: all pass, no undocumented API approximations.
-- [ ] Commit `feat: add global library metadata reader`.
+- [x] Commit `feat: add global library metadata reader`.
 
 ### Task 3: Opt-in `inspect_library` plumbing
 
@@ -144,21 +147,21 @@ tests `LibraryReadItemCatalogTests.cs`, `LibraryReadCatalogTests.cs`, `LibraryRe
 `LibraryReadCatalog.ToQuery(LibraryReadItem)` copies the flag. Existing
 `LibraryReadMethods.Validate(string, LibraryQueryInfo)` owns operation/member admission.
 
-- [ ] Add failing tests for omitted/false/true on global inspect, true on project inspect, false on project
+- [x] Add failing tests for omitted/false/true on global inspect, true on project inspect, false on project
   inspect, explicit false and true on each other operation, nonboolean/null JSON inputs under existing
   argument-shape rules, and transport of the flag. Assert project true returns `validation_error` with
   `Metadata is available for global libraries only.` before native access.
-- [ ] Run the affected catalog/tool tests; confirm behavior fails without the new plumbing.
-- [ ] Add the nullable flag, description, query copy and closed validation. Only inspect accepts the
+- [x] Run the affected catalog/tool tests; confirm behavior fails without the new plumbing.
+- [x] Add the nullable flag, description, query copy and closed validation. Only inspect accepts the
   member; project false behaves like omission. In `LibraryReader.Read`, after the existing global
   inspect row is constructed, attach `LibraryMetadataReader.Read(global)` only when the flag is true.
   Do not add it to `RowReader.LibraryEntry`, which also serves global inventory, or to cursor hashing.
-- [ ] Update FakeWorker and register the conditional entry metadata member with its exact presence rule.
+- [x] Update FakeWorker and register the conditional entry metadata member with its exact presence rule.
   Add getter-count tests proving omission/false and `list_global_libraries` never read metadata, and a
   read-only/system-shaped fixture proving inspection performs no mutation.
-- [ ] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~LibraryRead|FullyQualifiedName~LibraryReader|FullyQualifiedName~ConditionalMemberRegisterTests"`;
+- [x] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~LibraryRead|FullyQualifiedName~LibraryReader|FullyQualifiedName~ConditionalMemberRegisterTests"`;
   expected: passing new tests and existing read/cursor tests.
-- [ ] Commit `feat: expose opt-in global library metadata`.
+- [x] Commit `feat: expose opt-in global library metadata`.
 
 ### Task 4: Shared creation/release author cap and creation metadata
 
@@ -176,32 +179,32 @@ conditional `LibraryWriteResultInfo.Metadata : LibraryMetadataInfo?` and
 `LibraryWriteOutcomeInfo.Library : LibraryIdentityInfo?`. `Author` already exists in the request/item
 and is already copied by `ToWorkerRequest`; do not duplicate fields or transport methods.
 
-- [ ] Add failing tests for omitted/supplied creation author, blank creation author, the exact Task 1
+- [x] Add failing tests for omitted/supplied creation author, blank creation author, the exact Task 1
   boundaries (255, 256, 10,000 and non-BMP counting) for creation and release, and effective item-budget
   checking. `new string('A', 10000)` must produce `validation_error` without worker/native activity.
   Check the same shared cap at worker validation and preserve release text/blank behavior otherwise.
-- [ ] Add tests for exact multiline text, confirmation text with/without author, dry run making no native
+- [x] Add tests for exact multiline text, confirmation text with/without author, dry run making no native
   create/metadata calls, and one lifecycle elicitation in read-write versus none in full.
-- [ ] Add writer tests asserting the supplied path calls `IEngineeringComposition.Create` exactly once
+- [x] Add writer tests asserting the supplied path calls `IEngineeringComposition.Create` exactly once
   with `typeof(UserGlobalLibrary)` and exactly `Name`, `TargetDirectory`, `Author` (no `Comment`), while
   omission uses typed `Create<UserGlobalLibrary>`. Both successful paths return the shared metadata.
   Extend the composition double to implement `IEngineeringComposition` rather than using reflection.
-- [ ] Run the affected tests to observe the missing behavior, then implement the common author metadata
+- [x] Run the affected tests to observe the missing behavior, then implement the common author metadata
   length helper in `TiaMcpServer.Contracts/Shared` and call it from shared library validation for
   `create_global` and `release_type_version`. Preserve creation's nonblank rule, effective budget checks
   and accepted text; update the existing Author description and confirmation formatting.
-- [ ] Replace only the writer's `create_global` branch. Cast the returned object with `as GlobalLibrary`;
+- [x] Replace only the writer's `create_global` branch. Cast the returned object with `as GlobalLibrary`;
   an unexpected return fails `postcondition_failed` and says a library may exist on disk. Capture identity
   before metadata. Do not infer the omitted author, normalize supplied text, save or retry.
-- [ ] Test recoverable metadata failures as successful creation with incomplete metadata. Test other
+- [x] Test recoverable metadata failures as successful creation with incomplete metadata. Test other
   metadata failures after creation as outcome-bearing failures: retain captured identity, classify by
   exception type using the saved-close pattern, preserve `engineeringError` where applicable, let
   `portal_lost` win and invalidate binding, and state that the library exists before any retry.
   Do not read the library again in a failure handler or attempt automatic deletion.
-- [ ] Register result metadata and outcome library as conditional members. Run
+- [x] Register result metadata and outcome library as conditional members. Run
   `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~LibraryWrite|FullyQualifiedName~LibraryWriter|FullyQualifiedName~ConditionalMemberRegisterTests"`.
   Expected: all pass, including existing lifecycle, ordering and partial-failure behavior.
-- [ ] Commit `feat: add guarded library creation author and metadata`.
+- [x] Commit `feat: add guarded library creation author and metadata`.
 
 ### Task 5: Strict payloads, budgets and schema regression
 
@@ -213,24 +216,26 @@ and is already copied by `ToWorkerRequest`; do not duplicate fields or transport
 **Consumes:** Task 2 DTOs and the three conditional members from Tasks 3-4.
 **Produces:** schema-pinned, strictly decoded metadata and identity evidence using existing canonical JSON.
 
-- [ ] Add decode tests for missing required metadata fields, wrong types, duplicate/wrong-case members
+- [x] Add decode tests for missing required metadata fields, wrong types, duplicate/wrong-case members
   and null elements in comments/language/product/history/diagnostic lists. Apply existing reader
   conventions; do not hand-write required-member lists. Extend write outcome identity validation in both
   success/failure projection and `ValidateEnvelopeOutcome(JsonElement)`; malformed evidence is
   `protocol_error` and is never echoed. Legitimate scalar/collection nulls remain accepted.
-- [ ] Add read and create-result oversized-metadata tests using effective budgets, including raised limits.
+- [x] Add read and create-result oversized-metadata tests using effective budgets, including raised limits.
   Assert whole-value omission with truthful item execution/verification summaries and root delivery
   failure, rather than truncating comment text or claiming the create was undone.
-- [ ] Run those tests red, implement the minimal extra nested/null-element checks alongside existing
-  validators, and update the library parts of the output-schema snapshot from actual tool schemas.
+- [x] Run those tests red, implement the minimal extra nested/null-element checks alongside existing
+  validators, and compare the library output-schema snapshot with actual tool schemas. Both protocol
+  variants match all 21 existing entries, so the snapshot is retained unchanged; the new input fields
+  have a generated-schema regression.
   `McpToolSchemaTests.OutputSchemasMatchMain` has no regeneration flag; preserve both protocol variants
   and unrelated schemas.
-- [ ] Run, serially: the focused library/conditional/schema tests; the reference-stub verify script;
+- [x] Run, serially: the focused library/conditional/schema tests; the reference-stub verify script;
   `dotnet build TiaMcpServer.slnx -m:1 /p:UseTiaPortalReferenceStubs=true`;
   `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"`;
   `dotnet test TiaMcpServer.Tests --filter "Category=Packaging"`.
   Expected: all passing; inspect and resolve any failure rather than treating the native probe as coverage.
-- [ ] Commit `test: pin library metadata contracts and budgets`.
+- [x] Commit `test: pin library metadata contracts and budgets`.
 
 ### Task 6: PR A live acceptance and documentation
 

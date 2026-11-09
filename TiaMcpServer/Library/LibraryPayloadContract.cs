@@ -42,7 +42,7 @@ public static class LibraryPayloadContract
                 result.Error ?? $"Library operation '{item.Operation}' failed.", warnings);
         try
         {
-            var page = CanonicalJson.NormalizeWorkerPayload<LibraryPageInfo>(result.Payload).Value;
+            var page = CanonicalJson.NormalizeWorkerPayload<LibraryPageInfo>(result.Payload, ValidatePage).Value;
             var projected = CanonicalJson.ToElement(new LibraryPageResult(
                 page.Items, page.Total, page.Offset, page.NextOffset, IssueCursor(item, page, cursorIssuer),
                 page.Complete, page.Diagnostics));
@@ -62,6 +62,28 @@ public static class LibraryPayloadContract
             return StructuredOperationItem.Failed(item, WorkerFailureCategories.ProtocolError,
                 $"The worker payload for '{item.Operation}' did not match its declared result contract and was rejected.", warnings);
         }
+    }
+
+    private static void ValidatePage(LibraryPageInfo page)
+    {
+        if (page.Items.Any(row => row is null) || page.Diagnostics.Any(value => value is null))
+            throw new JsonException();
+        foreach (var row in page.Items)
+        {
+            LibraryWritePayloadContract.ValidateIdentity(row.Identity);
+            if (row.Diagnostics.Any(value => value is null)) throw new JsonException();
+            ValidateMetadata(row.Metadata);
+        }
+    }
+
+    internal static void ValidateMetadata(LibraryMetadataInfo? metadata)
+    {
+        if (metadata is not null && (metadata.Comments?.Any(value => value is null) == true
+            || metadata.SupportedLanguages?.Any(value => value is null) == true
+            || metadata.ActiveLanguages?.Any(value => value is null) == true
+            || metadata.UsedProducts?.Any(value => value is null) == true
+            || metadata.History?.Any(value => value is null) == true
+            || metadata.Diagnostics.Any(value => value is null))) throw new JsonException();
     }
 
     private static string? IssueCursor(
