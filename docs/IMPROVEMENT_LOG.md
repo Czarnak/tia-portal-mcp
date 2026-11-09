@@ -100,10 +100,9 @@ unchanged. Live acceptance remains pending. The shared helper is the adoption po
 Inventory all remaining author input paths, including any project/block or other object author fields,
 whether supplied as arguments or embedded in imported content. Record which
 surfaces exist, their shared admission points and boundary tests before implementing the remaining caps.
-The [library metadata owner resolution](superpowers/specs/2026-11-08-library-metadata-design.md#61-pr-a-findings-and-owner-resolution-2026-11-09)
-supplies the creation-author evidence and the shared creation/release cap decision; it does not
-independently qualify every object's native limit. The broader inventory and remaining caps stay open
-here; PR A's scope includes creation and release author caps only.
+The owner resolution recorded in commit `dbcb07d3` supplies the creation-author evidence and the shared
+creation/release cap decision; it does not independently qualify every object's native limit. The broader
+inventory and remaining caps stay open here; PR A's scope includes creation and release author caps only.
 
 ## Open: VCI follow-ups (2026-10-16)
 

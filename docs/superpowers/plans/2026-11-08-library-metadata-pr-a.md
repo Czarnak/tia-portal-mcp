@@ -15,9 +15,8 @@ confirmation remain in place. No new tool, operation, transport method or write 
 3, 5-7, PR A parts of 10-12; [native results](../acceptance/reports/2026-11-08-library-metadata-native-probes.md).
 
 **Status:** Tasks 1-5 are implemented and their offline gates pass (8,618 non-Packaging tests,
-39 Packaging tests, 95% aggregate coverage with the existing CI settings). Independent final review
-is pending. Task 6 remains unchecked: live acceptance and post-acceptance public documentation
-have not been performed. The owner
+39 Packaging tests, 95% aggregate coverage with the existing CI settings). Task 6 remains unchecked:
+live acceptance and post-acceptance public documentation have not been performed. The owner
 reports a 255-character TIA UI maximum and approved host fail-fast validation without another cap probe.
 The agreed creation-author admission rule is nonblank and at most 255 UTF-16 code units (`string.Length`),
 with the effective item budget as an additional constraint. The latest owner instruction also applies
