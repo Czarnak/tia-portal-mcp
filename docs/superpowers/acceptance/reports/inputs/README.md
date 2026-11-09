@@ -2,6 +2,7 @@ Verified raw Openness call/response evidence is kept here, with the probe source
 
 | File or directory | Report it backs | Raw Openness (how verified) | Notes |
 | --- | --- | --- | --- |
+| [2026-11-09-library-metadata-pr-b-native-probe/](2026-11-09-library-metadata-pr-b-native-probe/README.md) | Pending live execution. | No (source). | PR B Task 0 console for B1-B10; prepared only. B8 is a separate run. |
 | `2026-10-29-hmi-write-native-probes.jsonl.gz` | [2026-10-29-hmi-write-checkpoint-probes.md](../2026-10-29-hmi-write-checkpoint-probes.md) | Yes. Decompressed and read individually: case records carry native `EngineeringTargetInvocationException` text from direct Openness calls with probe stack frames and no MCP envelope. | Complete native trace. Contains a Windows user-profile path; accepted as-is, not redacted. |
 | `2026-10-29-hmi-ui-P10.jsonl.gz` | [2026-10-29-hmi-write-checkpoint-probes.md](../2026-10-29-hmi-write-checkpoint-probes.md) | Yes. Decompressed and read individually: startup, leave-open-mode, one case with `nativeMutationReturned`, `appliedStages` and before/after snapshots; no MCP envelope. | Leave-open UI-compile probe trace. |
 | `2026-10-29-hmi-ui-P12-analog.jsonl.gz` | [2026-10-29-hmi-write-checkpoint-probes.md](../2026-10-29-hmi-write-checkpoint-probes.md) | Yes. Structure-checked against P10 (one case record, native before/after snapshots). | Case-only analog-alarm rename. |

@@ -162,7 +162,8 @@ read-only. System-library metadata, native Unicode boundaries, native release mu
 fault injection remain unqualified by Task 6.
 
 **Retention:** retain this complete shared spec and the PR A plan through PR A; there is no documentation
-pruning at the end because PR B needs this spec. PR B's design and probes remain unimplemented.
+pruning at the end because PR B needs this spec. PR B's [Task 0 console](../acceptance/reports/inputs/2026-11-09-library-metadata-pr-b-native-probe/README.md)
+is prepared; B1-B10 have not been run and PR B product changes remain unimplemented.
 
 ## 7. PR A — read metadata, author at creation
 
