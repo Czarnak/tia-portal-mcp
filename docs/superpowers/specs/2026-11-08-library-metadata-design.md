@@ -163,7 +163,23 @@ fault injection remain unqualified by Task 6.
 
 **Retention:** retain this complete shared spec and the PR A plan through PR A; there is no documentation
 pruning at the end because PR B needs this spec. PR B's [Task 0 console](../acceptance/reports/inputs/2026-11-09-library-metadata-pr-b-native-probe/README.md)
-is prepared; B1-B10 have not been run and PR B product changes remain unimplemented.
+has run B1-B10; PR B product changes remain unimplemented.
+
+### 6.2 PR B findings, unresolved acceptance expectation (2026-11-09)
+
+[B1-B10 report](../acceptance/reports/2026-11-09-library-metadata-pr-b-native-probes.md): normal and
+separate B8 probe processes both exited 0 with no case failures. Transactions exposed new text before
+commit, managed failure rolled comments/languages back, and the LF/CRLF sample round-tripped exactly.
+B8 was rejected recoverably at `Text.set` with `EngineeringTargetInvocationException`; its message
+reported a 32767 system limit. The library remained unchanged. No boundary maximum was independently
+established and no new input cap has been approved.
+
+**Contradiction awaiting owner resolution:** section 12 expects `engineering_rejected` for a read-only
+library. B6's comment setter instead threw `EngineeringNotSupportedException`; the existing classifier
+and section 8.3 imply `worker_operation_failed` with `engineeringError`. B6 language activation threw
+`EngineeringTargetInvocationException`, implying `engineering_rejected`. Both failed at their setters
+after transaction creation and left full metadata unchanged. These categories are inferred from native
+types and existing code, not observed MCP responses. No classifier or design decision was changed.
 
 ## 7. PR A — read metadata, author at creation
 

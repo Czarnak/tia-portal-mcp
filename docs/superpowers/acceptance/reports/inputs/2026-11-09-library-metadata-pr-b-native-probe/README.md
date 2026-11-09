@@ -1,7 +1,8 @@
 # Native library metadata probe - PR B, Task 0
 
 Standalone net48/x64 console for B1-B10 in [the design, section 6](../../../../specs/2026-11-08-library-metadata-design.md).
-Prepared only: no live results or native acceptance are claimed.
+Results: [2026-11-09 native probe report](../../2026-11-09-library-metadata-pr-b-native-probes.md).
+Both runs completed; the read-only comment exception differs from the design's acceptance expectation.
 Uses installed Siemens V21 Openness directly, following the PR A console pattern; no MCP server or PLC project is needed.
 
 From this directory:
