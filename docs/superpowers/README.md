@@ -27,6 +27,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-09 | [Library metadata PR B — built-MCP comments/languages, native read-only failures, previews, confirmation/staging, persistence and restoration; optional oversized MCP native case unavailable](acceptance/reports/2026-11-09-library-metadata-pr-b-live-verification.md) |
 | 2026-11-09 | [Library metadata PR B Task 0 — B1-B10 native probes; recoverable B8 refusal in its own session, read-only comment exception contradicts the acceptance expectation](acceptance/reports/2026-11-09-library-metadata-pr-b-native-probes.md) |
 | 2026-11-08 | [Block import compilation — scoped live PASS: successful source import with an unrelated PLC compile error, independent compile result, following batch item, fresh content hash and verified cleanup](acceptance/reports/2026-11-08-block-import-compilation-live-verification.md) |
 | 2026-11-08 | [GlobalDB software-unit creation (issue #221) — native XML comparison and fixed-worker root/unit/nested optimized DB creation, clean compilation and cleanup](acceptance/reports/2026-11-08-globaldb-software-units-live-verification.md) |
