@@ -154,8 +154,12 @@ length cap to `release_type_version` now and requires a reusable author metadata
 the host validates before worker dispatch and the worker before native calls. Release text/blank
 handling otherwise stays unchanged. This is owner evidence and approval, not a Siemens-documented or
 independently probed native maximum or Unicode-counting rule.
-The [PR A implementation plan](../plans/2026-11-08-library-metadata-pr-a.md) Task 1 gate is resolved;
-Tasks 2-6 remain implementation and acceptance work.
+The [PR A implementation plan](../plans/2026-11-08-library-metadata-pr-a.md) Tasks 1-6 are complete,
+including the Task 1 owner decision, offline gates and scoped live acceptance/public documentation.
+The [PR A live report](../acceptance/reports/2026-11-09-library-metadata-pr-a-live-verification.md)
+records 50 exact built-MCP receipts on V21 Update 3, including the selected existing user library
+read-only. System-library metadata, native Unicode boundaries, native release mutation and native
+fault injection remain unqualified by Task 6.
 
 **Retention:** retain this complete shared spec and the PR A plan through PR A; there is no documentation
 pruning at the end because PR B needs this spec. PR B's design and probes remain unimplemented.
