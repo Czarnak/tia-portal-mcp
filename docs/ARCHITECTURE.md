@@ -832,6 +832,13 @@ selector rules and the worker method names: `library_project_*` for the four pro
 bound `ProjectBase` after the identity check; there is no Portal-only dispatch ([ADR-0015](adr/0015-portal-scope-reads-under-binding-gate.md)).
 All library methods are `Observe` and need a bound project.
 
+Global `inspect_library` can opt into `includeMetadata:true`; omitted/false performs no metadata
+getters and omits the conditional row member. Project true and the flag on another operation are
+validation failures. `LibraryMetadataReader` is shared with `create_global`: recoverable property
+failures produce explicit nulls, diagnostics and `complete:false`. Products/history retain at most
+100/50 entries with cap diagnostics; comments and languages remain whole and use the existing
+whole-value budget omission. Metadata collection adds no setters, operations or capability entries.
+
 Capability mapping stays in `ProjectCapabilityCatalog.OperationFor`: `library_project_*` map to
 `library_project_read` (`standaloneOnly`, so a local session gets `unsupported_capability`) and the global
 methods to `library_read` (`projectContent`, `notYetDelivered` on server projects), although those read
@@ -862,6 +869,14 @@ Three hooks preserve the shared pipeline. `ConfirmsCall(items)` defaults to `Con
 `create_type` uses `ExclusiveAccess` and one project transaction to replace a plain FB, FC or PLC UDT with a linked library instance. It exports to operation-owned storage, deletes the source, calls `Types.CreateFromDocuments`, checks linkage and commits; failure rolls back the conversion. `create_type_version` resolves a project type through a PLC instance, compares its fresh export to the `plc_read` hash and stages SimaticML XML for `Versions.CreateFromDocuments` without a test-environment argument. `replaceInWork` controls native replacement. Release never creates/releases dependencies automatically. Release, set-default and synchronization report default changes and never restore the prior default. A compile-first workflow is recommended for library-placed PLC objects. Portal can require compilation for inconsistent instances, although current uncompiled-instance exports also succeeded; use a fresh content hash rather than inferring exportability from compilation state. Content updates use the library version route, because `plc_write` is not a type-instance edit path.
 
 Global-library lifecycle is Portal-scope and has no worker-owned/borrowed distinction. Its existing binding lease already carries and rechecks the Portal process id. Library/type identities and conditional `type` details travel in typed success results and `LibraryWriteOutcomeInfo`; `PersistentWorkerTransport` validates raw `libraryWriteOutcome` before the permissive reader. `LibraryVerificationPolicy` derives keys from resolved library/folder/master-copy/type/version identities. `TrustedWriteVerifier` marks completed items `trusted` or `superseded`; it performs no additional native read-back. Type writers supply native receipt evidence separately. An attempted failure without outcome falls back conservatively to library-level supersession, except when it is a precondition refusal. Delete scans are preview/planned-call evidence; native apply decides deletion. Hazards, default behavior and verification scope are in the [library operations summary](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write).
+
+`AuthorMetadataRules` in Contracts/Shared caps `create_global` and `release_type_version` authors at
+255 UTF-16 code units before host dispatch and defensively before native calls; accepted text is
+unchanged. Creation additionally requires nonblank supplied text. Omitted creation author keeps the
+typed overload; supplied author uses engineering-composition parameters. Every successful creation returns
+conditional `metadata`. A later unexpected metadata-getter failure preserves captured identity in
+`libraryWriteOutcome.library` when available, so callers inspect before retrying. Elicitation for a
+read-write creation includes its author. Comment/language setters remain a separate deferred slice.
 
 ### Typed Network payload registry
 

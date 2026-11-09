@@ -30,7 +30,8 @@ public sealed class LibraryWriteDomain(OpennessWorkerClient client)
         => string.Join("\n", items.Where(item => LibraryWriteMethods.LifecycleOperations.Contains(item.Operation, StringComparer.Ordinal))
             .Select(item => item.Operation switch
             {
-                "create_global" => $"create_global: directory '{item.Directory}', name '{item.Name}'.",
+                "create_global" => $"create_global: directory '{item.Directory}', name '{item.Name}'"
+                    + (item.Author is null ? "." : $", author '{item.Author}'."),
                 "open_global" => $"open_global: file '{item.FilePath}', mode '{item.OpenMode}'.",
                 "retrieve_global" => $"retrieve_global: archive '{item.FilePath}', destination directory '{item.Directory}', mode '{item.OpenMode}'.",
                 "save_global" => $"save_global: library '{item.LibraryPath ?? item.LibraryName}'.",

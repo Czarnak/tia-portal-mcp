@@ -13,6 +13,74 @@ namespace TiaMcpServer.Tests.Library;
 [Collection("Mcp protocol serial")]
 public sealed class LibraryWriteMcpTests
 {
+    [Theory]
+    [MemberData(nameof(LibraryWriteMethodsTests.Authors), MemberType = typeof(LibraryWriteMethodsTests))]
+    public async Task Mcp_AuthorAdmission_ValidatesBeforeWorker(string operation, string? author, bool valid)
+    {
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.Full);
+        var before = fixture.Requests.Methods();
+        var item = LibraryWriteMethodsTests.AuthorRequest(operation, author);
+        item.OperationId = "author";
+        var reply = await CallAsync(fixture, item);
+        if (valid)
+        {
+            AssertApplied(reply, operation);
+            Assert.Equal(new[] { LibraryWriteMethods.ForItem(item) }, fixture.Mutations());
+            return;
+        }
+        AssertRejected(reply, "validation_error", "error");
+        Assert.Equal(before, fixture.Requests.Methods());
+        AssertAudit(fixture, reply, "none", "not_requested", "skipped");
+        if (author?.Length > 255)
+        {
+            var text = Document(reply).GetProperty("error").GetRawText();
+            Assert.Contains("author", text);
+            Assert.Contains("255", text);
+            Assert.Contains(author.Length.ToString(), text);
+            Assert.DoesNotContain(author, text);
+        }
+    }
+
+    [Theory]
+    [InlineData(McpAccessMode.ReadWrite, null, false)]
+    [InlineData(McpAccessMode.ReadWrite, "  First\nSecond\r\nThird 😀  ", false)]
+    [InlineData(McpAccessMode.Full, null, false)]
+    [InlineData(McpAccessMode.Full, "  First\nSecond\r\nThird 😀  ", false)]
+    [InlineData(McpAccessMode.ReadWrite, "Author", true)]
+    [InlineData(McpAccessMode.Full, "Author", true)]
+    public async Task Mcp_CreateGlobal_AuthorMetadataConfirmationAndPreview(McpAccessMode mode, string? author, bool dryRun)
+    {
+        var prompts = new List<string>();
+        await using var fixture = await Fixture.StartAsync(mode, Options(prompts));
+        var item = LibraryWriteMethodsTests.AuthorRequest("create_global", author);
+        item.OperationId = "create";
+        var reply = await fixture.Harness.Client.CallToolAsync("library_write", new Dictionary<string, object?>
+        {
+            ["operations"] = new[] { item }, ["dryRun"] = dryRun
+        });
+        if (dryRun)
+        {
+            Assert.True(Document(reply).GetProperty("success").GetBoolean());
+            Assert.Equal("preview", Document(reply).GetProperty("phase").GetString());
+            Assert.Empty(fixture.Mutations());
+            Assert.DoesNotContain("metadata", Document(reply).GetRawText());
+        }
+        else
+        {
+            AssertApplied(reply, "create_global");
+            var metadata = Document(reply).GetProperty("batch").GetProperty("operations")[0].GetProperty("result").GetProperty("metadata");
+            Assert.Equal(author ?? "Native default", metadata.GetProperty("author").GetString());
+            Assert.True(metadata.GetProperty("complete").GetBoolean());
+        }
+        if (mode == McpAccessMode.ReadWrite && !dryRun)
+        {
+            var prompt = Assert.Single(prompts);
+            if (author is null) Assert.DoesNotContain("author", prompt);
+            else Assert.Contains("author '" + author + "'", prompt);
+        }
+        else Assert.Empty(prompts);
+    }
+
     [Fact]
     public async Task Mcp_CreateTypeThenRelease_OneCall_TwoItemsApplied()
     {

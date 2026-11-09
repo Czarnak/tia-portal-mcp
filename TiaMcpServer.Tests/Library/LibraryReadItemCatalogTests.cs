@@ -6,6 +6,34 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryReadItemCatalogTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IncludeMetadata_MapsToQuery(bool? includeMetadata)
+    {
+        var item = new LibraryReadItem { Operation = "inspect_library", Scope = "global", LibraryName = "Fixture", IncludeMetadata = includeMetadata };
+        Assert.Equal(includeMetadata, LibraryReadCatalog.ToQuery(item).IncludeMetadata);
+        Assert.Null(LibraryReadCatalog.Check(item));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void IncludeMetadata_OtherOperationsRejectExplicitFlag(bool includeMetadata)
+    {
+        foreach (var operation in new[] { "list_global_libraries", "list_children", "list_versions", "list_dependencies" })
+        {
+            var item = new LibraryReadItem
+            {
+                Operation = operation, Scope = operation == "list_global_libraries" ? null : "project",
+                FolderKind = operation == "list_children" ? "types" : null,
+                TypeName = operation is "list_versions" or "list_dependencies" ? "Type" : null, IncludeMetadata = includeMetadata,
+            };
+            Assert.Contains("includeMetadata is only valid for inspect_library", LibraryReadCatalog.Check(item));
+        }
+    }
+
     private const string Guid1 = "11111111-1111-1111-1111-111111111111";
     private const string Guid2 = "22222222-2222-2222-2222-222222222222";
 

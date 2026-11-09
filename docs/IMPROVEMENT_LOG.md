@@ -69,7 +69,7 @@ Remaining work:
 
 **Still deferred after PR 3:** `update_type_instances` (`UpdateProject` removed 56 unused instances despite
 `DoNotDelete`; needs a transaction with an inventory check), `replace_master_copy`, `move_master_copy`,
-`move_master_copy_folder`. Library upgrade on open/retrieve, library metadata writes, project-library writes on
+`move_master_copy_folder`. Library upgrade on open/retrieve, library comment/language editing (PR B), project-library writes on
 local sessions and unbound (Portal-only) global operations are also outside the delivered slice.
 
 **Not live-verified (offline tests only):** a native master-copy rename (`postcondition_failed` with
@@ -81,6 +81,31 @@ older master-copy source/destination or failure limits listed here. The uncompil
 offline-covered and was not reproduced in this fixture: uncompiled ordinary/changed-FB exports succeeded,
 while stale preconversion/prechange hashes failed `state_changed`. A compile-first workflow remains recommended;
 compilation state alone is not an exportability check.
+
+## Open: author metadata input caps across all object kinds (2026-11-09)
+
+Owner direction: cap every writable/caller-supplied author metadata field, across all object kinds, at
+255 UTF-16 code units (`string.Length`). Reject overlength input before worker dispatch with a clear
+`validation_error` naming the author field, maximum 255 and actual length, without echoing its text.
+Apply defensive worker validation before native calls where applicable; never truncate, trim or
+normalize accepted text. Preserve existing author values returned by reads exactly, including values
+longer than the input cap: reads are observations, not input admission.
+
+PR A now implements the reusable `AuthorMetadataRules` helper in
+`TiaMcpServer.Contracts/Shared`, called by shared library validation for both `create_global` and
+`release_type_version` before host dispatch and defensively before native calls. Offline boundary
+regressions pass. Creation keeps its nonblank rule; release text/blank handling otherwise stays
+unchanged. [PR A live acceptance](superpowers/acceptance/reports/2026-11-09-library-metadata-pr-a-live-verification.md)
+verified creation at the ASCII boundary, mixed LF/CRLF preservation and host rejection of creation/release
+authors of 256 and 10,000 code units. Native Unicode boundary and release mutation are not qualified by
+these checks. The shared helper is the adoption point for future author fields.
+
+Inventory all remaining author input paths, including any project/block or other object author fields,
+whether supplied as arguments or embedded in imported content. Record which
+surfaces exist, their shared admission points and boundary tests before implementing the remaining caps.
+The owner resolution recorded in commit `dbcb07d3` supplies the creation-author evidence and the shared
+creation/release cap decision; it does not independently qualify every object's native limit. The broader
+inventory and remaining caps stay open here; PR A's scope includes creation and release author caps only.
 
 ## Open: VCI follow-ups (2026-10-16)
 

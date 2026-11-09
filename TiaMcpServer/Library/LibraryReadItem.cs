@@ -23,6 +23,9 @@ public sealed class LibraryReadItem : IOperationBatchItem
     [Description("Global scope only (inspect_library, list_children, list_versions, list_dependencies): exact (ordinal) name of an already-open global library. Give this or libraryPath; when both are given both must match.")]
     public string? LibraryName { get; set; }
 
+    [Description("inspect_library only: set true to include metadata for an already-open global library. Omitted or false skips metadata getters; project scope accepts only omitted or false.")]
+    public bool? IncludeMetadata { get; set; }
+
     [Description("list_children only: types or masterCopies.")]
     public string? FolderKind { get; set; }
 

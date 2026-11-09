@@ -1,0 +1,93 @@
+{
+  "kind": "derivedProcessExitSummary",
+  "date": "2026-11-09",
+  "scope": "Previously owner-authorized attached repeat; no new native execution. Process evidence is not a native-call trace.",
+  "sourceLocalFiles": {
+    "execution.jsonl": {
+      "sha256": "8ebcafeca893a405c4af4d5fb5181365a8ae1afcb96ff7bc78fe344fb2900541",
+      "records": 9
+    },
+    "process-monitor.jsonl": {
+      "sha256": "285dc8cde154cd1245cc50a478ed2dd64f56395a2963f2d3702166e20c256707",
+      "records": 176
+    },
+    "summary.json": {
+      "sha256": "ac7fe8ca3d7efc5d824a782d70f7fa1ee1b6096c356524659944ea2a8689c1e9"
+    }
+  },
+  "retainedNativeEvents": {
+    "file": "2026-11-09-library-metadata-attached-author-10000.jsonl.gz",
+    "uncompressedSha256": "cecfac7e6a877ced5868b4881aeedb9b2034f38b5a8a9baf2685d70c9bd734e4",
+    "records": 9,
+    "redactions": {
+      "projectPath": "<project>",
+      "targetDirectory": "<work>",
+      "nativeCall.name": "<library>"
+    }
+  },
+  "nativeCall": {
+    "utc": "2026-11-09T00:29:41.9517024Z",
+    "type": "nativeCall",
+    "value": {
+      "portalPid": 42364,
+      "method": "IEngineeringComposition.Create",
+      "createType": "Siemens.Engineering.Library.UserGlobalLibrary",
+      "name": "<library>",
+      "targetDirectory": "<work>",
+      "authorLength": 10000,
+      "authorCharacter": "A",
+      "comment": "omitted"
+    }
+  },
+  "nativeThrow": {
+    "utc": "2026-11-09T00:29:48.6690040Z",
+    "type": "nativeThrow",
+    "value": {
+      "type": "Siemens.Engineering.NonRecoverableException",
+      "message": "Error when calling method 'Create' of type 'Siemens.Engineering.Library.GlobalLibraryComposition'.",
+      "inner": null
+    }
+  },
+  "detachStart": "2026-11-09T00:29:58.6851946Z",
+  "processes": [
+    {
+      "role": "originalPortal",
+      "pid": 42364,
+      "aliveBeforeLaunch": true,
+      "exitCode": -1,
+      "exitTime": "2026-11-09T00:29:48.5902130Z",
+      "firstObservedExitedAt": "2026-11-09T00:29:48.8541454Z",
+      "finalObservation": {
+        "utc": "2026-11-09T00:30:08.9170921Z",
+        "phase": "final",
+        "pid": 42364,
+        "alive": false,
+        "exitCode": -1,
+        "exitTime": "2026-11-09T00:29:48.5902130Z"
+      }
+    },
+    {
+      "role": "originalChildPortal",
+      "pid": 32520,
+      "aliveBeforeLaunch": true,
+      "exitCode": -1,
+      "exitTime": "2026-11-09T00:29:51.7538365Z",
+      "firstObservedExitedAt": "2026-11-09T00:29:51.7694459Z",
+      "finalObservation": {
+        "utc": "2026-11-09T00:30:08.9195947Z",
+        "phase": "final",
+        "pid": 32520,
+        "alive": false,
+        "exitCode": -1,
+        "exitTime": "2026-11-09T00:29:51.7538365Z"
+      }
+    }
+  ],
+  "helperExitCode": 2,
+  "libraryDirectoryExistsAtFinalCheck": false,
+  "limits": [
+    "Does not establish the internal termination mechanism or original headless process state.",
+    "Does not independently qualify the owner-reported 255-character UI boundary or native Unicode counting.",
+    "A final absent directory does not exclude transient directory creation."
+  ]
+}

@@ -43,6 +43,12 @@ public sealed class ConditionalMemberRegisterTests
         "WorkerResponse.VciWriteOutcome",
         // library_write: present after a saved close fails or a master-copy name changes, including portal_lost.
         "WorkerResponse.LibraryWriteOutcome",
+        // Present only for global inspect_library with includeMetadata:true.
+        "LibraryEntryInfo.Metadata",
+        // Present only after create_global succeeds and reads metadata.
+        "LibraryWriteResultInfo.Metadata",
+        // Present when creation succeeded but metadata collection failed after identity capture.
+        "LibraryWriteOutcomeInfo.Library",
         // library_write type operations: typed plan/result evidence only for type operations.
         "LibraryWritePlanInfo.Type",
         "LibraryWriteResultInfo.Type",

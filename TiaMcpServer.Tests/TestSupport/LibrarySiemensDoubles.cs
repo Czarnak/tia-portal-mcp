@@ -8,7 +8,32 @@ using Siemens.Engineering.Library.Types;
 
 namespace Siemens.Engineering
 {
+    public interface IEngineeringComposition
+    {
+        IEngineeringObject? Parent { get; }
+        IEngineeringObject Create(Type type, IEnumerable<KeyValuePair<string, object>> parameters);
+    }
     public enum OpenMode { ReadOnly = 0, ReadWrite = 1 }
+    public sealed class EngineeringSecurityException : EngineeringException
+    {
+        public EngineeringSecurityException(string message) : base(message) { }
+    }
+    public sealed class UsedProduct
+    {
+        private string? name;
+        public Exception? NameFailure { get; set; }
+        public string? Name { get => NameFailure is null ? name : throw NameFailure; set => name = value; }
+        public string? Version { get; set; }
+    }
+    public sealed class UsedProductComposition : Library.LibraryComposition<UsedProduct> { }
+    public sealed class HistoryEntry
+    {
+        private string? text;
+        public Exception? TextFailure { get; set; }
+        public DateTime DateTime { get; set; }
+        public string? Text { get => TextFailure is null ? text : throw TextFailure; set => text = value; }
+    }
+    public sealed class HistoryEntryComposition : Library.LibraryComposition<HistoryEntry> { }
     public sealed partial class TiaPortal
     {
         private readonly Library.GlobalLibraryComposition globalLibraries = new();
@@ -101,6 +126,32 @@ namespace Siemens.Engineering.Library
         private string name = string.Empty;
         private FileInfo? path;
 
+        public Dictionary<string, object?> MetadataValues { get; } = new();
+        public Dictionary<string, Exception> MetadataFailures { get; } = new();
+        public int MetadataGetCount { get; private set; }
+        private T Metadata<T>(string member, T fallback)
+        {
+            MetadataGetCount++;
+            return MetadataFailures.TryGetValue(member, out var failure) ? throw failure
+                : Live(MetadataValues.TryGetValue(member, out var value) ? (T)value! : fallback);
+        }
+        public string? Author => Metadata(nameof(Author), (string?)string.Empty);
+        public string? Version => Metadata(nameof(Version), (string?)string.Empty);
+        public string? Family => Metadata(nameof(Family), (string?)string.Empty);
+        public string? Copyright => Metadata(nameof(Copyright), (string?)string.Empty);
+        public string? LastModifiedBy => Metadata(nameof(LastModifiedBy), (string?)string.Empty);
+        public DateTime CreationTime => Metadata(nameof(CreationTime), default(DateTime));
+        public DateTime LastModified => Metadata(nameof(LastModified), default(DateTime));
+        public long Size => Metadata(nameof(Size), 0L);
+        private readonly MultilingualText comment = new();
+        private readonly LanguageSettings languageSettings = new();
+        private readonly UsedProductComposition products = new();
+        private readonly HistoryEntryComposition history = new();
+        public MultilingualText Comment => Metadata(nameof(Comment), comment);
+        public LanguageSettings LanguageSettings => Metadata(nameof(LanguageSettings), languageSettings);
+        public UsedProductComposition UsedProducts => Metadata(nameof(UsedProducts), products);
+        public HistoryEntryComposition HistoryEntries => Metadata(nameof(HistoryEntries), history);
+
         public Exception? NameFailure { get; set; }
         public string Name { get => NameFailure is null ? Live(name) : throw NameFailure; set => name = value; }
         public FileInfo? Path { get => Live(path); set => path = value; }
@@ -151,11 +202,15 @@ namespace Siemens.Engineering.Library
     /// <see cref="GetGlobalLibraryInfos"/> reports both, like V21; it synthesizes a user info for every opened
     /// library not already listed. <see cref="Open"/> throws so a read that tries to open fails the test.
     /// </summary>
-    public sealed class GlobalLibraryComposition : IEnumerable<GlobalLibrary>
+    public sealed class GlobalLibraryComposition : IEnumerable<GlobalLibrary>, IEngineeringComposition
     {
         public List<GlobalLibrary> Items { get; } = new();
         public List<GlobalLibraryInfo> Available { get; } = new();
         public Func<DirectoryInfo, string, UserGlobalLibrary>? CreateAction { get; set; }
+        public Func<Type, IEnumerable<KeyValuePair<string, object>>, IEngineeringObject>? CreateWithParametersAction { get; set; }
+        public IEngineeringObject? Parent => null;
+        IEngineeringObject IEngineeringComposition.Create(Type type, IEnumerable<KeyValuePair<string, object>> parameters)
+            => (CreateWithParametersAction ?? throw new InvalidOperationException("Unconfigured parameterized library Create."))(type, parameters);
         public Func<FileInfo, OpenMode, UserGlobalLibrary>? OpenAction { get; set; }
         public Func<FileInfo, DirectoryInfo, OpenMode, UserGlobalLibrary>? RetrieveAction { get; set; }
         public T Create<T>(DirectoryInfo directory, string name) where T : class

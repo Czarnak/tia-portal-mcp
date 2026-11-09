@@ -54,7 +54,7 @@ public static class LibraryWriteMethods
     {
         var allowed = item.Operation switch
         {
-            "create_global" => "directory name",
+            "create_global" => "directory name author",
             "open_global" => "filePath openMode",
             "retrieve_global" => "filePath directory openMode",
             "save_global" => "scope libraryPath libraryName",
@@ -121,6 +121,9 @@ public static class LibraryWriteMethods
                 return "expectedContentHash must be an xml:sha256 content hash from plc_read.";
         }
         if (members.Contains("name") && string.IsNullOrWhiteSpace(item.Name)) return "name must be nonblank.";
+        if (members.Contains("author") && AuthorMetadataRules.Validate(item.Author) is { } authorError) return authorError;
+        if (item.Operation == "create_global" && item.Author is not null && string.IsNullOrWhiteSpace(item.Author))
+            return "author must be nonblank when supplied for create_global.";
         if (members.Contains("directory") && !LibraryReadMethods.IsAbsolutePath(item.Directory)) return "directory must be absolute.";
         if (members.Contains("filePath"))
         {

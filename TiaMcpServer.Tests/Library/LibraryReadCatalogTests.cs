@@ -7,6 +7,34 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryReadCatalogTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Validate_OtherOperations_RejectMetadataFlag(bool includeMetadata)
+    {
+        foreach (var operation in LibraryReadMethods.Operations.Where(operation => operation != "inspect_library"))
+        {
+            var query = new LibraryQueryInfo
+            {
+                Scope = operation == "list_global_libraries" ? null : "project",
+                FolderKind = operation == "list_children" ? "types" : null,
+                TypeName = operation is "list_versions" or "list_dependencies" ? "Type" : null,
+                IncludeMetadata = includeMetadata,
+            };
+            Assert.Equal("includeMetadata is only valid for inspect_library.", LibraryReadMethods.Validate(operation, query));
+        }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Validate_ProjectMetadata_OnlyTrueIsRejected(bool? includeMetadata)
+    {
+        var error = LibraryReadMethods.Validate("inspect_library", new LibraryQueryInfo { Scope = "project", IncludeMetadata = includeMetadata });
+        Assert.Equal(includeMetadata == true ? "Metadata is available for global libraries only." : null, error);
+    }
+
     private static readonly string[] AllKinds =
     {
         ProjectContainerKinds.StandaloneProject, ProjectContainerKinds.LocalSession, ProjectContainerKinds.ServerProject

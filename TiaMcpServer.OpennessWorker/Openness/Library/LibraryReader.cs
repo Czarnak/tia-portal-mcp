@@ -76,7 +76,11 @@ internal static class LibraryReader
         };
 
         var page = rows.Page(held, library, method, snapshots, Scan);
-        if (operation == "inspect_library" && library is GlobalLibrary global) MarkInspectedGlobal(portal, global, page.Items[0]);
+        if (operation == "inspect_library" && library is GlobalLibrary global)
+        {
+            MarkInspectedGlobal(portal, global, page.Items[0]);
+            if (query.IncludeMetadata == true) page.Items[0].Metadata = LibraryMetadataReader.Read(global);
+        }
         return page;
     }
 

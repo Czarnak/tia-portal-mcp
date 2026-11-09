@@ -9,6 +9,71 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryWriteContractDecodeTests
 {
     [Theory]
+    [MemberData(nameof(LibraryPayloadContractTests.MalformedMetadata), MemberType = typeof(LibraryPayloadContractTests))]
+    public void CreateMetadataMalformed_IsProtocolErrorWithoutEcho(string defect, string metadata)
+    {
+        var payload = WorkerJson.SerializePayload(new LibraryWriteResultInfo { Metadata = new() });
+        payload = payload.Replace(WorkerJson.SerializePayload(new LibraryMetadataInfo()), metadata);
+        var result = LibraryWritePayloadContract.Project(Item, WorkerCallResult.Ok(payload));
+        Assert.True(result.Failure?.Category == "protocol_error", defect);
+        Assert.Null(result.Result);
+        Assert.DoesNotContain("leak-sentinel", TiaMcpServer.Json.CanonicalJson.Serialize(result));
+    }
+
+    [Fact]
+    public void CreateMetadataNullableValuesRemainValid()
+    {
+        var result = LibraryWritePayloadContract.Project(Item,
+            WorkerCallResult.Ok(WorkerJson.SerializePayload(new LibraryWriteResultInfo { Metadata = new()
+                { Comments = [new()], UsedProducts = [new()], History = [new()] } })));
+        Assert.Equal("succeeded", result.Status);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null,
+            result.Result!.Value.GetProperty("metadata").GetProperty("supportedLanguages").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("folderPath")]
+    [InlineData("scope")]
+    [InlineData("kind")]
+    [InlineData("name")]
+    public void FailureIdentityMalformed_IsProtocolErrorWithoutEcho(string defect)
+    {
+        var identity = new LibraryIdentityInfo { Name = "leak-sentinel" };
+        if (defect == "folderPath") identity.FolderPath = [null!];
+        if (defect == "scope") identity.Scope = null!;
+        if (defect == "kind") identity.Kind = null!;
+        if (defect == "name") identity.Name = null!;
+        var result = LibraryWritePayloadContract.Project(Item,
+            WorkerCallResult.Fail("worker_operation_failed", "failed") with { LibraryWriteOutcome = new() { Library = identity } });
+        Assert.Equal("protocol_error", result.Failure!.Category);
+        Assert.Null(result.Result);
+        Assert.DoesNotContain("leak-sentinel", TiaMcpServer.Json.CanonicalJson.Serialize(result));
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("unknown")]
+    [InlineData("case")]
+    [InlineData("duplicate")]
+    [InlineData("nullElement")]
+    [InlineData("wrongType")]
+    public void RawFailureIdentityMalformed_IsRejected(string defect)
+    {
+        var identity = WorkerJson.SerializePayload(new LibraryIdentityInfo { Name = "leak-sentinel" });
+        identity = defect switch
+        {
+            "missing" => identity.Replace("\"libraryName\":null,", ""),
+            "unknown" => identity.Replace("\"name\":", "\"unknown\":null,\"name\":"),
+            "case" => identity.Replace("\"name\":", "\"Name\":"),
+            "duplicate" => identity.Replace("\"name\":", "\"name\":null,\"name\":"),
+            "nullElement" => identity.Replace("\"folderPath\":[]", "\"folderPath\":[null]"),
+            _ => identity.Replace("\"name\":\"leak-sentinel\"", "\"name\":42"),
+        };
+        using var envelope = System.Text.Json.JsonDocument.Parse("{\"libraryWriteOutcome\":{\"saved\":null,\"actualName\":null,\"library\":" + identity + "}}");
+        Assert.Throws<System.Text.Json.JsonException>(() => LibraryWritePayloadContract.ValidateEnvelopeOutcome(envelope.RootElement));
+    }
+
+    [Theory]
     [InlineData("missing")]
     [InlineData("unknown")]
     [InlineData("case")]

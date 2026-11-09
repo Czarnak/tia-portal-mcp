@@ -37,7 +37,31 @@ internal static class LibraryWriter
         switch (item.Operation)
         {
             case "create_global":
-                return Result(portal.GlobalLibraries.Create<UserGlobalLibrary>(new DirectoryInfo(item.Directory!), item.Name!));
+                var created = item.Author is null
+                    ? portal.GlobalLibraries.Create<UserGlobalLibrary>(new DirectoryInfo(item.Directory!), item.Name!)
+                    : ((IEngineeringComposition)portal.GlobalLibraries).Create(typeof(UserGlobalLibrary), new Dictionary<string, object>
+                    {
+                        ["Name"] = item.Name!, ["TargetDirectory"] = new DirectoryInfo(item.Directory!), ["Author"] = item.Author
+                    }) as GlobalLibrary;
+                if (created is null)
+                    throw new WorkerOperationException(WorkerFailureCategories.PostconditionFailed,
+                        "TIA Portal returned an unexpected creation result; a library may exist on disk. Inspect it before retrying.");
+                var creation = Result(created);
+                try { creation.Metadata = LibraryMetadataReader.Read(created); }
+                catch (Exception ex)
+                {
+                    var category = ex is NonRecoverableException ? WorkerFailureCategories.PortalLost
+                        : ex is EngineeringException engineering ? WorkerExecution.Classify(engineering, true)
+                        : ex is WorkerOperationException failure ? failure.FailureCategory : WorkerFailureCategories.WorkerOperationFailed;
+                    throw new WorkerOperationException(category,
+                        "The library exists, but metadata collection failed. Inspect the library before retrying. "
+                        + (ex is EngineeringException native ? WorkerExecution.FailureMessage(native, category) : ex.Message),
+                        engineeringError: category == WorkerFailureCategories.PortalLost ? null
+                            : ex is EngineeringException typed ? WorkerExecution.Describe(typed)
+                            : (ex as WorkerOperationException)?.EngineeringError,
+                        libraryWriteOutcome: new LibraryWriteOutcomeInfo { Library = creation.Library });
+                }
+                return creation;
             case "open_global":
                 var path = LibraryReader.CanonicalPath(item.FilePath!);
                 var alreadyOpen = portal.GlobalLibraries.Any(x => x.Path is { } nativePath

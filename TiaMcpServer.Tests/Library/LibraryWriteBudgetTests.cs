@@ -10,6 +10,33 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryWriteBudgetTests
 {
     [Fact]
+    public void CreateMetadata_OmissionPreservesExecutedAndVerified_RaisedLimitPreservesComment()
+    {
+        var comment = new string('c', StructuredOperationBatchPayloadBudget.MaxItemChars + 1000);
+        var item = LibraryWritePayloadContract.Project(new() { OperationId = "a", Operation = "create_global" },
+            TiaMcpServer.Worker.WorkerCallResult.Ok(TiaMcpServer.Contracts.Json.WorkerJson.SerializePayload(
+                new LibraryWriteResultInfo { Metadata = new() { Comments = [new() { Text = comment }] } })));
+        Assert.Equal("succeeded", item.Status);
+        var response = Response([]) with { Phase = "applied", Batch = StructuredOperationBatch.FromItems([item]),
+            Verification = new(true, [new("a", true, "trusted", null, null, null)], null) };
+        var bounded = LibraryWritePayloadBudget.Apply(response);
+        Assert.False(bounded.Success);
+        Assert.True(bounded.Verification!.Success);
+        Assert.True(Assert.Single(bounded.Verification.Operations).Success);
+        Assert.Equal("trusted", bounded.Verification.Operations[0].Check);
+        Assert.Equal(1, bounded.Batch!.Counts.Succeeded);
+        Assert.Equal("succeeded", bounded.Batch.Operations[0].Status);
+        Assert.Null(bounded.Batch.Operations[0].Result);
+        Assert.NotNull(bounded.Batch.Operations[0].Omission);
+        Assert.DoesNotContain(comment[..100], CanonicalJson.Serialize(bounded));
+        var raised = LibraryWritePayloadBudget.Apply(response, comment.Length + 10000, comment.Length + 30000);
+        Assert.True(raised.Success);
+        Assert.Null(raised.Batch!.Operations[0].Omission);
+        Assert.Equal(comment, raised.Batch.Operations[0].Result!.Value.GetProperty("metadata")
+            .GetProperty("comments")[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
     public void Budget_GuardCountIncludesNewGuard()
     {
         var items = new[] { new LibraryWriteItem { OperationId = "a", Operation = "create_type" } };

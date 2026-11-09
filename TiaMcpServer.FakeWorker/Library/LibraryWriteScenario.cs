@@ -52,6 +52,7 @@ internal static class LibraryWriteScenario
             return """{"success":false,"failureCategory":"postcondition_failed","error":"PRIVATE_LIBRARY_OUTCOME_ERROR","libraryWriteOutcome":{"saved":null,"actualName":"PRIVATE_LIBRARY_OUTCOME_VALUE","PRIVATE_LIBRARY_OUTCOME_MEMBER":true}}""";
 
         return Success(new LibraryWriteResultInfo { Library = library, Target = lifecycle ? library : target,
+            Metadata = item.Operation == "create_global" ? new LibraryMetadataInfo { Author = item.Author ?? "Native default", Complete = true } : null,
             AlreadyOpen = true, ActualName = lifecycle ? null : item.Name,
             Saved = item.Operation == "save_global" ? true : null,
             ArchivePath = item.Operation == "archive_global" ? "C:/Fixture/Archive.zal21" : null });

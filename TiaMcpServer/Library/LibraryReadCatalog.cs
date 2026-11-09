@@ -59,6 +59,7 @@ public static class LibraryReadCatalog
             Scope = item.Scope,
             LibraryPath = item.LibraryPath,
             LibraryName = item.LibraryName,
+            IncludeMetadata = item.IncludeMetadata,
             FolderKind = item.FolderKind,
             FolderPath = item.FolderPath,
             TypeName = item.TypeName,

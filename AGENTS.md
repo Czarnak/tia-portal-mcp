@@ -199,7 +199,15 @@ Network contract these rules describe in the abstract.
 - **Worker payload JSON** goes through `WorkerJson.SerializePayload` with `ExplicitNullPayload`. Payload contracts write null members and are decoded through the worker-payload reader. A member omitted when null must be declared conditional with `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]` and registered in `ConditionalMemberRegisterTests`.
 - Siemens DLLs are **never committed** to the repo or the NuGet package
 
+- **Global-library metadata**: Only global `inspect_library` accepts `includeMetadata:true`; omitted/false skips metadata getters and omits the member. Project true or the flag on another operation is `validation_error`. `LibraryMetadataReader` supplies the same metadata on every successful `create_global`. Recoverable getters produce null/diagnostics/`complete:false`; products/history cap at 100/50, while comments/languages use whole-value omission. `AuthorMetadataRules` caps creation/release authors at 255 UTF-16 code units in host and worker; creation also requires nonblank supplied text. Preserve accepted text exactly and keep omitted typed creation. Unexpected metadata failure after creation retains captured `libraryWriteOutcome.library` when available; inspect before retry. Comment/language editing remains deferred.
+
 ## Plans, specs and evidence (lifecycle)
+
+Owner-retained handoff exception: preserve exactly
+`docs/superpowers/plans/2026-11-08-library-metadata-pr-a.md` and
+`docs/superpowers/specs/2026-11-08-library-metadata-design.md` for the metadata follow-up.
+`verify-docs.py --fail-on-transient` exempts only those two paths; all link checks still apply.
+This explicit retention overrides the pruning rule below for those files.
 
 These rules override the default output locations of the superpowers skills (brainstorming: "Write the validated design (spec) to"; writing-plans: "Save plans to") and of any similar tool.
 

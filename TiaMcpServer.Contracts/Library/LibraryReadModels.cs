@@ -13,6 +13,7 @@ public sealed class LibraryQueryInfo
     public string? Scope { get; set; }
     public string? LibraryPath { get; set; }
     public string? LibraryName { get; set; }
+    public bool? IncludeMetadata { get; set; }
     public string? FolderKind { get; set; }
     public List<string>? FolderPath { get; set; }
     public string? TypeName { get; set; }
@@ -29,18 +30,26 @@ public sealed class LibraryQueryInfo
 public sealed class LibraryIdentityInfo
 {
     public string Scope { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? LibraryPath { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? LibraryName { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? FolderKind { get; set; }
     public List<string> FolderPath { get; set; } = new();
     public string Kind { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? TypeGuid { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? VersionGuid { get; set; }
 }
 
 public sealed class LibraryEntryInfo
 {
+    /// <summary>Present only for global inspect_library with includeMetadata:true.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LibraryMetadataInfo? Metadata { get; set; }
     public LibraryIdentityInfo Identity { get; set; } = new();
     public string? Namespace { get; set; }
     public string? VersionNumber { get; set; }
@@ -72,4 +81,43 @@ public sealed class LibraryPageInfo
     public string? SnapshotId { get; set; }
     public bool Complete { get; set; }
     public List<string> Diagnostics { get; set; } = new();
+}
+
+public sealed class LibraryMetadataInfo
+{
+    public string? Author { get; set; }
+    public string? Version { get; set; }
+    public string? Family { get; set; }
+    public string? Copyright { get; set; }
+    public string? LastModifiedBy { get; set; }
+    public string? CreationTime { get; set; }
+    public string? LastModified { get; set; }
+    public long? SizeKilobytes { get; set; }
+    public List<LibraryCommentInfo>? Comments { get; set; }
+    public List<string>? SupportedLanguages { get; set; }
+    public List<string>? ActiveLanguages { get; set; }
+    public string? EditingLanguage { get; set; }
+    public string? ReferenceLanguage { get; set; }
+    public List<LibraryUsedProductInfo>? UsedProducts { get; set; }
+    public List<LibraryHistoryEntryInfo>? History { get; set; }
+    public bool Complete { get; set; }
+    public List<string> Diagnostics { get; set; } = new();
+}
+
+public sealed class LibraryCommentInfo
+{
+    public string? Culture { get; set; }
+    public string? Text { get; set; }
+}
+
+public sealed class LibraryUsedProductInfo
+{
+    public string? Name { get; set; }
+    public string? Version { get; set; }
+}
+
+public sealed class LibraryHistoryEntryInfo
+{
+    public string? DateTime { get; set; }
+    public string? Text { get; set; }
 }

@@ -55,7 +55,7 @@ public sealed class LibraryWriteItem : IOperationBatchItem
     public string? VersionGuid { get; set; }
     [Description("Select the in-work version; only true is valid. Mutually exclusive with versionNumber and versionGuid.")]
     public bool? InWork { get; set; }
-    [Description("release_type_version only: optional author.")]
+    [Description("create_global or release_type_version: optional author, at most 255 UTF-16 code units. Creation requires nonblank text when supplied. Text is preserved exactly.")]
     public string? Author { get; set; }
     [Description("release_type_version only: optional comment.")]
     public string? Comment { get; set; }
