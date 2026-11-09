@@ -3,14 +3,14 @@
 This directory keeps the live-verification reports under [`acceptance/reports/`](acceptance/reports/)
 and the raw Openness evidence indexed in [`acceptance/reports/inputs/README.md`](acceptance/reports/inputs/README.md).
 Its `specs/`, `plans/` and `evidence/` directories are a transient per-PR working area, empty on
-`main` except the explicitly retained library-metadata plan and shared spec; the rules are in
+`main`; the rules are in
 [`AGENTS.md`](../../AGENTS.md) ("Plans, specs and evidence").
 
 A report describes the state of the world **on its date**; later work may have superseded it. The
 code, [ARCHITECTURE.md](../ARCHITECTURE.md) and [SupportedOperations](../SupportedOperations/README.md)
 are the authorities on current behavior. For why the design is as it is, and the project's history,
 start at the [architecture decision records](../adr/README.md). Removed plans and specs remain at the
-`docs-archive-2026-10-30` tag.
+`docs-archive-2026-10-30` tag; later working files remain in their PR commit history.
 
 ## Acceptance definitions
 

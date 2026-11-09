@@ -203,12 +203,6 @@ Network contract these rules describe in the abstract.
 
 ## Plans, specs and evidence (lifecycle)
 
-Owner-retained handoff exception: preserve exactly
-`docs/superpowers/plans/2026-11-08-library-metadata-pr-a.md` and
-`docs/superpowers/specs/2026-11-08-library-metadata-design.md` for the metadata follow-up.
-`verify-docs.py --fail-on-transient` exempts only those two paths; all link checks still apply.
-This explicit retention overrides the pruning rule below for those files.
-
 These rules override the default output locations of the superpowers skills (brainstorming: "Write the validated design (spec) to"; writing-plans: "Save plans to") and of any similar tool.
 
 - Specs go to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, plans to `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`, run evidence to `docs/superpowers/evidence/YYYY-MM-DD-<topic>/`. These three directories are a transient per-PR working area: collapsed in diffs and empty on `main`.
