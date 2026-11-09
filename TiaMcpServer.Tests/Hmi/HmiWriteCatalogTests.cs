@@ -8,6 +8,29 @@ namespace TiaMcpServer.Tests.Hmi;
 public class HmiWriteCatalogTests
 {
     [Theory]
+    [InlineData("en-us", true)]
+    [InlineData("en", true)]
+    [InlineData("zz-ZZ", true)]
+    [InlineData("", false)]
+    [InlineData(" ", false)]
+    [InlineData("not a culture", false)]
+    public void TextCultureValidation_PreservesAcceptedPayload(string culture, bool valid)
+    {
+        var text = new HmiText(culture, "  text\nwith\r\nwhitespace  ");
+        var item = new HmiWriteOperationRequest { OperationId = "a", Operation = "update_tag", TagName = "Tag", Comment = [text] };
+        Assert.Equal(valid, HmiWriteCatalog.ValidateWrite([item]).IsValid);
+        Assert.Equal(culture, item.Comment[0].Culture);
+        Assert.Equal(text.Text, item.Comment[0].Text);
+    }
+
+    [Fact]
+    public void TextCultures_RejectCanonicalDuplicates()
+    {
+        var item = new HmiWriteOperationRequest { OperationId = "a", Operation = "update_tag", TagName = "Tag",
+            Comment = [new("en-US", "a"), new("en-us", "b")] };
+        Assert.False(HmiWriteCatalog.ValidateWrite([item]).IsValid);
+    }
+    [Theory]
     [InlineData(256)]
     [InlineData(257)]
     [InlineData(200000)]

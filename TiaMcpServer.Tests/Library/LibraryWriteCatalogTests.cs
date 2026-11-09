@@ -12,6 +12,87 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryWriteCatalogTests
 {
     [Theory]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"en-us","text":""}]}""", true)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"en","text":"neutral"},{"culture":"zz-ZZ","text":"native resolves"}]}""", true)]
+    [InlineData("set_comments", """{"scope":"project","comments":[{"culture":"en-US","text":"x"}]}""", false)]
+    [InlineData("set_comments", """{"libraryName":"Fixture","comments":[{"culture":"en-US","text":"x"}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","comments":[{"culture":"en-US","text":"x"}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture"}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[null]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":null,"text":"x"}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"en-US","text":null}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"en-US","text":"x"},{"culture":"en-us","text":"y"}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"not a culture","text":"x"}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":" ","text":"x"}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"","text":"x"}]}""", false)]
+    [InlineData("set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"en-US","text":"x"}],"activateLanguages":["en-US"]}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","activateLanguages":["en-us","en","zz-ZZ"]}""", true)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","editingLanguage":"en-us","referenceLanguage":"de-de"}""", true)]
+    [InlineData("set_languages", """{"scope":"project","editingLanguage":"en-US"}""", false)]
+    [InlineData("set_languages", """{"scope":"global","editingLanguage":"en-US"}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture"}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","activateLanguages":[]}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","activateLanguages":["en-US","en-us"]}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","activateLanguages":[null]}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","activateLanguages":[""]}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","activateLanguages":["not a culture"]}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","editingLanguage":" "}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","referenceLanguage":""}""", false)]
+    [InlineData("set_languages", """{"scope":"global","libraryName":"Fixture","referenceLanguage":"not a culture"}""", false)]
+    public void MetadataShapeAndCanonicalCultures(string operation, string json, bool valid)
+    {
+        var item = CanonicalJson.Deserialize<LibraryWriteItem>(json);
+        item.OperationId = "metadata";
+        item.Operation = operation;
+        var workerItem = CanonicalJson.Deserialize<LibraryWriteRequestInfo>(json);
+        workerItem.Operation = operation;
+        Assert.Equal(valid, LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+        Assert.Equal(valid, LibraryWriteMethods.Validate(workerItem) is null);
+        Assert.Equal(valid, LibraryWriteMethods.Validate(LibraryWriteCatalog.ToWorkerRequest(item)) is null);
+    }
+
+    [Fact]
+    public void CommentAggregateUsesEffectiveBudget()
+    {
+        var oldItem = StructuredOperationBatchPayloadBudget.MaxItemChars;
+        var oldDocument = StructuredOperationBatchPayloadBudget.MaxDocumentChars;
+        var item = new LibraryWriteItem { OperationId = "a", Operation = "set_comments", Scope = "global", LibraryName = "Fixture",
+            Comments = [new() { Culture = "en-us", Text = new string('A', 40_000) }, new() { Culture = "de-de", Text = new string('B', 20_000) }] };
+        try
+        {
+            StructuredOperationBatchPayloadBudget.Configure(60_000, oldDocument);
+            Assert.True(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+            item.Comments[1].Text += "B";
+            Assert.False(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+            StructuredOperationBatchPayloadBudget.Configure(100_000, oldDocument);
+            item.Comments = [new() { Culture = "en-us", Text = new string('A', 100_000) }];
+            Assert.True(LibraryWriteCatalog.ValidateWrite([item]).IsValid);
+            Assert.Equal(item.Comments[0].Text, LibraryWriteCatalog.ToWorkerRequest(item).Comments![0].Text);
+        }
+        finally { StructuredOperationBatchPayloadBudget.Configure(oldItem, oldDocument); }
+    }
+
+    [Fact]
+    public void MetadataMapping_CopiesCanonicalCulturesAndPreservesExactText()
+    {
+        const string text = "  First\nSecond\r\nThird\t  ";
+        var item = new LibraryWriteItem { OperationId = "a", Operation = "set_comments", Scope = "global", LibraryName = "Fixture",
+            Comments = [new() { Culture = "en-us", Text = text }], ActivateLanguages = ["de-de"], EditingLanguage = "en-us", ReferenceLanguage = "de-de" };
+        var request = LibraryWriteCatalog.ToWorkerRequest(item);
+        Assert.Equal("en-US", request.Comments![0].Culture);
+        Assert.Equal(text, request.Comments[0].Text);
+        Assert.NotSame(item.Comments, request.Comments);
+        Assert.NotSame(item.Comments[0], request.Comments[0]);
+        Assert.Equal(["de-DE"], request.ActivateLanguages!);
+        Assert.NotSame(item.ActivateLanguages, request.ActivateLanguages);
+        Assert.Equal("en-US", request.EditingLanguage);
+        Assert.Equal("de-DE", request.ReferenceLanguage);
+        Assert.Equal("en-us", item.Comments[0].Culture);
+        Assert.Equal("de-de", item.ActivateLanguages[0]);
+    }
+
+    [Theory]
     [InlineData(0, false)]
     [InlineData(1, true)]
     [InlineData(50, true)]
@@ -46,7 +127,7 @@ public sealed class LibraryWriteCatalogTests
         foreach (var member in typeof(LibraryWriteItem).GetProperties().Where(p => !permitted.Contains(p.Name)))
         {
             var changed = CanonicalJson.Deserialize<LibraryWriteItem>(CanonicalJson.Serialize(item));
-            member.SetValue(changed, member.PropertyType == typeof(string) ? "unexpected" : member.PropertyType == typeof(bool?) ? true : new List<string> { "unexpected" });
+            member.SetValue(changed, member.PropertyType == typeof(string) ? "unexpected" : member.PropertyType == typeof(bool?) ? true : member.PropertyType == typeof(List<LibraryCommentInfo>) ? new List<LibraryCommentInfo> { new() { Culture = "en-US", Text = "unexpected" } } : new List<string> { "unexpected" });
             Assert.False(LibraryWriteCatalog.ValidateWrite([changed]).IsValid);
         }
     }
@@ -56,10 +137,10 @@ public sealed class LibraryWriteCatalogTests
     {
         var item = new LibraryWriteItem();
         foreach (var property in typeof(LibraryWriteItem).GetProperties())
-            property.SetValue(item, property.PropertyType == typeof(string) ? property.Name : property.PropertyType == typeof(bool?) ? true : new List<string> { property.Name });
+            property.SetValue(item, property.PropertyType == typeof(string) ? property.Name : property.PropertyType == typeof(bool?) ? true : property.PropertyType == typeof(List<LibraryCommentInfo>) ? new List<LibraryCommentInfo> { new() { Culture = "en-US", Text = property.Name } } : new List<string> { property.Name });
         var request = LibraryWriteCatalog.ToWorkerRequest(item);
         foreach (var property in typeof(LibraryWriteRequestInfo).GetProperties())
-            Assert.Equal(typeof(LibraryWriteItem).GetProperty(property.Name)!.GetValue(item), property.GetValue(request));
+            Assert.Equal(CanonicalJson.Serialize(typeof(LibraryWriteItem).GetProperty(property.Name)!.GetValue(item)), CanonicalJson.Serialize(property.GetValue(request)));
     }
 
     [Theory]

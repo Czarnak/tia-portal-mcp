@@ -115,12 +115,14 @@ namespace Siemens.Engineering
     }
     public abstract class LanguageAssociation : global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Language>
     {
+        public void Add(global::Siemens.Engineering.Language language) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Language> GetEnumerator() => throw new global::System.NotSupportedException();
         global::System.Collections.IEnumerator global::System.Collections.IEnumerable.GetEnumerator() => throw new global::System.NotSupportedException();
     }
     public abstract class LanguageComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.Language>
     {
+        public global::Siemens.Engineering.Language Find(global::System.Globalization.CultureInfo culture) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringComposition.Create(global::System.Type type, global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<string, object>> parameters) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.Language> GetEnumerator() => throw new global::System.NotSupportedException();
@@ -130,8 +132,8 @@ namespace Siemens.Engineering
     {
         public global::Siemens.Engineering.LanguageComposition Languages { get => throw new global::System.NotSupportedException(); }
         public global::Siemens.Engineering.LanguageAssociation ActiveLanguages { get => throw new global::System.NotSupportedException(); }
-        public global::Siemens.Engineering.Language EditingLanguage { get => throw new global::System.NotSupportedException(); }
-        public global::Siemens.Engineering.Language ReferenceLanguage { get => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.Language EditingLanguage { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
+        public global::Siemens.Engineering.Language ReferenceLanguage { get => throw new global::System.NotSupportedException(); set => throw new global::System.NotSupportedException(); }
         object global::Siemens.Engineering.IEngineeringObject.GetAttribute(string name) => throw new global::System.NotSupportedException();
         void global::Siemens.Engineering.IEngineeringObject.SetAttribute(string name, object value) => throw new global::System.NotSupportedException();
         global::System.Collections.Generic.IList<global::Siemens.Engineering.EngineeringAttributeInfo> global::Siemens.Engineering.IEngineeringObject.GetAttributeInfos() => throw new global::System.NotSupportedException();
@@ -156,6 +158,7 @@ namespace Siemens.Engineering
     }
     public abstract class MultilingualTextItemComposition : global::Siemens.Engineering.IEngineeringComposition, global::Siemens.Engineering.IEngineeringInstance, global::System.Collections.Generic.IEnumerable<global::Siemens.Engineering.MultilingualTextItem>
     {
+        public global::Siemens.Engineering.MultilingualTextItem Find(global::Siemens.Engineering.Language language) => throw new global::System.NotSupportedException();
         public global::System.Collections.Generic.IEnumerator<global::Siemens.Engineering.MultilingualTextItem> GetEnumerator() => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringComposition.Create(global::System.Type type, global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<string, object>> parameters) => throw new global::System.NotSupportedException();
         global::Siemens.Engineering.IEngineeringObject global::Siemens.Engineering.IEngineeringInstance.Parent => throw new global::System.NotSupportedException();

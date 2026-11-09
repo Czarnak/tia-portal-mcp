@@ -68,6 +68,19 @@ public sealed class LibraryWorkerDispatchTests
     }
 
     [Fact]
+    public void Dispatch_MetadataMethodsUseExistingGlobalWriterRoute()
+    {
+        Assert.Contains("var m when LibraryWriteMethods.All.Contains(m, StringComparer.Ordinal) => WriteLibrary(request),", Program);
+        foreach (var operation in new[] { "set_comments", "set_languages" })
+        {
+            var item = new LibraryWriteRequestInfo { Operation = operation, Scope = "global" };
+            Assert.Equal("library_global_" + operation, LibraryWriteMethods.ForItem(item));
+            Assert.Equal(LibraryWriteMethods.GlobalPlan, LibraryWriteMethods.PlanFor(item));
+            Assert.DoesNotContain("library_project_" + operation, LibraryWriteMethods.All);
+        }
+    }
+
+    [Fact]
     public void Capability_ProjectAndGlobalTypeMethods()
     {
         foreach (var method in LibraryWriteMethods.All.Where(x => LibraryWriteMethods.TypeOperations.Any(operation => x.EndsWith("_" + operation, StringComparison.Ordinal))))

@@ -58,11 +58,48 @@ public sealed class LibraryWriteRequestInfo
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Comment { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public List<LibraryCommentInfo>? Comments { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public List<string>? ActivateLanguages { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? EditingLanguage { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? ReferenceLanguage { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Content { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? ExpectedContentHash { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public bool? ReplaceInWork { get; set; }
+}
+
+public sealed class LibraryMetadataChangeInfo
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public List<LibraryCommentChangeInfo>? Comments { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public List<string>? ActivatedLanguages { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public LibraryLanguageChangeInfo? EditingLanguage { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public LibraryLanguageChangeInfo? ReferenceLanguage { get; set; }
+}
+
+public sealed class LibraryCommentChangeInfo
+{
+    public string Culture { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? Before { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? After { get; set; }
+}
+
+public sealed class LibraryLanguageChangeInfo
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? Before { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? After { get; set; }
 }
 
 public sealed class LibraryWritePlanInfo

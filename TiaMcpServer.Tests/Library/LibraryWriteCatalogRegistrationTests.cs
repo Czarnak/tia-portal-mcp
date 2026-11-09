@@ -8,14 +8,24 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryWriteCatalogRegistrationTests
 {
     [Fact]
-    public void Registration_CountAssertionsUpdated()
+    public void MetadataOperations_AreGlobalOnly()
     {
-        Assert.Equal(20, LibraryWriteMethods.Operations.Length);
+        Assert.Equal(22, LibraryWriteMethods.Operations.Length);
         Assert.Equal(8, LibraryWriteMethods.TypeOperations.Length);
-        Assert.Equal(14, LibraryWriteMethods.GlobalLibraryWrites.Length);
+        Assert.Equal(16, LibraryWriteMethods.GlobalLibraryWrites.Length);
         Assert.Equal(14, LibraryWriteMethods.ProjectLibraryWrites.Length);
-        Assert.Equal(30, LibraryWriteMethods.All.Length);
-        Assert.Equal(30, LibraryWriteMethods.All.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(32, LibraryWriteMethods.All.Length);
+        Assert.Equal(32, LibraryWriteMethods.All.Distinct(StringComparer.Ordinal).Count());
+        foreach (var operation in new[] { "set_comments", "set_languages" })
+        {
+            var method = "library_global_" + operation;
+            Assert.Contains(method, LibraryWriteMethods.All);
+            Assert.DoesNotContain("library_project_" + operation, LibraryWriteMethods.All);
+            Assert.Equal(OperationCapability.ProjectMutation, OperationPolicyCatalog.GetCapability(method));
+            Assert.Equal("library_write", ProjectCapabilityCatalog.OperationFor(method));
+            Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.StandaloneProject, method));
+            Assert.True(ProjectCapabilityCatalog.Supports(ProjectContainerKinds.LocalSession, method));
+        }
     }
 
     [Fact]

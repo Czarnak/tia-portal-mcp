@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
+using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.OperationBatches;
 
 namespace TiaMcpServer.Library;
@@ -9,7 +10,7 @@ public sealed class LibraryWriteItem : IOperationBatchItem
 {
     [Description("Unique client-supplied operation identifier, at most 256 characters.")]
     public string OperationId { get; set; } = string.Empty;
-    [Description("create_global, open_global, retrieve_global, save_global, close_global, archive_global, create_folder, delete_folder, create_master_copy, copy_master_copy, instantiate_master_copy, delete_master_copy, create_type, create_type_version, release_type_version, set_default_type_version, synchronize_type, instantiate_type_version, delete_type or delete_type_version.")]
+    [Description("create_global, open_global, retrieve_global, save_global, close_global, archive_global, create_folder, delete_folder, create_master_copy, copy_master_copy, instantiate_master_copy, delete_master_copy, create_type, create_type_version, release_type_version, set_default_type_version, synchronize_type, instantiate_type_version, delete_type, delete_type_version, set_comments or set_languages.")]
     public string Operation { get; set; } = string.Empty;
     [Description("project or global; lifecycle selectors require global. For copy_master_copy this selects the destination.")]
     public string? Scope { get; set; }
@@ -59,6 +60,14 @@ public sealed class LibraryWriteItem : IOperationBatchItem
     public string? Author { get; set; }
     [Description("release_type_version only: optional comment.")]
     public string? Comment { get; set; }
+    [Description("set_comments only: nonempty culture/text entries. Text is preserved exactly, including empty text.")]
+    public List<LibraryCommentInfo>? Comments { get; set; }
+    [Description("set_languages only: nonempty list of cultures to activate, without removing active languages.")]
+    public List<string>? ActivateLanguages { get; set; }
+    [Description("set_languages only: editing culture.")]
+    public string? EditingLanguage { get; set; }
+    [Description("set_languages only: reference culture.")]
+    public string? ReferenceLanguage { get; set; }
     [Description("create_type_version only: SimaticML XML content.")]
     public string? Content { get; set; }
     [Description("create_type_version only: required xml:sha256 content hash returned by plc_read.")]

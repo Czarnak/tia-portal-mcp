@@ -184,7 +184,7 @@ public sealed class LibraryWriteMcpTests
     }
 
     [Fact]
-    public async Task Mcp_ToolDescription_ListsTwentyOperations()
+    public async Task Mcp_ToolDescription_ListsTwentyTwoOperations()
     {
         await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite);
         var tool = Assert.Single(await fixture.Harness.Client.ListToolsAsync(), tool => tool.Name == "library_write");
@@ -192,7 +192,7 @@ public sealed class LibraryWriteMcpTests
         var operations = description[(description.IndexOf("writes: ", StringComparison.Ordinal) + "writes: ".Length)..]
             .Split(". Every", StringSplitOptions.None)[0].Split(", ", StringSplitOptions.None);
 
-        Assert.Equal(20, operations.Length);
+        Assert.Equal(22, operations.Length);
         Assert.Equal(LibraryWriteMethods.Operations, operations);
         Assert.DoesNotContain("edit_type_version", description);
     }

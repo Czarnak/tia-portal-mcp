@@ -35,7 +35,7 @@ public sealed class LibraryTypeContractTests
         {
             var item = Request(operation, json);
             property.SetValue(item, property.PropertyType == typeof(string) ? "unexpected"
-                : property.PropertyType == typeof(bool?) ? true : new List<string> { "unexpected" });
+                : property.PropertyType == typeof(bool?) ? true : property.PropertyType == typeof(List<LibraryCommentInfo>) ? new List<LibraryCommentInfo> { new() { Culture = "en-US", Text = "unexpected" } } : new List<string> { "unexpected" });
             Assert.NotNull(LibraryWriteMethods.Validate(item));
         }
         var publicItem = CanonicalJson.Deserialize<LibraryWriteItem>(json);

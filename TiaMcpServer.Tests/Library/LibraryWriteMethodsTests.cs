@@ -23,6 +23,8 @@ public sealed class LibraryWriteMethodsTests
         { "copy_master_copy", """{"scope":"global","libraryName":"Destination","sourceScope":"global","sourceLibraryName":"Source","name":"Copy"}""", "Scope LibraryPath LibraryName FolderPath SourceScope SourceLibraryPath SourceLibraryName SourceFolderPath Name" },
         { "instantiate_master_copy", """{"scope":"global","libraryName":"Fixture","name":"Copy","plcName":"Controller","plcKind":"blockGroup"}""", "Scope LibraryPath LibraryName FolderPath Name PlcName PlcKind PlcFolderPath" },
         { "delete_master_copy", """{"scope":"project","name":"Copy"}""", "Scope LibraryPath LibraryName FolderPath Name" },
+        { "set_comments", """{"scope":"global","libraryName":"Fixture","comments":[{"culture":"en-US","text":""}]}""", "Scope LibraryPath LibraryName Comments" },
+        { "set_languages", """{"scope":"global","libraryName":"Fixture","activateLanguages":["en-US"]}""", "Scope LibraryPath LibraryName ActivateLanguages EditingLanguage ReferenceLanguage" },
     };
 
     public static IEnumerable<object[]> RequiredRequests => ValidRequests.Select(row => new[] { row[0], row[1] });
@@ -40,7 +42,7 @@ public sealed class LibraryWriteMethodsTests
         foreach (var member in typeof(LibraryWriteRequestInfo).GetProperties().Where(p => !permitted.Contains(p.Name)))
         {
             var item = Request(operation, json);
-            member.SetValue(item, member.PropertyType == typeof(string) ? "unexpected" : member.PropertyType == typeof(bool?) ? true : new List<string> { "unexpected" });
+            member.SetValue(item, member.PropertyType == typeof(string) ? "unexpected" : member.PropertyType == typeof(bool?) ? true : member.PropertyType == typeof(List<LibraryCommentInfo>) ? new List<LibraryCommentInfo> { new() { Culture = "en-US", Text = "unexpected" } } : new List<string> { "unexpected" });
             Assert.NotNull(LibraryWriteMethods.Validate(item));
         }
     }
@@ -185,10 +187,10 @@ public sealed class LibraryWriteMethodsTests
     [Fact]
     public void OperationFor_MapsEveryMethod()
     {
-        Assert.Equal(20, LibraryWriteMethods.Operations.Length);
-        Assert.Equal(14, LibraryWriteMethods.GlobalLibraryWrites.Length);
+        Assert.Equal(22, LibraryWriteMethods.Operations.Length);
+        Assert.Equal(16, LibraryWriteMethods.GlobalLibraryWrites.Length);
         Assert.Equal(14, LibraryWriteMethods.ProjectLibraryWrites.Length);
-        Assert.Equal(30, LibraryWriteMethods.All.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(32, LibraryWriteMethods.All.Distinct(StringComparer.Ordinal).Count());
         foreach (var method in LibraryWriteMethods.GlobalLibraryWrites.Append(LibraryWriteMethods.GlobalPlan))
             Assert.Equal("library_write", LibraryWriteMethods.OperationFor(method));
         foreach (var method in LibraryWriteMethods.ProjectLibraryWrites.Append(LibraryWriteMethods.ProjectPlan))
@@ -206,7 +208,7 @@ public sealed class LibraryWriteMethodsTests
     public void Results_KeepNullableMembersWhenNullsAreOtherwiseOmitted()
     {
         var options = new JsonSerializerOptions(Json) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
-        foreach (var value in new object[] { new LibraryWriteRequestInfo(), new LibraryWritePlanInfo(), new LibraryWriteResultInfo(), new LibraryWriteOutcomeInfo(), new LibraryTypeResultInfo() })
+        foreach (var value in new object[] { new LibraryWriteRequestInfo(), new LibraryWritePlanInfo(), new LibraryWriteResultInfo(), new LibraryWriteOutcomeInfo(), new LibraryTypeResultInfo(), new LibraryMetadataChangeInfo(), new LibraryCommentChangeInfo(), new LibraryLanguageChangeInfo() })
         {
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(value, value.GetType(), options));
             foreach (var member in value.GetType().GetProperties().Where(p => p.GetValue(value) is null && !p.GetCustomAttributes(typeof(JsonIgnoreAttribute), false).Cast<JsonIgnoreAttribute>().Any(a => a.Condition == JsonIgnoreCondition.WhenWritingNull)))
