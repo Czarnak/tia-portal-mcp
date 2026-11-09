@@ -133,6 +133,10 @@ public sealed class LibraryMetadataWriterTests
         if (stage == "before") library.LanguageSettings.ActiveLanguages.EnumerationFailure = new EngineeringException("cannot read");
         var failure = Assert.Throws<WorkerOperationException>(() => Write(Comments(("en-US", "new"), ("de-DE", "new"))));
         Assert.Equal(stage == "before" ? WorkerFailureCategories.WorkerOperationFailed : WorkerFailureCategories.TargetNotFound, failure.FailureCategory);
+        if (stage == "comment")
+            Assert.Contains("Library 'Fixture' has no comment for 'de-DE'; activate the language with set_languages first.", failure.Message);
+        if (stage == "language")
+            Assert.Contains("Language 'de-DE' is not supported by library 'Fixture'.", failure.Message);
         Assert.DoesNotContain(calls, x => x.StartsWith("set:"));
         Assert.Equal(0, commits);
     }

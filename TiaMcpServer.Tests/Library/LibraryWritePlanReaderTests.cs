@@ -93,9 +93,13 @@ public sealed class LibraryWritePlanReaderTests
         Assert.Equal("global", missing.Scope); Assert.Equal(plan.Library!.LibraryPath, missing.LibraryPath);
         Assert.Empty(missing.FolderPath); Assert.Null(missing.FolderKind);
         settings.ActiveLanguages.Items.Add(settings.Languages.Items[0]);
-        Assert.Equal(WorkerFailureCategories.TargetNotFound, Failure(item));
+        var missingComment = Assert.Throws<WorkerOperationException>(() => Plan(item));
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, missingComment.FailureCategory);
+        Assert.Equal("Library 'Fixture' has no comment for 'pl-PL'; activate the language with set_languages first.", missingComment.Message);
         settings.ActiveLanguages.Items.Clear(); settings.Languages.Items.Clear();
-        Assert.Equal(WorkerFailureCategories.TargetNotFound, Failure(item));
+        var missingLanguage = Assert.Throws<WorkerOperationException>(() => Plan(item));
+        Assert.Equal(WorkerFailureCategories.TargetNotFound, missingLanguage.FailureCategory);
+        Assert.Equal("Language 'pl-PL' is not supported by library 'Fixture'.", missingLanguage.Message);
     }
 
     [Fact]

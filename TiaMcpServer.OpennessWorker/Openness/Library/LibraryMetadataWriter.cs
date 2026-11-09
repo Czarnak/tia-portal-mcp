@@ -21,7 +21,7 @@ internal static class LibraryMetadataWriter
         };
         var settings = library.LanguageSettings;
         Language Resolve(string culture) => settings.Languages.Find(CultureInfo.GetCultureInfo(culture))
-            ?? throw Missing("language", culture);
+            ?? throw Missing("language", culture, plan.Library!.LibraryName);
         if (item.Operation == "set_comments")
         {
             foreach (var comment in item.Comments!)
@@ -30,7 +30,7 @@ internal static class LibraryMetadataWriter
                 var language = Resolve(culture);
                 if (library.Comment.Items.Find(language) is null)
                 {
-                    if (before.ActiveLanguages.Contains(culture)) throw Missing("comment", culture);
+                    if (before.ActiveLanguages.Contains(culture)) throw Missing("comment", culture, plan.Library!.LibraryName);
                     var root = plan.Library!;
                     (plan.MissingTargets ??= new()).Add(new LibraryIdentityInfo
                     {
@@ -79,7 +79,7 @@ internal static class LibraryMetadataWriter
                                 if (!languages.TryGetValue(canonical, out var language))
                                 {
                                     language = settings.Languages.Find(CultureInfo.GetCultureInfo(canonical))
-                                        ?? throw Missing("language", canonical);
+                                        ?? throw Missing("language", canonical, identity.LibraryName);
                                     languages.Add(canonical, language);
                                 }
                                 return language;
@@ -88,7 +88,7 @@ internal static class LibraryMetadataWriter
                                 foreach (var comment in item.Comments!)
                                 {
                                     var language = Resolve(comment.Culture!);
-                                    var target = library.Comment.Items.Find(language) ?? throw Missing("comment", language.Culture.Name);
+                                    var target = library.Comment.Items.Find(language) ?? throw Missing("comment", language.Culture.Name, identity.LibraryName);
                                     comments.Add((target, comment.Text!));
                                 }
                             else
@@ -178,8 +178,10 @@ internal static class LibraryMetadataWriter
             ReferenceLanguage = item.ReferenceLanguage is null ? null : new LibraryLanguageChangeInfo { Before = before.ReferenceLanguage, After = after?.ReferenceLanguage }
         };
 
-    private static WorkerOperationException Missing(string kind, string culture)
-        => new(WorkerFailureCategories.TargetNotFound, $"The requested library {kind} '{culture}' was not found.");
+    private static WorkerOperationException Missing(string kind, string culture, string? libraryName)
+        => new(WorkerFailureCategories.TargetNotFound, kind == "language"
+            ? $"Language '{culture}' is not supported by library '{libraryName}'."
+            : $"Library '{libraryName}' has no comment for '{culture}'; activate the language with set_languages first.");
 
     private static WorkerOperationException Failure(Exception exception, string context, LibraryWriteOutcomeInfo? outcome,
         EngineeringException? earlierEngineering = null)
