@@ -43,6 +43,11 @@ safety tokens and no PLC run/stop.
 
 ### Library writes
 
+Global `inspect_library` can include author, multilingual comments, languages, history and product
+metadata with `includeMetadata:true`. `create_global` returns metadata and accepts an optional
+nonblank author, capped at 255 UTF-16 code units; release authors share that cap. Comment and language
+editing remain deferred.
+
 - `library_write(operations, dryRun=false)` - 20 operations in read-write/full, up to 50 caller-ordered items, write contract `2.0` (`library_read` stays `1.0`): global-library lifecycle, folders, master copies and versioned FB/FC/PLC UDT types (`create_type`, `create_type_version`, `release_type_version`, `set_default_type_version`, `synchronize_type`, `instantiate_type_version`, `delete_type`, `delete_type_version`). Every call needs a verified binding; project-library and PLC items need a standalone project. It executes by default, previews with `dryRun:true`, stops at the first failure and never rolls back the batch. Read-write asks once only for a call containing global-library lifecycle; content-only calls and full never ask. Only previews and prompting calls plan. Other applies return `effects:[]`, resolve items as they run and can use earlier creations. Change type content through a fresh `plc_read` hash, `create_type_version` and release; a compile-first workflow is recommended for library-placed PLC objects before content reads. Release and synchronization report default changes without restoring the previous default. See the [library operations summary](https://github.com/Czarnak/tia-portal-mcp/blob/main/docs/SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#writes-library_write) for selectors, checks, planned-call dependencies and live scope.
 
 ### PLC writes

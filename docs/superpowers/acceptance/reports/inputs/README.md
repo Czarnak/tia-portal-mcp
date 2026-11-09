@@ -40,6 +40,14 @@ Verified raw Openness call/response evidence is kept here, with the probe source
 
 Caveats:
 
+- `2026-11-09-library-metadata-pr-a-mcp.jsonl.gz` retains 50 sanitized built-MCP receipts and 22
+  matching audit records for the [PR A acceptance report](../2026-11-09-library-metadata-pr-a-live-verification.md).
+  These are MCP protocol documents, not direct Openness call traces. The paired
+  `2026-11-09-library-metadata-pr-a-provenance.json` records original private receipt hashes and separate
+  sanitized compressed/uncompressed hashes. Original audit `responseHash` values do not hash the
+  sanitized response text. Redactions cover exact project/selected-user-library identity, repo/profile
+  paths and the current username, including observed existing-library author; supplied test authors stay exact.
+
 - The `2026-11-08-library-metadata-native-probes-run*.jsonl.gz` captures redact work/profile paths and
   the current user's exact name. Author inputs, returned authors and comparisons were checked unchanged.
   The derived crash summary replaces only the 10,000 repeated author characters with a length marker.

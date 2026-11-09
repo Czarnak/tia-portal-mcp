@@ -1,0 +1,251 @@
+{
+  "candidateHead": "3a9f437c03905bd2f9015b09c46fc84c52c25711",
+  "lastBehaviorSourceCommit": "d01a829b",
+  "build": "dotnet build TiaMcpServer.slnx -m:1 --no-restore /p:UseSharedCompilation=false /p:TiaPortalV21Dir=<installed-v21-net48>",
+  "buildErrors": 0,
+  "buildWarnings": 9,
+  "provenance": {
+    "head": "3a9f437c03905bd2f9015b09c46fc84c52c25711",
+    "files": [
+      {
+        "path": "<repo>\\TiaMcpServer\\bin\\Debug\\net10.0\\TiaMcpServer.dll",
+        "sha256": "aa0f1d959a8e56183df1d2a4bb8d3df2e92ec85b73c3cb7cd65d562ca3ad5a48"
+      },
+      {
+        "path": "<repo>\\TiaMcpServer\\bin\\Debug\\net10.0\\openness-worker\\TiaMcpServer.OpennessWorker.exe",
+        "sha256": "b1739099e3ea867b5a986b21f610522b95dd3eae2a75a16fba3852d40059e60e"
+      },
+      {
+        "path": "<repo>\\TiaMcpServer.OpennessWorker\\bin\\Debug\\net48\\TiaMcpServer.OpennessWorker.exe",
+        "sha256": "b1739099e3ea867b5a986b21f610522b95dd3eae2a75a16fba3852d40059e60e"
+      },
+      {
+        "path": "<repo>\\TiaMcpServer\\bin\\Debug\\net10.0\\TiaMcpServer.Contracts.dll",
+        "sha256": "f37c60eb39674347e9659c3198b6b7f60aabdfa150b7a972587ef74efbf3bd00"
+      },
+      {
+        "path": "<repo>\\TiaMcpServer\\bin\\Debug\\net10.0\\openness-worker\\TiaMcpServer.Contracts.dll",
+        "sha256": "f37c60eb39674347e9659c3198b6b7f60aabdfa150b7a972587ef74efbf3bd00"
+      }
+    ]
+  },
+  "records": 72,
+  "mcpReceipts": 50,
+  "auditRecords": 22,
+  "publicCompressedSha256": "b82e4277c2d11b9011329049b65cb8853f197e35b1fca2265a9122021bab7cb5",
+  "publicUncompressedSha256": "6e8408398ac17fe474896c1ac51eb55ab49c1c07b34c6ddeb709de671188f56a",
+  "selectedUserLibrary": {
+    "path": "<selected-user-library.al21>",
+    "sha256": "7cc28b30d1f1a82d842e73d70252ee6f94a4f0787e49c851aa0d573068443684",
+    "afterSha256": "7cc28b30d1f1a82d842e73d70252ee6f94a4f0787e49c851aa0d573068443684"
+  },
+  "originalPrivateSources": [
+    {
+      "path": "rw/001-unbound.result.json",
+      "originalSha256": "84754e9a4468490cfb78543dccda9162884a0817403b7badeb12bbf60cb7117c"
+    },
+    {
+      "path": "rw/002-bind.result.json",
+      "originalSha256": "f0e284b04e8be90023422b8f61ad2d786fcfade366ecf0a4368de0ee519fdf78"
+    },
+    {
+      "path": "rw/003-status.result.json",
+      "originalSha256": "f8f85646ca6257f9c3a1f61d85810f28fad44751be979eadbd074fd6b7ab04a5"
+    },
+    {
+      "path": "rw/004-baseline.result.json",
+      "originalSha256": "807976bc3c9a20bc9dc6eebf67203575e838d75f069ff903f3473a434f4560fd"
+    },
+    {
+      "path": "rw-live/001-unbound.result.json",
+      "originalSha256": "b5e8e51e37182c145cc385b452d3aa53ac3cb9cc475b7bdf935fcbae6aad72a0"
+    },
+    {
+      "path": "rw-live/002-bind.result.json",
+      "originalSha256": "9946733aef66d0af6a5818c78c7ab713c98229470befe812ce7d5598d01e4661"
+    },
+    {
+      "path": "rw-live/003-status.result.json",
+      "originalSha256": "66c7930727dcc5af2f98a148493d3e95013ea4dc52adf41efcbb93adf673f230"
+    },
+    {
+      "path": "rw-live/004-baseline.result.json",
+      "originalSha256": "501064316adfade33209cf904acbb2b229ffbed226f1167d297640255681f6b7"
+    },
+    {
+      "path": "rw-resume/001-bind.result.json",
+      "originalSha256": "47f5dd93724d994e143c47eea4470673de22a9b80074eb28a8721f9af6b73514"
+    },
+    {
+      "path": "rw-resume/002-status.result.json",
+      "originalSha256": "d21faa137bb375b95b0dc4c2f19be15a47e2f17190ae0131c2eb429655e844eb"
+    },
+    {
+      "path": "rw-resume/003-baseline.result.json",
+      "originalSha256": "37da6632330ed1db710e56702169b0744b9377895e65f3602ba3421f6528d940"
+    },
+    {
+      "path": "rw-resume/004-project-true.result.json",
+      "originalSha256": "e1ceec0b27c1617bcfcf16c49d2e0489ffde99b1bb21dbfb8f65eff88b46cf84"
+    },
+    {
+      "path": "rw-resume/005-other-flag.result.json",
+      "originalSha256": "1e0e8f945464afbf43dbf2235c7462c25fc7b03e1b96005c5c55805fa6a046ba"
+    },
+    {
+      "path": "rw-resume/006-create-length-256.result.json",
+      "originalSha256": "874c5a6440f772635a8d54cdc4b75846d9c84210ca1e075beb46f65b7483865c"
+    },
+    {
+      "path": "rw-resume/007-create-length-10000.result.json",
+      "originalSha256": "8ff12492ff4404db543b8990528d8e6fbb1a26fb3436dec32bebbc3fe4386bb4"
+    },
+    {
+      "path": "rw-resume/008-release-length-256.result.json",
+      "originalSha256": "ba8eeb8c3d48a60a55909d86f0ab4edfe8fe2e046b9d15a2ce6f5577c8190c25"
+    },
+    {
+      "path": "rw-resume/009-release-length-10000.result.json",
+      "originalSha256": "8dbb30b70af680f10571245807563b45b6be95df12b44bc4b10b9d24b7135589"
+    },
+    {
+      "path": "rw-resume/010-create-blank.result.json",
+      "originalSha256": "b0b533f54a05b8c30aac1fb4fba82ef086705b0559ffbe424942e1617e7d006f"
+    },
+    {
+      "path": "rw-resume/011-dryrun.result.json",
+      "originalSha256": "74d477c5b8d7f112feaa5c9144b456fe458b0ae58f478482c4d168ab986766d6"
+    },
+    {
+      "path": "rw-resume/012-decline.result.json",
+      "originalSha256": "df32da46a528c83115b3d43daea4c852b38d0a541374f9251b4913d5fad478a9"
+    },
+    {
+      "path": "rw-resume/013-create-omitted.result.json",
+      "originalSha256": "3a4def71357e0df27e2615783ca89c30fc5dab302f229afffa7223f39949919a"
+    },
+    {
+      "path": "rw-resume/014-create-length-256.result.json",
+      "originalSha256": "2aaf743bf4c2bb48ebafb08871b5668bb2f531df1a91a33d544a596c617744dd"
+    },
+    {
+      "path": "rw-resume/015-create-length-10000.result.json",
+      "originalSha256": "1e206032bbdca456c2de897f5d41fa732d96b9f62740ebcb9043a025e48ab8f9"
+    },
+    {
+      "path": "rw-resume/016-create-blank.result.json",
+      "originalSha256": "9a70548b6f85abf422b111c3fd8430f17b184182f2ff2f0eceb76a35e5f7684e"
+    },
+    {
+      "path": "rw-resume/017-dryrun.result.json",
+      "originalSha256": "4491f4b1f5b33e0be9add2d36905acb1f3db539224d1b1fd344e3a11032a2f46"
+    },
+    {
+      "path": "rw-resume/018-decline.result.json",
+      "originalSha256": "b5617c2a13e1a824feb5250598fd7d677b37e01913599b790c9e24eff10c16a4"
+    },
+    {
+      "path": "rw-resume/019-create-omitted.result.json",
+      "originalSha256": "dc1dd694aa6ddf75f0cd33e2514775f4ab969f4e7f4cee1ad8f1446152bd75f8"
+    },
+    {
+      "path": "rw-resume/020-inspect-flags.result.json",
+      "originalSha256": "b73734fd4e0e28ae9e195e04217a896a776bef34d1f69275ee03972f7713646b"
+    },
+    {
+      "path": "rw-resume/021-create-author.result.json",
+      "originalSha256": "6a1b85aa61b971662509216e7fea18dd799fb7e42250979b557443230012959b"
+    },
+    {
+      "path": "rw-resume/022-create-multiline.result.json",
+      "originalSha256": "636bc44d138fb6cf20859d372dc55f9f1ad53902ef77582a37fa59867c2e9d54"
+    },
+    {
+      "path": "rw-resume/023-create-boundary255.result.json",
+      "originalSha256": "eeead31a8832a5a4b6c9a668cf93a865531a81c3d3a729c0e719f79bab6b7ebb"
+    },
+    {
+      "path": "rw-resume/024-open-selected-readonly.result.json",
+      "originalSha256": "753d694413456f954910dfe3d3dfd8a23ef0bb75b4d7638cf9f41792def3f587"
+    },
+    {
+      "path": "rw-resume/025-inspect-selected.result.json",
+      "originalSha256": "b2c24fb308d284cc6883eabb8e4bc04a168d1c2ba95fad391771e2dd31aee737"
+    },
+    {
+      "path": "rw-resume/026-post-create-read.result.json",
+      "originalSha256": "da2886ec20a2ddecfce52ed9777a005b9f2f20bcaad3ba1f3e77202879745696"
+    },
+    {
+      "path": "rw-resume/027-tools.result.json",
+      "originalSha256": "8d7baa2737a5ab67a25d2c6a65d28238a24c4d0013211ce3d60c9619cd5b9961"
+    },
+    {
+      "path": "rw-resume/028-restoration-close.result.json",
+      "originalSha256": "e9fc3c5f763976c4238cec7fbbf3dd9cf3caf00c0f546058e3fc1b5ff3f59087"
+    },
+    {
+      "path": "rw-resume/029-restoration-status.result.json",
+      "originalSha256": "d0eff67a6421fc8cfe79783b38928ca3b0c530c5a9d34a3eb5d0b7d1d5d6a248"
+    },
+    {
+      "path": "rw-resume/030-restoration-inventory.result.json",
+      "originalSha256": "587115c61684602269fadf83243b0d8e9c605a6b2871492013619a73f9f50925"
+    },
+    {
+      "path": "ro-live/001-tools.result.json",
+      "originalSha256": "7c2a92cbcd51f46cfee07f001fccc40d5c14f56d8e7df477bd100736e53d808d"
+    },
+    {
+      "path": "ro-live/002-unbound.result.json",
+      "originalSha256": "a5beb0de188bb7c607ae8d1b782da676e05050863d68863edc80eb0aad3a13dc"
+    },
+    {
+      "path": "ro-live/003-bind.result.json",
+      "originalSha256": "54ad9a5c27be616d260d061cf6ce51a4a305f9a5b332b975024f04ed781243ee"
+    },
+    {
+      "path": "ro-live/004-inspect.result.json",
+      "originalSha256": "748a161826b636b2fabfd8cd6bd1528bc680064e0775811b3ddf5576a59e3277"
+    },
+    {
+      "path": "ro-live/005-write-denied.result.json",
+      "originalSha256": "106b039a6241fe093ec42a3470dd0ef83f522504d6748010cdd5719ef7a2b015"
+    },
+    {
+      "path": "full-live/001-tools.result.json",
+      "originalSha256": "838b5990e69d82cb132f8adde34fe34af74d1db2fdf6c29f00269884c82b0a0b"
+    },
+    {
+      "path": "full-live/002-unbound.result.json",
+      "originalSha256": "935948341e300549bcc3b1c645066032d5266678870d99081a7c439ee431ed59"
+    },
+    {
+      "path": "full-live/003-bind.result.json",
+      "originalSha256": "fe11e7e3ada317cd333a41473591fa96125f809eb5504496ab1d917de72e3147"
+    },
+    {
+      "path": "full-live/004-status.result.json",
+      "originalSha256": "11e3e3f53769e6dc8aefc043c7f6e324332c74366f2894e029f7a80bc2eb4b2c"
+    },
+    {
+      "path": "full-live/005-create-full.result.json",
+      "originalSha256": "8e9518757a00f72d0133b2958f23dde211c0c5633b5e3e2a73c0d832711c13ff"
+    },
+    {
+      "path": "full-live/006-inspect-full.result.json",
+      "originalSha256": "60b3d943564ca54c7dddd29dc74ddd13e73d37670b880c1ec2f03279f252c6d5"
+    },
+    {
+      "path": "full-live/007-close-full.result.json",
+      "originalSha256": "b8fe81ebe8bcefabcfa28053752baf248a1416f497c23786047f442286174179"
+    }
+  ],
+  "redactions": [
+    "exact project path/name",
+    "selected existing user library path/name",
+    "repository/profile paths",
+    "current username, including observed library author/lastModifiedBy"
+  ],
+  "hashSemantics": "Original receipt/audit responseHash fields identify private unredacted bytes. Public hashes above identify sanitized bytes. Do not recompute original responseHash from sanitized response text."
+}

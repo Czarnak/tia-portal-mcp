@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Docs checker: relative links resolve, every docs/ markdown file is reachable from docs/README.md,
-archive-tag permalinks resolve, and docs/superpowers holds no transient files on main.
+archive-tag permalinks resolve, and docs/superpowers holds no unapproved transient files on main.
 
 Usage: python scripts/verify-docs.py [--repo DIR] [--archive-tag TAG] [--fail-on-transient]
 Exit code 1 when any error is found. Standard library only.
@@ -13,6 +13,11 @@ import sys
 
 REPO_URL = "https://github.com/Czarnak/tia-portal-mcp/"
 TRANSIENT_DIRS = ("docs/superpowers/plans/", "docs/superpowers/specs/", "docs/superpowers/evidence/")
+# Owner-retained PR A handoff for the follow-up metadata editing slice.
+RETAINED_HANDOFF_FILES = frozenset((
+    "docs/superpowers/plans/2026-11-08-library-metadata-pr-a.md",
+    "docs/superpowers/specs/2026-11-08-library-metadata-design.md",
+))
 INLINE = re.compile(r"\[(?:[^\[\]]|\[[^\]]*\])*\]\(\s*(<[^>]*>|[^()\s]*(?:\([^()\s]*\)[^()\s]*)*)")
 CODE_SPAN = re.compile(r"`[^`\n]*`")
 FENCE = re.compile(r"^\s{0,3}(```+|~~~+)")
@@ -90,7 +95,8 @@ def check(repo, archive_tag, fail_on_transient):
                 reachable.add(nxt)
                 queue.append(nxt)
     for rel in listed(repo, *TRANSIENT_DIRS):
-        (errors if fail_on_transient else warnings).append(f"{rel}: transient working file present")
+        if rel not in RETAINED_HANDOFF_FILES:
+            (errors if fail_on_transient else warnings).append(f"{rel}: transient working file present")
     for rel in docs:
         if rel.startswith("docs/") and not rel.startswith(TRANSIENT_DIRS) and rel not in reachable:
             errors.append(f"{rel}: not reachable from {INDEX}")

@@ -16,7 +16,7 @@ The scoped [live verification report](../superpowers/acceptance/reports/2026-11-
 | `list_versions` | `project` or `global` | library, `typeName` or `typeGuid`, optional `folderPath` | yes |
 | `list_dependencies` | `project` or `global` | library, `typeName` or `typeGuid`, optional `versionNumber` or `versionGuid` (default version when omitted), optional `direction` (`dependencies` default, or `dependents`), optional `folderPath` | yes |
 
-The items are flat objects: `operationId`, `operation`, and the optional `scope`, `libraryPath`, `libraryName`, `folderKind`, `folderPath`, `typeName`, `typeGuid`, `versionNumber`, `versionGuid`, `direction`, `offset`, `limit`, `cursor`. An unknown member or a field that does not belong to the operation is a `validation_error` that rejects the whole call.
+The items are flat objects: `operationId`, `operation`, and the optional `scope`, `libraryPath`, `libraryName`, `folderKind`, `folderPath`, `typeName`, `typeGuid`, `versionNumber`, `versionGuid`, `direction`, `offset`, `limit`, `cursor`, `includeMetadata`. An unknown member or a field that does not belong to the operation is a `validation_error` that rejects the whole call.
 
 - **Project scope** reads the bound project's own library. It takes no `libraryPath` or `libraryName`; the identity comes from the binding.
 - **Global scope** needs a non-blank `libraryPath` (absolute drive or UNC path with at least server and share) or `libraryName`. When both are given, both must match. The name is compared exactly (ordinal); the path is normalized with `Path.GetFullPath` and compared case-insensitively. A relative or malformed path is a `validation_error`.
@@ -44,6 +44,40 @@ Every operation returns one page, `{items, total, offset, nextOffset, nextCursor
 - Row order: `list_global_libraries` by name then path; `list_children` folders before entries, each by name (ordinal); `list_versions` by version number; `list_dependencies` by owner path, then type name, then version.
 - Errors: `validation_error`, `binding_conflict`, `target_not_found`, `target_ambiguous`, `unsupported_capability`, `invalid_cursor`, `cursor_filter_mismatch`, `cursor_binding_mismatch`, `snapshot_unavailable`, `cursor_snapshot_mismatch`, `protocol_error`, `worker_operation_failed`, `portal_lost`.
 - A value over the value budget (60,000 characters by default) is omitted whole with guidance to lower `limit` or re-run the `operationId` alone; the budgets can be raised at startup with `--max-item-chars`/`--max-document-chars`.
+
+## Global-library metadata
+
+`inspect_library` accepts `includeMetadata:true` only with `scope:"global"`. It reads getters on the
+already-open library and adds `metadata` to the row. Omitted or false skips those getters and omits
+the member. Project scope accepts omitted/false; true is `validation_error`. The flag on any other
+operation is `validation_error`, including false. It adds no operation or cursor field.
+
+The same object appears on every successful `create_global` result, with or without an author:
+
+| Metadata members | Values |
+| --- | --- |
+| `author`, `version`, `family`, `copyright`, `lastModifiedBy` | string or null |
+| `creationTime`, `lastModified` | ISO 8601 string or null |
+| `sizeKilobytes` | integer or null |
+| `comments` | array of `{culture,text}` or null, sorted by culture (ordinal), including empty texts |
+| `supportedLanguages`, `activeLanguages` | sorted culture arrays or null |
+| `editingLanguage`, `referenceLanguage` | culture or null, as reported by Portal |
+| `usedProducts` | `{name,version}` array or null, first 100 in native order |
+| `history` | `{dateTime,text}` array or null, first 50 in native order |
+| `complete`, `diagnostics` | boolean and string array |
+
+Nested string members can be null. A recoverable property failure returns null for that member with
+`"<member> unavailable: <ExceptionType>"` in `diagnostics` and `complete:false`; it does not fail the
+read or creation. A native null, including an unset editing language, does not itself add a failure.
+Cutting products/history adds a cap diagnostic and makes `complete:false`. Comments, author text and
+language arrays are returned whole. If the containing value exceeds the effective item/document
+budget, it is omitted whole; retry the read alone or raise startup `--max-item-chars` and
+`--max-document-chars`. Unpaged inspection has no smaller page size to request.
+
+The [PR A live report](../superpowers/acceptance/reports/2026-11-09-library-metadata-pr-a-live-verification.md)
+qualifies global metadata, author admission and the read-only user-library case through the built MCP.
+System-library metadata was not exercised in this acceptance run; earlier direct native probes are
+separate evidence. Comment and language editing remain deferred to PR B.
 
 ## Cursor paging
 
@@ -108,7 +142,7 @@ In this table, **library** means `libraryPath` or `libraryName` for global scope
 
 | Operation | Required members | Optional members | Native route |
 | --- | --- | --- | --- |
-| `create_global` | `directory`, `name` | none | `GlobalLibraries.Create` |
+| `create_global` | `directory`, `name` | `author` | `GlobalLibraries.Create` |
 | `open_global` | `filePath` (`.al21`), `openMode` (`readOnly`/`readWrite`) | none | `GlobalLibraries.Open` |
 | `retrieve_global` | `filePath` (`.zal21`), `directory`, `openMode` | none | `GlobalLibraries.Retrieve` |
 | `save_global` | `scope:"global"`, library | none | `Save` |
@@ -131,6 +165,29 @@ In this table, **library** means `libraryPath` or `libraryName` for global scope
 `sourceScope`, `sourceLibraryPath`, `sourceLibraryName` and `sourceFolderPath` select the source of `copy_master_copy`. Type synchronization and instantiation use `sourceScope` and source library selectors, with `folderPath` selecting the source type. PLC members are prefixed: `plcName`, `plcKind`, segmented `plcFolderPath`, `plcObjectName`. An empty `plcFolderPath` is the PLC root; PLC groups match case-insensitively and library folders ordinally. `directory` and `filePath` must be absolute. Supported type kinds are FB, FC and PLC UDT; other kinds fail `target_kind_unsupported`.
 
 `set_default_type_version` requires the exact released version to make default; omission and `inWork` are invalid. `release_type_version` always selects the in-work version and uses Portal's prefilled number when `versionNumber` is omitted. Numbers have three numeric parts, each at most 2147483647, and cannot be `0.0.0`; this is the `System.Version` representation limit, not a verified safe Portal release range.
+
+### Creation author and metadata
+
+`create_global` accepts an optional nonblank `author`, at most **255 UTF-16 code units**
+(`string.Length`, so a non-BMP character counts as two). Text is preserved exactly, including leading
+and trailing spaces and LF/CRLF; it is never trimmed, normalized or truncated. `release_type_version`
+uses the same length cap while retaining its existing blank/omitted-author handling. Host validation
+rejects overlength before dispatch and worker validation repeats it before native calls. The
+`validation_error` names `author`, maximum 255 and actual length without echoing the text. Raising
+response budgets does not relax this cap; observed author values returned by reads are not capped.
+
+Omitting the author keeps Portal's typed creation overload. The live fixture on V21 Update 3 returned
+an empty author for this path; this is an installation-specific observation, not a username default
+guarantee. Supplying the author uses the native engineering-composition creation parameters. There
+is no later author setter or implicit comment/language change. In read-write the confirmation text
+includes the supplied author; previews do not create a library or return metadata.
+
+Creation returns the metadata observed immediately after creation, before any later item can change
+the library. A nonrecoverable metadata-read failure after creation carries the captured identity in
+`libraryWriteOutcome.library` when available: the library may already exist on disk. Inspect it with
+`library_read` and inspect the destination before retrying; an omitted response value also does not
+mean creation failed. Shared `trusted` verification is not an extra native read-back or permission
+to replay. Native failure/partial-outcome and large-value omission paths remain covered offline.
 
 ### Apply, preview and confirmation
 

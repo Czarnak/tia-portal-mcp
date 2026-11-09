@@ -69,7 +69,7 @@ Remaining work:
 
 **Still deferred after PR 3:** `update_type_instances` (`UpdateProject` removed 56 unused instances despite
 `DoNotDelete`; needs a transaction with an inventory check), `replace_master_copy`, `move_master_copy`,
-`move_master_copy_folder`. Library upgrade on open/retrieve, library metadata writes, project-library writes on
+`move_master_copy_folder`. Library upgrade on open/retrieve, library comment/language editing (PR B), project-library writes on
 local sessions and unbound (Portal-only) global operations are also outside the delivered slice.
 
 **Not live-verified (offline tests only):** a native master-copy rename (`postcondition_failed` with
@@ -95,7 +95,10 @@ PR A now implements the reusable `AuthorMetadataRules` helper in
 `TiaMcpServer.Contracts/Shared`, called by shared library validation for both `create_global` and
 `release_type_version` before host dispatch and defensively before native calls. Offline boundary
 regressions pass. Creation keeps its nonblank rule; release text/blank handling otherwise stays
-unchanged. Live acceptance remains pending. The shared helper is the adoption point for future author fields.
+unchanged. [PR A live acceptance](superpowers/acceptance/reports/2026-11-09-library-metadata-pr-a-live-verification.md)
+verified creation at the ASCII boundary, mixed LF/CRLF preservation and host rejection of creation/release
+authors of 256 and 10,000 code units. Native Unicode boundary and release mutation are not qualified by
+these checks. The shared helper is the adoption point for future author fields.
 
 Inventory all remaining author input paths, including any project/block or other object author fields,
 whether supplied as arguments or embedded in imported content. Record which

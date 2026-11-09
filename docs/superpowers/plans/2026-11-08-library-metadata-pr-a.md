@@ -243,27 +243,30 @@ and is already copied by `ToWorkerRequest`; do not duplicate fields or transport
 under `docs/superpowers/acceptance/reports/` and its raw evidence/index where appropriate;
 `scripts/verify-docs.py` and `scripts/tests/test_verify_docs.py` for the narrow retention exception.
 
-- [ ] With the approved author rule implemented, run spec section 12's PR A matrix through the built MCP:
+- [x] With the approved author rule implemented, run spec section 12's PR A matrix through the built MCP:
   global inspect with omission/false/true; project true and flag on another operation rejected; create
   without/with author returning metadata; accepted multiline author; read-only user and available system
   library. Verify strict unsafe-author rejection without sending the known fatal input to Siemens.
-- [ ] Exercise binding/access-mode behavior, read-write confirmation/dry run and post-create read through
+  Owner's final live steering selected the existing user library read-only and excluded a system-library
+  UI opening; system metadata remains untested in this acceptance, as recorded in the
+  [PR A live report](../acceptance/reports/2026-11-09-library-metadata-pr-a-live-verification.md).
+- [x] Exercise binding/access-mode behavior, read-write confirmation/dry run and post-create read through
   MCP. The standalone native probe proves none of these host/worker contracts. Report any unavailable
   environment or untested native fault case explicitly; use offline fault injection for partial outcomes.
-- [ ] After acceptance, document the metadata flag/shape, exact agreed author rule, empty omitted-author
+- [x] After acceptance, document the metadata flag/shape, exact agreed author rule, empty omitted-author
   observation with its scope, cap/diagnostic semantics, whole-value omission and inspect-before-retry
   guidance. Keep language/comment editing deferred to PR B and operation/tool counts unchanged. Remove
   only delivered metadata-read/creation-author deferrals; retain metadata-write deferrals.
-- [ ] Reconcile the owner's retention instruction with the main-branch docs check: it currently uses
+- [x] Reconcile the owner's retention instruction with the main-branch docs check: it currently uses
   `--fail-on-transient`. Add an exact-path exception for this plan and the shared metadata spec, with
   tests proving strict mode accepts those two files and still rejects an unrelated plan/spec/evidence
   file. Do not disable transient checks generally or prune the required handoff files. Run
   `python -I scripts/tests/test_verify_docs.py` and
   `python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30 --fail-on-transient`;
   expected: passing tests and zero documentation errors.
-- [ ] Run the repository's applicable documentation validation and `git diff --check`; review links and
+- [x] Run the repository's applicable documentation validation and `git diff --check`; review links and
   source/schema descriptions. Commit the docs with `docs: describe library metadata PR A`.
-- [ ] Preserve the shared spec and this plan; **do not prune documentation**. Verify the contribution
+- [x] Preserve the shared spec and this plan; **do not prune documentation**. Verify the contribution
   attribution used for #218 and follow the existing credit convention without inventing an identity.
   Remote publication, pushing, merging and deployment require their own explicit authorization.
 

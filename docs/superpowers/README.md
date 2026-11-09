@@ -3,7 +3,8 @@
 This directory keeps the live-verification reports under [`acceptance/reports/`](acceptance/reports/)
 and the raw Openness evidence indexed in [`acceptance/reports/inputs/README.md`](acceptance/reports/inputs/README.md).
 Its `specs/`, `plans/` and `evidence/` directories are a transient per-PR working area, empty on
-`main`; the rules are in [`AGENTS.md`](../../AGENTS.md) ("Plans, specs and evidence").
+`main` except the explicitly retained library-metadata plan and shared spec; the rules are in
+[`AGENTS.md`](../../AGENTS.md) ("Plans, specs and evidence").
 
 A report describes the state of the world **on its date**; later work may have superseded it. The
 code, [ARCHITECTURE.md](../ARCHITECTURE.md) and [SupportedOperations](../SupportedOperations/README.md)
@@ -18,6 +19,9 @@ start at the [architecture decision records](../adr/README.md). Removed plans an
 | 2026-10-07 | [Multiuser PR4 — installed-public-tool live definition and original L01–L19 expectations](acceptance/2026-10-07-multiuser-pr4-live-definition.md) |
 
 ## Acceptance reports
+
+[Library metadata PR A acceptance (2026-11-09)](acceptance/reports/2026-11-09-library-metadata-pr-a-live-verification.md)
+covers built-MCP metadata/author checks, a read-only user library and restoration; system metadata is untested.
 
 The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound snapshots that `plc_write` has since replaced; they are evidence for the retired token flow only.
 
