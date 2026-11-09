@@ -30,6 +30,8 @@ namespace Siemens.Engineering
     {
         public List<Language> Items { get; } = new();
         public Exception? EnumerationFailure { get; set; }
+        public Action<Language>? AddAction { get; set; }
+        public void Add(Language language) { AddAction?.Invoke(language); Items.Add(language); }
         public IEnumerator<Language> GetEnumerator()
         {
             if (EnumerationFailure is not null) throw EnumerationFailure;
@@ -43,21 +45,27 @@ namespace Siemens.Engineering
         private Language? editing, reference;
         public LanguageComposition Languages { get; } = new();
         public LanguageAssociation ActiveLanguages { get; } = new();
+        public Action<Language>? EditingLanguageSetAction { get; set; }
+        public Action<Language>? ReferenceLanguageSetAction { get; set; }
         public Exception? EditingLanguageFailure { get; set; }
         public Exception? ReferenceLanguageFailure { get; set; }
         public Language EditingLanguage
         {
             get => EditingLanguageFailure is null ? editing! : throw EditingLanguageFailure;
-            set => editing = value;
+            set { EditingLanguageSetAction?.Invoke(value); editing = value; }
         }
         public Language ReferenceLanguage
         {
             get => ReferenceLanguageFailure is null ? reference! : throw ReferenceLanguageFailure;
-            set => reference = value;
+            set { ReferenceLanguageSetAction?.Invoke(value); reference = value; }
         }
     }
 
-    public sealed class LanguageComposition : Library.LibraryComposition<Language> { }
+    public sealed class LanguageComposition : Library.LibraryComposition<Language>
+    {
+        public Action<CultureInfo>? FindAction { get; set; }
+        public Language? Find(CultureInfo culture) { FindAction?.Invoke(culture); return Items.SingleOrDefault(x => x.Culture.Name == culture.Name); }
+    }
 
     public abstract partial class ProjectBase
     {
@@ -71,14 +79,17 @@ namespace Siemens.Engineering
         public string Text
         {
             get => TextFailure is null ? text : throw TextFailure;
-            set { if (TextFailure is not null) throw TextFailure; text = value; }
+            set { TextSetAction?.Invoke(value); if (TextFailure is not null) throw TextFailure; text = value; }
         }
+        public Action<string>? TextSetAction { get; set; }
         public Exception? TextFailure { get; set; }
     }
 
     public sealed class MultilingualTextItemComposition : IEnumerable<MultilingualTextItem>
     {
         public List<MultilingualTextItem> Items { get; } = new();
+        public Action<Language>? FindAction { get; set; }
+        public MultilingualTextItem? Find(Language language) { FindAction?.Invoke(language); return Items.SingleOrDefault(x => x.Language.Culture.Name == language.Culture.Name); }
         public Exception? EnumerationFailure { get; set; }
         public IEnumerator<MultilingualTextItem> GetEnumerator() => EnumerationFailure is null ? Items.GetEnumerator() : throw EnumerationFailure;
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

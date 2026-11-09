@@ -77,7 +77,7 @@ budget, it is omitted whole; retry the read alone or raise startup `--max-item-c
 The [PR A live report](../superpowers/acceptance/reports/2026-11-09-library-metadata-pr-a-live-verification.md)
 qualifies global metadata, author admission and the read-only user-library case through the built MCP.
 System-library metadata was not exercised in this acceptance run; earlier direct native probes are
-separate evidence. Comment and language editing remain deferred to PR B.
+separate evidence. Comment and language edits are documented [below](#comment-and-language-edits); they do not change the PR A read/author contract.
 
 ## Cursor paging
 
@@ -134,7 +134,7 @@ Not verified: local sessions (global reads succeeding and project-library `unsup
 
 ## Writes (`library_write`)
 
-`library_write(operations, dryRun=false)` provides 20 operations in read-write and full (tool counts 9/21/21). Write contract `2.0`; `library_read` stays `1.0`. It takes 1-50 items with unique `operationId`s (at most 256 characters), runs them in caller order, stops at the first failure and never rolls back the batch or replays. Every call needs a verified binding, global-only calls included. An unknown or inapplicable member rejects the whole call with canonical `validation_error` and no audit record. Each entered call writes one audit v2 record.
+`library_write(operations, dryRun=false)` provides 22 operations in read-write and full (tool counts 9/21/21). Write contract `2.0`; `library_read` stays `1.0`. It takes 1-50 items with unique `operationId`s (at most 256 characters), runs them in caller order, stops at the first failure and never rolls back the batch or replays. Every call needs a verified binding, global-only calls included. An unknown or inapplicable member rejects the whole call with canonical `validation_error` and no audit record. Each entered call writes one audit v2 record.
 
 ### Operations and selectors
 
@@ -148,6 +148,8 @@ In this table, **library** means `libraryPath` or `libraryName` for global scope
 | `save_global` | `scope:"global"`, library | none | `Save` |
 | `close_global` | `scope:"global"`, library, `closeAction` (`save`/`discard`) | none | `Save` when modified, then `Close` |
 | `archive_global` | `scope:"global"`, library, `directory`, `name` | none | `Archive` (`Compressed`) |
+| `set_comments` | `scope:"global"`, library, `comments:[{culture,text}]` | none | Native library transaction; `Comment.Items` text setters |
+| `set_languages` | `scope:"global"`, library, at least one language setting | `activateLanguages`, `editingLanguage`, `referenceLanguage` | Native library transaction; language activation/settings |
 | `create_folder`, `delete_folder` | `scope`, `folderKind` (`types`/`masterCopies`), `name` | library, `folderPath` | `Folders.Create`, `Delete` |
 | `create_master_copy` | `scope`, `plcName`, `plcKind` (`block`/`plcType`/`tagTable`), `plcObjectName` | library, `folderPath`, `plcFolderPath` | `MasterCopies.Create` |
 | `copy_master_copy` | `scope`, `sourceScope`, `name` | both libraries and both folder paths | `MasterCopies.CreateFrom` |
@@ -188,6 +190,96 @@ the library. A nonrecoverable metadata-read failure after creation carries the c
 `library_read` and inspect the destination before retrying; an omitted response value also does not
 mean creation failed. Shared `trusted` verification is not an extra native read-back or permission
 to replay. Native failure/partial-outcome and large-value omission paths remain covered offline.
+
+### Comment and language edits
+
+Both operations require `scope:"global"` and an already-open library in the bound Portal, selected by
+`libraryPath` or `libraryName`. Project scope is a `validation_error`. Metadata-only calls do not prompt
+in read-write; lifecycle-containing calls still prompt once and plan first. Full/content-only apply is
+unplanned, so activation followed by a comment edit can use the state produced by the earlier item.
+
+```json
+{"operationId":"activate","operation":"set_languages","scope":"global","libraryName":"Example","activateLanguages":["de-DE"],"editingLanguage":"de-DE","referenceLanguage":"en-US"}
+```
+
+```json
+{"operationId":"comment","operation":"set_comments","scope":"global","libraryName":"Example","comments":[{"culture":"de-DE","text":"Example text"},{"culture":"en-US","text":""}]}
+```
+
+`comments` must be nonempty, with a culture and non-null text per entry; `""` clears a comment. Unnamed
+comments stay unchanged. Text compares ordinally, preserving Unicode, spaces and LF/CRLF exactly.
+Culture syntax follows `CultureInfo.GetCultureInfo`; names are canonicalized before comparisons and
+uniqueness checks. Canonical duplicate cultures are invalid. The host admits aggregate comment text
+length per item against effective `MaxItemChars`, without a smaller fixed native-length cap.
+
+`set_languages` requires at least one of `activateLanguages`, `editingLanguage`, `referenceLanguage`.
+When present, `activateLanguages` is nonempty and canonically unique. Repeating activation skips already
+active languages; unchanged editing/reference settings skip setters. Setting an inactive editing or
+reference language activates it automatically. No operation removes a language, and library language
+changes do not change the languages of released type versions.
+
+Each item uses one native `ExclusiveAccess`/library transaction. All native language/comment lookups
+finish before setters, then the writer captures before-state, mutates, reads and checks the end-state
+inside the same transaction, checks `CanCommit` and requests commit on disposal. `set_comments` checks
+the requested texts, every prior unnamed comment and unchanged language settings. `set_languages`
+checks the requested settings, preservation of prior active languages/comments, and that only requested
+activations (including editing/reference languages) became active; new empty comment items are allowed.
+An ignored/altered setter or unintended side effect fails `postcondition_failed`; `CanCommit:false`
+fails `worker_operation_failed`. A normally disposed failed transaction rolls back that item's changes;
+there is no batch rollback, post-failure reread, separate post-commit verification read, implicit save,
+reopen or retry. Successful changes leave the library dirty; use explicit `save_global` to persist.
+
+Success returns `library` plus conditional `metadataChange`:
+
+```text
+metadataChange: {
+  comments: [{culture, before, after}] | null,
+  activatedLanguages: [culture] | null,
+  editingLanguage: {before, after} | null,
+  referenceLanguage: {before, after} | null
+}
+```
+
+Comments appear for `set_comments`; language fields describe requested/changed parts of `set_languages`.
+`activatedLanguages` lists languages that became active. A comment `before:null` means no prior item;
+a successful clear always shows `after:""`, even if Portal removes the empty item. A captured failure
+`libraryWriteOutcome.metadataChange` uses `after:null` for portions the in-transaction read never reached.
+It describes observations before rollback, not a fresh read after failure; evidence is conditional on
+capturing before-state. Exception during commit or scope disposal means state is unknown and carries no
+outcome. Inspect `inspect_library` with `includeMetadata:true` before retrying; do not assume success or
+rollback from missing evidence. Malformed worker outcomes fail `protocol_error` without echoing them.
+
+Dry runs and prompting calls return intended `metadataChange` in plan/effect values (`before` current,
+`after` requested). A prior `set_languages` can provide an inactive comment target, recorded as
+`createdByItem` with null before-text. Unsupported native cultures cannot be produced. A library
+created/opened/retrieved in a prompting call must be edited in a later call; full unplanned mode can
+create then edit in one call. Preview does not prove native write permission or eventual acceptance.
+Large existing before-text can exceed delivery budgets: the whole value is omitted, while applied/
+trusted execution stays true and root delivery success becomes false. Inspect metadata before retrying.
+
+Portal remains the refusal authority. Missing/inactive/unsupported/neutral native targets are
+`target_not_found`. In the tested read-only user library, comments failed
+`worker_operation_failed` with `EngineeringNotSupportedException`, while language activation failed
+`engineering_rejected` with `EngineeringTargetInvocationException`. Typed native failures retain
+`engineeringError` and available captured outcome; `portal_lost` takes precedence. Attempted failures
+retain root `success:false`, `error:null`, MCP `isError:false`. There is no read-only guard or support
+catalogue precheck, and the shared exception classifier is unchanged.
+
+Last writer wins: a UI/user/session edit between a read or preview and apply can be replaced without
+warning; there is no expected-text hash. Later metadata items on the same library supersede earlier
+metadata verification, including failed attempted edits. They do not supersede folder/master-copy/type
+items or earlier creation; creation metadata remains its immediate creation-time observation. Later
+lifecycle actions can supersede metadata items, including close/discard.
+
+[ADR-0019](../adr/0019-library-metadata-transactions.md) records the decision. The
+[native report](../superpowers/acceptance/reports/2026-11-09-library-metadata-pr-b-native-probes.md) and
+[built-MCP report](../superpowers/acceptance/reports/2026-11-09-library-metadata-pr-b-live-verification.md)
+separate native probes from scoped acceptance of candidate `8bb495f1`. Required MCP cases passed,
+including exact text, native refusals, previews, confirmation/staging, supersession, persistence and
+discard. The optional 100,000-character MCP native case was unavailable under the effective 60,000
+item budget and was not submitted; the native probe remains the only evidence for that input, not a
+verified maximum. Neither concurrency nor all native fault locations are qualified. MCP traces remain
+private; permanent reports/provenance and verified native inputs are retained.
 
 ### Apply, preview and confirmation
 

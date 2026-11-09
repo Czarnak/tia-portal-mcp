@@ -36,6 +36,51 @@ public sealed class LibraryWriteBudgetTests
             .GetProperty("comments")[0].GetProperty("text").GetString());
     }
 
+    [Theory]
+    [InlineData("preview", false)]
+    [InlineData("success", false)]
+    [InlineData("outcome", false)]
+    [InlineData("preview", true)]
+    [InlineData("success", true)]
+    [InlineData("outcome", true)]
+    public void MetadataBudget_OmissionPreservesExecutionAndVerification(string kind, bool raisedLimits)
+    {
+        // JSON escaping makes an existing before-value exceed the default delivery budget.
+        var itemLimit = StructuredOperationBatchPayloadBudget.MaxItemChars + (raisedLimits ? 50000 : 0);
+        var documentLimit = StructuredOperationBatchPayloadBudget.MaxDocumentChars + (raisedLimits ? 200000 : 0);
+        var before = new string('\u0001', itemLimit / 5);
+        var change = new LibraryMetadataChangeInfo { Comments = [new() { Culture = "pl-PL", Before = before, After = kind == "outcome" ? null : "new" }] };
+        var item = new LibraryWriteItem { OperationId = "a", Operation = "set_comments", Comments = [new() { Culture = "pl-PL", Text = "new" }] };
+        var projected = LibraryWritePayloadContract.Project(item, kind == "outcome"
+            ? TiaMcpServer.Worker.WorkerCallResult.Fail("engineering_rejected", "refused") with { LibraryWriteOutcome = new() { MetadataChange = change } }
+            : TiaMcpServer.Worker.WorkerCallResult.Ok(TiaMcpServer.Contracts.Json.WorkerJson.SerializePayload(new LibraryWriteResultInfo { MetadataChange = change })));
+        var response = Response([new("a", new(null, null, null, [], false) { MetadataChange = change }, null)]) with
+        {
+            Phase = kind == "preview" ? "preview" : "applied", Success = kind != "outcome",
+            Batch = kind == "preview" ? null : StructuredOperationBatch.FromItems([projected]),
+            Verification = kind == "preview" ? null : new(true, kind == "outcome" ? [] : [new("a", true, "trusted", null, null, null)], null)
+        };
+        var original = CanonicalJson.Serialize(response);
+        var bounded = raisedLimits ? LibraryWritePayloadBudget.Apply(response, itemLimit, documentLimit) : LibraryWritePayloadBudget.Apply(response);
+        Assert.False(bounded.Success);
+        Assert.Null(bounded.Effects[0].Effect);
+        Assert.Equal("library_read", bounded.Effects[0].Omission!.RetryTool);
+        Assert.Contains("Do not replay", bounded.Effects[0].Omission!.Guidance);
+        if (kind != "preview")
+        {
+            Assert.True(bounded.Verification!.Success);
+            Assert.Equal(projected.Status, bounded.Batch!.Operations[0].Status);
+            Assert.Null(bounded.Batch.Operations[0].Result);
+            Assert.NotNull(bounded.Batch.Operations[0].Omission);
+            if (kind == "success") Assert.Equal("trusted", Assert.Single(bounded.Verification.Operations).Check);
+        }
+        var raised = LibraryWritePayloadBudget.Apply(response, 150000, 500000);
+        Assert.Equal(before, raised.Effects[0].Effect!.MetadataChange!.Comments![0].Before);
+        Assert.Null(raised.Effects[0].Omission);
+        Assert.Equal(original, CanonicalJson.Serialize(response));
+        Assert.DoesNotContain("\\u0001", CanonicalJson.Serialize(bounded));
+    }
+
     [Fact]
     public void Budget_GuardCountIncludesNewGuard()
     {

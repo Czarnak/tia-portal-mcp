@@ -14,6 +14,79 @@ namespace TiaMcpServer.Tests.Library;
 public sealed class LibraryWriteMcpTests
 {
     [Theory]
+    [InlineData(McpAccessMode.ReadWrite, false)]
+    [InlineData(McpAccessMode.Full, false)]
+    [InlineData(McpAccessMode.ReadWrite, true)]
+    public async Task Mcp_MetadataOnly_NoPromptOrPlanning_AndLifecyclePromptsOnce(McpAccessMode mode, bool lifecycle)
+    {
+        var prompts = new List<string>();
+        await using var fixture = await Fixture.StartAsync(mode, Options(prompts));
+        var items = lifecycle ? new[] { Lifecycle("save_global"), Metadata("set_languages"), Metadata("set_comments") }
+            : new[] { Metadata("set_languages"), Metadata("set_comments") };
+        var reply = await CallAsync(fixture, items);
+        AssertApplied(reply, lifecycle ? ["save_global", "set_languages", "set_comments"] : ["set_languages", "set_comments"]);
+        Assert.Equal(lifecycle ? 1 : 0, prompts.Count);
+        if (!lifecycle) Assert.DoesNotContain("library_global_plan", fixture.Requests.Methods());
+        var comment = Document(reply).GetProperty("batch").GetProperty("operations")[lifecycle ? 2 : 1]
+            .GetProperty("result").GetProperty("metadataChange").GetProperty("comments")[0];
+        Assert.Equal("  exact\ntext  ", comment.GetProperty("after").GetString());
+        Assert.Equal("pl-PL", comment.GetProperty("culture").GetString());
+        AssertAudit(fixture, reply, lifecycle ? "user" : mode == McpAccessMode.Full ? "policy" : "none",
+            lifecycle ? "confirmed" : "not_requested", lifecycle ? ["succeeded", "succeeded", "succeeded"] : ["succeeded", "succeeded"]);
+    }
+
+    [Fact]
+    public async Task Mcp_MetadataDryRun_DependencyAndLocalSessionCapability()
+    {
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite, scenario: "library-write-roundtrip.amc21");
+        var reply = await fixture.Harness.Client.CallToolAsync("library_write", new Dictionary<string, object?>
+            { ["operations"] = new[] { Metadata("set_languages"), Metadata("set_comments") }, ["dryRun"] = true });
+        var root = Document(reply);
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal(1, root.GetProperty("effects")[1].GetProperty("effect").GetProperty("createdByItem").GetInt32());
+        Assert.Empty(fixture.Mutations());
+        Assert.True(fixture.Harness.WorkerClient.BindingSnapshot.IsVerified);
+        AssertApplied(await CallAsync(fixture, Metadata("set_languages"), Metadata("set_comments")), "set_languages", "set_comments");
+        Assert.Equal(new[] { "library_global_set_languages", "library_global_set_comments" }, fixture.Mutations());
+    }
+
+    [Theory]
+    [InlineData("CommentsRefused", "set_comments", "worker_operation_failed", "EngineeringNotSupportedException")]
+    [InlineData("LanguagesRefused", "set_languages", "engineering_rejected", "EngineeringTargetInvocationException")]
+    [InlineData("PortalLost", "set_comments", "portal_lost", null)]
+    [InlineData("MalformedMetadata", "set_comments", "protocol_error", null)]
+    public async Task Mcp_MetadataFailure_StopsAndRetainsNativeEvidence(string library, string operation, string category, string? nativeType)
+    {
+        var prompts = new List<string>();
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite, Options(prompts));
+        var item = Metadata(operation); item["libraryName"] = library;
+        var reply = await CallAsync(fixture, item, Folder());
+        var failure = AssertAttemptedFailure(reply, category);
+        Assert.Equal("skipped", Document(reply).GetProperty("batch").GetProperty("operations")[1].GetProperty("status").GetString());
+        Assert.Single(fixture.Mutations());
+        Assert.Empty(prompts);
+        Assert.DoesNotContain("library_global_plan", fixture.Requests.Methods());
+        if (nativeType is not null) Assert.Equal(nativeType, failure.GetProperty("failure").GetProperty("engineeringError").GetProperty("type").GetString());
+        if (category == "portal_lost") Assert.False(fixture.Harness.WorkerClient.BindingSnapshot.IsVerified);
+        if (category == "protocol_error") Assert.DoesNotContain("PRIVATE_METADATA", Document(reply).GetRawText());
+        AssertAudit(fixture, reply, "none", "not_requested", "failed", "skipped");
+    }
+
+    [Fact]
+    public async Task Mcp_MetadataUnbound_RefusesBeforeWorker()
+    {
+        await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite, bound: false);
+        AssertRejected(await CallAsync(fixture, Metadata("set_comments")), "binding_conflict", "error");
+        Assert.Empty(fixture.Requests.Methods());
+    }
+
+    private static Dictionary<string, object?> Metadata(string operation) => operation == "set_comments"
+        ? new() { ["operationId"] = operation, ["operation"] = operation, ["scope"] = "global", ["libraryName"] = "Fixture",
+            ["comments"] = new[] { new { culture = "PL-pl", text = "  exact\ntext  " } } }
+        : new() { ["operationId"] = operation, ["operation"] = operation, ["scope"] = "global", ["libraryName"] = "Fixture",
+            ["activateLanguages"] = new[] { "PL-pl" }, ["editingLanguage"] = "pl-PL", ["referenceLanguage"] = "pl-PL" };
+
+    [Theory]
     [MemberData(nameof(LibraryWriteMethodsTests.Authors), MemberType = typeof(LibraryWriteMethodsTests))]
     public async Task Mcp_AuthorAdmission_ValidatesBeforeWorker(string operation, string? author, bool valid)
     {
@@ -184,7 +257,7 @@ public sealed class LibraryWriteMcpTests
     }
 
     [Fact]
-    public async Task Mcp_ToolDescription_ListsTwentyOperations()
+    public async Task Mcp_ToolDescription_ListsTwentyTwoOperations()
     {
         await using var fixture = await Fixture.StartAsync(McpAccessMode.ReadWrite);
         var tool = Assert.Single(await fixture.Harness.Client.ListToolsAsync(), tool => tool.Name == "library_write");
@@ -192,7 +265,7 @@ public sealed class LibraryWriteMcpTests
         var operations = description[(description.IndexOf("writes: ", StringComparison.Ordinal) + "writes: ".Length)..]
             .Split(". Every", StringSplitOptions.None)[0].Split(", ", StringSplitOptions.None);
 
-        Assert.Equal(20, operations.Length);
+        Assert.Equal(22, operations.Length);
         Assert.Equal(LibraryWriteMethods.Operations, operations);
         Assert.DoesNotContain("edit_type_version", description);
     }

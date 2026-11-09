@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
 
@@ -115,9 +116,9 @@ public static class HmiWriteCatalog
                 var cultures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var text in texts)
                 {
-                    if (text is null || text.Text is null || !ValidCulture(text.Culture))
+                    if (text is null || text.Text is null || CultureNameRules.CanonicalName(text.Culture) is not { } culture)
                     { Error($"'{name}' requires culture and text."); continue; }
-                    if (!cultures.Add(CultureInfo.GetCultureInfo(text.Culture).Name)) Error($"'{name}' contains duplicate culture.");
+                    if (!cultures.Add(culture)) Error($"'{name}' contains duplicate culture.");
                     if (text.Text.StartsWith("<body", StringComparison.OrdinalIgnoreCase)) Error("Send plain text; the server adds markup.");
                     if (name == "eventText" && text.Text.IndexOfAny(['\r', '\n']) >= 0) Error("'eventText' cannot contain line breaks.");
                 }
@@ -130,13 +131,6 @@ public static class HmiWriteCatalog
 
     private static bool ValidName(string name) =>
         !string.IsNullOrWhiteSpace(name) && name == name.Trim() && !name.Any(c => char.IsControl(c) || c is '.' or '"');
-
-    private static bool ValidCulture(string? culture)
-    {
-        if (string.IsNullOrWhiteSpace(culture)) return false;
-        try { return CultureInfo.GetCultureInfo(culture).Name.Length != 0; }
-        catch (CultureNotFoundException) { return false; }
-    }
 
     private static bool TryNumber(JsonElement number, out double value)
     {

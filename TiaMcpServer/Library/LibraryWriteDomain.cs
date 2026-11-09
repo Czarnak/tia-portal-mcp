@@ -85,10 +85,10 @@ public sealed class LibraryWriteDomain(OpennessWorkerClient client)
             if (projected.Status == OperationBatchStatus.Succeeded)
             {
                 var value = Json.CanonicalJson.DeserializeWorkerPayload<LibraryWriteResultInfo>(payload.GetRawText());
-                _effects[item.OperationId] = new(value.Library, value.Target, value.AlreadyOpen, [], false) { Type = value.Type };
+                _effects[item.OperationId] = new(value.Library, value.Target, value.AlreadyOpen, [], false) { Type = value.Type, MetadataChange = value.MetadataChange };
             }
             else if (result.LibraryWriteOutcome is { } outcome)
-                _effects[item.OperationId] = new(null, null, null, [], false) { Type = outcome.Type };
+                _effects[item.OperationId] = new(outcome.Library, null, null, [], false) { Type = outcome.Type, MetadataChange = outcome.MetadataChange };
         }
         return projected;
     }

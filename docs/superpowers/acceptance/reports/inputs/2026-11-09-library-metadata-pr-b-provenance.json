@@ -1,0 +1,48 @@
+{
+  "candidateHead": "8bb495f10eb2c79a4399f8798ce576db9edcc4b4",
+  "packageVersion": "4.3.0-local.151.g8bb495f1",
+  "binaries": [
+    {
+      "path": "TiaMcpServer.dll",
+      "installedSha256": "e16ff30a73a1397298842eedc6f6cc6b38a3adf5142007a85fe5070d412390f9",
+      "releaseSha256": "e16ff30a73a1397298842eedc6f6cc6b38a3adf5142007a85fe5070d412390f9"
+    },
+    {
+      "path": "openness-worker/TiaMcpServer.OpennessWorker.exe",
+      "installedSha256": "343007aa4c9e314f9defbf7f0079a9e6ae61a3e9bab1b8950052c16e7822609f",
+      "releaseSha256": "343007aa4c9e314f9defbf7f0079a9e6ae61a3e9bab1b8950052c16e7822609f"
+    },
+    {
+      "path": "TiaMcpServer.Contracts.dll",
+      "installedSha256": "bae1531afd472bf1b51ce50908b9f0adc01da7213658c0cc1ae0455145e158ff",
+      "releaseSha256": "bae1531afd472bf1b51ce50908b9f0adc01da7213658c0cc1ae0455145e158ff"
+    }
+  ],
+  "boundPortalProcessId": 33000,
+  "otherPortalNotAttached": 14140,
+  "fullWorkerProcessId": 17168,
+  "readWriteHostProcessId": 32960,
+  "defaultItemChars": 60000,
+  "oversizedMcpNativeCase": "Unavailable: known 100000-character input exceeds the effective default item budget; no alternative size or boundary search.",
+  "mcpReceipts": 43,
+  "auditRecords": 28,
+  "wireRecords": 2,
+  "records": 73,
+  "assertionsPassed": 99,
+  "originalLibrarySha256": "7cc28b30d1f1a82d842e73d70252ee6f94a4f0787e49c851aa0d573068443684",
+  "freshFixtureRemoved": true,
+  "stagedFixtureNeverCreated": true,
+  "redactions": [
+    "Exact disposable project/library names and paths",
+    "Personal profile path and username"
+  ],
+  "hashSemantics": "Private archive hashes identify sanitized local-only bytes. Original canonical response hashes and compact per-receipt hashes remain in private-provenance.json and private traces. No MCP trace is retained in the repository.",
+  "evidenceRetention": "MCP receipts, wire streams, audit details and their per-record hashes are retained only in ignored local scratch under AGENTS.md retention rules. This committed index retains summarized acceptance and private-evidence provenance.",
+  "privateEvidence": {
+    "location": ".superpowers/acceptance/library-metadata-pr-b-live/ (ignored local scratch)",
+    "archiveFile": "2026-11-09-library-metadata-pr-b-mcp.jsonl.gz",
+    "compressedSha256": "e6a7041c72cb93d99fb406939f12b7237c19d3bc013168cfab93a64b19e5e0d5",
+    "uncompressedSha256": "79a764dcf53c739c1b7538b033284e5e8d8b4c42bc13c2aeaa11e4233e71830c",
+    "originalReceiptHashes": "private-provenance.json in the same ignored scratch directory"
+  }
+}

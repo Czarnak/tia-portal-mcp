@@ -17,6 +17,100 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryGuardedWriteDomainTests
 {
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, true)]
+    public async Task MetadataCalls_KeepStagingRules(bool preview, bool readWrite, bool lifecycle)
+    {
+        using var fixture = await Fixture.Create();
+        var library = new LibraryIdentityInfo { Scope = "global", Kind = "library", LibraryName = "Fixture", LibraryPath = "C:/Fixture/First.al21" };
+        var languageChange = new LibraryMetadataChangeInfo { ActivatedLanguages = ["pl-PL"] };
+        var commentChange = new LibraryMetadataChangeInfo { Comments = [new() { Culture = "pl-PL", Before = null, After = "new" }] };
+        var items = new List<LibraryWriteItem>
+        {
+            new() { OperationId = "a", Operation = "set_languages", Scope = "global", LibraryName = "Fixture", ActivateLanguages = ["pl-PL"] },
+            new() { OperationId = "b", Operation = "set_comments", Scope = "global", LibraryName = "Fixture", Comments = [new() { Culture = "pl-PL", Text = "new" }] }
+        };
+        if (lifecycle) items.Add(new() { OperationId = "c", Operation = "save_global", Scope = "global", LibraryName = "Fixture" });
+        foreach (var item in items)
+        {
+            var change = item.Operation == "set_languages" ? languageChange : item.Operation == "set_comments" ? commentChange : null;
+            fixture.PutResponse(item.OperationId, new() { Success = true, Payload = WorkerJson.SerializePayload(new LibraryWritePlanInfo
+            {
+                Library = library, MetadataChange = change, MissingTargets = item.Operation == "set_comments"
+                    ? [new() { Scope = "global", Kind = "comment", LibraryPath = library.LibraryPath, Name = "pl-PL" }] : null
+            }) }, plan: true);
+            fixture.PutResponse(item.OperationId, new() { Success = true,
+                Payload = WorkerJson.SerializePayload(new LibraryWriteResultInfo { Library = library, MetadataChange = change }) });
+        }
+        var reply = await fixture.Run(items.ToArray(), dryRun: preview, readWrite: readWrite);
+        var root = reply.StructuredContent!.Value;
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        var plans = fixture.LibraryRequests.Where(r => r.Method == LibraryWriteMethods.GlobalPlan).ToArray();
+        var mutations = fixture.LibraryRequests.Where(r => r.Method != LibraryWriteMethods.GlobalPlan).ToArray();
+        if (preview || lifecycle)
+        {
+            Assert.Equal(items.Count, plans.Select(r => r.LibraryWrite!.OperationId).Distinct().Count());
+            var effects = root.GetProperty("effects").EnumerateArray().ToArray();
+            Assert.Equal("pl-PL", effects[0].GetProperty("effect").GetProperty("metadataChange").GetProperty("activatedLanguages")[0].GetString());
+            Assert.Equal(1, effects[1].GetProperty("effect").GetProperty("createdByItem").GetInt32());
+        }
+        else Assert.Empty(plans);
+        Assert.Equal(preview ? 0 : items.Count, mutations.Length);
+        Assert.Equal(lifecycle && readWrite && !preview ? 1 : 0, fixture.Prompts);
+        if (!preview)
+        {
+            Assert.Equal(new[] { "library_global_set_languages", "library_global_set_comments" }, mutations.Take(2).Select(r => r.Method));
+            Assert.Equal("pl-PL", root.GetProperty("batch").GetProperty("operations")[0].GetProperty("result")
+                .GetProperty("metadataChange").GetProperty("activatedLanguages")[0].GetString());
+        }
+    }
+
+    [Theory]
+    [InlineData("create_global")]
+    [InlineData("open_global")]
+    [InlineData("retrieve_global")]
+    public async Task MetadataCalls_PlannedLifecycleCannotSupplyAnUnopenedLibrary(string operation)
+    {
+        using var fixture = await Fixture.Create();
+        var first = new LibraryWriteItem { OperationId = "a", Operation = operation, Directory = "C:/Fixture", Name = operation == "create_global" ? "New" : null,
+            FilePath = operation == "open_global" ? "C:/Fixture/New.al21" : operation == "retrieve_global" ? "C:/Fixture/New.zal21" : null,
+            OpenMode = operation == "create_global" ? null : "readWrite" };
+        var second = new LibraryWriteItem { OperationId = "b", Operation = "set_comments", Scope = "global", LibraryName = "New",
+            Comments = [new() { Culture = "en-US", Text = "new" }] };
+        if (operation == "open_global") first.Directory = null;
+        fixture.PutResponse("a", new() { Success = true, Payload = WorkerJson.SerializePayload(new LibraryWritePlanInfo()) }, plan: true);
+        fixture.PutResponse("b", new() { Success = false, FailureCategory = "target_not_found", Error = "Library is not open." }, plan: true);
+        var reply = await fixture.Run([first, second], readWrite: true);
+        Assert.Equal("target_not_found", reply.StructuredContent!.Value.GetProperty("error").GetProperty("category").GetString());
+        Assert.Equal(new[] { "library_global_plan", "library_global_plan" }, fixture.LibraryRequests.Select(r => r.Method));
+        Assert.Equal(0, fixture.Prompts);
+    }
+
+    [Fact]
+    public async Task MetadataFailure_PreservesResolvedIdentityInsteadOfSelectorAlias()
+    {
+        using var fixture = await Fixture.Create();
+        var first = new LibraryWriteItem { OperationId = "a", Operation = "set_comments", Scope = "global", LibraryName = "Fixture",
+            Comments = [new() { Culture = "pl-PL", Text = "new" }] };
+        var later = new LibraryWriteItem { OperationId = "b", Operation = "set_languages", Scope = "global", LibraryName = "Fixture", ActivateLanguages = ["pl-PL"] };
+        fixture.PutResponse("a", new() { Success = true, Payload = WorkerJson.SerializePayload(new LibraryWriteResultInfo
+        {
+            Library = new() { Scope = "global", Kind = "library", LibraryName = "Fixture", LibraryPath = "C:/Fixture/First.al21" },
+            MetadataChange = new() { Comments = [new() { Culture = "pl-PL", Before = "old", After = "new" }] }
+        }) });
+        fixture.PutResponse("b", new() { Success = false, FailureCategory = "worker_operation_failed", Error = "failed after resolution",
+            LibraryWriteOutcome = new() { Library = new() { Scope = "global", Kind = "library", LibraryName = "Fixture", LibraryPath = "C:/Other/Second.al21" },
+                MetadataChange = new() { ActivatedLanguages = [] } } });
+        var reply = await fixture.Run([first, later]);
+        var root = reply.StructuredContent!.Value;
+        Assert.False(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal("trusted", Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray()).GetProperty("check").GetString());
+        Assert.Equal("C:/Other/Second.al21", root.GetProperty("batch").GetProperty("operations")[1].GetProperty("result").GetProperty("library").GetProperty("libraryPath").GetString());
+    }
+
     [Fact]
     public async Task Apply_LaterItemUsesTypeCreatedByEarlierItem()
     {

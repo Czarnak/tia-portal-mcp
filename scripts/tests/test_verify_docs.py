@@ -72,26 +72,28 @@ class VerifyDocsTests(unittest.TestCase):
         repo = self.make_repo({"docs/README.md": "none\n", "docs/superpowers/evidence/x/run.json": "{}\n"})
         self.assertEqual(verify_docs.check(repo, "", True)[0], ["docs/superpowers/evidence/x/run.json: transient working file present"])
 
-    def test_library_metadata_handoff_retains_only_exact_plan_and_spec(self):
-        retained = (
+    def test_all_plan_spec_and_evidence_paths_are_transient_failures(self):
+        paths = (
             "docs/superpowers/plans/2026-11-08-library-metadata-pr-a.md",
             "docs/superpowers/specs/2026-11-08-library-metadata-design.md",
+            "docs/superpowers/plans/2026-11-09-library-metadata-pr-b.md",
+            "docs/superpowers/plans/other.md",
+            "docs/superpowers/specs/other.md",
+            "docs/superpowers/evidence/other/run.json",
         )
-        for unrelated in ("docs/superpowers/plans/other.md",
-                          "docs/superpowers/specs/other.md",
-                          "docs/superpowers/evidence/other/run.json"):
-            with self.subTest(unrelated=unrelated):
+        for path in paths:
+            with self.subTest(path=path):
                 repo = self.make_repo({"docs/README.md": "none\n",
-                                       **{path: "handoff\n" for path in retained},
-                                       unrelated: "other\n"})
+                                       path: "working file\n"})
                 self.assertEqual(verify_docs.check(repo, "", True),
-                                 ([f"{unrelated}: transient working file present"], []))
+                                 ([f"{path}: transient working file present"], []))
 
-    def test_retained_library_metadata_spec_still_checks_links(self):
-        path = "docs/superpowers/specs/2026-11-08-library-metadata-design.md"
+    def test_transient_files_still_check_links(self):
+        path = "docs/superpowers/specs/topic-design.md"
         repo = self.make_repo({"docs/README.md": "none\n", path: "[gone](missing.md)\n"})
         self.assertEqual(verify_docs.check(repo, "", True),
-                         ([f"{path}:1: broken link missing.md"], []))
+                         ([f"{path}:1: broken link missing.md",
+                           f"{path}: transient working file present"], []))
 
     def test_untracked_files_are_checked_before_git_add(self):
         repo = self.make_repo({"docs/README.md": "none\n"})

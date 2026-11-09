@@ -3,14 +3,14 @@
 This directory keeps the live-verification reports under [`acceptance/reports/`](acceptance/reports/)
 and the raw Openness evidence indexed in [`acceptance/reports/inputs/README.md`](acceptance/reports/inputs/README.md).
 Its `specs/`, `plans/` and `evidence/` directories are a transient per-PR working area, empty on
-`main` except the explicitly retained library-metadata plan and shared spec; the rules are in
+`main`; the rules are in
 [`AGENTS.md`](../../AGENTS.md) ("Plans, specs and evidence").
 
 A report describes the state of the world **on its date**; later work may have superseded it. The
 code, [ARCHITECTURE.md](../ARCHITECTURE.md) and [SupportedOperations](../SupportedOperations/README.md)
 are the authorities on current behavior. For why the design is as it is, and the project's history,
 start at the [architecture decision records](../adr/README.md). Removed plans and specs remain at the
-`docs-archive-2026-10-30` tag.
+`docs-archive-2026-10-30` tag; later working files remain in their PR commit history.
 
 ## Acceptance definitions
 
@@ -27,6 +27,8 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-09 | [Library metadata PR B — built-MCP comments/languages, native read-only failures, previews, confirmation/staging, persistence and restoration; optional oversized MCP native case unavailable](acceptance/reports/2026-11-09-library-metadata-pr-b-live-verification.md) |
+| 2026-11-09 | [Library metadata PR B Task 0 — B1-B10 native probes; recoverable B8 refusal in its own session, read-only comment exception contradicts the acceptance expectation](acceptance/reports/2026-11-09-library-metadata-pr-b-native-probes.md) |
 | 2026-11-08 | [Block import compilation — scoped live PASS: successful source import with an unrelated PLC compile error, independent compile result, following batch item, fresh content hash and verified cleanup](acceptance/reports/2026-11-08-block-import-compilation-live-verification.md) |
 | 2026-11-08 | [GlobalDB software-unit creation (issue #221) — native XML comparison and fixed-worker root/unit/nested optimized DB creation, clean compilation and cleanup](acceptance/reports/2026-11-08-globaldb-software-units-live-verification.md) |
 | 2026-11-07 | [library_write — scoped PASS: all 12 operations, read-write lifecycle prompt and decline, full mode, guards, M1/M5 native refusals, duplicate-name selector, clean read-only close-save, local-session capability split; rename postcondition, close-after-save failure, non-block PLC kinds and Portal loss unverified](acceptance/reports/2026-11-07-library-write-live-verification.md) |

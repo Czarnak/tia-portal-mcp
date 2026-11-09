@@ -18,16 +18,19 @@ public static class LibraryWriteMethods
         "synchronize_type", "instantiate_type_version", "delete_type", "delete_type_version"
     };
 
+    public static string[] MetadataOperations { get; } = { "set_comments", "set_languages" };
+
     public static string[] Operations { get; } = LifecycleOperations.Concat(new[]
     {
         "create_folder", "delete_folder", "create_master_copy", "copy_master_copy", "instantiate_master_copy", "delete_master_copy"
-    }).Concat(TypeOperations).ToArray();
+    }).Concat(TypeOperations).Concat(MetadataOperations).ToArray();
 
     public static string[] GlobalLibraryWrites { get; } = Operations
         .Where(operation => !AlwaysTouchesProject(operation))
         .Select(operation => "library_global_" + operation).ToArray();
 
     public static string[] ProjectLibraryWrites { get; } = Operations.Skip(LifecycleOperations.Length)
+        .Where(operation => !MetadataOperations.Contains(operation, StringComparer.Ordinal))
         .Select(operation => "library_project_" + operation).ToArray();
 
     public static string[] All { get; } = GlobalLibraryWrites.Concat(ProjectLibraryWrites)
@@ -60,6 +63,8 @@ public static class LibraryWriteMethods
             "save_global" => "scope libraryPath libraryName",
             "close_global" => "scope libraryPath libraryName closeAction",
             "archive_global" => "scope libraryPath libraryName directory name",
+            "set_comments" => "scope libraryPath libraryName comments",
+            "set_languages" => "scope libraryPath libraryName activateLanguages editingLanguage referenceLanguage",
             "create_folder" or "delete_folder" => "scope libraryPath libraryName folderKind folderPath name",
             "create_master_copy" => "scope libraryPath libraryName folderPath plcName plcKind plcFolderPath plcObjectName",
             "copy_master_copy" => "scope libraryPath libraryName folderPath sourceScope sourceLibraryPath sourceLibraryName sourceFolderPath name",
@@ -89,6 +94,8 @@ public static class LibraryWriteMethods
             ("typeName", item.TypeName), ("typeGuid", item.TypeGuid),
             ("versionNumber", item.VersionNumber), ("versionGuid", item.VersionGuid), ("inWork", item.InWork),
             ("author", item.Author), ("comment", item.Comment), ("content", item.Content),
+            ("comments", item.Comments), ("activateLanguages", item.ActivateLanguages),
+            ("editingLanguage", item.EditingLanguage), ("referenceLanguage", item.ReferenceLanguage),
             ("expectedContentHash", item.ExpectedContentHash), ("replaceInWork", item.ReplaceInWork)
         })
             if (member.Value is not null && !members.Contains(member.Name, StringComparer.Ordinal))
@@ -96,7 +103,8 @@ public static class LibraryWriteMethods
 
         if (members.Contains("scope"))
         {
-            if (LifecycleOperations.Contains(item.Operation) && item.Scope != "global") return "scope must be global.";
+            if ((LifecycleOperations.Contains(item.Operation) || MetadataOperations.Contains(item.Operation)) && item.Scope != "global")
+                return "scope must be global.";
             if (item.Operation == "release_type_version" && item.Scope != "project") return "scope must be project.";
             if (LibrarySelectorRules.Check(item.Scope, item.LibraryPath, item.LibraryName, item.FolderPath, "") is { } error)
                 return error;
@@ -104,6 +112,36 @@ public static class LibraryWriteMethods
         if (members.Contains("sourceScope")
             && LibrarySelectorRules.Check(item.SourceScope, item.SourceLibraryPath, item.SourceLibraryName, item.SourceFolderPath, "source") is { } sourceError)
             return sourceError;
+        if (item.Operation == "set_comments")
+        {
+            if (item.Comments is null || item.Comments.Count == 0) return "comments must not be empty.";
+            var cultures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var comment in item.Comments)
+            {
+                if (comment is null || comment.Text is null || CultureNameRules.CanonicalName(comment.Culture) is not { } culture)
+                    return "comments requires valid non-invariant culture and non-null text.";
+                if (!cultures.Add(culture)) return "comments contains duplicate culture.";
+            }
+        }
+        if (item.Operation == "set_languages")
+        {
+            if (item.ActivateLanguages is null && item.EditingLanguage is null && item.ReferenceLanguage is null)
+                return "set_languages requires activateLanguages, editingLanguage or referenceLanguage.";
+            if (item.ActivateLanguages is not null)
+            {
+                if (item.ActivateLanguages.Count == 0) return "activateLanguages must not be empty.";
+                var cultures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var value in item.ActivateLanguages)
+                {
+                    if (CultureNameRules.CanonicalName(value) is not { } culture) return "activateLanguages requires valid non-invariant cultures.";
+                    if (!cultures.Add(culture)) return "activateLanguages contains duplicate culture.";
+                }
+            }
+            if (item.EditingLanguage is not null && CultureNameRules.CanonicalName(item.EditingLanguage) is null)
+                return "editingLanguage must be a valid non-invariant culture.";
+            if (item.ReferenceLanguage is not null && CultureNameRules.CanonicalName(item.ReferenceLanguage) is null)
+                return "referenceLanguage must be a valid non-invariant culture.";
+        }
         if (TypeOperations.Contains(item.Operation) && item.Operation is not ("create_type" or "create_type_version"))
         {
             if (LibrarySelectorRules.CheckType(item.TypeName, item.TypeGuid, item.FolderPath) is { } typeError) return typeError;

@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OperationBatches;
 
@@ -22,6 +23,11 @@ public static class LibraryWriteCatalog
                 errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): content exceeds the configured item character budget.");
             if (item.Author?.Length > StructuredOperationBatchPayloadBudget.MaxItemChars)
                 errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): author exceeds the configured item character budget.");
+            long commentChars = 0;
+            if (item.Comments is not null)
+                foreach (var comment in item.Comments) commentChars += comment?.Text?.Length ?? 0;
+            if (commentChars > StructuredOperationBatchPayloadBudget.MaxItemChars)
+                errors.Add($"Operation '{item.Operation}' (operationId '{item.OperationId}'): comments exceed the configured item character budget.");
         }
         return errors.Count == 0 ? OperationValidation.Valid
             : OperationValidation.Invalid(WorkerFailureCategories.ValidationError, string.Join("\n", errors));
@@ -44,6 +50,11 @@ public static class LibraryWriteCatalog
         PlcFolderPath = item.PlcFolderPath, PlcObjectName = item.PlcObjectName,
         TypeName = item.TypeName, TypeGuid = item.TypeGuid, VersionNumber = item.VersionNumber,
         VersionGuid = item.VersionGuid, InWork = item.InWork, Author = item.Author, Comment = item.Comment,
+        Comments = item.Comments?.Select(comment => comment is null ? null! : new LibraryCommentInfo
+            { Culture = CultureNameRules.CanonicalName(comment.Culture) ?? comment.Culture, Text = comment.Text }).ToList(),
+        ActivateLanguages = item.ActivateLanguages?.Select(culture => CultureNameRules.CanonicalName(culture) ?? culture).ToList(),
+        EditingLanguage = CultureNameRules.CanonicalName(item.EditingLanguage) ?? item.EditingLanguage,
+        ReferenceLanguage = CultureNameRules.CanonicalName(item.ReferenceLanguage) ?? item.ReferenceLanguage,
         Content = item.Content, ExpectedContentHash = item.ExpectedContentHash, ReplaceInWork = item.ReplaceInWork,
     };
 }

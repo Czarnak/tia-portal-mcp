@@ -860,7 +860,7 @@ or Portal-attachment loss and never opens, retrieves, saves, closes or changes a
 
 ### Library writes (`library_write`)
 
-`library_write` is an `IWriteDomain` (`LibraryWriteDomain`) on `Safety/Pipeline`. `LibraryWriteCatalog` validates 1-50 flat `LibraryWriteItem`s through `LibraryWriteMethods.Validate`; the 20 closed operations include global-library lifecycle, folders, master copies and eight type operations. `LibrarySelectorRules` shares library, name/GUID type and number/GUID version selectors with `library_read`. The shared run mutates in caller order, stops at the first failure and never rolls back the batch or replays. Contracts remain write `2.0` and read `1.0`.
+`library_write` is an `IWriteDomain` (`LibraryWriteDomain`) on `Safety/Pipeline`. `LibraryWriteCatalog` validates 1-50 flat `LibraryWriteItem`s through `LibraryWriteMethods.Validate`; the 22 closed operations include global-library lifecycle, folders, master copies, eight type operations and two global metadata operations. There are 16 global mutation methods, 14 project mutation methods and two Observe plan methods (32 total); tool discovery remains 9/21/21. `LibrarySelectorRules` shares library, name/GUID type and number/GUID version selectors with `library_read`. The shared run mutates in caller order, stops at the first failure and never rolls back the batch or replays. Contracts remain write `2.0` and read `1.0`.
 
 Three hooks preserve the shared pipeline. `ConfirmsCall(items)` defaults to `ConfirmsEveryCall`, with library calls prompting once only for global-library lifecycle in read-write. `CapabilityOperations(items)` defaults to `[ToolName]`, with library items gated individually as `library_global_*` to `library_write` or `library_project_*` to standalone-only `library_project_write`; any unsupported item refuses the whole call before worker activity. `PlansBeforeApply(items)` defaults to true and returns false for libraries. Planning still runs for every dry run and prompting call. The hook is safe only for domains without acknowledge guards; other domains keep their existing planning behavior. See [ADR-0016](adr/0016-library-write-staging-and-lifecycle-prompt.md) and [ADR-0017](adr/0017-library-writes-apply-without-planning.md).
 
@@ -876,7 +876,30 @@ unchanged. Creation additionally requires nonblank supplied text. Omitted creati
 typed overload; supplied author uses engineering-composition parameters. Every successful creation returns
 conditional `metadata`. A later unexpected metadata-getter failure preserves captured identity in
 `libraryWriteOutcome.library` when available, so callers inspect before retrying. Elicitation for a
-read-write creation includes its author. Comment/language setters remain a separate deferred slice.
+read-write creation includes its author.
+
+`library_global_set_comments` and `library_global_set_languages` resolve an already-open global library
+in the bound Portal. `LibraryMetadataWriter` uses one `ExclusiveAccess` and library transaction per item:
+resolve all native targets, capture the before-state, mutate, compare exact end-state, check `CanCommit`,
+then `CommitOnDispose`. Comment checks preserve every unnamed comment and all language settings;
+language checks preserve existing comments/active languages and permit only requested activations,
+including automatic activation for requested editing/reference languages. Successful results carry
+`library` and conditional `metadataChange`; plans/effects carry intended changes, and captured failure
+outcomes carry observations made before rollback. This is the only native postcondition read; shared
+verification uses metadata-specific supersession keys and makes no additional RPC.
+
+There is no reread after failure. A normally disposed failed transaction rolls back; an exception during
+commit or scope disposal leaves state unknown and carries no outcome. Inspect global `inspect_library`
+with `includeMetadata:true` before retrying. Portal decides support and write protection: tested read-only
+comments produced `worker_operation_failed`/`EngineeringNotSupportedException`, while language activation
+produced `engineering_rejected`/`EngineeringTargetInvocationException`; `portal_lost` still wins. No native
+support catalogue, read-only guard or fixed comment cap is added. Host text admission and whole-value
+delivery use the effective shared budgets. Metadata changes dirty the library without saving it; last
+writer wins, language removal is absent, and library language changes do not alter released type-version
+languages. See [ADR-0019](adr/0019-library-metadata-transactions.md), the
+[operation contract](SupportedOperations/LIBRARY_OPERATIONS_SUMMARY.md#comment-and-language-edits),
+[native probes](superpowers/acceptance/reports/2026-11-09-library-metadata-pr-b-native-probes.md) and
+[built-MCP acceptance](superpowers/acceptance/reports/2026-11-09-library-metadata-pr-b-live-verification.md).
 
 ### Typed Network payload registry
 

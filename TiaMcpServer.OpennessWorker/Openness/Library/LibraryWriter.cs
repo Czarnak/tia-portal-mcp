@@ -34,6 +34,8 @@ internal static class LibraryWriter
 
         if (LibraryWriteMethods.TypeOperations.Contains(item.Operation))
             return LibraryTypeWriter.Write(portal, project, method, item);
+        if (item.Operation is "set_comments" or "set_languages")
+            return LibraryMetadataWriter.Write(portal, project, item);
         switch (item.Operation)
         {
             case "create_global":

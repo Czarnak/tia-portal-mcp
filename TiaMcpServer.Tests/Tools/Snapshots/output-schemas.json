@@ -7450,6 +7450,93 @@
                 "contentsTruncated": {
                   "type": "boolean"
                 },
+                "metadataChange": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "comments": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "culture": {
+                            "type": "string"
+                          },
+                          "before": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "after": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "activatedLanguages": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "editingLanguage": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "before": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "referenceLanguage": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "before": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "after": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
                 "type": {
                   "type": [
                     "object",

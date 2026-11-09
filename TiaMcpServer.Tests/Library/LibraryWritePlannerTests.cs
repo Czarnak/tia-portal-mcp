@@ -12,6 +12,144 @@ namespace TiaMcpServer.Tests.Library;
 
 public sealed class LibraryWritePlannerTests
 {
+    [Theory]
+    [InlineData("activation", true)]
+    [InlineData("editing", true)]
+    [InlineData("reference", true)]
+    [InlineData("different-library", false)]
+    [InlineData("different-culture", false)]
+    [InlineData("second-missing", false)]
+    [InlineData("all-missing", true)]
+    [InlineData("no-producer", false)]
+    public async Task MetadataCommentProducer_MatchesLibraryAndCulture(string scenario, bool supported)
+    {
+        using var f = await Fixture.Create();
+        var root = new LibraryIdentityInfo { Scope = "global", Kind = "library", LibraryPath = @"C:\Libs\Fixture.al21" };
+        var other = new LibraryIdentityInfo { Scope = "global", Kind = "library", LibraryPath = @"C:\Other\Fixture.al21" };
+        var missing = new LibraryIdentityInfo { Scope = "global", Kind = "comment", LibraryPath = root.LibraryPath, Name = "pl-PL" };
+        f.PutFor("a", new() { Library = root, MetadataChange = new() { ActivatedLanguages = [scenario == "no-producer" ? "en-US" : "pl-PL"] } });
+        f.PutFor("c", new() { Library = root, MetadataChange = new() { Comments = [new() { Culture = "pl-PL", After = "new" }] }, MissingTargets = scenario is "second-missing" or "all-missing" ? [missing,
+            new() { Scope = "global", Kind = "comment", LibraryPath = root.LibraryPath, Name = "de-DE" }] : [missing] });
+        var producer = new LibraryWriteItem { OperationId = "b", Operation = "set_languages", Scope = "global", LibraryPath = root.LibraryPath };
+        if (scenario == "editing") producer.EditingLanguage = "PL-pl";
+        else if (scenario == "reference") producer.ReferenceLanguage = "PL-pl";
+        else producer.ActivateLanguages = [scenario == "all-missing" ? "de-DE" : scenario is "different-culture" or "no-producer" ? "fr-FR" : "PL-pl"];
+        f.PutFor("b", new() { Library = scenario == "different-library" ? other : root, MetadataChange = new()
+        {
+            ActivatedLanguages = (producer.ActivateLanguages ?? []).Select(TiaMcpServer.Contracts.Shared.CultureNameRules.CanonicalName).Select(x => x!).ToList(),
+            EditingLanguage = producer.EditingLanguage is null ? null : new() { After = "pl-PL" },
+            ReferenceLanguage = producer.ReferenceLanguage is null ? null : new() { After = "pl-PL" }
+        } });
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([
+            new() { OperationId = "a", Operation = "set_languages", Scope = "global", LibraryPath = root.LibraryPath,
+                ActivateLanguages = [scenario == "no-producer" ? "en-US" : "pl-PL"] },
+            producer,
+            new() { OperationId = "c", Operation = "set_comments", Scope = "global", LibraryPath = root.LibraryPath, Comments = [new() { Culture = "pl-PL", Text = "new" }] }]);
+        // The first producer remains eligible unless the consumer has another missing culture.
+        Assert.Equal(supported || scenario is "different-library" or "different-culture", result.Plan.Success);
+        if (result.Plan.Success) Assert.Equal(supported ? 2 : 1, result.Plan.Items[2].Effect!.CreatedByItem);
+        else Assert.Equal("target_not_found", result.Plan.Error!.Category);
+    }
+
+    [Theory]
+    [InlineData("set_comments", false)]
+    [InlineData("set_comments", true)]
+    [InlineData("set_languages", false)]
+    [InlineData("set_languages", true)]
+    public async Task MetadataPreview_ResolvedLibraryRequiresReceipt(string operation, bool explicitNull)
+    {
+        using var f = await Fixture.Create();
+        var payload = WorkerJson.SerializePayload(new LibraryWritePlanInfo { Library = new() { Scope = "global", Kind = "library", Name = "Fixture" } });
+        if (explicitNull) payload = "{\"metadataChange\":null," + payload[1..];
+        f.Raw(payload);
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([new() { OperationId = "a", Operation = operation }]);
+        Assert.Equal("protocol_error", result.Plan.Error?.Category);
+        Assert.Empty(result.Plan.Items);
+        Assert.Empty(result.Guards);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MetadataPreview_UnresolvedLibraryCanOmitReceipt(bool explicitNull)
+    {
+        using var f = await Fixture.Create();
+        var payload = WorkerJson.SerializePayload(new LibraryWritePlanInfo { MissingTargets = [new() { Scope = "global", Kind = "library", Name = "Missing" }] });
+        if (explicitNull) payload = "{\"metadataChange\":null," + payload[1..];
+        f.Raw(payload);
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([new() { OperationId = "a", Operation = "set_comments" }]);
+        Assert.Equal("target_not_found", result.Plan.Error?.Category);
+    }
+
+    [Theory]
+    [InlineData("comment-null")]
+    [InlineData("comment-altered")]
+    [InlineData("activation-null")]
+    [InlineData("editing-null")]
+    [InlineData("editing-altered")]
+    [InlineData("reference-altered")]
+    [InlineData("unexpected-activation")]
+    public async Task MetadataPreview_RequiresCompleteRequestedAfterValues(string defect)
+    {
+        using var f = await Fixture.Create();
+        var comments = defect.StartsWith("comment-", StringComparison.Ordinal);
+        var item = comments
+            ? new LibraryWriteItem { OperationId = "a", Operation = "set_comments", Comments = [new() { Culture = "pl-PL", Text = "  new\r\n  " }] }
+            : new LibraryWriteItem { OperationId = "a", Operation = "set_languages", ActivateLanguages = ["pl-PL"], EditingLanguage = "PL-pl", ReferenceLanguage = "pl-PL" };
+        var change = comments
+            ? new LibraryMetadataChangeInfo { Comments = [new() { Culture = "pl-PL", Before = null, After = item.Comments![0].Text }] }
+            : new LibraryMetadataChangeInfo { ActivatedLanguages = ["pl-PL"], EditingLanguage = new() { Before = null, After = "pl-PL" }, ReferenceLanguage = new() { Before = null, After = "pl-PL" } };
+        var plan = new LibraryWritePlanInfo { Library = new() { Scope = "global", Kind = "library", Name = "Fixture" }, MetadataChange = change };
+        f.Put(plan);
+        Assert.True((await new LibraryWritePlanner(f.Client).PlanAsync([item])).Plan.Success);
+        if (defect == "comment-null") change.Comments![0].After = null;
+        if (defect == "comment-altered") change.Comments![0].After = "leak-sentinel";
+        if (defect == "activation-null") change.ActivatedLanguages = null;
+        if (defect == "editing-null") change.EditingLanguage!.After = null;
+        if (defect == "editing-altered") change.EditingLanguage!.After = "de-DE";
+        if (defect == "reference-altered") change.ReferenceLanguage!.After = "de-DE";
+        if (defect == "unexpected-activation") change.ActivatedLanguages = ["de-DE"];
+        f.Put(plan);
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([item]);
+        Assert.Equal("protocol_error", result.Plan.Error?.Category);
+        Assert.Empty(result.Plan.Items);
+        Assert.Empty(result.Guards);
+        Assert.DoesNotContain("leak-sentinel", TiaMcpServer.Json.CanonicalJson.Serialize(result));
+    }
+
+    [Fact]
+    public async Task MetadataPreview_ProjectsRequestedChangeIntoEffect()
+    {
+        using var f = await Fixture.Create();
+        f.Put(new() { Library = new() { Scope = "global", Kind = "library", LibraryPath = @"C:\Libs\Fixture.al21" },
+            MetadataChange = new() { Comments = [new() { Culture = "pl-PL", Before = null, After = "new" }] } });
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([
+            new() { OperationId = "a", Operation = "set_comments", Scope = "global", LibraryName = "Fixture",
+                Comments = [new() { Culture = "pl-PL", Text = "new" }] }]);
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        var comment = Assert.Single(result.Plan.Items[0].Effect!.MetadataChange!.Comments!);
+        Assert.Equal("pl-PL", comment.Culture); Assert.Null(comment.Before); Assert.Equal("new", comment.After);
+        Assert.Empty(result.Guards["a"]);
+    }
+
+    [Theory]
+    [InlineData("comment")]
+    [InlineData("culture")]
+    [InlineData("activatedLanguage")]
+    public async Task MetadataPreview_NullChangeEntriesRejectAllPlanEvidence(string member)
+    {
+        using var f = await Fixture.Create();
+        var change = new LibraryMetadataChangeInfo();
+        if (member == "comment") change.Comments = [null!];
+        if (member == "culture") change.Comments = [new() { Culture = null!, After = "leak-sentinel" }];
+        if (member == "activatedLanguage") change.ActivatedLanguages = [null!];
+        f.Put(new() { MetadataChange = change });
+        var result = await new LibraryWritePlanner(f.Client).PlanAsync([Item("a")]);
+        Assert.Equal("protocol_error", result.Plan.Error!.Category);
+        Assert.Empty(result.Plan.Items); Assert.Empty(result.Guards);
+        Assert.DoesNotContain("leak-sentinel", TiaMcpServer.Json.CanonicalJson.Serialize(result));
+    }
+
     [Fact]
     public async Task Planner_TargetCreatedByEarlierItem_CreatedByItem()
     {
