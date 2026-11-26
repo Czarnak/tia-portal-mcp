@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 
@@ -39,6 +40,10 @@ public sealed record PlcRemoval(
     string? Language);
 
 public sealed record PlcWriteEffectPresentation(string OperationId, PlcWriteEffect? Effect, StructuredOperationOmission? Omission);
+
+/// <summary>Informational compilation for one exact PLC selector after committed source imports.</summary>
+public sealed record PlcSharedCompilation(string? PlcName, IReadOnlyList<string> OperationIds, string Stage,
+    CompileCheckReport? Report, StructuredOperationFailure? Failure, StructuredOperationOmission? Omission);
 
 /// <summary>The plc_write response document; <see cref="Omission"/> is set when diagnostics were compacted.</summary>
 public sealed record PlcGuardedWriteResponse(string Tool, string ContractVersion, string Phase, bool Success,
