@@ -125,7 +125,8 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
 
         var check = ContentHashes.Check(item.ExpectedContentHash, format, export.Payload);
         if (!check.Success) return Fail(new(check.ErrorCategory!, $"Operation '{item.OperationId}': {check.Message}"));
-        return new ItemOutcome(state, effect with { ContentDiff = PlcContentDiff.Build(export.Payload, item.Content!, budget) },
+        var (current, requested) = PlcContentDiffSides.Select(format, export.Payload, item.Content!);
+        return new ItemOutcome(state, effect with { ContentDiff = PlcContentDiff.Build(current, requested, budget) },
             guards, new[] { check.Evidence! }, null);
     }
 

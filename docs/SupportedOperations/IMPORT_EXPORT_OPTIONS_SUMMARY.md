@@ -113,6 +113,12 @@ evidence only, not part of the hash check.
   comparison only, line-ending normalization maps CRLF and CR to LF; it performs no other
   normalization. The response also reports `rawTextEqual`, `normalizedLinesEqual`, and
   `lineEndingOnly`; a line-ending-only difference has unequal raw text but equal normalized lines.
+- An XML write whose `content` is a single Simatic ML document (no `--- FILE:` separator, or a
+  bundle holding only the `.xml`) is compared with the `.xml` document of the current bundle, so
+  `contentDiff.current` (`sha256`, character and line counts) then describes that `.xml` part, not
+  the whole served bundle, and a one-document bundle's separator line is left out of the requested
+  side. `expectedContentHash` still covers the whole bundle. Any other content, including text
+  that does not parse as a bundle, is compared whole.
 - Every other operation has `contentDiff: null`.
 
 ## Format matrix

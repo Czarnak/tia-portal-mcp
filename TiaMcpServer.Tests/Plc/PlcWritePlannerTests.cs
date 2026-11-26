@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
@@ -95,6 +96,36 @@ public class PlcWritePlannerTests
         var reads = await PlanningReadsAsync(async client => new[] { UpdateBlock("content", "Station_1/Main", await HashOf(client, "Station_1/Main")) });
 
         Assert.Equal(new[] { Inventory, "get_block_content" }, reads);
+    }
+
+    [Fact]
+    public async Task XmlOnlySubmissionPlansOneLineDiff()
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        const string xml = "<Document>\r\n  <Network>A</Network>\r\n</Document>\r\n";
+        var bundle = BlockBundleText.Compose(new[]
+        {
+            new BlockImportDocument("Main.xml", "Main.xml", xml),
+            new BlockImportDocument("Main.s7dcl", "Main.s7dcl", "BLOCK Main\r\n"),
+        });
+        var seeded = await client.UpdateBlockLogicAsync("Station_1/Main", bundle, format: "xml",
+            expectedContentHash: await HashOf(client, "Station_1/Main"));
+        Assert.True(seeded.Success, seeded.Error);
+
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            new PlcOperationRequest
+            {
+                OperationId = "xml-only", Operation = "update_block_logic", BlockPath = "Station_1/Main", Format = "xml",
+                Content = xml.Replace("<Network>A</Network>", "<Network>B</Network>"),
+                ExpectedContentHash = ContentHashes.Compute("xml", bundle),
+            },
+        });
+
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        var diff = result.Plan.Items[0].Effect!.ContentDiff!;
+        Assert.Equal(1, diff.CurrentChangedLineCount);
+        Assert.Equal(1, diff.RequestedChangedLineCount);
     }
 
     [Fact]
