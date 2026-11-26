@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
@@ -215,5 +216,155 @@ public sealed class PlcWriteBudgetTests
         Assert.False(bounded.Success);
         Assert.True(bounded.Verification!.Success);
         Assert.True(Assert.Single(bounded.Verification.Operations).Success);
+    }
+
+    private static CompileCheckReport SharedReport(int detailChars) => new()
+    {
+        Plcs = [new() { PlcName = "PLC_1", State = "Success", DiagnosticNotes = [Marker + new string('c', detailChars)] }],
+    };
+
+    private static PlcGuardedWriteResponse SharedResponse(CompileCheckReport? report, StructuredOperationFailure? failure = null)
+        => WithDiagnostics("applied", true, null) with
+        {
+            CompilationMode = "shared-per-plc",
+            SharedCompilations = [new("PLC_1", ["one", "two"], failure is null ? "succeeded" : "unavailable", report, failure, null)],
+            Verification = new(true, [new("one", true, "contentHash", null, "verified-hash", "verified-hash", null)], null),
+        };
+
+    [Fact]
+    public void OversizedCompileReport_OmittedBeforeVerificationChecks()
+    {
+        var outcome = new BlockImportOutcomeInfo { ContentRelation = "OUTCOME_MARKER" + new string('r', 5_000) };
+        var failed = new StructuredOperationItem("failed", "update_block_logic", OperationBatchStatus.Failed, null,
+            new(WorkerFailureCategories.WorkerOperationFailed, "Mutation failed.", outcome), null, null, []);
+        var response = SharedResponse(SharedReport(12_000)) with
+        {
+            Effects = [new("one", ContentEffect("one"), null)],
+            Batch = StructuredOperationBatch.FromItems([failed]),
+        };
+        // Leave room for omission records, while requiring the diff and report to yield.
+        var withoutLargeValues = response with
+        {
+            Effects = [response.Effects[0] with { Effect = response.Effects[0].Effect! with { ContentDiff = null } }],
+            SharedCompilations = [response.SharedCompilations![0] with { Report = null }],
+        };
+        var documentLimit = CanonicalJson.Serialize(withoutLargeValues).Length + 1_500;
+
+        var bounded = PlcWritePayloadBudget.Apply(response, maxDocumentChars: documentLimit);
+
+        var compilation = Assert.Single(bounded.SharedCompilations!);
+        Assert.Null(compilation.Report);
+        Assert.Equal(StructuredOperationBatchPayloadBudget.DocumentLimitReason, compilation.Omission!.Reason);
+        Assert.Equal("compile_check", compilation.Omission.RetryTool);
+        Assert.Null(Assert.Single(bounded.Effects).Effect!.ContentDiff);
+        Assert.NotNull(Assert.Single(bounded.Batch!.Operations).Failure!.BlockImportOutcome);
+        Assert.Equal("verified-hash", Assert.Single(bounded.Verification!.Operations).ContentHash);
+        Assert.Null(bounded.Verification.Omission);
+        Assert.True(bounded.Verification.Success);
+        Assert.False(bounded.Success);
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentLimit);
+    }
+
+    [Fact]
+    public void CompileReportOverItemLimit_OmittedWholeWithOmissionRecord()
+    {
+        var response = SharedResponse(SharedReport(12_000));
+        var original = CanonicalJson.Serialize(response);
+        var reportChars = CanonicalJson.Serialize(response.SharedCompilations![0].Report).Length;
+
+        var bounded = PlcWritePayloadBudget.Apply(response, maxItemChars: 2_000);
+
+        var compilation = Assert.Single(bounded.SharedCompilations!);
+        Assert.Null(compilation.Report);
+        Assert.Equal("succeeded", compilation.Stage);
+        Assert.Equal(new[] { "one", "two" }, compilation.OperationIds);
+        Assert.Equal(StructuredOperationBatchPayloadBudget.ItemLimitReason, compilation.Omission!.Reason);
+        Assert.Equal(2_000, compilation.Omission.LimitChars);
+        Assert.Equal(reportChars, compilation.Omission.OriginalChars);
+        Assert.Equal("compile_check", compilation.Omission.RetryTool);
+        Assert.Contains("selector", compilation.Omission.Guidance, StringComparison.OrdinalIgnoreCase);
+        Assert.False(bounded.Success);
+        Assert.True(bounded.Verification!.Success);
+        Assert.Equal("verified-hash", Assert.Single(bounded.Verification.Operations).ContentHash);
+        Assert.DoesNotContain(Marker, CanonicalJson.Serialize(bounded));
+        Assert.Equal(original, CanonicalJson.Serialize(response));
+    }
+
+    [Theory]
+    [InlineData(100_000, 2_000)]
+    [InlineData(1_000, 100_000)]
+    public void Compact_SummarizesCompileFailureMessages(int itemLimit, int documentLimit)
+    {
+        var response = SharedResponse(null, new(WorkerFailureCategories.WorkerOperationFailed, Marker + new string('f', 6_000)));
+
+        var bounded = PlcWritePayloadBudget.Apply(response, itemLimit, documentLimit);
+
+        var failure = Assert.Single(bounded.SharedCompilations!).Failure!;
+        Assert.Equal(WorkerFailureCategories.WorkerOperationFailed, failure.Category);
+        Assert.Equal("Diagnostic details omitted. Inspect current state with plc_read.", failure.Message);
+        Assert.Equal(StructuredOperationBatchPayloadBudget.DiagnosticOmissionReason, bounded.Omission!.Reason);
+        Assert.Equal(documentLimit, bounded.Omission.LimitChars);
+        Assert.False(bounded.Success);
+        Assert.Equal("verified-hash", Assert.Single(bounded.Verification!.Operations).ContentHash);
+        Assert.DoesNotContain(Marker, CanonicalJson.Serialize(bounded));
+        Assert.Contains(Marker, CanonicalJson.Serialize(response));
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentLimit);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProtectedCore_ReservesSharedCompilationEntries(bool escapedSelector)
+    {
+        var selector = escapedSelector ? "PLC_" + new string('\u0001', 100) : "PLC_1";
+        var items = Enumerable.Range(0, 2).Select(i => new PlcOperationRequest
+        {
+            OperationId = i + new string('\u0001', 255), Operation = "update_block_logic", Format = "source",
+            BlockPath = selector + "/Main", Content = "source", ExpectedContentHash = new string('a', 64),
+        }).ToArray();
+        var perOperation = items.Select(item => new PlcOperationRequest
+        {
+            OperationId = item.OperationId, Operation = item.Operation, Format = "xml", BlockPath = item.BlockPath,
+            Content = item.Content, ExpectedContentHash = item.ExpectedContentHash,
+        }).ToArray();
+        // The call will group into one selector at runtime, but admission reserves one entry per import.
+        var minimumEntry = new PlcSharedCompilation(selector, [items[0].OperationId], "unavailable", null,
+            new(new string('x', 64), "Diagnostic details omitted. Inspect current state with plc_read."),
+            new(StructuredOperationBatchPayloadBudget.DocumentLimitReason, int.MaxValue, int.MaxValue, "compile_check", ""));
+        var minimumReserved = 2 * CanonicalJson.Serialize(minimumEntry).Length;
+
+        var addedReservation = PlcWritePayloadBudget.MeasureProtectedCore(items) - PlcWritePayloadBudget.MeasureProtectedCore(perOperation);
+
+        Assert.True(addedReservation >= minimumReserved, $"Reserved {addedReservation} characters; expected at least {minimumReserved}.");
+    }
+
+    [Fact]
+    public void ProtectedCore_LargeSharedSelectorsAreRejectedBeforeWorker()
+    {
+        var selector = "PLC_" + new string('p', 4_000);
+        var items = Enumerable.Range(0, 50).Select(i => new PlcOperationRequest
+        {
+            OperationId = "op" + i, Operation = "update_block_logic", Format = "source", BlockPath = selector + "/Main",
+            Content = "source", ExpectedContentHash = new string('a', 64),
+        }).ToArray();
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null));
+
+        Assert.True(PlcWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        Assert.False(new PlcWriteDomain(client).Validate(items, McpAccessMode.ReadWrite).IsValid);
+    }
+
+    [Fact]
+    public void NonEligibleCall_BudgetBehaviorUnchanged()
+    {
+        var response = WithDiagnostics("applied", true, null);
+
+        var bounded = PlcWritePayloadBudget.Apply(response);
+
+        Assert.Equal("per-operation", bounded.CompilationMode);
+        Assert.Null(bounded.SharedCompilations);
+        var document = JsonNode.Parse(CanonicalJson.Serialize(bounded))!.AsObject();
+        document.Remove("compilationMode");
+        document.Remove("sharedCompilations");
+        Assert.Equal("""{"batch":null,"contractVersion":"2.1","effects":[],"error":null,"guards":[],"omission":null,"phase":"applied","success":true,"tool":"plc_write","verification":null,"warnings":[]}""", document.ToJsonString());
     }
 }
