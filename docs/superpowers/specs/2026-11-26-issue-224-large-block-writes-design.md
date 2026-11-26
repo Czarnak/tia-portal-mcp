@@ -1,7 +1,8 @@
 # Issue #224: cheaper reads and writes of large PLC blocks (design)
 
-Date: 2026-11-26. Status: approved by the owner on 2026-11-26, pending adversarial review. Scope:
-four PRs. Input: the issue #224 discussion summary (2026-11-12) and issue #224 itself.
+Date: 2026-11-26. Status: approved by the owner on 2026-11-26, revised after one adversarial review.
+Scope: three PRs; a per-block working copy is deferred (section 6). Input: the issue #224 discussion
+summary (2026-11-12) and issue #224 itself.
 
 ## 1. Intent
 
@@ -19,10 +20,8 @@ worker re-check, verification, audit). Secondary: a cheaper read and less TIA ti
 Goals
 
 - G1. Any client sends only the changed text of a block write (PR 3).
-- G2. A client with file tools reads and edits a server-written file, repeatedly, and writes by
-  reference: neither the read result, the `dryRun` nor the apply carries the document (PR 4).
-- G3. Delivered documents cost fewer tokens for the same content (PR 2).
-- G4. One fewer full export per XML write (PR 1).
+- G2. Delivered documents cost fewer tokens for the same content (PR 2).
+- G3. One fewer full export per XML write whose submission carries the companions (PR 1).
 
 Non-goals (decided by the owner on 2026-11-26)
 
@@ -31,211 +30,179 @@ Non-goals (decided by the owner on 2026-11-26)
   [simaticml-decoder](https://pypi.org/project/simaticml-decoder/) Python package.
 - No live probes of round-trip fidelity, no STL source route.
 - No persistence across server sessions and no project index.
-- Option C of the issue (reuse previewed content by reference) is not built separately: the patch
-  (PR 3) and the working copy (PR 4) make the resend small or empty.
+- No working copy in this round (section 6).
+- Option C of the issue (reuse previewed content by reference) is not built: the patch makes the
+  resend small.
 - No change to the import path or the Openness calls used.
 
 Anti-goals (a failure even if it works)
 
 - The server reads or writes any path a caller supplies.
-- A write applies content other than what the caller previewed, when the caller passed the
-  preview's hash.
-- A working copy outlives the binding it was read under, or is usable after the binding changed.
-- A patch or working-copy write bypasses the plan-time hash check, the diff, the worker re-check or
-  the audit.
+- A patch bypasses the plan-time hash check, the diff, the worker re-check, verification or the
+  audit.
+- The audit can no longer show exactly what was applied.
 
 ## 3. Constraints
 
-- Two processes: the host (net10.0) owns tools, planning and files; the worker (net48) owns
-  Openness. Patching and the working copy are entirely host concerns; the worker request is
-  unchanged.
+- Two processes: the host (net10.0) owns tools and planning; the worker (net48) owns Openness.
+  Patching is a host concern; the worker request is unchanged.
 - Content writes run on `Safety/Pipeline` (validate, binding, plan, guards, `dryRun`, mutate,
-  verify, audit). No tokens (ADR-0004).
+  verify, audit). One immutable item list feeds planning, mutation, verification and the audit
+  (`WriteRun.cs`: `PlanAsync(Items)`, `MutateAsync(item)`, `RequestedOperations = ToElement(Items)`).
+  No tokens (ADR-0004).
 - Structured JSON contract rules in `AGENTS.md`: typed payloads, conditional members registered in
   `ConditionalMemberRegisterTests`, text and structured content from one `CanonicalJson.Serialize`.
-- Read-only is the default access mode (ADR-0018); `plc_read` is available in every mode.
 - The server runs over stdio as the same Windows user as the client.
-- Exports use CRLF, with LF only on the `--- FILE:` separator lines of an XML bundle.
+- Exports use CRLF. An XML bundle (`BlockBundleFormat.Compose`) adds LF-terminated `--- FILE:`
+  separator lines and appends a bare LF to a non-last document that does not end in a newline, so the
+  `.xml` part can end in LF.
 
 ## 4. Approaches considered
 
-Partial write (decided by the owner):
-
 | Question | Options | Decision |
 |---|---|---|
-| Patch base | The plan-time fresh export, or the working copy | **Fresh export**: works for clients without file tools, adds no state, independent of PR 4 |
+| Delivery | With a translation layer, or on today's formats | **Today's formats**; translator dropped for now |
+| Patch base | The plan-time fresh export, or a server working copy | **Fresh export**: works for clients without file tools, adds no state |
 | Patch anchor | Unique `oldText` → `newText`, or the issue's `startLine` + `expectedText` | **Unique `oldText`**: the pattern agents' own edit tools use; no line counting inside an escaped JSON string |
-
-Working-copy location (decided by the owner):
-
-| Approach | Trade-off | Decision |
-|---|---|---|
-| A. Server-owned directory under `%LOCALAPPDATA%\TiaMcpServer\working-copies` | No configuration, never lands in a repo; clients that confine file tools to a workspace need a one-time allow | **Default** |
-| B. Startup-configured root (`--working-copy-dir` / `TIA_MCP_WORKING_COPY_DIR`) | Point it into the client workspace and file tools just work; user configures and gitignores it | **Override** |
-| C. Directory per call | Reintroduces caller-supplied paths | Rejected |
-
-Working-copy apply (decided by the owner): `workingCopyHash` is **optional**, checked when given.
-Requiring it would force a `dryRun` on working-copy writes only, unlike every other `plc_write` item.
-
-Delivery (decided by the owner): ship on today's formats, decoupled from any translation; the
-translator track is dropped for now.
-
-Why the working copy remains after the patch: the patch removes the write-side resend for every
-client, but the agent still has to read the block inline to know what to patch, and re-read it
-whenever its picture may be stale. That is a full-document read per round (72,000 characters in the
-measured case), impossible above `--max-item-chars` without raising budgets. The working copy serves
-the iterative case: a file-tool agent greps and reads only parts of the block, edits it locally
-several times, and writes it back by reference several times.
+| Working copy | In this round, or after PR 3 is measured | **Deferred** (section 6) |
+| Audit of a patch | The applied document, or the edits and hashes only | **The applied document**, as `update_block_logic` records today |
 
 ## 5. Design
 
-### PR 1: write-path trims (no contract change)
+PR order: PR 1 → PR 3 → PR 2. PR 3 needs PR 1's parser move. PR 2 is independent.
 
-1. **One worker export instead of two.** For an XML write whose bundle has companions,
+### PR 1: write-path trims and a shared bundle parser (no public contract change)
+
+1. **Move the bundle parser to `TiaMcpServer.Contracts`.** `BlockBundleFormat`,
+   `BlockImportBundleParser`, `ParsedBlockImportBundle`, `BlockImportDocument` and the `.xml`
+   lookup of `BlockImportRouting` (Siemens-free) move so host and worker share one parser
+   (`BlockBundleFormat` stays the sole owner of the format). These types throw
+   `WorkerOperationException`, which lives in the worker, and `BlockImportCoordinator.CreatePreTargetFailure`
+   maps any other exception type to `worker_operation_failed`. The move therefore introduces a
+   Contracts-side failure type carrying the failure category and converts it at every worker site, so
+   each refusal keeps its current category and message. Tests pin the categories (existing
+   `BlockBundleFormatTests`/`BlockImportBundleParserTests` plus a coordinator test), and the test
+   project's file links follow the move.
+2. **One worker export instead of two.** For an XML write whose bundle carries companions,
    `BlockImporter.Import` exports once for `RequireContentHash` (`BlockImporter.cs:46`) and again for
    `EnsureOnlyAuthoritativeDocumentChanged` (`BlockImporter.cs:87`), in the same worker request.
-   Reuse the first export for the companion check. Both checks keep their current failure
-   categories and messages.
-2. **Host diff for an XML-only submission.** When the submitted content is a single SimaticML
-   document (no bundle separators, or a bundle holding only the `.xml`), `PlcWritePlanner` builds
-   `contentDiff` against the `.xml` document of the current bundle instead of the whole bundle.
-   The hash check is unchanged (it is over the whole served bundle). This needs the bundle parser on
-   the host: move `BlockBundleFormat`/`BlockImportBundleParser`/`ParsedBlockImportBundle` (Siemens-free)
-   to `TiaMcpServer.Contracts` so host and worker share one parser.
-3. Tests: worker-side test that the companion check uses the precondition export (callback seam as in
-   `BlockExporterSafetyTests`); host test that an XML-only submission with a one-line change yields a
-   one-line diff.
-
-### PR 2: relaxed JSON encoder for delivered documents
-
-1. `CanonicalJson`'s write options use `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`, so `<`, `>`,
-   `&`, `'`, `+` and non-ASCII text are delivered literally instead of as `\uXXXX`. `"`, `\` and
-   control characters stay escaped. The documents are JSON tool results, never HTML.
-2. Same JSON values, different bytes: delivered-document hashes in the audit change for identical
-   content. Contract versions stay unchanged (the value contract is unchanged); the change is noted in
-   `docs/ARCHITECTURE.md` and the changelog, and `IMPROVEMENT_LOG.md`'s "escaping inflation" item closes.
-3. Budgets measure the serialized text, so XML and SCL items shrink against the 60,000/180,000
-   budgets; no budget value changes.
-4. Tests: a canonical document containing `<Network>` and `ä` serializes them literally; update tests
-   that pin escaped forms; worker IPC (`WorkerJson`) is out of scope.
+   Reuse the first export string for the companion check. The check stays where it is (inside the
+   coordinator's outcome tracking), so `BlockImportOutcome` keeps its shape. An XML-only submission
+   never ran the companion export, so it gains nothing here.
+3. **Host diff for an XML-only submission.** When the submitted content is a single SimaticML
+   document (no separators, or a bundle holding only the `.xml`), `PlcWritePlanner` builds
+   `contentDiff` against the `.xml` document of the current bundle; for a one-document bundle, the
+   separator line is stripped from the requested side. The hash check is unchanged (it is over the
+   whole served bundle). In that case `contentDiff.current` (`sha256`, characters, lines) describes the
+   `.xml` part, not the served document; the PLC reference says so.
+4. Tests: worker-side test that the companion check uses the precondition export (callback seam as in
+   `BlockExporterSafetyTests`); host tests that an XML-only submission and a one-document bundle with a
+   one-line change each yield a one-line diff.
 
 ### PR 3: `patch_block_logic`
 
 A `plc_write` operation `{ operationId, operation: "patch_block_logic", blockPath, format?,
-expectedContentHash, edits: [{ oldText, newText }] }`, 1 or more edits.
+expectedContentHash, edits: [{ oldText, newText }] }`, one or more edits, blocks only (types are small
+enough to resend).
+
+**Base and checks.**
 
 - Base: the plan-time export the host already makes for content writes, guarded by the
-  whole-document `expectedContentHash` (from any `plc_read`, inline or file). A mismatch is
-  `state_changed`, as for `update_block_logic`.
-- Each `oldText` is nonempty and must occur exactly once in the base; edits must not overlap; any
-  violation is a `validation_error` naming the edit index and whether it matched zero or several
-  times. Edits apply to the base, not to each other's results.
-- Line endings: `oldText` is matched with line terminators normalized (`\r\n` and `\n` equal);
-  `newText` is inserted with the terminator of the matched region (CRLF for current exports). An edit
-  spanning a `--- FILE:` separator, or touching anything outside the `.xml` document of an XML bundle,
-  is refused (`validation_error`): only the `.xml` is applied.
-- The reassembled document then follows the `update_block_logic` path unchanged, including
-  `contentDiff`, which is the caller's check that the patch did what it meant. A replan before a
-  dependent item's mutation re-applies the edits to the fresh export.
-- Blocks only; types are small enough to resend.
-- Contract: `plc_write` 2.0 → 2.1 (new operation, additive). The audit records the edits as requested.
+  whole-document `expectedContentHash` (from any `plc_read`). A mismatch is `state_changed`.
+- Uniqueness scope: the document that is applied. For `format: xml` that is the `.xml` part of the
+  bundle (found with the PR 1 parser); a bundle with no `.xml` (companion-only fallback) is refused
+  with the existing "no Simatic ML document" guidance. For `format: source` it is the whole text.
+- Each `oldText` is nonempty, not whitespace only, and must occur exactly once in the scope,
+  counting overlapping occurrences as separate matches. Edits must not overlap, judged on the original
+  offsets. Edits apply to the base, not to each other's results. A `newText` containing a bundle
+  delimiter line (`ContainsDelimiterLine`) is refused.
+- Line endings: matching normalizes terminators (`\r\n` and `\n` are equal); positions map back to the
+  original text. `newText` is written with the matched region's terminator; when the region holds none
+  or a mix, the terminator of the line containing the match start is used, else CRLF.
+- Violations are `validation_error` naming the edit index and whether it matched zero or several
+  times. They are found in planning, so, like every planner failure, they fail the whole call
+  (`PlcWritePlanner.PlanAsync`), not only the item.
 
-### PR 4: per-block working copy
+**Pipeline integration** (the review's blocker: the item list is immutable and the worker call reads
+`op.Content`).
 
-**Read.** `get_block_content` and `get_type_content` accept `output`: `inline` (default, today's
-behavior) or `file`. With `file`:
+- The operation is normalized to `update_block_logic` at one point, right after the patch is resolved,
+  so the existing name-keyed sites (`PlcPayloadContract.DecodeWrite`, `PlcWorkerInvoker`,
+  `PlcVerificationPolicy`, `PlcWritePlanner`, `PlcWorkingState.Resolve`, `PlcFormatNames`, the
+  `OperationPolicyCatalog` access check) see a known operation. The public catalog
+  (`PlcOperationCatalog`) adds `patch_block_logic` with its own field set; the request-shape and access
+  checks run on the public name before normalization. A test per name-keyed site proves a patch item
+  reaches it as `update_block_logic`.
+- The PLC write domain keeps the resolved document per `operationId` for the duration of the call:
+  computed in `PlanAsync`, recomputed in `ReplanAsync` (edits re-applied to the fresh export for a
+  dependent item), consumed by `MutateAsync` (passed to the worker as `content`, with the caller's
+  `expectedContentHash`). The format is resolved with it, so mutation and read-back use the same format
+  as planning.
+- `contentDiff` compares the base with the resolved document, as for `update_block_logic`; it is the
+  caller's check that the patch did what it meant.
+- Audit: the requested operation (with its edits) is recorded as today, and the resolved applied
+  document is recorded beside it for patch items, so the audit shows exactly what was applied. The
+  builder picks the field and states it in the audit description.
+- Contract: `plc_write` 2.0 → 2.1 (new operation, additive). New conditional members, if any, are
+  registered in `ConditionalMemberRegisterTests`.
+- Docs: `docs/SupportedOperations/` PLC reference, tool description, `AGENTS.md` PLC bullet,
+  `docs/guides/mcp-client-configuration.md` (a content write no longer has to send the whole
+  document).
 
-- The host writes the content to the working copy and returns
-  `{ format, output: "file", path, contentHash, workingCopyHash, chars, lines, warnings }` instead of
-  `content`. `contentHash` is the usual hash of the served document (the write's base);
-  `workingCopyHash` is `<format>:sha256:<hex>` of the file text as written.
-- The file holds what a write applies:
-  - `source`: the exported text as-is (`.scl`, `.db`, `.udt`).
-  - `xml`: only the primary SimaticML document (`<name>.xml`), without the bundle separators or the
-    `.s7dcl`/`.s7res` companions, which a write never applies (`BlockImportRouting`). A bundle with no
-    `.xml` document (companion-only fallback) fails the item with the existing "no Simatic ML
-    document" guidance.
-- The file is UTF-8 without BOM, byte-faithful to the served text (CRLF kept).
-- The value budget does not apply to the file, only to the small result; a block over
-  `--max-item-chars` can be read this way without raising budgets.
-- `output: "file"` with `withDependencies: true` is a `validation_error` (that read is context only).
-- Allowed in every access mode: it reads the project and writes only the server's own directory. The
-  tool description says so.
-- A new read replaces that object's working copy and its base.
+### PR 2: relaxed JSON encoder for delivered documents
 
-**Location and lifetime.**
+1. The escaping that reaches the model is done by the `Utf8JsonWriter` in `CanonicalJson.Serialize`
+   (`JsonWriterOptions`); `WriteCanonical` re-emits strings through it, so changing only the serializer
+   options changes nothing. Set `Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping` on that writer
+   (and on the serializer options for consistency).
+2. Effect: `<`, `>`, `&`, `'`, `+` and BMP non-ASCII text are delivered literally; `"` becomes `\"`
+   instead of `"`. Non-BMP characters, U+2028/U+2029, `\` and control characters stay escaped.
+3. The gain is in the text content block. `structuredContent` is re-serialized by the MCP SDK or the
+   client. Before closing the `IMPROVEMENT_LOG.md` "escaping inflation" item, measure the gain on a real
+   client (owner offered to test).
+4. Same JSON values, different bytes: delivered-document hashes in the audit change for identical
+   content. Contract versions stay unchanged. Noted in `docs/ARCHITECTURE.md` and the changelog. The
+   documents are JSON tool results; a client that renders them as HTML loses escaping as a defense in
+   depth, which is noted, not mitigated.
+5. Budgets measure the serialized text, so XML and SCL items shrink against the 60,000/180,000
+   budgets; no budget value changes.
+6. Tests: a canonical document containing `<Network>`, `"` and `ä` serializes them literally (or as
+   `\"`); update the test that pins an escaped form (`HmiGuardedWriteMcpTests.cs:44`). Worker IPC
+   (`WorkerJson`) is out of scope.
 
-- Root: `--working-copy-dir` / `TIA_MCP_WORKING_COPY_DIR` (CLI > environment), parsed once at
-  startup like the budget options, else `%LOCALAPPDATA%\TiaMcpServer\working-copies`. `doctor`
-  reports the effective root and its source.
-- Each server process uses its own instance directory under the root, holding an exclusively opened
-  lock file for its lifetime. At startup the server deletes sibling instance directories whose lock
-  can be acquired (dead instances) and never touches a live one. On normal exit it deletes its own.
-- Layout inside the instance directory is readable but not an identity:
-  `<plc>/<blocks|types>/<group path>/<name>.<ext>`, with characters invalid in Windows file names
-  encoded. Identity is the in-memory index entry, never the path.
-- Index (host memory only): key = (binding ID, binding revision, object kind, PLC name, object path,
-  format); value = file path, base `contentHash`. An entry from another binding ID or revision is
-  unusable; on a binding change the host deletes the instance directory's contents (best effort) and
-  clears the index. The binding ID and revision change on every binding transition, re-verification of
-  the same project included (`ProjectSessionBinding.TransitionTo`), so a rebind always asks for a
-  re-read, as project-tree cursors already do.
+## 6. Deferred: per-block working copy
 
-**Write.** `update_block_logic` and `update_type_content` accept `workingCopy: true` in place of
-`content` and `expectedContentHash` (mutually exclusive; `validation_error` otherwise), plus optional
-`workingCopyHash`. `format` is optional and must match the working copy's format when given.
+A server-written file per block (default under `%LOCALAPPDATA%\TiaMcpServer\working-copies`,
+overridable at startup), read with `output: "file"` and written by reference. It would remove the
+remaining full-document read for clients with file tools and allow blocks above `--max-item-chars`.
+Deferred by the owner until PR 3 has been measured live. The adversarial review found these must be
+solved if it is resumed:
 
-- Admission: no usable index entry for that object and format is a `validation_error` telling the
-  caller to read with `output: "file"`.
-- Resolution: the host reads the file and substitutes it as `content`, and the base `contentHash` from
-  the index as `expectedContentHash`, before planning. Everything downstream is today's pipeline:
-  plan-time export and hash check, `contentDiff` (against the `.xml` part, using PR 1), guards, worker
-  re-check, import, verification, audit.
-- `workingCopyHash` is optional. When given, it must equal the hash of the file as read; otherwise the
-  item fails `state_changed` with a message naming the working copy (it changed after the preview).
-  The preview effect carries a conditional `workingCopyHash` member for working-copy items, and the
-  tool description tells callers to pass the preview's value to apply.
-- The file is read once per item per call; the content-size budget on `content` does not apply, but
-  the existing diff and response budgets do.
-- At most one working-copy item per object per call (`validation_error` otherwise): a later item would
-  otherwise read a file the earlier item's success already rewrote.
-- After a successful apply, the host rewrites the working copy from the verification re-export it
-  already performs (TIA may normalize the block on import; `PlcVerificationPolicy.ReadBackAsync` has the
-  exported payload but returns only its hash today, so the payload has to be handed on) and updates
-  the base hash, so the next edit starts from current state. If that read-back is unavailable, the
-  index entry is dropped and the next write asks for a re-read. A failed or `dryRun` call never changes
-  the file or the index.
-- Audit: the requested operation records `workingCopy: true` and the resolved hashes, never the file
-  path or content (the response already carries `contentDiff.requested.sha256`).
+- Content resolved inside the binding lease and held per `operationId` (shared with PR 3's mechanism);
+  `IWriteDomain.PlanAsync` gets the pinned snapshot.
+- File names injective under Windows case-insensitivity and name normalization, or a flat unique
+  layout; a host check that the XML declares the target block's name; no reparse-point traversal.
+- A binding-transition observer (none exists; cursors check lazily), and read pinning
+  (`RequireVerifiedBindingAsync` returns no snapshot). Same-project re-verification does not bump the
+  binding revision.
+- Instance directories: create under a temp name, lock, then rename; strict name pattern; an absolute
+  root; deletable lock; files outlive a killed stdio server until the next start.
+- Strict UTF-8 decoding (BOM stripped, anything else refused); hash over the decoded text; a hash name
+  distinct from `contentHash`.
+- Per-item, race-safe refresh after apply (compare-and-swap index, atomic file writes), and a rule for
+  a re-read over local edits.
+- Owner decisions then needed: leftover files after a crash; re-read over local edits; `plc_read`
+  (annotated read-only) writing files.
 
-**Contracts.** `plc_read` 1.0 → 1.1 and `plc_write` → 2.2 if PR 3 landed first, else 2.1 (additive:
-new optional request members and conditional result members). New conditional members are registered
-in `ConditionalMemberRegisterTests`.
+## 7. Left to the builder
 
-**Docs.** ADR (working copy: server-owned files addressed by identity, session lifetime, privacy
-note); `docs/SupportedOperations/` PLC reference; `docs/guides/mcp-client-configuration.md` (allowing
-the directory in clients, the override, gitignore); `AGENTS.md` PLC bullet.
-
-## 6. Left to the builder
-
-- Exact names of new internal types and files; where the working-copy service is registered.
-- The encoding scheme for file-name characters, and the lock-file mechanism details.
-- Whether PR 1's parser move keeps type-forwarding shims for tests or updates the links.
+- Exact names of new internal types and files.
+- The Contracts-side failure type of PR 1 and how worker sites convert it, within the stated rule.
+- The audit field for the resolved patch document.
 - Test granularity beyond the cases named above.
 
-## 7. Calls made by Claude, approved by the owner
+## 8. Calls made by Claude, approved by the owner
 
-- An XML working copy holds only the `.xml`, never the companions.
-- Contract versions as stated per PR; PR 2 changes no contract version but changes audit hashes.
-- One instance directory per server process, guarded by a lock file.
-- A rebind invalidates working copies, like project-tree cursors.
-- At most one working-copy item per object per call.
-- After a successful apply, the working copy is refreshed from the verification re-export.
 - PR 1 moves the bundle parser into `TiaMcpServer.Contracts`.
-
-## 8. PR order
-
-PR 1 → PR 3 → PR 2 → PR 4. PR 1 is the smallest and warms up the content-write path. PR 3 fixes the
-measured cost of issue #224 for every client; it patches the whole served bundle, so it does not need
-PR 1. PR 2 is independent. PR 4 needs PR 1's XML-part diff. PR 4 is the largest and the only one with
-new server state; it lands last, once PR 3 has been measured live.
+- PR 2 changes no contract version but changes audit hashes.
+- `patch_block_logic` is normalized to `update_block_logic` at one point.
