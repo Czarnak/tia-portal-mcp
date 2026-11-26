@@ -1,4 +1,6 @@
 using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Project;
+using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Json;
 using TiaMcpServer.OperationBatches;
@@ -6,6 +8,7 @@ using TiaMcpServer.Plc;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Tests.TestSupport;
+using TiaMcpServer.Worker;
 using Xunit;
 
 namespace TiaMcpServer.Tests.Plc;
@@ -146,9 +149,11 @@ public sealed class PlcWriteBudgetTests
         using var requests = new FakeWorkerRequestLog(audit.Path);
         using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-roundtrip");
         var before = requests.Methods().Length;
-        // '<' is escaped to six characters in every identity copy.
+        // U+0001 remains escaped to six characters in every identity copy.
         var items = Enumerable.Range(0, 50)
-            .Select(i => PlcGuardedWriteFixture.CreateTag(i.ToString("D3") + new string('<', 253), "Tag" + i)).ToArray();
+            .Select(i => PlcGuardedWriteFixture.CreateTag(i.ToString("D3") + new string('\u0001', 253), "Tag" + i)).ToArray();
+        Assert.Equal(50, items.Select(item => item.OperationId).Distinct().Count());
+        Assert.All(items, item => Assert.Equal(256, item.OperationId.Length));
         Assert.True(PlcWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars);
 
         var response = await fixture.RunAsync(false, items);
@@ -158,6 +163,20 @@ public sealed class PlcWriteBudgetTests
         Assert.Contains("smaller plc_write calls", response.Error.Message);
         Assert.Equal(before, requests.Methods().Length);
         Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
+    [Theory]
+    [InlineData('<')]
+    [InlineData('\u4e00')]
+    public void ProtectedCoreWithLiteralIdentitiesIsAdmitted(char identityCharacter)
+    {
+        var items = Enumerable.Range(0, 50)
+            .Select(i => PlcGuardedWriteFixture.CreateTag(i.ToString("D3") + new string(identityCharacter, 253), "Tag" + i)).ToArray();
+        Assert.Equal(50, items.Select(item => item.OperationId).Distinct().Count());
+        Assert.All(items, item => Assert.Equal(256, item.OperationId.Length));
+        Assert.True(PlcWritePayloadBudget.MeasureProtectedCore(items) <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        using var client = new OpennessWorkerClient(new ProjectSessionBinding(null));
+        Assert.True(new PlcWriteDomain(client).Validate(items, McpAccessMode.ReadWrite).IsValid);
     }
 
     [Fact]

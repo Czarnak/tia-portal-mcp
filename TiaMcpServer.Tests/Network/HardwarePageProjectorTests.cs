@@ -15,14 +15,21 @@ public class HardwarePageProjectorTests
     private const string SnapshotHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     [Theory]
-    [InlineData(200, 2, false)]
-    [InlineData(200, 2, true)]
-    [InlineData(200, 1, false)]
-    [InlineData(100, 2, false)]
+    [InlineData('\u2028', 200, 2, false)]
+    [InlineData('\u2028', 200, 2, true)]
+    [InlineData('\u2028', 200, 1, false)]
+    [InlineData('\u2028', 100, 2, false)]
+    [InlineData('\u4e2d', 200, 2, false)]
     public void Project_PublishesOnlyResumableCursorsOrABoundedCursorOmission(
-        int pathCharacters, int totalDevices, bool oversizedWarnings)
+        char pathCharacter, int pathCharacters, int totalDevices, bool oversizedWarnings)
     {
-        var path = ProjectPathNormalization.Canonicalize(@"C:\Projects\" + new string('\u4e2d', pathCharacters) + @"\Sample.ap21")!;
+        // U+2028 remains JSON-escaped and is valid inside a Windows filename.
+        // The same length of CJK text now fits the UTF-8 cursor envelope.
+        var pathSegment = new string(pathCharacter, pathCharacters);
+        var path = ProjectPathNormalization.Canonicalize(@"C:\Projects\" + pathSegment + @"\Sample.ap21")!;
+        Assert.Equal(Path.GetFullPath(@"C:\Projects\" + pathSegment + @"\Sample.ap21"), path);
+        if (pathCharacter == '\u2028')
+            Assert.Equal(2 + 6 * pathCharacters, CanonicalJson.Serialize(pathSegment).Length);
         var identity = Identity();
         identity.ProjectPath = path;
         var binding = new ProjectBindingSnapshot(
@@ -36,7 +43,7 @@ public class HardwarePageProjectorTests
             path, identity, binding, warnings);
 
         Assert.True(CanonicalJson.Serialize(item).Length <= ItemLimit);
-        if (pathCharacters == 200 && totalDevices > 1)
+        if (pathCharacter == '\u2028' && pathCharacters == 200 && totalDevices > 1)
         {
             Assert.Equal(OperationBatchStatus.Omitted, item.Status);
             Assert.Null(item.Result);
