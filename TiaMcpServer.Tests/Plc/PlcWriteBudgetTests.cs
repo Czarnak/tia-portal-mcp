@@ -312,15 +312,17 @@ public sealed class PlcWriteBudgetTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ProtectedCore_ReservesSharedCompilationEntries(bool escapedSelector)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ProtectedCore_ReservesSharedCompilationEntries(bool escapedSelector, bool malformedPath)
     {
         var selector = escapedSelector ? "PLC_" + new string('\u0001', 100) : "PLC_1";
+        var blockPath = selector + (malformedPath ? "/Blocks" : "/Main");
         var items = Enumerable.Range(0, 2).Select(i => new PlcOperationRequest
         {
             OperationId = i + new string('\u0001', 255), Operation = "update_block_logic", Format = "source",
-            BlockPath = selector + "/Main", Content = "source", ExpectedContentHash = new string('a', 64),
+            BlockPath = blockPath, Content = "source", ExpectedContentHash = "source:sha256:" + new string('a', 64),
         }).ToArray();
         var perOperation = items.Select(item => new PlcOperationRequest
         {
@@ -328,7 +330,7 @@ public sealed class PlcWriteBudgetTests
             Content = item.Content, ExpectedContentHash = item.ExpectedContentHash,
         }).ToArray();
         // The call will group into one selector at runtime, but admission reserves one entry per import.
-        var minimumEntry = new PlcSharedCompilation(selector, [items[0].OperationId], "unavailable", null,
+        var minimumEntry = new PlcSharedCompilation(malformedPath ? blockPath : selector, [items[0].OperationId], "unavailable", null,
             new(new string('x', 64), "Diagnostic details omitted. Inspect current state with plc_read."),
             new(StructuredOperationBatchPayloadBudget.DocumentLimitReason, int.MaxValue, int.MaxValue, "compile_check", ""));
         var minimumReserved = 2 * CanonicalJson.Serialize(minimumEntry).Length;
@@ -345,12 +347,38 @@ public sealed class PlcWriteBudgetTests
         var items = Enumerable.Range(0, 50).Select(i => new PlcOperationRequest
         {
             OperationId = "op" + i, Operation = "update_block_logic", Format = "source", BlockPath = selector + "/Main",
-            Content = "source", ExpectedContentHash = new string('a', 64),
+            Content = "source", ExpectedContentHash = "source:sha256:" + new string('a', 64),
         }).ToArray();
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null));
 
         Assert.True(PlcWritePayloadBudget.MeasureProtectedCore(items) > StructuredOperationBatchPayloadBudget.MaxDocumentChars);
         Assert.False(new PlcWriteDomain(client).Validate(items, McpAccessMode.ReadWrite).IsValid);
+    }
+
+    [Theory]
+    [InlineData("PLC_2//Main")]
+    [InlineData("PLC_2/Blocks")]
+    [InlineData("PLC_2/Groups/Main")]
+    public async Task ProtectedCore_MalformedSourcePaths_KeepCanonicalValidationError(string blockPath)
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-roundtrip");
+        var before = requests.Methods().Length;
+        var hash = "source:sha256:" + new string('a', 64);
+
+        var raw = await fixture.RunRawAsync(false,
+            PlcGuardedWriteFixture.UpdateBlock("bad", blockPath, hash, "source"),
+            PlcGuardedWriteFixture.UpdateBlock("valid", "PLC_2/Main", hash, "source"));
+
+        var response = PlcGuardedWriteFixture.Document(raw);
+        Assert.True(raw.IsError);
+        Assert.Equal("error", response.Phase);
+        Assert.Equal(WorkerFailureCategories.ValidationError, response.Error!.Category);
+        Assert.Equal("shared-per-plc", response.CompilationMode);
+        Assert.Null(response.SharedCompilations);
+        Assert.DoesNotContain("update_block_logic", requests.Methods().Skip(before));
+        Assert.DoesNotContain("compile_check", requests.Methods().Skip(before));
     }
 
     [Fact]

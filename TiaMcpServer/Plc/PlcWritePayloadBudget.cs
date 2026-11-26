@@ -139,10 +139,23 @@ public static class PlcWritePayloadBudget
                 new(false, items.Select(i => new PlcOperationVerification(i.OperationId, false, "contentHash", null, null, null, DiagnosticSummary)).ToArray(),
                     core.Omission), deferred.Count == 0 ? "per-operation" : "shared-per-plc",
                 deferred.Count == 0 ? null : items.Where(i => deferred.Contains(i.OperationId)).Select(i =>
-                    new PlcSharedCompilation(PlcSharedCompilationPolicy.Selector(i.BlockPath!), [i.OperationId], "unavailable", null,
+                    new PlcSharedCompilation(CompilationSelectorForBudget(i.BlockPath!), [i.OperationId], "unavailable", null,
                         new(new string('x', 64), DiagnosticSummary),
                         CompilationBudget.Omission(StructuredOperationBatchPayloadBudget.DocumentLimitReason, int.MaxValue, int.MaxValue))).ToArray(),
                 core.Omission));
+    }
+
+    private static string? CompilationSelectorForBudget(string blockPath)
+    {
+        try
+        {
+            return PlcSharedCompilationPolicy.Selector(blockPath);
+        }
+        catch (ArgumentException)
+        {
+            // Planning owns path validation; reserving the raw path keeps admission conservative.
+            return blockPath;
+        }
     }
 
     private static bool AnyOverItemLimit(PlcGuardedWriteResponse response, int maxItemChars)
