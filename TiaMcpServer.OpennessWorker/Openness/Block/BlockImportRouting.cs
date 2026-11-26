@@ -80,6 +80,21 @@ internal static class BlockImportRouting
         }
     }
 
+    /// <summary>
+    /// The same check against the text of an export already taken in this request (the hash
+    /// precondition's), so a write exports the block once instead of twice.
+    /// </summary>
+    public static void EnsureOnlyAuthoritativeDocumentChanged(
+        ParsedBlockImportBundle submitted,
+        string currentExport,
+        string authoritativeName)
+    {
+        EnsureOnlyAuthoritativeDocumentChanged(
+            submitted,
+            BlockImportBundleParser.Parse(authoritativeName, currentExport),
+            authoritativeName);
+    }
+
     private static BlockImportDocument? FindSimaticMlDocument(ParsedBlockImportBundle bundle)
         => BlockBundleText.FindSimaticMlDocument(bundle);
 

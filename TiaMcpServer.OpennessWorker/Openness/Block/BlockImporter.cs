@@ -43,11 +43,13 @@ public static class BlockImporter
                         + "block that is already in the project; it never creates one.");
                 }
 
+                // Kept for the companion check: one export serves both checks of this request.
+                var currentExport = BlockExporter.Export(project, blockPath, SourceFormatNames.Xml);
                 PlcWritePreconditions.RequireContentHash(
                     expectedContentHash,
                     SourceFormatNames.Xml,
-                    BlockExporter.Export(project, blockPath, SourceFormatNames.Xml));
-                return new XmlImportPreflight(fallbackDocumentName, prepared);
+                    currentExport);
+                return new XmlImportPreflight(fallbackDocumentName, prepared, currentExport);
             },
             sourceApplicable: false);
 
@@ -57,7 +59,7 @@ public static class BlockImporter
             (directory, bundle, boundary) => ImportDocuments(
                 project,
                 preflight.Prepared.Address,
-                blockPath,
+                preflight.CurrentExport,
                 directory,
                 bundle,
                 boundary),
@@ -74,7 +76,7 @@ public static class BlockImporter
     private static void ImportDocuments(
         ProjectBase project,
         BlockAddress address,
-        string blockPath,
+        string currentExport,
         DirectoryInfo directory,
         ParsedBlockImportBundle bundle,
         BlockImportInvocationBoundary boundary)
@@ -86,12 +88,9 @@ public static class BlockImporter
             var authoritative = BlockImportRouting.SelectAuthoritativeDocument(bundle);
             if (bundle.Documents.Count > 1)
             {
-                var current = BlockImportBundleParser.Parse(
-                    authoritative.LogicalName,
-                    BlockExporter.Export(project, blockPath, SourceFormatNames.Xml));
                 BlockImportRouting.EnsureOnlyAuthoritativeDocumentChanged(
                     bundle,
-                    current,
+                    currentExport,
                     authoritative.LogicalName);
             }
 
@@ -215,14 +214,18 @@ public static class BlockImporter
 
     private sealed class XmlImportPreflight
     {
-        public XmlImportPreflight(string fallbackDocumentName, BlockUpdatePreflight prepared)
+        public XmlImportPreflight(string fallbackDocumentName, BlockUpdatePreflight prepared, string currentExport)
         {
             FallbackDocumentName = fallbackDocumentName;
             Prepared = prepared;
+            CurrentExport = currentExport;
         }
 
         public string FallbackDocumentName { get; }
         public BlockUpdatePreflight Prepared { get; }
+
+        /// <summary>The export the hash precondition checked; the companion check reuses it.</summary>
+        public string CurrentExport { get; }
     }
 
     private sealed class SourceImportPreflight

@@ -64,4 +64,34 @@ public class BlockImportRoutingTests
 
         BlockImportRouting.EnsureOnlyAuthoritativeDocumentChanged(submitted, current, "Main.xml");
     }
+
+    [Fact]
+    public void CompanionCheckFromExportTextAcceptsUnchangedCompanions()
+    {
+        var submitted = Bundle(("B.xml", "new"), ("B.s7dcl", "d"));
+        var currentExport = BlockBundleText.Compose(new[]
+        {
+            new BlockImportDocument("B.xml", "B.xml", "old"),
+            new BlockImportDocument("B.s7dcl", "B.s7dcl", "d"),
+        });
+
+        BlockImportRouting.EnsureOnlyAuthoritativeDocumentChanged(submitted, currentExport, "B.xml");
+    }
+
+    [Fact]
+    public void CompanionCheckFromExportTextRefusesEditedCompanion()
+    {
+        var submitted = Bundle(("B.xml", "new"), ("B.s7dcl", "d"));
+        var currentExport = BlockBundleText.Compose(new[]
+        {
+            new BlockImportDocument("B.xml", "B.xml", "old"),
+            new BlockImportDocument("B.s7dcl", "B.s7dcl", "other"),
+        });
+
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockImportRouting.EnsureOnlyAuthoritativeDocumentChanged(submitted, currentExport, "B.xml"));
+
+        Assert.Equal(TiaMcpServer.Contracts.Worker.WorkerFailureCategories.ValidationError, exception.FailureCategory);
+        Assert.Contains("'B.s7dcl' was modified", exception.Message);
+    }
 }
