@@ -1,6 +1,6 @@
-namespace TiaMcpServer.OpennessWorker.Openness.Block;
+namespace TiaMcpServer.Contracts.Block;
 
-internal sealed class ParsedBlockImportBundle
+public sealed class ParsedBlockImportBundle
 {
     public ParsedBlockImportBundle(
         string primaryDocumentName,

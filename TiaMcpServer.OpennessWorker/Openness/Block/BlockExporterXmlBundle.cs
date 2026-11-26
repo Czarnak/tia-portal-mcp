@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Block;
 using Siemens.Engineering;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Openness.Infrastructure;

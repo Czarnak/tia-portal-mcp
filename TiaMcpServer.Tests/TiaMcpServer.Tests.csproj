@@ -297,10 +297,6 @@
       Link="Network\HardwarePageDescriptorSet.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\HardwarePageCandidateReader.cs"
       Link="Network\HardwarePageCandidateReader.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportDocument.cs"
-      Link="Block\BlockImportDocument.cs" />
-    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\ParsedBlockImportBundle.cs"
-      Link="Block\ParsedBlockImportBundle.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportBundleParser.cs"
       Link="Block\BlockImportBundleParser.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImportStager.cs"

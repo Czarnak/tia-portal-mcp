@@ -245,6 +245,24 @@ public class BlockImportCoordinatorTests
     }
 
     [Fact]
+    public void CoordinatorKeepsValidationErrorForMalformedBundle()
+    {
+        var targetCalls = 0;
+
+        var exception = Assert.Throws<WorkerOperationException>(() => BlockImportCoordinator.Execute(
+            "Main.xml",
+            "--- FILE: bad\n<x/>",
+            (_, _, _) => targetCalls++,
+            _ => BlockPostconditionEvidence.Import(
+                BlockCompileObservation.Unavailable(report: null),
+                finalReadStage: "unavailable",
+                targetPresent: null)));
+
+        Assert.Equal(WorkerFailureCategories.ValidationError, exception.FailureCategory);
+        Assert.Equal(0, targetCalls);
+    }
+
+    [Fact]
     public void Execute_StartedTargetThrowRunsOneFinalObservationWithoutCompileOrRetry()
     {
         var targetCalls = 0;

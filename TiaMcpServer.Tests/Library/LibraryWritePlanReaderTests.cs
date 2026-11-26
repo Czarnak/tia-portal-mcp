@@ -303,8 +303,8 @@ public sealed class LibraryWritePlanReaderTests
             File.WriteAllText(file.FullName, "companion");
             return new() { ExportedDocuments = new List<FileInfo> { file } };
         };
-        var docs = new[] { new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.xml", "Motor.xml", "<Document />"),
-            new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.s7dcl", "Motor.s7dcl", "companion") };
+        var docs = new[] { new TiaMcpServer.Contracts.Block.BlockImportDocument("Motor.xml", "Motor.xml", "<Document />"),
+            new TiaMcpServer.Contracts.Block.BlockImportDocument("Motor.s7dcl", "Motor.s7dcl", "companion") };
         item.ExpectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml",
             TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(docs));
         docs[1] = new("Motor.s7dcl", "Motor.s7dcl", "edited");
@@ -327,7 +327,7 @@ public sealed class LibraryWritePlanReaderTests
         var item = new LibraryWriteRequestInfo { Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor",
             Content = xml, ExpectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml",
                 TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(new[] {
-                    new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.xml", "Motor.xml", xml) })) };
+                    new TiaMcpServer.Contracts.Block.BlockImportDocument("Motor.xml", "Motor.xml", xml) })) };
         return (item, block, version);
     }
 
@@ -350,7 +350,7 @@ public sealed class LibraryWritePlanReaderTests
         var plan = Plan(new() { Operation = "create_type_version", PlcName = "PLC", PlcKind = "block", PlcObjectName = "Motor", ReplaceInWork = true,
             Content = xml, ExpectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml",
                 TiaMcpServer.OpennessWorker.Openness.Block.BlockBundleFormat.Compose(new[] {
-                    new TiaMcpServer.OpennessWorker.Openness.Block.BlockImportDocument("Motor.xml", "Motor.xml", xml) })) });
+                    new TiaMcpServer.Contracts.Block.BlockImportDocument("Motor.xml", "Motor.xml", xml) })) });
         Assert.Equal(version.Guid.ToString("D"), plan.Type!.VersionGuid);
         Assert.True(plan.Type.ReplacedInWork);
         Assert.Contains("PLC/Motor", plan.Type.InstancePaths);

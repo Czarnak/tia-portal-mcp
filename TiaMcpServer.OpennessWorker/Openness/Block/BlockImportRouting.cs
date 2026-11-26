@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
 
@@ -80,17 +81,7 @@ internal static class BlockImportRouting
     }
 
     private static BlockImportDocument? FindSimaticMlDocument(ParsedBlockImportBundle bundle)
-    {
-        foreach (var document in bundle.Documents)
-        {
-            if (document.LogicalName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                return document;
-            }
-        }
-
-        return null;
-    }
+        => BlockBundleText.FindSimaticMlDocument(bundle);
 
     private static WorkerOperationException ValidationFailure(string message)
     {
