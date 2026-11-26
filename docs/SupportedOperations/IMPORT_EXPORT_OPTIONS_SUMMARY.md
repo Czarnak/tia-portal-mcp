@@ -53,10 +53,14 @@ For block updates, the worker attempts validation, target import or generation, 
 and an independent fresh postcondition read in order, then reports which stages were established. A
 proven refusal before target invocation leaves import, compile, and final read `not_started`. If
 target invocation starts but its return cannot be established, commitment is `unknown`; compile and
-any unestablished final read are `unavailable`. On the normal-return path, the worker compiles the
-affected scope and checks the postcondition by freshly resolving and re-exporting the block.
-External-source global DB updates on that path compile the PLC because changing a DB declaration can
-affect dependent blocks.
+any unestablished final read are `unavailable`. On the normal-return path, the worker observes
+compilation and checks the postcondition by freshly resolving and re-exporting the block.
+In a validated call with at least two source-format block updates or patches, only the whole-PLC
+compile is deferred: source generation, temporary-source cleanup and the fresh final read still
+run per import. A completed deferred import reports `compileStage:"deferred"`, `compileReport:null`
+and `compileDetailsOmitted:false`; a refused or unknown import retains its existing stages.
+Other calls keep per-operation compilation, including external-source global DB updates, because
+changing a DB declaration can affect dependent blocks.
 
 Import success is independent of that subsequent compilation: a completed successful import with a
 successful final read remains a succeeded item when compilation reports errors or is unavailable.
@@ -64,6 +68,11 @@ Its `result.importOutcome.compileStage` and `compileReport` retain the separate 
 later batch items continue. Successful import does not mean the PLC compiles. Actual import or final
 verification failures still fail the item; observed Portal loss remains `portal_lost`. Compiler
 descriptions in the import outcome remain sanitized; use `compile_check` for compiler messages.
+For deferred imports, the root `compilationMode` is `"shared-per-plc"` and `sharedCompilations`
+contains the informational compile results after the mutation loop, before content verification.
+Per-operation calls use `"per-operation"` and `sharedCompilations:null`; shared previews and
+pre-apply rejections also have null shared results. The selector, early-stop and cancellation rules
+are described in [shared source compilation](PLC_OPERATIONS_SUMMARY.md#shared-source-compilation).
 
 ### Block-update outcome evidence
 
@@ -81,8 +90,8 @@ The object uses these fields and closed values:
 | `importStage` | `not_started`, `completed`, or `unknown`. |
 | `importResultState` | `success`, `non_success`, or `unavailable`. A normally returned `Blocks.Import` or `GenerateBlocksFromSource` call is `success`; a normally returned SIMATIC SD result maps to `success` or `non_success`; a call that does not return is `unavailable`. |
 | `targetMutationCommitted` | Nullable Boolean. `false` proves refusal before the target import/generation call; `true` means that call returned normally; `null` means commitment is unknown after invocation started or transport became ambiguous. Presence evidence alone never determines this field. |
-| `compileStage` | `not_started`, `succeeded`, `failed`, or `unavailable`. Warning-only reports are `succeeded`. `unavailable` is based on structured target/session/invocation evidence and takes precedence over `failed`, which takes precedence over `succeeded`. |
-| `compileReport` | A nullable bounded copy of the whole aggregate compile report. It is null when compilation did not start and may be null when no report could be established; a partial report is retained when available. Full aggregate error/warning totals are preserved even when detail is omitted. |
+| `compileStage` | `not_started`, `deferred`, `succeeded`, `failed`, or `unavailable`. `deferred` appears only for a completed source import selected for shared compilation and supplies no per-item compile evidence. Warning-only reports are `succeeded`. For per-operation observations, `unavailable` is based on structured target/session/invocation evidence and takes precedence over `failed`, which takes precedence over `succeeded`. |
+| `compileReport` | A nullable bounded copy of the whole aggregate compile report. It is null for deferred compilation, when compilation did not start, and may be null when no report could be established; a partial report is retained when available. Full aggregate error/warning totals are preserved even when detail is omitted. |
 | `compileDetailsOmitted` | `true` when any PLC, message, note, or string detail was omitted or shortened by the bounded projection. |
 | `finalReadStage` | `not_started`, `succeeded`, or `unavailable`. |
 | `targetPresent` | Nullable Boolean. It is `true` or `false` when the independent fresh resolver establishes presence or absence, and null only when resolution itself is unavailable or unreliable. A later export/read failure can leave `finalReadStage=unavailable` while preserving `targetPresent=true`. Presence does not imply import commitment. |

@@ -324,6 +324,18 @@ completion track closed remain in its linked acceptance report.
   The cause (a user close, or an exit on detach) was not determined and it was not reproduced; a
   possible crash-on-detach hazard to watch for.
 
+## Open: shared source compilation follow-ups (issue #238)
+
+`plc_write` groups committed source imports by the PLC selector parsed from each block path.
+The compile scope remains the same as the former per-operation source compile.
+
+- **Deduplicate selector aliases.** Software-name and device-name selectors for one PLC currently
+  form separate compile groups; only case differences are deduplicated. Resolve equivalent aliases
+  without broadening or narrowing the existing compile scope.
+- **Group by resolved targets.** Evaluate grouping by verified destination identity rather than
+  request spelling. Preserve the deliberate null-selector behavior: an unqualified path currently
+  compiles every PLC in the bound project, not only the block's resolved PLC.
+
 ## Open: plc_write follow-ups (PR B, 2026-10-07)
 
 Found while building and live-accepting [PR B](adr/0004-guarded-single-call-write-pipeline.md)
