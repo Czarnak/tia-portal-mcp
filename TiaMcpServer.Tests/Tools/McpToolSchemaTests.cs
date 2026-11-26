@@ -489,6 +489,28 @@ public class McpToolSchemaTests
         Assert.False(properties.TryGetProperty("metadataChange", out _));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("2025-11-25")]
+    public async Task PlcWrite_OutputSchema_RequiresSharedCompilationMembers(string? protocolVersion)
+    {
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full,
+            clientOptions: new McpClientOptions { ProtocolVersion = protocolVersion });
+        var tools = await harness.Client.ListToolsAsync();
+        var schema = tools.Single(tool => tool.Name == "plc_write").ProtocolTool.OutputSchema!.Value;
+        var required = schema.GetProperty("required").EnumerateArray().Select(member => member.GetString()).ToArray();
+        Assert.Contains("compilationMode", required);
+        Assert.Contains("sharedCompilations", required);
+        var properties = schema.GetProperty("properties");
+        Assert.Equal("string", properties.GetProperty("compilationMode").GetProperty("type").GetString());
+        var compilations = properties.GetProperty("sharedCompilations");
+        Assert.Equal(new[] { "array", "null" }, compilations.GetProperty("type").EnumerateArray().Select(type => type.GetString()));
+        Assert.Equal(new[] { "plcName", "operationIds", "stage", "report", "failure", "omission" },
+            compilations.GetProperty("items").GetProperty("required").EnumerateArray().Select(member => member.GetString()));
+        Assert.Equal("string", compilations.GetProperty("items").GetProperty("properties").GetProperty("stage").GetProperty("type").GetString());
+
+    }
+
     /// <summary>
     /// The snapshot is the tools/list outputSchema on main. Wrapped tools skip the SDK's legacy-wire
     /// reshaping, so the legacy protocol is compared too; on main both protocols emit the same schemas.
