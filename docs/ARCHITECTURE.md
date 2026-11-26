@@ -535,6 +535,23 @@ registered tool is now structured; the three batch tools were removed rather tha
   properties, unmapped members, and case-mismatched names) and a repository-defined canonical
   serialization (recursive ordinal property ordering, preserved array order, explicit nulls,
   compact UTF-8). It is *not* an RFC 8785 claim — see the plan's Global Constraints.
+- Both the canonical serializer and its final `Utf8JsonWriter` use
+  `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`. XML/SCL punctuation such as `<`, `>`, `&`,
+  `'` and `+`, and ordinary BMP text such as `äŁ漢`, are literal; quotes use `\"` rather
+  than `\u0022`. Required JSON escaping remains for backslashes and control characters;
+  non-BMP characters, U+2028/U+2029 and .NET's block-listed characters remain escaped.
+  This changes spelling, not decoded values, property ordering, explicit nulls or public
+  contract versions. See Microsoft's [character-encoding guidance](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/character-encoding#serialize-all-characters).
+  Treat this output as UTF-8 JSON or decoded data; it is unsuitable for direct embedding in
+  HTML or a script element.
+- Budget measurements still count canonical string characters against effective
+  `MaxItemChars`/`MaxDocumentChars` (defaults 60,000/180,000), with startup overrides and
+  domain-specific fixed limits unchanged. Reduced escaping can admit previously omitted
+  values or refused identities. The same helper serves host normalization and audit fields;
+  worker IPC (`WorkerJson`) and Openness import/export encoding are unchanged. Audit
+  `responseHash` still hashes the UTF-8 bytes of exact delivered `responseText`, so hashes
+  change when its spelling changes; existing audit records stay valid. PLC `contentHash`
+  continues to hash exported content and is unaffected by response escaping.
 - The same file provides the worker-payload reader, `DeserializeWorkerPayload<T>` and
   `NormalizeWorkerPayload<T>` (the latter returns the value, its canonical text and element, and
   runs an optional semantic validator). It applies the strict rules above plus
@@ -551,6 +568,10 @@ registered tool is now structured; the three batch tools were removed rather tha
 - `TiaMcpServer/Tools/StructuredToolResult.cs` renders one canonical JSON document and returns it
   as both the `content` text block and a detached `structuredContent` `JsonElement`, from a single
   `CanonicalJson.Serialize` call, so the two representations cannot drift apart.
+  SDK/client serialization of `structuredContent` or the outer JSON-RPC envelope is a separate
+  boundary and can escape characters again. The encoder controls canonical text, not every
+  transport byte or the client's model-facing representation; token and latency effects require
+  measurement in the actual client.
 - `TiaMcpServer/OperationBatches/OperationBatchReadResponse.cs` defines the shared read envelope
   and tool-level error record. Rejections carry `batch:null` and MCP `isError:true`; a batch that
   ran carries `error:null` and `isError:false`, even when individual items failed or were omitted.

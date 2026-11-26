@@ -48,22 +48,22 @@ All paths below are repository-relative. Extend existing test files; this plan r
 
 **Interfaces:** Keep `CanonicalJson.Serialize`, `CanonicalJson.ToElement`, `StructuredToolResult.Create` and `CreateCanonical` signatures and their callers unchanged.
 
-- [ ] Add `Serialize_UsesRelaxedEscapingWithoutChangingValues`, exercising both a CLR object and an already-parsed `JsonElement` whose input uses Unicode escapes. Include nested values, an array and a special-character property name, with `<Network>`, `<>&'+`, a quote, a backslash and `äŁ漢`. Assert exact literal output for the relaxed characters, `\"` for a quote, deterministic ordinal property order and equality of decoded names/values. The current implementation must fail the literal spelling assertions; a pre-escaped element must be re-emitted through the final writer rather than copied raw.
-- [ ] Add `Serialize_PreservesRequiredEscapingAndRoundTripsValues`, covering U+0001, CR/LF, tab, backslash, U+2028, U+2029 and U+1F600. Assert valid JSON, expected retained escape forms and identical decoded values. Use C# Unicode escapes/`char.ConvertFromUtf32` in fixture construction where helpful. Do not assert a comprehensive .NET block-list inventory.
-- [ ] Add `Create_RelaxedTextAndStructuredContentUseOneDocument` in `StructuredToolResultTests`, using `Create` with a payload containing XML attributes, quotes and BMP text. Read its original `TextContentBlock.Text`; assert relaxed spelling, unchanged parsed content, and equality with the detached `StructuredContent` element's `GetRawText()` before any SDK reserialization.
-- [ ] Run the focused command below. Observe the relaxed-spelling cases fail before production changes; existing ordering, explicit-null, parsing and repeated-stability tests must keep their meaning.
+- [x] Add `Serialize_UsesRelaxedEscapingWithoutChangingValues`, exercising both a CLR object and an already-parsed `JsonElement` whose input uses Unicode escapes. Include nested values, an array and a special-character property name, with `<Network>`, `<>&'+`, a quote, a backslash and `äŁ漢`. Assert exact literal output for the relaxed characters, `\"` for a quote, deterministic ordinal property order and equality of decoded names/values. The current implementation must fail the literal spelling assertions; a pre-escaped element must be re-emitted through the final writer rather than copied raw.
+- [x] Add `Serialize_PreservesRequiredEscapingAndRoundTripsValues`, covering U+0001, CR/LF, tab, backslash, U+2028, U+2029 and U+1F600. Assert valid JSON, expected retained escape forms and identical decoded values. Use C# Unicode escapes/`char.ConvertFromUtf32` in fixture construction where helpful. Do not assert a comprehensive .NET block-list inventory.
+- [x] Add `Create_RelaxedTextAndStructuredContentUseOneDocument` in `StructuredToolResultTests`, using `Create` with a payload containing XML attributes, quotes and BMP text. Read its original `TextContentBlock.Text`; assert relaxed spelling, unchanged parsed content, and equality with the detached `StructuredContent` element's `GetRawText()` before any SDK reserialization.
+- [x] Run the focused command below. Observe the relaxed-spelling cases fail before production changes; existing ordering, explicit-null, parsing and repeated-stability tests must keep their meaning.
 
 ```powershell
 dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~CanonicalJsonTests|FullyQualifiedName~StructuredToolResultTests"
 ```
 
-- [ ] Before changing production code, add Task 2's positive quote-budget and maximum-CJK-ID admission cases and run Task 2's focused command against the unchanged encoder. Require those new cases to fail for omission/admission respectively, while the existing rejection fixtures still pass. Then add `using System.Text.Encodings.Web;` and set the following property in both the existing final writer's `JsonWriterOptions` initializer and the `CreateCanonicalWrite` serializer initializer, preserving every other option:
+- [x] Before changing production code, add Task 2's positive quote-budget and maximum-CJK-ID admission cases and run Task 2's focused command against the unchanged encoder. Require those new cases to fail for omission/admission respectively, while the existing rejection fixtures still pass. Then add `using System.Text.Encodings.Web;` and set the following property in both the existing final writer's `JsonWriterOptions` initializer and the `CreateCanonicalWrite` serializer initializer, preserving every other option:
 
 ```csharp
 Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 ```
 
-- [ ] Rerun the same command and require all selected tests to pass. Inspect the production diff: the import and two assignments should be sufficient; do not change the strict reader configurations or `WriteCanonical` traversal.
+- [x] Rerun the same command and require all selected tests to pass. Inspect the production diff: the import and two assignments should be sufficient; do not change the strict reader configurations or `WriteCanonical` traversal.
 
 **Acceptance:** Both CLR and `JsonElement` inputs use relaxed final output; JSON values and canonical ordering survive; required escaping and the one-document result seam remain covered.
 
@@ -77,13 +77,13 @@ Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 
 **Interfaces:** Use existing status projection, `NetworkWriteDomain.Validate`, `NetworkWritePayloadBudget.MeasureProtectedCore`, `McpProtocolTestHarness`, `CanonicalToolDocument`, and temporary audit helpers. Keep all production budget and audit APIs unchanged.
 
-- [ ] At Task 1's baseline checkpoint, add a status case using the original 11,000-quote Author: require the full value to be returned without omission and round-trip exactly. It must fail against baseline omission behavior and pass with the encoder change. Stage the positive maximum-CJK-ID case below at the same checkpoint.
-- [ ] After the encoder change, update `ValueBudget_AccountsForEscapedStrings` to use `new string('\u0001', 11000)`. Keep its existing `status == "omitted"` assertion and add assertions for omission metadata and the canonical delivered-size bound. This fixture still expands beyond 60,000 characters under either encoder.
-- [ ] In `AdmittedEscapedOperationIds_InfeasibleProtectedEnvelopeIsRejectedBeforePlanning` and `InfeasibleIdentities_RejectBeforeBindingOrWorker_WithOneAudit`, replace each 255-character CJK prefix with 255 U+0001 characters and append a unique one-character suffix. Preserve 50 distinct IDs of exactly 256 characters and their existing validation, no-binding/no-worker and one-audit assertions. Retain the protected-core size assertions; do not relax their thresholds to make the tests pass.
-- [ ] Extend `FeasibleFiftyIdentities_AreAdmitted` with a distinct third case: 255 copies of U+4E00 plus the existing unique CJK suffix. Assert 50 distinct 256-character IDs, successful domain validation and protected-core size within the effective document budget. Preserve existing ASCII and short-Unicode cases. This admission assertion must fail against the default-encoder baseline.
-- [ ] Update `PreviewThenApplyDependenciesNormalizeTextsWithoutElicitation`: retain both raw `CallToolResult` instances before calling `CanonicalToolDocument.Read`. Assert the normalized alarm text as a decoded string rather than using `GetRawText().Replace("\\u0026", "&")`. Keep the existing `A & B` → `&amp;` normalization coverage, and include ordinary BMP text in that fixture so Unicode delivery is exercised too.
-- [ ] For both preview and apply, take the exact original `TextContentBlock.Text`, assert the expected literal relaxed markup/BMP text, and compare it byte-for-byte as a string to the corresponding audit line's decoded `responseText`. Compute `"sha256:" + SHA256(UTF8(text))` independently and compare with `responseHash`. Keep text-versus-structured semantic equality and existing access-mode, dependency and zero-elicitation assertions. A canonical reserialization of the parsed root is not a substitute for capturing original delivered text.
-- [ ] Run the focused command below. Before changing the rejection fixtures, confirm failures are explained by reduced escaping; after the changes, require all selected tests to pass. Existing HMI maximum-ID and library metadata omission fixtures already use U+0001 and require no mechanical change.
+- [x] At Task 1's baseline checkpoint, add a status case using the original 11,000-quote Author: require the full value to be returned without omission and round-trip exactly. It must fail against baseline omission behavior and pass with the encoder change. Stage the positive maximum-CJK-ID case below at the same checkpoint.
+- [x] After the encoder change, update `ValueBudget_AccountsForEscapedStrings` to use `new string('\u0001', 11000)`. Keep its existing `status == "omitted"` assertion and add assertions for omission metadata and the canonical delivered-size bound. This fixture still expands beyond 60,000 characters under either encoder.
+- [x] In `AdmittedEscapedOperationIds_InfeasibleProtectedEnvelopeIsRejectedBeforePlanning` and `InfeasibleIdentities_RejectBeforeBindingOrWorker_WithOneAudit`, replace each 255-character CJK prefix with 255 U+0001 characters and append a unique one-character suffix. Preserve 50 distinct IDs of exactly 256 characters and their existing validation, no-binding/no-worker and one-audit assertions. Retain the protected-core size assertions; do not relax their thresholds to make the tests pass.
+- [x] Extend `FeasibleFiftyIdentities_AreAdmitted` with a distinct third case: 255 copies of U+4E00 plus the existing unique CJK suffix. Assert 50 distinct 256-character IDs, successful domain validation and protected-core size within the effective document budget. Preserve existing ASCII and short-Unicode cases. This admission assertion must fail against the default-encoder baseline.
+- [x] Update `PreviewThenApplyDependenciesNormalizeTextsWithoutElicitation`: retain both raw `CallToolResult` instances before calling `CanonicalToolDocument.Read`. Assert the normalized alarm text as a decoded string rather than using `GetRawText().Replace("\\u0026", "&")`. Keep the existing `A & B` → `&amp;` normalization coverage, and include ordinary BMP text in that fixture so Unicode delivery is exercised too.
+- [x] For both preview and apply, take the exact original `TextContentBlock.Text`, assert the expected literal relaxed markup/BMP text, and compare it byte-for-byte as a string to the corresponding audit line's decoded `responseText`. Compute `"sha256:" + SHA256(UTF8(text))` independently and compare with `responseHash`. Keep text-versus-structured semantic equality and existing access-mode, dependency and zero-elicitation assertions. A canonical reserialization of the parsed root is not a substitute for capturing original delivered text.
+- [x] Run the focused command below. Before changing the rejection fixtures, confirm failures are explained by reduced escaping; after the changes, require all selected tests to pass. Existing HMI maximum-ID and library metadata omission fixtures already use U+0001 and require no mechanical change.
 
 ```powershell
 dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~CanonicalJsonTests|FullyQualifiedName~StructuredToolResultTests|FullyQualifiedName~StandaloneStatusContractTests|FullyQualifiedName~NetworkGuardedWriteBudgetTests|FullyQualifiedName~HmiGuardedWriteMcpTests|FullyQualifiedName~LibraryWriteBudgetTests"
@@ -102,15 +102,15 @@ dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~CanonicalJsonTests|F
 
 **Interfaces:** Existing canonical response contract, default/effective budgets, exact exported `contentHash`, and UTF-8 delivered-document `responseHash`. No new user-facing API or CLI flag.
 
-- [ ] Explain the writer and serializer policy, reduced XML/SCL escaping, required escaping that remains, unchanged JSON values/versions, character-based budget effects and changed audit document hashes. State that the JSON representation is not suitable for direct embedding in HTML or a script element. Link the official Microsoft guidance from the architecture explanation.
-- [ ] Describe `structuredContent` and outer transport reserialization separately: this change controls canonical text, not every byte the SDK/client emits. Avoid a blanket claim that all non-ASCII characters are literal or that model tokens/latency decrease by a fixed amount.
-- [ ] Initially update the improvement-log bullet to say host escaping is implemented and actual-client measurement is pending. Do not close the broader large-block follow-ups section or fold unrelated doctor/paging work into this PR. Move only the escaping follow-up to completed once the following actual-client evidence exists.
+- [x] Explain the writer and serializer policy, reduced XML/SCL escaping, required escaping that remains, unchanged JSON values/versions, character-based budget effects and changed audit document hashes. State that the JSON representation is not suitable for direct embedding in HTML or a script element. Link the official Microsoft guidance from the architecture explanation.
+- [x] Describe `structuredContent` and outer transport reserialization separately: this change controls canonical text, not every byte the SDK/client emits. Avoid a blanket claim that all non-ASCII characters are literal or that model tokens/latency decrease by a fixed amount.
+- [x] Initially update the improvement-log bullet to say host escaping is implemented and actual-client measurement is pending. Do not close the broader large-block follow-ups section or fold unrelated doctor/paging work into this PR. Move only the escaping follow-up to completed once the following actual-client evidence exists.
 - [ ] Identify baseline and candidate builds by commit and, for any uncommitted candidate, exact diff/build provenance. Record .NET runtime, MCP SDK version, client/version, access mode, arguments and budget settings. Use read-only access for both. Follow [local MCP testing](../../development/local-mcp-testing.md) for launch, explicit bind and reads.
 - [ ] In the owner's actual target client, bind each build to the same already-open disposable project. Read the same existing block using `plc_read` / `get_block_content` in XML and, for an eligible block, source format. Use identical selectors and successful non-omitted responses, with XML attributes, source quotes/operators and representative BMP text. Do not open, close, save, compile or modify the project for this measurement.
 - [ ] Capture each original text block after exactly one JSON-RPC decode and the structured object separately. Confirm parsed text equals `structuredContent`, exported content and `contentHash` match across builds, and format/omission settings are equivalent. The changed representation must not change the exported PLC text.
 - [ ] For each original text block, report character count, UTF-8 byte count and absolute/percentage reduction. Inspect the client's actual model-facing representation separately: record whether it exposes text, reserializes the structured object or exposes both. Report model-facing counts only when observable. If token counts are available, record the client usage source or identified tokenizer; otherwise explicitly leave token cost and model latency unmeasured.
 - [ ] Keep raw MCP receipts, client logs and timing output private/outside retained repository evidence. Retain only a concise dated summary of cases, provenance, counts, limits and observed client behavior. Do not use the lifecycle schedule in `scripts/timing/measure_write_timing.py`: it defaults to full mode and closes/reopens the project. Its saved JSON is reserialized, so capture-file size is not raw wire size.
-- [ ] If actual-client access is unavailable in the implementation session, finish the code, tests and documentation with this acceptance step explicitly pending and the follow-up still open. An Inspector/fake-worker check can prove transport semantics but cannot replace the required client measurement or justify closing the item.
+- [x] If actual-client access is unavailable in the implementation session, finish the code, tests and documentation with this acceptance step explicitly pending and the follow-up still open. An Inspector/fake-worker check can prove transport semantics but cannot replace the required client measurement or justify closing the item.
 
 **Acceptance:** Architecture/changelog describe the real compatibility boundary. Completion status of the escaping follow-up matches actual-client evidence; unobserved token or timing gains are not claimed.
 
@@ -118,7 +118,7 @@ dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~CanonicalJsonTests|F
 
 **Files:** Review all files changed by Tasks 1–3; add no implementation scope in this task.
 
-- [ ] Run the focused regression command in Task 2, then the full non-packaging suite and serial stub build, sequentially:
+- [x] Run the focused regression command in Task 2, then the full non-packaging suite and serial stub build, sequentially:
 
 ```powershell
 dotnet test TiaMcpServer.Tests --filter "Category!=Packaging"
@@ -127,10 +127,10 @@ python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30
 git diff --check
 ```
 
-- [ ] Packaging tests are unnecessary for the planned files. If implementation changes a product `.csproj`, `Directory.Build.props`, `global.json`, packaging verification scripts or reference stubs, first justify that scope change and run `dotnet test TiaMcpServer.Tests --filter "Category=Packaging"` as required by `AGENTS.md`.
-- [ ] Investigate full-suite failures for any other fixture that assumes six-character escaping. Preserve each test's intended admission/omission guarantee with deterministic data; do not replace expected results indiscriminately or alter production limits. Add a newly admitted case when a changed fixture would otherwise lose coverage of the behavior change.
-- [ ] Obtain independent review of the two encoder assignments, special-character property names/values, single serialization seam, budget tests, exact delivered audit hash, and the actual-client evidence/remaining limitation.
-- [ ] Recheck the final diff against this plan. Require no changes to `WorkerJson`, Openness import/export, access modes, public contract versions, hash algorithms, budget values, schemas or dependencies. Report tests/build/docs results and whether actual-client acceptance remains pending. A stub build does not establish live-client behavior.
+- [x] Packaging tests are unnecessary for the planned files. If implementation changes a product `.csproj`, `Directory.Build.props`, `global.json`, packaging verification scripts or reference stubs, first justify that scope change and run `dotnet test TiaMcpServer.Tests --filter "Category=Packaging"` as required by `AGENTS.md`.
+- [x] Investigate full-suite failures for any other fixture that assumes six-character escaping. Preserve each test's intended admission/omission guarantee with deterministic data; do not replace expected results indiscriminately or alter production limits. Add a newly admitted case when a changed fixture would otherwise lose coverage of the behavior change.
+- [x] Obtain independent review of the two encoder assignments, special-character property names/values, single serialization seam, budget tests, exact delivered audit hash, and the actual-client evidence/remaining limitation.
+- [x] Recheck the final diff against this plan. Require no changes to `WorkerJson`, Openness import/export, access modes, public contract versions, hash algorithms, budget values, schemas or dependencies. Report tests/build/docs results and whether actual-client acceptance remains pending. A stub build does not establish live-client behavior.
 - [ ] Before a later PR merge, follow the repository's transient-document lifecycle: preserve durable behavior in architecture/changelog, retain only performed acceptance evidence, and remove this new plan and its temporary index link in the final cleanup step. Do not remove the pre-existing design/PR 1/PR 3 files as part of this planning session.
 
 ## Coverage map
@@ -153,3 +153,28 @@ The approved design and current owning source were inspected. The initial worksp
 All referenced existing code/doc/script paths and local plan links were checked; the only absent literal file path is the explicitly planned future acceptance report. `python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30` passed with **0 errors and 4 transient-file warnings**. `git diff --check` and an explicit whitespace check of the new untracked plan passed. The plan and its four-line directory-index entry are the only changes; `HEAD` remains `b3dbe11b`.
 
 No implementation tests, product build, actual-client measurement or live TIA action has been run for this plan. No commit has been created.
+
+## Implementation-session validation
+
+Implementation is on `fix/issue-224-relaxed-json-encoder`. The plan and its directory-index entry
+were committed first as `588f7534`; implementation is in `3c6a6331`, with additional regression
+fixture corrections in `b3e442d3`.
+
+The unchanged-encoder baseline produced the four intended failures (canonical spelling,
+single-document result spelling, quote-heavy status admission and maximum-length CJK ID
+admission), with 119 other selected tests passing. The expanded focused suite now passes all
+179 tests. The full non-packaging suite passes all 8,967 tests (0 skipped, 0 failed).
+The serial stub build passes with 0 errors and 9 warnings. Documentation validation passes
+with 0 errors and 4 transient-file warnings; `git diff --check` passes.
+
+Full-suite investigation also corrected stale canonical quote fixtures and escaping-dependent
+hardware-cursor/PLC protected-budget fixtures. Still-escaped rejection cases retain their limits;
+complementary cases cover newly admitted CJK paths and literal punctuation/CJK identities. The
+shared result helper accepts SDK reserialization of structured data while retaining canonical
+text/value equality; the pre-SDK result test still requires exact original text/raw equality.
+Independent review of the implementation and subsequent fixture corrections found no blockers.
+
+Actual-client measurement remains pending. Available Inspector/fake-worker evidence does not
+establish the owner's model-facing representation or baseline/candidate provenance. No live TIA
+action or actual-client acceptance report was produced; the escaping follow-up remains open.
+The transient plan/index cleanup remains a step for the later PR merge.

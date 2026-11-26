@@ -156,10 +156,13 @@ Not yet live-verified; the issue reporter offered to test. Left out by design:
   `tia-mcp install` does not write them; users edit the client configuration by hand.
 - **Fixed limits.** Project-tree pages, `network_read` hardware pages and the worker compile report
   keep their own 60,000-character limits.
-- **Escaping inflation.** `CanonicalJson` uses the default encoder, so `'`, `"`, `<`, `>`, `&`, `+`
-  and non-ASCII characters count six characters each; SCL and XML exports measure noticeably larger
-  than their text. A relaxed encoder would shrink them but changes delivered-document hashes in the
-  audit; it needs a contract review.
+- **Escaping inflation — actual-client measurement pending.** The host canonical serializer and
+  final writer now use the relaxed JSON encoder, reducing XML/SCL punctuation and ordinary BMP
+  escaping within the existing character budgets. Decoded values and export `contentHash` are
+  unchanged; audit hashes follow the changed delivered text (see [architecture §7a](ARCHITECTURE.md#7a-the-opt-in-canonical-json-seam-and-the-network-phase-23-structured-contract)).
+  This follow-up stays open until baseline/candidate reads in the owner's actual client establish
+  canonical text character/UTF-8 byte counts and its model-facing representation. SDK/client
+  reserialization may escape structured data again; token cost and latency remain unmeasured.
 
 ## Open: create_block OB follow-ups (issue #75, 2026-10-09)
 
