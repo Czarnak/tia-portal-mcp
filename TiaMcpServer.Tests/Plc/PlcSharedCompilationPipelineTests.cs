@@ -35,7 +35,7 @@ public sealed class PlcSharedCompilationPipelineTests
         Assert.Equal("succeeded", compilation.GetProperty("stage").GetString());
         Assert.All(Operations(root), item => Assert.Equal("deferred", item.GetProperty("result").GetProperty("importOutcome").GetProperty("compileStage").GetString()));
         var methods = requests.Methods();
-        var compile = Assert.Single(methods.Select((method, index) => (method, index)).Where(v => v.method == "compile_check")).index;
+        var compile = Assert.Single(methods.Select((method, index) => (method, index)), v => v.method == "compile_check").index;
         Assert.True(Array.FindLastIndex(methods, method => method == "update_block_logic") < compile);
         Assert.Equal(2, methods.Skip(compile + 1).Count(method => method == "get_block_content"));
     }
