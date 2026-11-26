@@ -26,7 +26,8 @@ public partial class OpennessWorkerClient
         string blockPath,
         string yamlContent,
         string? format = null,
-        string? expectedContentHash = null)
+        string? expectedContentHash = null,
+        bool deferCompilation = false)
     {
         var hasNormalizedFormat = SourceFormatNames.TryNormalize(
             format,
@@ -45,6 +46,7 @@ public partial class OpennessWorkerClient
                 request.Content = yamlContent;
                 request.ExpectedContentHash = expectedContentHash;
                 request.Format = requestFormat;
+                request.DeferBlockCompilation = deferCompilation;
             },
             string.Empty).ConfigureAwait(false);
 
@@ -58,7 +60,7 @@ public partial class OpennessWorkerClient
             };
         }
 
-        if (BlockImportOutcomeValidator.Validate(result.BlockImportOutcome, validationFormat))
+        if (BlockImportOutcomeValidator.Validate(result.BlockImportOutcome, validationFormat, deferCompilation))
         {
             return result;
         }

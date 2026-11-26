@@ -40,11 +40,12 @@ public static class PlcWorkerInvoker
     /// <summary>Executes one validated write operation against the worker.</summary>
     public static Task<WorkerCallResult> InvokeWriteAsync(
         OpennessWorkerClient client,
-        PlcOperationRequest op)
+        PlcOperationRequest op,
+        bool deferCompilation = false)
     {
         return op.Operation switch
         {
-            "update_block_logic" => InvokeUpdateBlockLogic(client, op),
+            "update_block_logic" => InvokeUpdateBlockLogic(client, op, deferCompilation),
             "update_type_content" => InvokeUpdateTypeContent(client, op),
             "create_tag_table" => client.CreateTagTableAsync(op.PlcName, op.TableName!, op.FolderPath),
             "delete_tag_table" => client.DeleteTagTableAsync(op.PlcName, op.TableName!, op.FolderPath),
@@ -64,7 +65,7 @@ public static class PlcWorkerInvoker
         };
     }
 
-    private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, PlcOperationRequest op)
+    private static Task<WorkerCallResult> InvokeUpdateBlockLogic(OpennessWorkerClient client, PlcOperationRequest op, bool deferCompilation)
     {
         if (!PlcFormatNames.TryNormalize(op.Operation, op.Format, out var format, out var error))
         {
@@ -78,7 +79,8 @@ public static class PlcWorkerInvoker
             });
         }
 
-        return client.UpdateBlockLogicAsync(op.BlockPath!, op.Content!, format: format, expectedContentHash: op.ExpectedContentHash);
+        return client.UpdateBlockLogicAsync(op.BlockPath!, op.Content!, format: format, expectedContentHash: op.ExpectedContentHash,
+            deferCompilation: deferCompilation);
     }
 
     private static Task<WorkerCallResult> InvokeUpdateTypeContent(OpennessWorkerClient client, PlcOperationRequest op)

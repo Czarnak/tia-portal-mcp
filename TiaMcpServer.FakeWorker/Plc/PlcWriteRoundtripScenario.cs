@@ -24,6 +24,8 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// Creating the tag <c>RejectedByPortal</c>, or a block, block group or tag table whose name is taken, fails as Portal's own
 /// rejection (<c>engineering_rejected</c> with Siemens evidence): the worker no longer pre-checks those names.
 /// Creating a tag whose name the table already holds returns the live-captured Siemens document verbatim.
+/// Source comments <c>// fixture: shared-compile-errors</c>, <c>// fixture: shared-compile-worker-failure</c>,
+/// and <c>// fixture: shared-compile-malformed</c> select the corresponding later compile outcome on that PLC.
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
     bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false, bool exportLostAfterWrite = false,
@@ -62,7 +64,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         try
         {
             var response = Dispatch(request, fallbackProjectPath);
-            _wrote |= request.Method is not ("list_tag_tables" or "browse_project_tree_v3_snapshot" or "get_block_content" or "get_type_content" or "read_hardware_config");
+            _wrote |= request.Method is not ("list_tag_tables" or "browse_project_tree_v3_snapshot" or "get_block_content" or "get_type_content" or "read_hardware_config" or "compile_check");
             return response;
         }
         catch (WorkerOperationException ex)
@@ -97,6 +99,7 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
                 "get_type_content" => ExportType(request),
                 "update_block_logic" => UpdateBlock(request),
                 "update_type_content" => UpdateType(request),
+                "compile_check" => Compile(request),
                 "create_block" or "delete_block" or "create_block_group" or "delete_block_group" => BlockWrite(request),
                 _ => TagWrite(request),
             };
@@ -220,8 +223,10 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
 
     private string UpdateBlock(WorkerRequest request)
     {
-        var (plc, _, _, path) = ResolveBlock(request.BlockPath!);
         var format = request.Format ?? SourceFormatNames.Xml;
+        if (request.DeferBlockCompilation && format != SourceFormatNames.Source)
+            Throw(WorkerFailureCategories.ValidationError, "Block compilation can only be deferred for source imports.");
+        var (plc, _, _, path) = ResolveBlock(request.BlockPath!);
         if (driftAtImport) _content[Key(path, format)] = "<Block edited-in-tia-ui=\"true\"/>";
         RequireHash(request, format, Content(plc, path, format));
         if (importFailure is not null)
@@ -232,7 +237,42 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         _content[Key(path, format)] = request.Content!;
         if (invalidImportOutcome)
             return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded." }, WorkerJson.Envelope);
-        return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded.", BlockImportOutcome = completedOutcome(format) }, WorkerJson.Envelope);
+        var outcome = completedOutcome(format);
+        if (request.DeferBlockCompilation)
+            outcome = outcome with { CompileStage = "deferred", CompileReport = null, CompileDetailsOmitted = false };
+        return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded.", BlockImportOutcome = outcome }, WorkerJson.Envelope);
+    }
+
+    private string Compile(WorkerRequest request)
+    {
+        if (request.BlockPath is not null)
+            Throw(WorkerFailureCategories.ValidationError, "Shared compilation requires a null blockPath.");
+        var plcs = _plcs.Where(p => request.PlcName is null || Matches(p, request.PlcName)).ToArray();
+        var content = plcs.SelectMany(p => _content.Where(entry => entry.Key.StartsWith($"source:{p.Software}/", StringComparison.OrdinalIgnoreCase)))
+            .Select(entry => entry.Value).ToArray();
+        if (content.Any(value => value.Contains("// fixture: shared-compile-worker-failure", StringComparison.Ordinal)))
+            Throw(WorkerFailureCategories.WorkerOperationFailed, "The scripted shared compile failed.");
+        if (content.Any(value => value.Contains("// fixture: shared-compile-malformed", StringComparison.Ordinal)))
+            return Ok("{\"untrustedCompilePayload\":\"not a compile report\"}");
+
+        var report = new CompileCheckReport
+        {
+            Scope = "plc",
+            BlockPath = null,
+            Plcs = plcs.Select(plc =>
+            {
+                var errors = _content.Any(entry => entry.Key.StartsWith($"source:{plc.Software}/", StringComparison.OrdinalIgnoreCase)
+                    && entry.Value.Contains("// fixture: shared-compile-errors", StringComparison.Ordinal)) ? 1 : 0;
+                return new PlcCompileInfo
+                {
+                    PlcName = plc.Software, DeviceName = plc.Device, State = errors == 0 ? "Success" : "Error", ErrorCount = errors,
+                    Messages = errors == 0 ? new() : new() { new() { Severity = "Error", Description = "The scripted source has a compile error.", Path = "Blocks" } },
+                };
+            }).ToList(),
+        };
+        report.TotalErrorCount = report.Plcs.Sum(plc => plc.ErrorCount);
+        report.OverallState = report.TotalErrorCount == 0 ? "Success" : "Error";
+        return Ok(report);
     }
 
     private string UpdateType(WorkerRequest request)

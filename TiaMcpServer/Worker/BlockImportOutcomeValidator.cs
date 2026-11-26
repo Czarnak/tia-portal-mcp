@@ -14,12 +14,12 @@ public static class BlockImportOutcomeValidator
     private const int MaxDiagnosticChars = 1_024;
     private const int MaxSerializedChars = 12_000;
 
-    public static bool Validate(BlockImportOutcomeInfo? outcome, string? normalizedFormatOrNull)
+    public static bool Validate(BlockImportOutcomeInfo? outcome, string? normalizedFormatOrNull, bool compilationDeferred = false)
     {
         if (outcome is null
             || !OneOf(outcome.ImportStage, "not_started", "unknown", "completed")
             || !OneOf(outcome.ImportResultState, "success", "non_success", "unavailable")
-            || !OneOf(outcome.CompileStage, "not_started", "succeeded", "failed", "unavailable")
+            || !OneOf(outcome.CompileStage, "not_started", "succeeded", "failed", "unavailable", "deferred")
             || !OneOf(outcome.FinalReadStage, "not_started", "succeeded", "unavailable")
             || !OneOf(outcome.TemporarySourceState,
                 "not_applicable", "not_created", "removed", "residue_possible", "unknown")
@@ -27,6 +27,14 @@ public static class BlockImportOutcomeValidator
         {
             return false;
         }
+
+        if (outcome.CompileStage == "deferred"
+            && (!compilationDeferred || normalizedFormatOrNull != SourceFormatNames.Source
+                || outcome.ImportStage != "completed" || outcome.CompileReport is not null
+                || outcome.CompileDetailsOmitted))
+            return false;
+        if (compilationDeferred && outcome.ImportStage == "completed" && outcome.CompileStage != "deferred")
+            return false;
 
         if (outcome.ImportStage switch
             {
