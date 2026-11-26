@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Block;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;

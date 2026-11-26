@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.OpennessWorker.Worker;
 
@@ -79,18 +80,23 @@ internal static class BlockImportRouting
         }
     }
 
-    private static BlockImportDocument? FindSimaticMlDocument(ParsedBlockImportBundle bundle)
+    /// <summary>
+    /// The same check against the text of an export already taken in this request (the hash
+    /// precondition's), so a write exports the block once instead of twice.
+    /// </summary>
+    public static void EnsureOnlyAuthoritativeDocumentChanged(
+        ParsedBlockImportBundle submitted,
+        string currentExport,
+        string authoritativeName)
     {
-        foreach (var document in bundle.Documents)
-        {
-            if (document.LogicalName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                return document;
-            }
-        }
-
-        return null;
+        EnsureOnlyAuthoritativeDocumentChanged(
+            submitted,
+            BlockImportBundleParser.Parse(authoritativeName, currentExport),
+            authoritativeName);
     }
+
+    private static BlockImportDocument? FindSimaticMlDocument(ParsedBlockImportBundle bundle)
+        => BlockBundleText.FindSimaticMlDocument(bundle);
 
     private static WorkerOperationException ValidationFailure(string message)
     {

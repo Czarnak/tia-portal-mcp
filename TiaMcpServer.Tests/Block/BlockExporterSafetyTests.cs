@@ -1,3 +1,4 @@
+using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.OpennessWorker.Openness.Block;
 using Xunit;
 

@@ -1,6 +1,6 @@
-namespace TiaMcpServer.OpennessWorker.Openness.Block;
+namespace TiaMcpServer.Contracts.Block;
 
-internal sealed class BlockImportDocument
+public sealed class BlockImportDocument
 {
     public BlockImportDocument(string logicalName, string safeFileName, string content)
     {
