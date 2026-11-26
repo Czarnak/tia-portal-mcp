@@ -1288,6 +1288,17 @@ in between. Content over the value budget (60,000 characters by default) is omit
 cannot be written. A content preview may include a bounded `contentDiff` (40 excerpt lines and
 8,192 characters per side, 32,768 characters per call).
 
+`BlockBundleText` in Contracts owns bundle parsing and composition for both host and worker;
+worker adapters map format refusals to `validation_error` while preserving their messages.
+The XML block importer reuses the exact export checked by its immediate hash precondition for
+companion validation, avoiding a second export for that check.
+
+For a full `update_block_logic` XML-only submission, either raw XML or a one-document XML bundle,
+`PlcContentDiffSides` compares the authoritative `.xml` portions. Other formats, multi-document
+submissions and bundle-selection failures retain whole-text comparisons. This selection changes
+diff evidence only: `expectedContentHash` still protects the whole served export, including
+companions and separator bytes.
+
 `patch_block_logic` is the fifteenth public PLC write operation, with the same registration and
 access gates; PLC reads stay contract `1.0`. The public operation name and closed request shape
 are validated and authorized before binding, reads or normalization. A patch supplies a block

@@ -148,10 +148,17 @@ The value and response budgets became startup options (`--max-item-chars`/`--max
 1,000,000), so a block above 60,000 characters can be read with its `contentHash` and written back.
 Not yet live-verified; the issue reporter offered to test. Left out by design:
 
-- **Paged content reads and partial writes.** The issue's options 2 and 3 (`plc_read` slices that
-  carry the whole-document hash; a range or patch variant of `update_block_logic` reassembled on the
-  host) remain open. Revisit only if clients without file access still hit their own tool-result
-  or argument limits on real blocks.
+- **Paged content reads.** `plc_read` slices carrying the whole-export hash remain open for clients
+  that hit their own tool-result limits. Small edits are delivered by
+  [`patch_block_logic`](SupportedOperations/PLC_OPERATIONS_SUMMARY.md); it reassembles the full
+  update on the host under the existing hash precondition.
+- **Per-block file-backed working copies.** This option was deferred while the small-edit patch
+  path was implemented and measured. It could avoid repeated full-document reads for clients with
+  file tools. Before implementation, settle pinned-binding resolution and transition invalidation,
+  Windows-safe unique names and XML target identity, reparse-point containment, atomic locked
+  directories, strict UTF-8 decoding and a hash distinct from `contentHash`, and race-safe refresh.
+  Crash leftovers, re-reading over local edits, and whether read-only `plc_read` may write files
+  still need explicit design decisions.
 - **Doctor and installer.** `tia-mcp doctor` neither accepts nor reports the budget options, and
   `tia-mcp install` does not write them; users edit the client configuration by hand.
 - **Fixed limits.** Project-tree pages, `network_read` hardware pages and the worker compile report
@@ -166,6 +173,7 @@ Not yet live-verified; the issue reporter offered to test. Left out by design:
   [Partial Codex measurements](superpowers/acceptance/reports/2026-11-26-issue-224-pr2-relaxed-json-client-verification.md)
   record controlled read-only baseline/candidate comparisons and candidate reads in Codex.
   Baseline reads in Codex, live non-ASCII BMP delivery and model-input evidence remain pending.
+  These remaining measurements are deferred until before the next release.
 
 ## Open: create_block OB follow-ups (issue #75, 2026-10-09)
 

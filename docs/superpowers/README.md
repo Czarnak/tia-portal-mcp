@@ -12,10 +12,6 @@ are the authorities on current behavior. For why the design is as it is, and the
 start at the [architecture decision records](../adr/README.md). Removed plans and specs remain at the
 `docs-archive-2026-10-30` tag; later working files remain in their PR commit history.
 
-## Working plans
-
-- [Issue #224 PR 2: relaxed JSON encoder](plans/2026-11-26-issue-224-pr2-relaxed-json-encoder.md)
-
 ## Acceptance definitions
 
 | Date | Document |
