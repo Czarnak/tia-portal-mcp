@@ -163,6 +163,9 @@ Not yet live-verified; the issue reporter offered to test. Left out by design:
   This follow-up stays open until baseline/candidate reads in the owner's actual client establish
   canonical text character/UTF-8 byte counts and its model-facing representation. SDK/client
   reserialization may escape structured data again; token cost and latency remain unmeasured.
+  [Partial Codex measurements](superpowers/acceptance/reports/2026-11-26-issue-224-pr2-relaxed-json-client-verification.md)
+  record controlled read-only baseline/candidate comparisons and candidate reads in Codex.
+  Baseline reads in Codex, live non-ASCII BMP delivery and model-input evidence remain pending.
 
 ## Open: create_block OB follow-ups (issue #75, 2026-10-09)
 

@@ -178,3 +178,20 @@ Actual-client measurement remains pending. Available Inspector/fake-worker evide
 establish the owner's model-facing representation or baseline/candidate provenance. No live TIA
 action or actual-client acceptance report was produced; the escaping follow-up remains open.
 The transient plan/index cleanup remains a step for the later PR merge.
+
+## Partial measurement attempt (2026-11-26)
+
+The owner reinstalled candidate `e7a6b80a` and opened the disposable fixture. Actual Codex XML
+and source reads succeeded without omission, and their original text decoded to the structured
+result. The active Codex connection used full mode with read-only calls. After owner approval
+of TIA Openness requests, controlled read-only baseline/candidate captures completed against
+the same verified project and Portal PID with explicit default budgets. Exported content and
+hashes matched, and before/after status remained open and unmodified.
+
+Native canonical text was 26.08% smaller for XML and 1.54% smaller for source; an independent
+baseline reserialization agreed exactly. The candidate text also matched the Codex captures.
+Raw MCP frames changed much less, so these percentages are not model-token or latency savings.
+This was one ASCII-only block. Actual-client baseline, live BMP and model-request/token/latency
+evidence remain pending; the escaping follow-up stays open. See the
+[partial verification report](../acceptance/reports/2026-11-26-issue-224-pr2-relaxed-json-client-verification.md)
+for provenance, counts and the remaining qualification limits.
