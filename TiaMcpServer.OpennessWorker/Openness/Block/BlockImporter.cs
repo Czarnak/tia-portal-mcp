@@ -15,13 +15,21 @@ public static class BlockImporter
         string blockPath,
         string yamlContent,
         string format,
-        string? expectedContentHash = null)
+        string? expectedContentHash = null,
+        bool deferCompilation = false)
     {
         if (project is null) throw new ArgumentNullException(nameof(project));
         if (yamlContent is null) throw new ArgumentNullException(nameof(yamlContent));
 
+        if (deferCompilation && !string.Equals(format, SourceFormatNames.Source, StringComparison.Ordinal))
+        {
+            throw new WorkerOperationException(
+                WorkerFailureCategories.ValidationError,
+                "Block compilation can only be deferred for source format.");
+        }
+
         if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
-            return ImportSource(project, blockPath, yamlContent, expectedContentHash);
+            return ImportSource(project, blockPath, yamlContent, expectedContentHash, deferCompilation);
 
         var preflight = BlockImportCoordinator.ExecuteWithPreTargetOutcome(
             () =>
@@ -70,6 +78,7 @@ public static class BlockImporter
                 SourceFormatNames.Xml,
                 preflight.Prepared.Bundle.PrimaryDocumentName,
                 compileAllowed,
+                deferCompilation: false,
                 warnings: null));
     }
 
@@ -120,7 +129,8 @@ public static class BlockImporter
         ProjectBase project,
         string blockPath,
         string sourceContent,
-        string? expectedContentHash)
+        string? expectedContentHash,
+        bool deferCompilation)
     {
         var preflight = BlockImportCoordinator.ExecuteWithPreTargetOutcome(
             () =>
@@ -209,6 +219,7 @@ public static class BlockImporter
                 SourceFormatNames.Source,
                 primaryDocumentName: null,
                 compileAllowed,
+                deferCompilation,
                 warnings));
     }
 
@@ -255,10 +266,13 @@ public static class BlockImporter
         string format,
         string? primaryDocumentName,
         bool compileAllowed,
+        bool deferCompilation,
         IReadOnlyList<string>? warnings)
     {
         var compile = compileAllowed
-            ? BlockCompileObservation.Observe(CompileChecker.CompileObserved(
+            ? deferCompilation
+                ? BlockCompileObservation.Deferred()
+                : BlockCompileObservation.Observe(CompileChecker.CompileObserved(
                 project,
                 string.Equals(format, SourceFormatNames.Source, StringComparison.Ordinal)
                     ? address.PlcName

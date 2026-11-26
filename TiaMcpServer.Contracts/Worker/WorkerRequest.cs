@@ -108,6 +108,12 @@ public class WorkerRequest
     public string? ExpectedContentHash { get; set; }
 
     /// <summary>
+    /// Forwarded by: update_block_logic in source format only. Host-selected compile deferral;
+    /// defaults to false and is not a public tool argument.
+    /// </summary>
+    public bool DeferBlockCompilation { get; set; }
+
+    /// <summary>
     /// Forwarded by: get_type_content, update_type_content, get_block_content,
     /// update_block_logic. Normalized by SourceFormatNames on the host before sending, so the
     /// worker never sees an unrecognized value.
