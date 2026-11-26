@@ -1,6 +1,6 @@
 # Issue #224 PR 3: `patch_block_logic` implementation plan
 
-Date: 2026-11-26. Status: prepared for implementation; tasks have not been executed.
+Date: 2026-11-26. Status: implemented and verified offline; see the implementation record below.
 
 **Goal:** Let a client update a PLC block by sending unique text replacements, while retaining the existing content hash, diff, guards, import, verification and audit guarantees.
 
@@ -356,3 +356,39 @@ python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30
 Planning evidence: approved design read; initial clean local `main` and PR 1 merge verified; source/index refreshed and integration points inspected; independent patch, pipeline, contract and plan reviews completed. Review corrections cover dependency/guard ordering, schema nullability, conditional-member registration, delimiter-prefix provenance and attempted-input audit wording. All referenced existing file paths were checked; the only absent exact paths are the three files explicitly planned for creation.
 
 Documentation check: `python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30` passed with **0 errors, 3 warnings** for the existing PR 1 plan, approved design and this new transient plan. Whitespace validation passed. Implementation tests/builds and live TIA actions have not been run. Only this plan file was added; no commits were created.
+
+## Implementation record (2026-11-26)
+
+The later implementation session was explicitly authorized by the owner. Branch
+`feat/issue-224-patch-block-logic` starts with plan commit `e6b1a13b`; implementation and tests
+are committed as `d0c70538`. The preparation-time checklist and planning-session evidence above
+are retained as the original requirements and history.
+
+Tasks 1–7 are implemented: the public patch DTO/catalog/schema and access gates, pure resolver,
+single-export planning and late replans, per-call execution mapping, immutable attempted-input
+audit snapshots, contract 2.1, registered MCP coverage and user/architecture documentation.
+The explicitly named `CHANGELOG.md` was absent and was created with an Unreleased entry.
+Capability snapshots for all three container kinds include the new public operation.
+
+Red verification captured the absent edit/helper types, planner resolution carriers and audit
+member before their implementation. A later known-PLC/incomplete-inventory regression was
+observed failing before the planner was tightened to retain its block guard without caching
+executable input. Independent review confirmed that correction, the CRLF fallback description,
+normalized execution-name seams, attempted-only verification and audit snapshot timing; no
+further findings remained.
+
+Final verification:
+
+| Check | Result |
+| --- | --- |
+| Full non-packaging suite with CI stubs, after rebuilding the executable host | **8,954 passed; 0 failed; 0 skipped** (11m 9s) |
+| Serialized solution build with `UseTiaPortalReferenceStubs=true` | Passed; 0 errors, 8 warnings in untouched code |
+| Serialized solution build against installed V21 net48 assemblies | Passed; 0 errors, the same 8 warnings |
+| Documentation verifier with `docs-archive-2026-10-30` | Passed; 0 errors, 3 transient-file warnings |
+| Whitespace/diff review and new host-source test links | Passed |
+
+Packaging inputs and product project files were not changed; only the test project gained
+source links, so packaging tests were not required. The installed-assembly build is compilation
+evidence only. No live TIA actions, fidelity probes, push or PR changes were performed. Native
+acceptance and workflow-effort measurement still require a later owner-authorized disposable
+fixture run. PR 2, working copies and pre-merge transient-file pruning remain deferred.

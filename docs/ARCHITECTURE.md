@@ -485,8 +485,9 @@ directories and remove them in `finally` blocks.
 
 ## 7. Batch and network execution
 
-`PlcOperationCatalog` and `PlcWorkerInvoker` own the PLC read operations and the 14 `plc_write`
-operations, sharing one `PlcOperationRequest` between read and write.
+`PlcOperationCatalog` owns the PLC read operations and the 15 public `plc_write` operations,
+sharing one `PlcOperationRequest` between read and write. `PlcWorkerInvoker` handles the resolved
+execution requests; a public patch is normalized to `update_block_logic` before reaching it.
 `NetworkOperationCatalog` and `NetworkWorkerInvoker` own the nine dedicated network
 operations, including the Phase 4 subnet lifecycle operations (`create_subnet`,
 `update_subnet`, `delete_subnet`). Each domain validates against its own request type and
@@ -573,7 +574,7 @@ registered tool is now structured; the three batch tools were removed rather tha
 - `VciWritePayloadContract` validates success and carried failure outcomes with their bounded typed
   leaf-failure lists. Rejected evidence becomes `protocol_error` and is never echoed. VCI outcome
   evidence remains separate from conditional `failure.engineeringError` and can survive `portal_lost`.
-- Network/PLC/VCI reads use version `1.0`, HMI reads use `1.1`, and Network/PLC/HMI/VCI writes use `2.0`,
+- Network/PLC/VCI reads use version `1.0`, HMI reads use `1.1`, PLC writes use `2.1`, and Network/HMI/VCI writes use `2.0`,
   with warnings arrays and explicit nulls.
   `CanonicalWriteSafety`, token preview DTOs, `WriteSafetyService`, `WriteSafetyTooling`,
   `SafetyRead` and the legacy write audit are retired.
@@ -1252,7 +1253,7 @@ and re-wrap them in `WorkerOperationException` without `EngineeringError`, so th
 rename to a colliding name, so `TagMutationService.UpdateTag` applies the rename first, reads
 `Name` back and throws `postcondition_failed` before any other property changes.
 
-Verification (`TrustedWriteVerifier` with `PlcVerificationPolicy`, contract `2.0`) reads back content only: `contentHash` for a
+Verification (`TrustedWriteVerifier` with `PlcVerificationPolicy`, PLC write contract `2.1`) reads back content only: `contentHash` for a
 content item (one re-export, whose hash cannot be predicted because the export carries a generated
 id), `trusted` for every other completed item, and `superseded` for an item a later item changed
 again or may have changed after an attempted failure; a failed non-content item has no entry and leaves final state unverified, requiring `plc_read`. The conservative supersede rule treats an unresolved
@@ -1265,6 +1266,38 @@ the hash immediately before import, failing the item with `state_changed` if the
 in between. Content over the value budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and
 cannot be written. A content preview may include a bounded `contentDiff` (40 excerpt lines and
 8,192 characters per side, 32,768 characters per call).
+
+`patch_block_logic` is the fifteenth public PLC write operation, with the same registration and
+access gates; PLC reads stay contract `1.0`. The public operation name and closed request shape
+are validated and authorized before binding, reads or normalization. A patch supplies a block
+selector, expected hash, optional format (XML by default) and nonempty `edits` containing required
+`oldText`/`newText` strings. Types retain full-document writes.
+
+The planner checks the whole fresh served-export hash before resolving anchors. For XML it selects
+the authoritative `.xml` document through the shared `BlockBundleText` parser and resolves to
+XML-only content, while companions and separator bytes remain protected by the hash. Source uses
+the whole export. `PlcBlockLogicPatch` matches unique, non-overlapping original spans with CRLF/LF
+equivalence, preserves unmatched characters and lone CR, chooses replacement terminators from the
+matched span or original starting line, and rejects introduced bundle delimiter lines. Empty
+replacement text is valid. It introduces no translation, working copy, export format or worker
+method.
+
+Successful resolution creates one internal `update_block_logic` request with explicit format,
+resolved full content, original selector/hash and no edits. A `PlcWriteDomain` instance owns the
+per-call map from public operation IDs to execution requests. Working-state resolution/apply,
+content diff, worker invocation, typed payload decoding and verification all consume that same
+normalized request; public effects, batch operation names and `WriteRun.Items` retain the original
+patch. The planner reuses its export for the existing diff path, so XML-only diff hashes describe
+the XML part while the precondition protects the whole bundle. It does not publicly revalidate
+normalized content as a full-replacement request, since an allowed deletion can produce empty
+content that the importer itself may reject.
+
+Initial patch-resolution failure rejects the whole plan before mutation. Existing dependency
+tracking remains: dependent patches re-export and replace their mapped execution request at late
+replan, clearing any earlier resolution before a failed replan; independent items are not made
+dependent. A late replan or worker recheck failure can leave prior items applied. Creating a block
+and patching it in the same call is refused. The existing importer, separate compile evidence,
+verification hashes, stop-on-first-failure behavior and no-replay policy remain in force.
 
 Later items may use objects created earlier in the same call; such items carry `DependsOn` and are
 re-planned just before their own mutation; the runner does not re-plan independent items. `PlcWritePayloadBudget`
@@ -1399,6 +1432,15 @@ state; full apply satisfaction is `policy`. Dry runs and blocks before confirmat
 `none/not_requested` and null guard satisfaction. Validation and binding rejections are audited
 outside the lease.
 
+The optional domain audit hook adds conditional `items[].resolvedOperation` for an attempted PLC
+patch, without changing audit version 2. `requestedOperations` retains the original public patch
+and edits. Immediately before invoking the worker, the domain captures the exact full normalized
+`update_block_logic` request selected for that attempt, including content, explicit format, selector
+and original hash. This input remains recorded for worker rejection, transport failure and
+`NotSent` dispatch evidence; it is not evidence that dispatch or application occurred. Previews,
+pre-mutation denials, skipped items and failed late replans have no resolved member. The audit
+input is not abbreviated or budgeted by the public-response limits.
+
 An exception after the lease starts is audited as an `error` record and then rethrown unchanged.
 If live apply was interrupted, the record includes the collected batch outcomes, the failed
 current item, skipped remaining items, and the same partial-write warnings as an ordinary failure.
@@ -1418,6 +1460,9 @@ compares an expected hash with a fresh read through `ContentHashes.Check` (hashi
 the worker through Contracts `ContentHashRules`): a malformed hash or a
 format that differs from the write's format is `validation_error`, content that no longer matches
 is `state_changed`, and the comparison is recorded as a `contentHash` precondition.
+For XML block patches the hash covers the whole served bundle, including companions and separator
+bytes, even though resolution and the requested diff operate only on its `.xml` part. Patches
+still need a hash-bearing eligible read in the same format; they cannot write an omitted export.
 
 ## 9. Diagnostics
 
