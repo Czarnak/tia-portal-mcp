@@ -63,6 +63,46 @@ public class CanonicalJsonTests
     }
 
     [Fact]
+    public void Serialize_UsesRelaxedEscapingWithoutChangingValues()
+    {
+        const string specialName = "<>&'+\"\\\u00E4\u0141\u6F22";
+        var value = new
+        {
+            Zebra = "<Network>",
+            Items = new[] { "<>&'+", "\"", "\\", "\u00E4\u0141\u6F22" },
+            Alpha = new Dictionary<string, string> { [specialName] = "<Network>" }
+        };
+        using var escaped = JsonDocument.Parse(
+            """{"zebra":"\u003CNetwork\u003E","items":["\u003C\u003E\u0026\u0027\u002B","\u0022","\u005C","\u00E4\u0141\u6F22"],"alpha":{"\u003C\u003E\u0026\u0027\u002B\u0022\u005C\u00E4\u0141\u6F22":"\u003CNetwork\u003E"}}""");
+        const string expected = """{"alpha":{"<>&'+\"\\äŁ漢":"<Network>"},"items":["<>&'+","\"","\\","äŁ漢"],"zebra":"<Network>"}""";
+
+        foreach (var text in new[] { CanonicalJson.Serialize(value), CanonicalJson.Serialize(escaped.RootElement) })
+        {
+            // Exact spelling also pins ordinal object order and preserved array order. The
+            // parsed input must be decoded and rewritten rather than copied with its escapes.
+            Assert.Equal(expected, text);
+            using var actual = JsonDocument.Parse(text);
+            Assert.True(JsonElement.DeepEquals(escaped.RootElement, actual.RootElement));
+            Assert.Equal("<Network>", actual.RootElement.GetProperty("alpha").GetProperty(specialName).GetString());
+            Assert.Equal(value.Items, actual.RootElement.GetProperty("items").EnumerateArray()
+                .Select(item => item.GetString()).ToArray());
+        }
+    }
+
+    [Fact]
+    public void Serialize_PreservesRequiredEscapingAndRoundTripsValues()
+    {
+        var value = "\u0001\r\n\t\\\u2028\u2029" + char.ConvertFromUtf32(0x1F600);
+
+        var text = CanonicalJson.Serialize(new { Text = value });
+
+        Assert.Equal("""{"text":"\u0001\r\n\t\\\u2028\u2029\uD83D\uDE00"}""", text);
+        using var document = JsonDocument.Parse(text);
+        Assert.Equal(value, document.RootElement.GetProperty("text").GetString());
+        Assert.Equal(text, CanonicalJson.Serialize(document.RootElement));
+    }
+
+    [Fact]
     public void ToElementAndNormalize_ReturnElementsThatOutliveTheirParsedDocument()
     {
         var element = CanonicalJson.ToElement(NewSample());

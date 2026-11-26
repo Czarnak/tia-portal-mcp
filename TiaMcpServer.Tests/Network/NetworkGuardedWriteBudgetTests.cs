@@ -24,7 +24,7 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         var operations = Enumerable.Range(0, OperationBatchRules.MaxItems)
             .Select(index => new NetworkOperationRequest
             {
-                OperationId = new string('\u4e00', OperationBatchRules.MaxOperationIdChars - 1)
+                OperationId = new string('\u0001', OperationBatchRules.MaxOperationIdChars - 1)
                     + (char)('\u4e01' + index),
                 Operation = "delete_subnet",
                 Target = new NetworkObjectTarget { Kind = "subnet", SubnetId = "subnet-" + index },
@@ -60,15 +60,26 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void FeasibleFiftyIdentities_AreAdmitted(bool unicode)
+    [InlineData("ASCII 256")]
+    [InlineData("normal Unicode")]
+    [InlineData("CJK 256")]
+    public void FeasibleFiftyIdentities_AreAdmitted(string identityKind)
     {
         using var client = new OpennessWorkerClient(new ProjectSessionBinding(null));
         var operations = Enumerable.Range(0, 50).Select(i => NetworkGuardedWriteFixture.Delete(
-            unicode ? "操作-" + i : new string('a', 253) + i.ToString("D3"))).ToArray();
+            identityKind switch
+            {
+                "normal Unicode" => "操作-" + i,
+                "CJK 256" => new string('\u4e00', 255) + (char)('\u4e01' + i),
+                _ => new string('a', 253) + i.ToString("D3"),
+            })).ToArray();
+        Assert.Equal(50, operations.Select(operation => operation.OperationId).Distinct().Count());
+        if (identityKind != "normal Unicode")
+            Assert.All(operations, operation => Assert.Equal(256, operation.OperationId.Length));
         Assert.True(new NetworkWriteDomain(client).Validate(operations, McpAccessMode.ReadWrite).IsValid);
-        output.WriteLine($"Protected core ({(unicode ? "normal Unicode" : "ASCII 256")}, 50 items): {NetworkWritePayloadBudget.MeasureProtectedCore(operations)}");
+        var protectedCoreChars = NetworkWritePayloadBudget.MeasureProtectedCore(operations);
+        Assert.True(protectedCoreChars <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
+        output.WriteLine($"Protected core ({identityKind}, 50 items): {protectedCoreChars}");
     }
 
     [Theory]
@@ -81,9 +92,11 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         using var requests = new FakeWorkerRequestLog(audit.Path);
         var operations = Enumerable.Range(0, 50).Select(i => new NetworkOperationRequest
         {
-            OperationId = new string('\u4e00', 255) + (char)('\u4e01' + i), Operation = "delete_subnet",
+            OperationId = new string('\u0001', 255) + (char)('\u4e01' + i), Operation = "delete_subnet",
             Target = new() { Kind = "subnet", SubnetId = "subnet-" + i }
         }).ToArray();
+        Assert.Equal(50, operations.Select(operation => operation.OperationId).Distinct().Count());
+        Assert.All(operations, operation => Assert.Equal(256, operation.OperationId.Length));
         CallToolResult reply;
         if (registered)
         {
@@ -339,6 +352,30 @@ public sealed class NetworkGuardedWriteBudgetTests(ITestOutputHelper output)
         Assert.True(reply.IsError);
         Assert.Equal("error", document.GetProperty("phase").GetString());
         Assert.Equal("validation_error", document.GetProperty("error").GetProperty("category").GetString());
+        AssertQualifiedAudit(reply, audit);
+    }
+
+    [Fact]
+    public async Task LongCjkOwnerPath_IsAdmittedWithExactRecoveryIdentity()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        const string scenario = "network-qualified-budget-item-cjk";
+        using var fixture = await NetworkGuardedWriteFixture.CreateAsync(audit, scenario);
+        var operation = await QualifiedConfigure(fixture, scenario, new string('a', 253) + "000");
+        var ownerName = new string('\u4e00', 12000);
+        Assert.Equal(ownerName, operation.Target!.InterfacePath![0].Name);
+
+        var reply = await fixture.Runner.RunAsync(new NetworkWriteDomain(fixture.Client),
+            new WriteCall<NetworkOperationRequest>([operation], false));
+
+        var response = CanonicalJson.Deserialize<NetworkGuardedWriteResponse>(CanonicalToolDocument.Read(reply).GetRawText());
+        Assert.False(reply.IsError == true);
+        Assert.True(response.Success);
+        Assert.Equal(1, requests.Methods().Count(method => method == "configure_network_device"));
+        Assert.Equal(ownerName, response.Effects[0].Effect!.Target.InterfacePath![0].Name);
+        Assert.Equal("succeeded", Assert.Single(response.Batch!.Operations).Status);
         AssertQualifiedAudit(reply, audit);
     }
 

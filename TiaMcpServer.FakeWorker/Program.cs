@@ -900,6 +900,7 @@ while ((line = Console.In.ReadLine()) is not null)
         case "network-qualified-budget-known-observations":
         case "network-qualified-budget-long":
         case "network-qualified-budget-item":
+        case "network-qualified-budget-item-cjk":
         case "network-qualified-budget-escaped":
         case "network-qualified-budget-late-growth":
         case "network-qualified-owner-drift":

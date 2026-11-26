@@ -535,6 +535,23 @@ registered tool is now structured; the three batch tools were removed rather tha
   properties, unmapped members, and case-mismatched names) and a repository-defined canonical
   serialization (recursive ordinal property ordering, preserved array order, explicit nulls,
   compact UTF-8). It is *not* an RFC 8785 claim — see the plan's Global Constraints.
+- Both the canonical serializer and its final `Utf8JsonWriter` use
+  `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`. XML/SCL punctuation such as `<`, `>`, `&`,
+  `'` and `+`, and ordinary BMP text such as `äŁ漢`, are literal; quotes use `\"` rather
+  than `\u0022`. Required JSON escaping remains for backslashes and control characters;
+  non-BMP characters, U+2028/U+2029 and .NET's block-listed characters remain escaped.
+  This changes spelling, not decoded values, property ordering, explicit nulls or public
+  contract versions. See Microsoft's [character-encoding guidance](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/character-encoding#serialize-all-characters).
+  Treat this output as UTF-8 JSON or decoded data; it is unsuitable for direct embedding in
+  HTML or a script element.
+- Budget measurements still count canonical string characters against effective
+  `MaxItemChars`/`MaxDocumentChars` (defaults 60,000/180,000), with startup overrides and
+  domain-specific fixed limits unchanged. Reduced escaping can admit previously omitted
+  values or refused identities. The same helper serves host normalization and audit fields;
+  worker IPC (`WorkerJson`) and Openness import/export encoding are unchanged. Audit
+  `responseHash` still hashes the UTF-8 bytes of exact delivered `responseText`, so hashes
+  change when its spelling changes; existing audit records stay valid. PLC `contentHash`
+  continues to hash exported content and is unaffected by response escaping.
 - The same file provides the worker-payload reader, `DeserializeWorkerPayload<T>` and
   `NormalizeWorkerPayload<T>` (the latter returns the value, its canonical text and element, and
   runs an optional semantic validator). It applies the strict rules above plus
@@ -551,6 +568,10 @@ registered tool is now structured; the three batch tools were removed rather tha
 - `TiaMcpServer/Tools/StructuredToolResult.cs` renders one canonical JSON document and returns it
   as both the `content` text block and a detached `structuredContent` `JsonElement`, from a single
   `CanonicalJson.Serialize` call, so the two representations cannot drift apart.
+  SDK/client serialization of `structuredContent` or the outer JSON-RPC envelope is a separate
+  boundary and can escape characters again. The encoder controls canonical text, not every
+  transport byte or the client's model-facing representation; token and latency effects require
+  measurement in the actual client.
 - `TiaMcpServer/OperationBatches/OperationBatchReadResponse.cs` defines the shared read envelope
   and tool-level error record. Rejections carry `batch:null` and MCP `isError:true`; a batch that
   ran carries `error:null` and `isError:false`, even when individual items failed or were omitted.
@@ -1266,6 +1287,17 @@ the hash immediately before import, failing the item with `state_changed` if the
 in between. Content over the value budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and
 cannot be written. A content preview may include a bounded `contentDiff` (40 excerpt lines and
 8,192 characters per side, 32,768 characters per call).
+
+`BlockBundleText` in Contracts owns bundle parsing and composition for both host and worker;
+worker adapters map format refusals to `validation_error` while preserving their messages.
+The XML block importer reuses the exact export checked by its immediate hash precondition for
+companion validation, avoiding a second export for that check.
+
+For a full `update_block_logic` XML-only submission, either raw XML or a one-document XML bundle,
+`PlcContentDiffSides` compares the authoritative `.xml` portions. Other formats, multi-document
+submissions and bundle-selection failures retain whole-text comparisons. This selection changes
+diff evidence only: `expectedContentHash` still protects the whole served export, including
+companions and separator bytes.
 
 `patch_block_logic` is the fifteenth public PLC write operation, with the same registration and
 access gates; PLC reads stay contract `1.0`. The public operation name and closed request shape

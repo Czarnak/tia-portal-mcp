@@ -58,12 +58,35 @@ public sealed class CanonicalToolDocumentTests
     [Theory]
     [InlineData("{\"b\":2,\"a\":1}")]
     [InlineData("{ \"a\": 1, \"b\": 2 }")]
-    public void Read_RequiresStructuredContentToUseTheDeliveredRendering(string json)
+    [InlineData("""{"\u0061":1,"b":2}""")]
+    public void Read_AcceptsEquivalentStructuredRendering(string json)
     {
         using var source = JsonDocument.Parse(json);
         var text = CanonicalJson.Serialize(source.RootElement);
 
-        Assert.ThrowsAny<XunitException>(() => CanonicalToolDocument.Read(Result(source.RootElement, text)));
+        var actual = CanonicalToolDocument.Read(Result(source.RootElement, text));
+
+        Assert.Equal(1, actual.GetProperty("a").GetInt32());
+        Assert.Equal(2, actual.GetProperty("b").GetInt32());
+    }
+
+    [Fact]
+    public void Read_AcceptsSdkReserializedStructuredContentWithRelaxedText()
+    {
+        const string content = "<Network name=\"\u00E4\u0141\u6F22\">&'+</Network>";
+        var value = new { Content = content };
+        var text = CanonicalJson.Serialize(value);
+        // Emulate the SDK serializing the structured element with its own JSON encoder.
+        var sdkJson = JsonSerializer.Serialize(CanonicalJson.ToElement(value));
+        using var structured = JsonDocument.Parse(sdkJson);
+        Assert.Equal("""{"content":"<Network name=\"äŁ漢\">&'+</Network>"}""", text);
+        Assert.Contains("\\u003C", sdkJson, StringComparison.Ordinal);
+        Assert.Contains("\\u00E4", sdkJson, StringComparison.Ordinal);
+        Assert.NotEqual(text, structured.RootElement.GetRawText());
+
+        var actual = CanonicalToolDocument.Read(Result(structured.RootElement, text));
+
+        Assert.Equal(content, actual.GetProperty("content").GetString());
     }
 
     [Theory]

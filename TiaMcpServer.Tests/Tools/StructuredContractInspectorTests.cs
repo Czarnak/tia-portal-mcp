@@ -11,8 +11,8 @@ namespace TiaMcpServer.Tests.Tools;
 /// tool regress while the guard stays green. These cases pin each rule to a hand-written input.
 ///
 /// <para>
-/// Fixtures are the exact canonical bytes, so a quote inside a string value is written the way the
-/// canonical writer escapes it, <c>"</c>, not <c>\"</c>.
+/// Fixtures pin the canonical text separately from the structured rendering, which an SDK may
+/// reserialize with its own JSON encoder.
 /// </para>
 /// </summary>
 public sealed class StructuredContractInspectorTests
@@ -26,9 +26,22 @@ public sealed class StructuredContractInspectorTests
     }
 
     [Fact]
+    public void FindViolations_AllowsSdkReserializedStructuredContent()
+    {
+        const string canonical = """{"content":"<Network name=\"äŁ漢\">&'+</Network>"}""";
+        using var document = JsonDocument.Parse(canonical);
+        var sdkJson = JsonSerializer.Serialize(document.RootElement);
+        Assert.NotEqual(canonical, sdkJson);
+        Assert.Contains("\\u003C", sdkJson, StringComparison.Ordinal);
+        Assert.Contains("\\u00E4", sdkJson, StringComparison.Ordinal);
+
+        Assert.Empty(StructuredContractInspector.FindViolations(Result(canonical, sdkJson)));
+    }
+
+    [Fact]
     public void FindViolations_FlagsAStringHoldingAJsonObject()
     {
-        const string canonical = """{"payload":"{\u0022x\u0022:1}","tool":"t"}""";
+        const string canonical = """{"payload":"{\"x\":1}","tool":"t"}""";
 
         var violation = Assert.Single(StructuredContractInspector.FindViolations(Result(canonical, canonical)));
 
@@ -49,7 +62,7 @@ public sealed class StructuredContractInspectorTests
     public void FindViolations_IgnoresStringsThatAreNotJsonObjectsOrArrays()
     {
         const string canonical =
-            """{"brace":"{not json","marker":"[OMITTED]","number":"42","quoted":"\u0022x\u0022","truth":"true"}""";
+            """{"brace":"{not json","marker":"[OMITTED]","number":"42","quoted":"\"x\"","truth":"true"}""";
 
         Assert.Empty(StructuredContractInspector.FindViolations(Result(canonical, canonical)));
     }
@@ -66,6 +79,17 @@ public sealed class StructuredContractInspectorTests
     public void FindViolations_FlagsTextThatIsNotTheCanonicalRendering(string text)
     {
         Assert.NotEmpty(StructuredContractInspector.FindViolations(Result(text, """{"a":2,"b":1}""")));
+    }
+
+    [Fact]
+    public void FindViolations_FlagsNoncanonicalTextEscapingWithEquivalentStructuredValues()
+    {
+        const string text = """{"content":"\u003CNetwork\u003E"}""";
+        const string structured = """{"content":"<Network>"}""";
+
+        var violation = Assert.Single(StructuredContractInspector.FindViolations(Result(text, structured)));
+
+        Assert.Contains("not the canonical rendering", violation, StringComparison.Ordinal);
     }
 
     [Fact]

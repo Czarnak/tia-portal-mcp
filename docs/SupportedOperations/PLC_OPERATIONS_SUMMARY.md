@@ -229,6 +229,11 @@ creates, renames, deletes, or upserts the addressed object. A preview can carry 
 or `patch_block_logic` import reports `blockImportOutcome` on the item's failure; that member is conditional on every structured tool's
 failure schema.
 
+For an XML-only full `update_block_logic` submission, the preview compares the authoritative
+`.xml` document with the submitted XML, including a one-document XML bundle. The hash precondition
+still covers the whole served export and its companions. Other formats, multi-document submissions
+and bundle-selection failures retain whole-text diffs.
+
 ### Patching block logic
 
 `patch_block_logic` updates an existing block only. It requires `operationId`, `operation`,
