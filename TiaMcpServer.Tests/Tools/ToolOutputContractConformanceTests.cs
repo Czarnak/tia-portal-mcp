@@ -259,6 +259,17 @@ public sealed class ToolOutputContractConformanceTests
                     },
                 },
             }),
+        new ToolProbe("plc_write", "patchPreviewed", false, "plc-write-roundtrip",
+            new Dictionary<string, object?>
+            {
+                ["dryRun"] = true,
+                ["operations"] = new[] { new
+                {
+                    operationId = "patch", operation = "patch_block_logic", blockPath = "PLC_2/Main",
+                    expectedContentHash = TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("xml", "<Content of=\"PLC_2/Blocks/Main\" format=\"xml\"/>"),
+                    edits = new[] { new { oldText = "format=\"xml\"", newText = "format=\"patched\"" } },
+                } },
+            }),
         new ToolProbe(
             "browse_project_tree",
             "rejected",
@@ -466,14 +477,17 @@ public sealed class ToolOutputContractConformanceTests
         {
             var document = result.StructuredContent!.Value;
             Assert.Equal("plc_write", document.GetProperty("tool").GetString());
-            Assert.Equal("2.0", document.GetProperty("contractVersion").GetString());
+            Assert.Equal("2.1", document.GetProperty("contractVersion").GetString());
             Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
             Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
             Assert.Equal(probe.ExpectIsError ? "error" : "preview", document.GetProperty("phase").GetString());
             if (!probe.ExpectIsError)
             {
                 Assert.True(document.GetProperty("success").GetBoolean());
-                Assert.Equal("table", document.GetProperty("effects")[1].GetProperty("effect").GetProperty("dependsOn").GetString());
+                if (probe.Case == "patchPreviewed")
+                    Assert.Equal("patch_block_logic", document.GetProperty("effects")[0].GetProperty("effect").GetProperty("operation").GetString());
+                else
+                    Assert.Equal("table", document.GetProperty("effects")[1].GetProperty("effect").GetProperty("dependsOn").GetString());
             }
         }
         if (probe.Tool == "read_cross_references")

@@ -51,6 +51,10 @@ confirmation by `user`, `policy`, or `none`. A dry run never elicits, although a
 may still show its destructive-tool permission prompt. No tool uses safety tokens; replace
 `preview_write_batch`/`apply_write_batch` callers with `plc_write`, passing `content` plus
 `expectedContentHash` (from `plc_read`) instead of `yamlContent`/`sourceContent`.
+PLC write contract `2.1` also accepts `patch_block_logic` with `edits: [{oldText,newText}]`
+and the same hash, so clients can resend small block edits instead of the full document. Read in
+the same format first, preview with `dryRun:true`, then resend the edits to apply; every call
+resolves against a fresh export. See [patching block logic](../SupportedOperations/PLC_OPERATIONS_SUMMARY.md#patching-block-logic).
 `plc_write` and Network take `operations` and optional boolean `dryRun=false`; **omitting dryRun executes**.
 Set `dryRun:true` for every preview caller. Remove `confirm`, the former safety-token argument, `acknowledge` and
 unknown root keys: every argument-shape error returns the tool's canonical document (`validation_error`, `isError:true`) with no audit record.
@@ -121,7 +125,7 @@ guidance; it is never cut. Sizes are measured on the escaped JSON the client rec
 or XML document counts somewhat larger than its file.
 
 A block or type export over the value budget therefore comes back without `content` or
-`contentHash`, and `update_block_logic`/`update_type_content` cannot be used on it. Raise both
+`contentHash`, and `update_block_logic`, `patch_block_logic` and `update_type_content` cannot be used on it. Raise both
 budgets at server startup:
 
 | Setting | Command line | Environment variable | Default |
@@ -155,8 +159,10 @@ over its environment variable. Rules:
   configuration by hand.
 
 Raising the server budgets does not raise limits the MCP client enforces on its own, such as a
-maximum tool-result size, and a content write still sends the whole document as one tool
-argument. Fixed limits are unaffected: project-tree pages, `network_read` hardware pages and the
+maximum tool-result size. Full-replacement writes still send the whole document as one tool
+argument; `patch_block_logic` sends small replacements but still requires a complete hash-bearing
+read in the same format. It does not bypass an omitted read or create a working copy. Fixed limits
+are unaffected: project-tree pages, `network_read` hardware pages and the
 `compile_check` report stay at 60,000 characters.
 
 ## Worker timeout

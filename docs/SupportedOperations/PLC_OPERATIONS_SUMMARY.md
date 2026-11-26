@@ -156,7 +156,8 @@ owners themselves; they only enumerate the owners beneath them. See Appendix B o
 ## PLC writes (`plc_write`)
 
 `plc_write(operations, dryRun=false)` runs up to 50 PLC software writes in caller order against one
-verified, already-open project. Omitted `dryRun` or `dryRun:false` executes; `dryRun:true` returns
+verified, already-open project, using write contract `2.1` (`plc_read` stays `1.0`). Its 15 operations
+are listed below. Omitted `dryRun` or `dryRun:false` executes; `dryRun:true` returns
 `phase:preview` with effects, `dependsOn` and guards, without mutation. No confirmation prompt is sent
 in any mode. Each item has a unique, non-blank `operationId` of at most 256 characters; the tool acts on the
 bound project only (an item `projectPath` is rejected as `validation_error`). The tool never
@@ -165,6 +166,7 @@ saves, downloads, or controls a PLC.
 | Operation | Required inputs | Optional inputs |
 |---|---|---|
 | `update_block_logic` | `blockPath`, `content`, `expectedContentHash` | `format` (`xml` by default; `source` for global DBs and SCL blocks) |
+| `patch_block_logic` | `blockPath`, `expectedContentHash`, nonempty `edits: [{oldText,newText}]` | `format` (`xml` by default; `source` for eligible blocks) |
 | `update_type_content` | `typePath`, `content`, `expectedContentHash` | `format` (`source` by default) |
 | `create_block` | `blockPath`, `blockType` | `language`, `obEventClass` |
 | `delete_block` | `blockPath` | — |
@@ -202,7 +204,7 @@ records the V21 run.
 
 `create_block`, `create_block_group` and `delete_block_group` take a deterministic group path or the
 two-segment `PLC/Name` (the PLC root group); a one-segment path is `validation_error`.
-`update_block_logic` and `delete_block` resolve the block uniquely across the PLC, so a missing block
+`update_block_logic`, `patch_block_logic` and `delete_block` resolve the block uniquely across the PLC, so a missing block
 is `target_not_found`. The PLC itself is resolved uniquely across every device, including grouped
 devices; several matches are `target_ambiguous`.
 
@@ -210,6 +212,7 @@ devices; several matches are `target_ambiguous`.
 
 `update_block_logic` and `update_type_content` take the whole document as `content`, together with
 `expectedContentHash`: the `contentHash` from a `plc_read` of the same object in the same format.
+`patch_block_logic` instead takes small text replacements in `edits`, using the same hash precondition.
 If the object changed since that read, the call fails with `state_changed` before anything runs; a
 change between planning and import fails that item with `state_changed`. A document over the value
 budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and cannot be updated through
@@ -223,8 +226,73 @@ fail the item. Type updates require a declaration whose name matches the target.
 creates, renames, deletes, or upserts the addressed object. A preview can carry a bounded
 `contentDiff` of current versus requested text (see the
 [import/export options](IMPORT_EXPORT_OPTIONS_SUMMARY.md)). A failed `update_block_logic` import
-reports `blockImportOutcome` on the item's failure; that member is conditional on every structured tool's
+or `patch_block_logic` import reports `blockImportOutcome` on the item's failure; that member is conditional on every structured tool's
 failure schema.
+
+### Patching block logic
+
+`patch_block_logic` updates an existing block only. It requires `operationId`, `operation`,
+`blockPath`, `expectedContentHash` and one or more `edits`; `format` is optional and defaults to
+`xml`. Each edit has required string `oldText` and `newText`. `oldText` must be nonblank;
+`newText:""` deletes the matched text. `content`, `typePath` and unknown fields are rejected.
+Types continue to use full-document `update_type_content`.
+
+The host checks the hash of the fresh whole served export before locating anchors. For XML, that
+hash includes companions and separator bytes, while edits search only the authoritative `.xml`
+document and produce XML-only import content. An anchor in a companion does not match. A bundle
+without a Simatic ML document is refused with guidance to compile the block and read it again.
+Source patches search the whole eligible external source. Neither route translates block languages
+or changes the existing Openness importer.
+
+Every `oldText` must match exactly once, counting overlapping occurrences: `aaa` occurs twice in
+`aaaa`. Diagnostics use zero-based indices such as `edits[0]` and distinguish zero matches,
+several matches and overlapping edits. All anchors refer to the unchanged original export; edits
+do not cascade. Original matched spans must not overlap, but adjacent spans are allowed and edit
+order does not affect the result.
+
+CRLF and LF match each other; lone CR remains ordinary text. Unmatched characters are preserved.
+Replacement CRLF/LF terminators follow a uniformly CRLF or LF matched span. For a mixed span or a
+span without a terminator, they follow the original line containing the match start, falling back
+to CRLF when that line is unterminated. Empty replacements, including deletion of the whole scope,
+reach the existing importer, which may refuse the resulting document. Replacements cannot contain
+bundle delimiter lines, including malformed `--- FILE:` candidates, or introduce one by joining
+text across an edit boundary. A delimiter prefix already present at an original source line start
+may remain, including when its suffix changes.
+
+A normal workflow is:
+
+1. Read the block with `plc_read` using `get_block_content`, the exact `blockPath` and chosen format,
+   without `withDependencies`. Inspect the returned content and retain its non-null `contentHash`.
+2. Preview with `plc_write` and `dryRun:true`. For example, for an eligible SCL block, substitute the
+   hash from that source read in this request:
+
+   ```json
+   {
+     "operations": [{
+       "operationId": "raise-limit",
+       "operation": "patch_block_logic",
+       "blockPath": "PLC/Control",
+       "format": "source",
+       "expectedContentHash": "<contentHash from the source read>",
+       "edits": [{"oldText": "LIMIT := 10;", "newText": "LIMIT := 20;"}]
+     }],
+     "dryRun": true
+   }
+   ```
+
+3. Inspect the guards and `effects[].contentDiff`. Apply by resending the same small edit request
+   with `dryRun:false`. A preview supplies no reusable token; each call exports and resolves afresh,
+   and a changed base requires a new read and review.
+4. Inspect the item outcome, separate compile result and verification. Use the returned
+   verification `contentHash` or a fresh `plc_read` hash for a later write; never hash the patched
+   candidate yourself.
+
+An initial hash, anchor or overlap refusal fails planning for the whole call before any mutation.
+An item depending on earlier creations is re-planned immediately before mutation; a failed late
+replan or worker hash recheck can leave earlier items applied. The batch stops at its first failure
+without rollback. A block created earlier in the same call cannot be patched in that call.
+Patching still requires a hash-bearing read in the same format: it cannot update an export omitted
+by the effective read budget, and a `withDependencies` source read supplies no writable hash.
 
 ### Guards
 
@@ -332,15 +400,15 @@ characters per value and 180,000 per document by default; whole values are omitt
 entered call appends one audit v2 record to `writes-yyyy-MM-dd.jsonl`, with the actual item
 statuses and confirmation `none` in read-write and `policy` in full.
 
-Verification (write contract `2.0`; `plc_read` stays `1.0`) reads back only content:
+Verification (write contract `2.1`; `plc_read` stays `1.0`) reads back only content:
 
 - `trusted`: a completed non-content item. The Openness call returned without rejection and nothing
   was read back. The `exists`, `absent`, `values` and `observed` checks of contract `1.0` are gone.
-- `contentHash`: a completed `update_block_logic`/`update_type_content` item is re-exported and its
+- `contentHash`: a completed `update_block_logic`/`patch_block_logic`/`update_type_content` item is re-exported and its
   hash reported (`contentHash` and `actual`). A failed content item also reports the current hash,
   since a failed import may have committed.
 - `superseded`: an item whose object a later item changed or may have changed; only a later completed item or content check provides final
-  state. A short-path (`PLC/Name`) `update_block_logic` target is not resolved through the tree, so
+  state. A short-path (`PLC/Name`) block content target is not resolved through the tree, so
   conservatively any later block item of the same name, or any `delete_block_group` on that PLC,
   supersedes it, and it gets no content check. If the later item failed without verification, final state is uncertain; inspect it with `plc_read`.
 - A failed non-content item has no verification entry (nothing to verify). Inspect the object with
@@ -350,6 +418,14 @@ The verification `contentHash` equals the hash the next `plc_read` of that objec
 used as the next `expectedContentHash`. It cannot be computed from the submitted content: the export
 carries a generated id, and four identical `update_block_logic` writes gave four different hashes.
 Take it from the verification or a fresh read.
+
+Audit `requestedOperations` retains the public patch and its edits. An attempted patch additionally
+records the exact full normalized `update_block_logic` input in `items[].resolvedOperation`, including
+`content`, explicit format, selector and original hash. This is the input selected for that mutation
+attempt, even if the worker rejects it, transport fails or dispatch is reported `NotSent`; it does
+not prove dispatch or application. The conditional field is absent for previews, pre-mutation
+denials, skipped items and failed late replans. Audit v2 retains the full candidate independently
+of public-response budgets; inspect dispatch and outcome evidence separately.
 
 ### Known limits
 
@@ -365,7 +441,7 @@ Take it from the verification or a fresh read.
 - Review identified, without live exercise, that an `update_tag` requesting an unsupported external-access flag can fail after a rename or
   data-type change in the same item has applied (no rollback).
 - Portal's own rejection of a duplicate singleton OB was never observed (see the guard note above).
-- Content importers (`update_block_logic`, `update_type_content`) still flatten import failures to
+- Content importers (`update_block_logic`, also used by patches, and `update_type_content`) still flatten import failures to
   `worker_operation_failed` without `engineeringError`; see the
   [improvement log](../IMPROVEMENT_LOG.md).
 - Created OBs use TIA Portal defaults: no event parameters (cyclic time, phase offset, priority,

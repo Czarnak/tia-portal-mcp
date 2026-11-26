@@ -20,7 +20,7 @@ internal static class PlcWriteToolRegistration
         ["sourceContent"] = "use 'content' with 'expectedContentHash'",
     };
 
-    internal static JsonNode AddObEventClassEnum(AIJsonSchemaCreateContext context, JsonNode schema)
+    internal static JsonNode TransformSchema(AIJsonSchemaCreateContext context, JsonNode schema)
     {
         if (context.PropertyInfo is { Name: "obEventClass" } property
             && property.DeclaringType == typeof(PlcOperationRequest)
@@ -32,7 +32,35 @@ internal static class PlcWriteToolRegistration
             node["enum"] = values;
         }
 
+        if (context.TypeInfo.Type == typeof(PlcTextEdit[]) && schema is JsonObject editsSchema)
+        {
+            RemoveNullType(editsSchema);
+            RemoveNullType(editsSchema["items"]);
+        }
+
+        if (context.TypeInfo.Type == typeof(PlcTextEdit) && schema is JsonObject editSchema)
+        {
+            RemoveNullType(editSchema);
+            if (editSchema["properties"] is JsonObject properties)
+            {
+                RemoveNullType(properties["oldText"]);
+                RemoveNullType(properties["newText"]);
+                editSchema["required"] = new JsonArray { "oldText", "newText" };
+            }
+        }
+
         return schema;
+    }
+
+    private static void RemoveNullType(JsonNode? schema)
+    {
+        if (schema is not JsonObject node || node["type"] is not JsonArray types) return;
+        for (var index = types.Count - 1; index >= 0; index--)
+        {
+            if (types[index]?.GetValue<string>() == "null") types.RemoveAt(index);
+        }
+
+        if (types.Count == 1) node["type"] = types[0]!.GetValue<string>();
     }
 }
 

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TiaMcpServer.Json;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
@@ -28,7 +29,12 @@ public sealed record WriteAuditItem(
     string? FailureCategory,
     string? FailureMessage,
     IReadOnlyList<string> Warnings,
-    long? DurationMs);
+    long? DurationMs)
+{
+    /// <summary>Resolved input selected for an attempted mutation; this does not prove dispatch or application.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? ResolvedOperation { get; init; }
+}
 
 /// <summary>Serializable projection of the <see cref="ProjectBindingSnapshot"/> a call ran under.</summary>
 public sealed record WriteAuditBinding(

@@ -84,6 +84,10 @@ var plcWriteIncomplete = new PlcWriteRoundtripScenario(format => CompletedBlockO
 var plcWriteLateBlock = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), incompleteAfterWrite: true);
 var plcWriteExportLost = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), exportLostAfterWrite: true);
 var plcWriteContentDrift = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), driftAtImport: true);
+var plcWriteReplanDrift = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), driftAfterWrite: true);
+var plcWriteImportRejected = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), importFailure: WorkerFailureCategories.EngineeringRejected);
+var plcWriteImportPortalLost = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), importFailure: WorkerFailureCategories.PortalLost);
+var plcWriteInvalidImport = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), invalidImportOutcome: true);
 var plcWriteUnverifiable = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), skippedBlock: true);
 
 string? line;
@@ -772,6 +776,18 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "plc-write-content-drift":
             Respond(plcWriteContentDrift.Handle(line, scenario));
+            break;
+        case "plc-write-replan-drift":
+            Respond(plcWriteReplanDrift.Handle(line, scenario));
+            break;
+        case "plc-write-import-rejected":
+            Respond(plcWriteImportRejected.Handle(line, scenario));
+            break;
+        case "plc-write-import-portal-lost":
+            Respond(plcWriteImportPortalLost.Handle(line, scenario));
+            break;
+        case "plc-write-invalid-import":
+            Respond(plcWriteInvalidImport.Handle(line, scenario));
             break;
         case "plc-write-unverifiable":
             Respond(plcWriteUnverifiable.Handle(line, scenario));

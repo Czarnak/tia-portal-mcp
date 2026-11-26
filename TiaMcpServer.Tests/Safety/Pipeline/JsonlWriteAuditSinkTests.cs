@@ -72,7 +72,33 @@ public sealed class JsonlWriteAuditSinkTests
         Assert.Equal("b1", first.RootElement.GetProperty("binding").GetProperty("bindingId").GetString());
         Assert.Equal(34, first.RootElement.GetProperty("durationMs").GetInt64());
         Assert.Equal("w", item.GetProperty("warnings")[0].GetString());
+        Assert.False(item.TryGetProperty("resolvedOperation", out _));
         Assert.Equal("legacy\n", File.ReadAllText(legacy));
+    }
+
+    [Fact]
+    public void Append_ResolvedInput_PreservesFullContentOutsidePublicResponseBudgets()
+    {
+        using var dir = new TempAuditDirectory();
+        var content = "<Block>\r\n" + new string('x', 200_000) + "\r\n</Block>\n";
+        using var resolvedDocument = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            operationId = "a", operation = "update_block_logic", format = "xml", content
+        }));
+        var record = Record() with
+        {
+            Items = [Record().Items[0] with { ResolvedOperation = resolvedDocument.RootElement.Clone() }],
+            ResponseText = "{\"omission\":{\"reason\":\"value_budget\"}}"
+        };
+
+        new JsonlWriteAuditSink(dir.Path).Append(record);
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir.Path, "writes-2026-09-29.jsonl")));
+        var root = doc.RootElement;
+        Assert.Equal(content, root.GetProperty("items")[0].GetProperty("resolvedOperation").GetProperty("content").GetString());
+        Assert.Equal(record.ResponseText, root.GetProperty("responseText").GetString());
+        Assert.Equal(record.ResponseHash, root.GetProperty("responseHash").GetString());
+        Assert.Equal(2, root.GetProperty("recordVersion").GetInt32());
     }
 
     [Fact]

@@ -57,7 +57,7 @@ public static class McpToolRegistration
                 closeNestedSchemas: true, transformSchemaNode: NetworkWriteToolRegistration.AllowNullCurrentSettings),
             [typeof(PlcWriteTools)] = builder => builder.WithClosedTools(typeof(PlcWriteTools),
                 (services, _, message) => WriteRejection(new PlcWriteDomain(Client(services)), message),
-                closeNestedSchemas: true, transformSchemaNode: PlcWriteToolRegistration.AddObEventClassEnum,
+                closeNestedSchemas: true, transformSchemaNode: PlcWriteToolRegistration.TransformSchema,
                 retiredItemMembers: PlcWriteToolRegistration.RetiredItemMembers),
             [typeof(Hmi.HmiWriteTools)] = builder => builder.WithClosedTools(typeof(Hmi.HmiWriteTools),
                 (services, _, message) => WriteRejection(new Hmi.HmiWriteDomain(Client(services)), message),

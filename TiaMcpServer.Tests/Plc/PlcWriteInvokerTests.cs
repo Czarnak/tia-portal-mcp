@@ -94,7 +94,8 @@ public sealed class PlcWriteInvokerTests
     public static TheoryData<string> AllWriteOperations()
     {
         var data = new TheoryData<string>();
-        foreach (var name in PlcOperationCatalog.WriteOperationNames)
+        // Patches resolve to update_block_logic in the domain; no patch worker method exists.
+        foreach (var name in PlcOperationCatalog.WriteOperationNames.Where(name => name != "patch_block_logic"))
         {
             data.Add(name);
         }

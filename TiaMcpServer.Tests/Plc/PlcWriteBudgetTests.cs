@@ -25,7 +25,7 @@ public sealed class PlcWriteBudgetTests
     }
 
     private static PlcGuardedWriteResponse Preview(params PlcWriteEffect[] effects)
-        => new("plc_write", "2.0", "preview", true, null, Array.Empty<string>(), Array.Empty<WriteGuardReport>(),
+        => new("plc_write", "2.1", "preview", true, null, Array.Empty<string>(), Array.Empty<WriteGuardReport>(),
             effects.Select((e, i) => new PlcWriteEffectPresentation("op" + i, e, null)).ToArray(), null, null, null);
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class PlcWriteBudgetTests
         };
         var failed = new StructuredOperationItem("content", "update_block_logic", OperationBatchStatus.Failed, null,
             new StructuredOperationFailure(WorkerFailureCategories.WorkerOperationFailed, "Compile failed.", outcome), null, null, Array.Empty<string>());
-        var response = new PlcGuardedWriteResponse("plc_write", "2.0", "applied", false, null, Array.Empty<string>(), Array.Empty<WriteGuardReport>(),
+        var response = new PlcGuardedWriteResponse("plc_write", "2.1", "applied", false, null, Array.Empty<string>(), Array.Empty<WriteGuardReport>(),
             Array.Empty<PlcWriteEffectPresentation>(), StructuredOperationBatch.FromItems(new[] { failed }), new(true, Array.Empty<PlcOperationVerification>(), null), null);
 
         var bounded = PlcWritePayloadBudget.Apply(response, maxDocumentChars: 3_000);
@@ -77,7 +77,7 @@ public sealed class PlcWriteBudgetTests
     }
 
     private static PlcGuardedWriteResponse WithDiagnostics(string phase, bool success, WriteToolError? error, params WriteGuardReport[] guards)
-        => new("plc_write", "2.0", phase, success, error, Array.Empty<string>(), guards,
+        => new("plc_write", "2.1", phase, success, error, Array.Empty<string>(), guards,
             Array.Empty<PlcWriteEffectPresentation>(), null, null, null);
 
     [Fact]
@@ -158,5 +158,43 @@ public sealed class PlcWriteBudgetTests
         Assert.Contains("smaller plc_write calls", response.Error.Message);
         Assert.Equal(before, requests.Methods().Length);
         Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
+    [Fact]
+    public async Task EligibleLargeBase_ShortPatchRetainsExecutionWhenDiffIsOmitted()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-roundtrip");
+        const string path = "PLC_2/Main";
+        var content = "<Document>\n<Network>old</Network>\n<!--" + new string('x', 45_000) + "-->\n</Document>\n";
+        var seeded = await fixture.Client.UpdateBlockLogicAsync(path, content, format: "xml",
+            expectedContentHash: await fixture.ReadHashAsync(path, "xml"));
+        Assert.True(seeded.Success, seeded.Error);
+        var hash = await fixture.ReadHashAsync(path, "xml");
+        var patch = new PlcOperationRequest
+        {
+            OperationId = "patch", Operation = "patch_block_logic", BlockPath = path, ExpectedContentHash = hash,
+            Edits = [new PlcTextEdit { OldText = "<Network>old</Network>", NewText = "<Network>new</Network>" }],
+        };
+        // The DTO retains ordinary explicit-null members; measure reduction against the base.
+        Assert.True(CanonicalJson.Serialize(patch).Length < content.Length / 10);
+
+        var response = await fixture.RunAsync(false, patch);
+
+        Assert.True(response.Success, CanonicalJson.Serialize(response));
+        var diff = Assert.Single(response.Effects).Effect!.ContentDiff!;
+        Assert.Equal(1, diff.CurrentChangedLineCount);
+        Assert.Equal(1, diff.RequestedChangedLineCount);
+        var preservedSize = Math.Max(CanonicalJson.Serialize(Assert.Single(response.Effects).Effect! with { ContentDiff = null }).Length,
+            CanonicalJson.Serialize(response.Verification!.Operations).Length);
+        var bounded = PlcWritePayloadBudget.Apply(response, maxItemChars: preservedSize + 1);
+        var execution = Assert.Single(bounded.Batch!.Operations);
+        Assert.Equal("patch_block_logic", execution.Operation);
+        Assert.Equal("succeeded", execution.Status);
+        Assert.Null(Assert.Single(bounded.Effects).Effect!.ContentDiff);
+        Assert.NotNull(Assert.Single(bounded.Effects).Omission);
+        Assert.False(bounded.Success);
+        Assert.True(bounded.Verification!.Success);
+        Assert.True(Assert.Single(bounded.Verification.Operations).Success);
     }
 }

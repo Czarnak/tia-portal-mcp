@@ -19,13 +19,15 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// <c>incompleteAfterWrite</c> does the same once any write succeeded (late block, failed verification);
 /// <c>exportLostAfterWrite</c> makes block exports fail once any write succeeded (the post-write hash re-export);
 /// <c>driftAtImport</c> edits block content just before an import checks its hash (a TIA UI edit);
+/// <c>driftAfterWrite</c> changes exports after an earlier mutation, exercising a dependent late replan;
 /// <c>skippedBlock</c> makes the tree walker report an unreadable block under PLC_1's program blocks.
 /// Creating the tag <c>RejectedByPortal</c>, or a block, block group or tag table whose name is taken, fails as Portal's own
 /// rejection (<c>engineering_rejected</c> with Siemens evidence): the worker no longer pre-checks those names.
 /// Creating a tag whose name the table already holds returns the live-captured Siemens document verbatim.
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
-    bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false, bool exportLostAfterWrite = false)
+    bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false, bool exportLostAfterWrite = false,
+    bool driftAfterWrite = false, string? importFailure = null, bool invalidImportOutcome = false)
 {
     private const string RejectedTagName = "RejectedByPortal";
 
@@ -222,7 +224,14 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         var format = request.Format ?? SourceFormatNames.Xml;
         if (driftAtImport) _content[Key(path, format)] = "<Block edited-in-tia-ui=\"true\"/>";
         RequireHash(request, format, Content(plc, path, format));
+        if (importFailure is not null)
+        {
+            if (importFailure == WorkerFailureCategories.EngineeringRejected) throw PortalRejection("The block import was rejected.");
+            Throw(importFailure, "The scripted block import failed.");
+        }
         _content[Key(path, format)] = request.Content!;
+        if (invalidImportOutcome)
+            return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded." }, WorkerJson.Envelope);
         return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded.", BlockImportOutcome = completedOutcome(format) }, WorkerJson.Envelope);
     }
 
@@ -421,7 +430,10 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
     }
 
     private string Content(Plc plc, string path, string format)
-        => _content.TryGetValue(Key(path, format), out var stored) ? stored : $"<Content of=\"{path}\" format=\"{format}\"/>";
+    {
+        var content = _content.TryGetValue(Key(path, format), out var stored) ? stored : $"<Content of=\"{path}\" format=\"{format}\"/>";
+        return driftAfterWrite && _wrote ? content + "\n<!-- changed after the prior mutation -->" : content;
+    }
 
     private static void RequireHash(WorkerRequest request, string format, string current)
     {

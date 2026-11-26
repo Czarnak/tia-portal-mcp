@@ -9,6 +9,16 @@ using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Plc;
 
+public sealed record PlcWritePlanResult(
+    WritePlan<PlcWriteEffect> Plan,
+    IReadOnlyDictionary<string, IReadOnlyList<FiredGuard>> Guards,
+    IReadOnlyDictionary<string, PlcOperationRequest> ResolvedOperations);
+
+public sealed record PlcWriteReplanResult(
+    ItemReplan<PlcWriteEffect> Replan,
+    IReadOnlyList<FiredGuard> Guards,
+    PlcOperationRequest? ResolvedOperation);
+
 /// <summary>
 /// Plans plc_write items from public reads only, each at most once per call: the tag inventory
 /// (which also resolves the PLC), the project tree of a PLC only when one of its items needs it
@@ -21,7 +31,8 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     internal sealed record Evidence(PlcTagInventoryInfo? Inventory, WriteToolError? Error);
 
     private sealed record ItemOutcome(PlcWorkingState? State, PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards,
-        IReadOnlyList<CheckedPrecondition> Preconditions, WriteToolError? Error);
+        IReadOnlyList<CheckedPrecondition> Preconditions, WriteToolError? Error,
+        PlcOperationRequest? ResolvedOperation = null);
 
     /// <summary>The planning reads of one call: the inventory, each PLC's working state and which PLCs need a tree.</summary>
     private sealed class CallReads(PlcTagInventoryInfo inventory, IReadOnlyList<PlcOperationRequest> items)
@@ -34,7 +45,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             .Select(item => MatchPlc(item, inventory).Plc).OfType<PlcTagInventoryPlcInfo>(), ReferenceEqualityComparer.Instance);
     }
 
-    public async Task<PlanResult<PlcWriteEffect>> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
+    public async Task<PlcWritePlanResult> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         if (evidence.Error is { } inventoryError) return Failed(inventoryError);
@@ -43,31 +54,38 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         var budget = new PlcContentDiffBudget();
         var plans = new List<ItemPlan<PlcWriteEffect>>();
         var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
+        var resolved = new Dictionary<string, PlcOperationRequest>(StringComparer.Ordinal);
         foreach (var item in items)
         {
             var outcome = await ResolveAsync(item, reads, budget).ConfigureAwait(false);
             if (outcome.Error is { } error) return Failed(error);
             var effect = outcome.Effect ?? throw new InvalidOperationException($"Operation '{item.OperationId}' resolved without an effect or an error.");
             var dependsOn = outcome.State?.LastTouchedBy(effect.Target);
-            outcome.State?.Apply(item);
+            if (outcome.ResolvedOperation is { } executionItem)
+            {
+                outcome.State?.Apply(executionItem);
+                resolved[item.OperationId] = executionItem;
+            }
+            else if (item.Operation != "patch_block_logic")
+                outcome.State?.Apply(item);
             // The effect stays known: the pipeline drops plans with a null effect.
             plans.Add(ItemPlan<PlcWriteEffect>.Resolved(effect with { DependsOn = dependsOn }, outcome.Preconditions) with { DependsOn = dependsOn });
             guards[item.OperationId] = outcome.Guards;
         }
 
-        return new PlanResult<PlcWriteEffect>(WritePlan<PlcWriteEffect>.Ok(plans), guards);
+        return new PlcWritePlanResult(WritePlan<PlcWriteEffect>.Ok(plans), guards, resolved);
     }
 
     /// <summary>Re-reads real state for one dependent item just before its own mutation, with that item's read set.</summary>
-    public async Task<ReplanResult<PlcWriteEffect>> ReplanAsync(PlcOperationRequest item)
+    public async Task<PlcWriteReplanResult> ReplanAsync(PlcOperationRequest item)
     {
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         var outcome = evidence.Error is { } inventoryError
             ? new ItemOutcome(null, null, Array.Empty<FiredGuard>(), Array.Empty<CheckedPrecondition>(), inventoryError)
             : await ResolveAsync(item, new CallReads(evidence.Inventory!, new[] { item }), new PlcContentDiffBudget()).ConfigureAwait(false);
         return outcome.Error is { } error
-            ? new ReplanResult<PlcWriteEffect>(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>())
-            : new ReplanResult<PlcWriteEffect>(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards);
+            ? new PlcWriteReplanResult(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>(), null)
+            : new PlcWriteReplanResult(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards, outcome.ResolvedOperation);
     }
 
     private async Task<ItemOutcome> ResolveAsync(PlcOperationRequest item, CallReads reads, PlcContentDiffBudget budget)
@@ -97,12 +115,64 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             reads.States[plc!] = state = PlcWorkingState.Create(plc!, inventory.IsComplete, tree);
         }
 
+        // A public patch has no working-state or worker name. Resolve its fresh base first,
+        // then feed the same internal update request to every existing execution seam.
+        if (item.Operation == "patch_block_logic")
+            return await ResolvePatchAsync(item, state, plc!, inventory.IsComplete, budget).ConfigureAwait(false);
+
         var resolution = state.Resolve(item);
         if (resolution.Error is not null) return Fail(resolution.Error);
         var effect = resolution.Effect!;
         if (item.Operation is not ("update_block_logic" or "update_type_content"))
             return new ItemOutcome(state, effect, resolution.Guards, Array.Empty<CheckedPrecondition>(), null);
         return await ResolveContentAsync(item, state, effect, resolution.Guards, budget).ConfigureAwait(false);
+    }
+
+    private async Task<ItemOutcome> ResolvePatchAsync(PlcOperationRequest requested, PlcWorkingState state,
+        PlcTagInventoryPlcInfo plc, bool inventoryComplete, PlcContentDiffBudget budget)
+    {
+        var format = PlcFormatNames.Normalize(requested.Operation, requested.Format);
+        var export = await client.GetBlockContentAsync(requested.BlockPath!, format: format).ConfigureAwait(false);
+        var guards = inventoryComplete ? Array.Empty<FiredGuard>() : new[]
+        {
+            new FiredGuard(PlcGuardDefinitions.StateUnverifiable, requested.OperationId,
+                $"The tag inventory is incomplete, so the state of PLC '{plc.PlcName}' cannot be verified. Inspect the list_tag_tables messages.")
+        };
+        var effect = PlcWorkingState.Unresolved(requested, plc.PlcName, plc.DeviceName);
+        var failure = CheckExport(requested, state, effect, guards, export);
+        if (failure is not null) return failure;
+
+        var check = ContentHashes.Check(requested.ExpectedContentHash, format, export.Payload!);
+        if (!check.Success) return Fail(new(check.ErrorCategory!, $"Operation '{requested.OperationId}': {check.Message}"));
+        // Keep the descriptive guarded plan, but never cache executable input while the
+        // inventory cannot establish the PLC's complete state.
+        if (!inventoryComplete)
+            return new ItemOutcome(state, effect, guards, new[] { check.Evidence! }, null);
+        string content;
+        try
+        {
+            content = PlcBlockLogicPatch.Apply(format, export.Payload!, requested.Edits!);
+        }
+        catch (ArgumentException ex)
+        {
+            return Fail(new(WorkerFailureCategories.ValidationError, $"Operation '{requested.OperationId}': {ex.Message}"));
+        }
+
+        var executionItem = new PlcOperationRequest
+        {
+            OperationId = requested.OperationId,
+            Operation = "update_block_logic",
+            BlockPath = requested.BlockPath,
+            Format = format,
+            ExpectedContentHash = requested.ExpectedContentHash,
+            Content = content
+        };
+        var resolution = state.Resolve(executionItem);
+        if (resolution.Error is not null) return Fail(resolution.Error);
+        var (current, replacement) = PlcContentDiffSides.Select(format, export.Payload!, content);
+        return new ItemOutcome(state, resolution.Effect! with
+            { Operation = requested.Operation, ContentDiff = PlcContentDiff.Build(current, replacement, budget) },
+            resolution.Guards, new[] { check.Evidence! }, null, executionItem);
     }
 
     /// <summary>Exports the target in the write's format: the hash check and the diff evidence.</summary>
@@ -113,21 +183,26 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         var export = item.Operation == "update_block_logic"
             ? await client.GetBlockContentAsync(item.BlockPath!, format: format).ConfigureAwait(false)
             : await client.GetTypeContentAsync(item.TypePath!, format: format).ConfigureAwait(false);
-        if (!export.Success && export.FailureCategory is WorkerFailureCategories.TargetNotFound or WorkerFailureCategories.TargetAmbiguous)
-            return Fail(new(export.FailureCategory!, $"Operation '{item.OperationId}': {export.Error}"));
-        if (!export.Success || string.IsNullOrEmpty(export.Payload))
-        {
-            // Unreadable content is never hashed: an empty export is not "unchanged" evidence.
-            var unverifiable = new FiredGuard(PlcGuardDefinitions.StateUnverifiable, item.OperationId,
-                $"Operation '{item.OperationId}': the current content could not be exported ({(export.Success ? "the export was empty" : export.Error)}), so expectedContentHash cannot be checked.");
-            return new ItemOutcome(state, effect, guards.Append(unverifiable).ToArray(), Array.Empty<CheckedPrecondition>(), null);
-        }
+        var failure = CheckExport(item, state, effect, guards, export);
+        if (failure is not null) return failure;
 
         var check = ContentHashes.Check(item.ExpectedContentHash, format, export.Payload);
         if (!check.Success) return Fail(new(check.ErrorCategory!, $"Operation '{item.OperationId}': {check.Message}"));
         var (current, requested) = PlcContentDiffSides.Select(format, export.Payload, item.Content!);
         return new ItemOutcome(state, effect with { ContentDiff = PlcContentDiff.Build(current, requested, budget) },
             guards, new[] { check.Evidence! }, null);
+    }
+
+    private static ItemOutcome? CheckExport(PlcOperationRequest item, PlcWorkingState state,
+        PlcWriteEffect effect, IReadOnlyList<FiredGuard> guards, WorkerCallResult export)
+    {
+        if (!export.Success && export.FailureCategory is WorkerFailureCategories.TargetNotFound or WorkerFailureCategories.TargetAmbiguous)
+            return Fail(new(export.FailureCategory!, $"Operation '{item.OperationId}': {export.Error}"));
+        if (export.Success && !string.IsNullOrEmpty(export.Payload)) return null;
+        // Unreadable content is never hashed: an empty export is not "unchanged" evidence.
+        var unverifiable = new FiredGuard(PlcGuardDefinitions.StateUnverifiable, item.OperationId,
+            $"Operation '{item.OperationId}': the current content could not be exported ({(export.Success ? "the export was empty" : export.Error)}), so expectedContentHash cannot be checked.");
+        return new ItemOutcome(state, effect, guards.Append(unverifiable).ToArray(), Array.Empty<CheckedPrecondition>(), null);
     }
 
     /// <summary>D5: the selector matches a software or device name among every PLC, case-insensitively.</summary>
@@ -197,6 +272,7 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     private static ItemOutcome Fail(WriteToolError error)
         => new(null, null, Array.Empty<FiredGuard>(), Array.Empty<CheckedPrecondition>(), error);
 
-    private static PlanResult<PlcWriteEffect> Failed(WriteToolError error)
-        => new(WritePlan<PlcWriteEffect>.Fail(error.Category, error.Message), new Dictionary<string, IReadOnlyList<FiredGuard>>());
+    private static PlcWritePlanResult Failed(WriteToolError error)
+        => new(WritePlan<PlcWriteEffect>.Fail(error.Category, error.Message), new Dictionary<string, IReadOnlyList<FiredGuard>>(),
+            new Dictionary<string, PlcOperationRequest>());
 }

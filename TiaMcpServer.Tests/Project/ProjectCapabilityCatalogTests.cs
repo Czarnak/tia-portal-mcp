@@ -7,6 +7,18 @@ namespace TiaMcpServer.Tests.Project;
 public sealed class ProjectCapabilityCatalogTests
 {
     [Theory]
+    [InlineData(ProjectContainerKinds.StandaloneProject, true, ProjectCapabilityApplicabilities.ProjectContent)]
+    [InlineData(ProjectContainerKinds.LocalSession, true, ProjectCapabilityApplicabilities.ProjectContent)]
+    [InlineData(ProjectContainerKinds.ServerProject, false, ProjectCapabilityApplicabilities.NotYetDelivered)]
+    public void PatchBlockLogicIsProjectContent(string container, bool supported, string applicability)
+    {
+        Assert.Equal(supported, ProjectCapabilityCatalog.Supports(container, "patch_block_logic"));
+        var description = Assert.Single(ProjectCapabilityCatalog.Describe(container), item => item.Operation == "patch_block_logic");
+        Assert.Equal(applicability, description.Applicability);
+        Assert.Equal("patch_block_logic", ProjectCapabilityCatalog.OperationFor("patch_block_logic"));
+    }
+
+    [Theory]
     [InlineData("read_hardware_config", true)]
     [InlineData("read_hardware_page_candidates", true)]
     [InlineData("browse_project_tree_v3_snapshot", true)]

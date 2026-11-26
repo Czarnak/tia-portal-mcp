@@ -77,6 +77,165 @@ public sealed class PlcGuardedWriteMcpTests
         Assert.Contains("effects", output);
     }
 
+    [Fact]
+    public async Task PatchSchema_RequiresClosedNonNullableEditStrings()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path);
+        var tool = Assert.Single(await harness.Client.ListToolsAsync(), t => t.Name == "plc_write").ProtocolTool;
+        var operation = tool.InputSchema.GetProperty("properties").GetProperty("operations").GetProperty("items");
+        if (operation.TryGetProperty("required", out var required))
+            Assert.DoesNotContain("edits", required.EnumerateArray().Select(v => v.GetString()));
+        var edits = operation.GetProperty("properties").GetProperty("edits");
+        Assert.Equal("array", edits.GetProperty("type").GetString());
+        var edit = edits.GetProperty("items");
+        Assert.Equal("object", edit.GetProperty("type").GetString());
+        Assert.False(edit.GetProperty("additionalProperties").GetBoolean());
+        Assert.Equal(new[] { "newText", "oldText" }, edit.GetProperty("required").EnumerateArray().Select(v => v.GetString()).Order());
+        foreach (var name in new[] { "oldText", "newText" })
+            Assert.Equal("string", edit.GetProperty("properties").GetProperty(name).GetProperty("type").GetString());
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("\"edits\"")]
+    [InlineData("[null]")]
+    [InlineData("[{}]")]
+    [InlineData("[{\"oldText\":\"old\"}]")]
+    [InlineData("[{\"newText\":\"new\"}]")]
+    [InlineData("[{\"oldText\":null,\"newText\":\"new\"}]")]
+    [InlineData("[{\"oldText\":\"old\",\"newText\":null}]")]
+    [InlineData("[{\"oldText\":12,\"newText\":\"new\"}]")]
+    [InlineData("[{\"oldText\":\"old\",\"newText\":false}]")]
+    [InlineData("[{\"oldText\":\"old\",\"newText\":\"new\",\"unknown\":true}]")]
+    public async Task MalformedPatchEdits_AreCanonicalUnauditedShapeErrors(string editsJson)
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var before = requests.Methods();
+        var patch = new Dictionary<string, object?>
+        {
+            ["operationId"] = "patch", ["operation"] = "patch_block_logic", ["blockPath"] = "PLC_2/Main",
+            ["expectedContentHash"] = "xml:sha256:" + new string('0', 64),
+            ["edits"] = JsonSerializer.Deserialize<JsonElement>(editsJson),
+        };
+
+        var reply = await harness.Client.CallToolAsync("plc_write", new Dictionary<string, object?> { ["operations"] = new[] { patch } });
+
+        ArgumentRejectionAssert.IsCanonicalValidationError(reply, "plc_write");
+        Assert.Equal(before, requests.Methods());
+        Assert.Empty(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));
+    }
+
+    private static async Task<(string Content, string Hash)> ReadBlockAsync(McpClient client)
+    {
+        var result = await client.CallToolAsync("plc_read", new Dictionary<string, object?>
+        {
+            ["operations"] = new[] { new { operationId = "read", operation = "get_block_content", blockPath = "PLC_2/Main" } },
+        });
+        var root = CanonicalToolDocument.Read(result);
+        var content = Assert.Single(root.GetProperty("batch").GetProperty("operations").EnumerateArray()).GetProperty("result");
+        return (content.GetProperty("content").GetString()!, content.GetProperty("contentHash").GetString()!);
+    }
+
+    [Fact]
+    public async Task RegisteredPatch_PreviewsThenAppliesWithPublicNamesAndFreshVerification()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        var prompts = 0;
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario,
+            new McpClientOptions
+            {
+                Capabilities = new() { Elicitation = new() { Form = new() } },
+                Handlers = new() { ElicitationHandler = (_, _) => { prompts++; return ValueTask.FromResult(new ElicitResult { Action = "decline" }); } },
+            });
+        var original = await ReadBlockAsync(harness.Client);
+        var patch = new { operationId = "patch", operation = "patch_block_logic", blockPath = "PLC_2/Main",
+            expectedContentHash = original.Hash, edits = new[] { new { oldText = "format=\"xml\"", newText = "format=\"patched\"" } } };
+        var args = new Dictionary<string, object?> { ["operations"] = new[] { patch }, ["dryRun"] = true };
+
+        var preview = await harness.Client.CallToolAsync("plc_write", args);
+
+        var previewRoot = CanonicalToolDocument.Read(preview);
+        Assert.False(preview.IsError == true);
+        Assert.True(previewRoot.GetProperty("success").GetBoolean(), previewRoot.GetRawText());
+        Assert.Equal("2.1", previewRoot.GetProperty("contractVersion").GetString());
+        Assert.Equal("preview", previewRoot.GetProperty("phase").GetString());
+        var effect = Assert.Single(previewRoot.GetProperty("effects").EnumerateArray()).GetProperty("effect");
+        Assert.Equal("patch_block_logic", effect.GetProperty("operation").GetString());
+        Assert.Equal(1, effect.GetProperty("contentDiff").GetProperty("currentChangedLineCount").GetInt32());
+        Assert.Equal(1, effect.GetProperty("contentDiff").GetProperty("requestedChangedLineCount").GetInt32());
+        Assert.DoesNotContain("update_block_logic", requests.Methods());
+        using (var previewAudit = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path))))
+            Assert.All(previewAudit.RootElement.GetProperty("items").EnumerateArray(), item => Assert.False(item.TryGetProperty("resolvedOperation", out _)));
+
+        args["dryRun"] = false;
+        var applied = await harness.Client.CallToolAsync("plc_write", args);
+
+        var root = CanonicalToolDocument.Read(applied);
+        Assert.False(applied.IsError == true);
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        var item = Assert.Single(root.GetProperty("batch").GetProperty("operations").EnumerateArray());
+        Assert.Equal("patch_block_logic", item.GetProperty("operation").GetString());
+        Assert.Equal("succeeded", item.GetProperty("status").GetString());
+        Assert.Equal(1, requests.Methods().Count(method => method == "update_block_logic"));
+        Assert.DoesNotContain("patch_block_logic", requests.Methods());
+        var fresh = await ReadBlockAsync(harness.Client);
+        Assert.Equal(original.Content.Replace("format=\"xml\"", "format=\"patched\""), fresh.Content);
+        var verification = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
+        Assert.Equal("contentHash", verification.GetProperty("check").GetString());
+        Assert.Equal(fresh.Hash, verification.GetProperty("actual").GetString());
+        Assert.Equal(0, prompts);
+        Assert.Equal(2, NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Length);
+    }
+
+    [Fact]
+    public async Task RegisteredPatch_EmptyReplacementPassesShapeAndPreviewsWholeScopeDeletion()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var original = await ReadBlockAsync(harness.Client);
+        var reply = await harness.Client.CallToolAsync("plc_write", new Dictionary<string, object?>
+        {
+            ["dryRun"] = true,
+            ["operations"] = new[] { new { operationId = "delete-text", operation = "patch_block_logic", blockPath = "PLC_2/Main",
+                expectedContentHash = original.Hash, edits = new[] { new { oldText = original.Content, newText = "" } } } },
+        });
+
+        var root = CanonicalToolDocument.Read(reply);
+        Assert.False(reply.IsError == true);
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal("preview", root.GetProperty("phase").GetString());
+    }
+
+    [Fact]
+    public async Task RegisteredMixedBatch_InvalidPatchAnchorRejectsWholePlanBeforeEarlierCreate()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite, audit.Path, Scenario);
+        var original = await ReadBlockAsync(harness.Client);
+        var reply = await harness.Client.CallToolAsync("plc_write", new Dictionary<string, object?>
+        {
+            ["operations"] = new object[] { CreateTag("early", "NeverCreated"),
+                new { operationId = "invalid", operation = "patch_block_logic", blockPath = "PLC_2/Main", expectedContentHash = original.Hash,
+                    edits = new[] { new { oldText = "missing anchor", newText = "new" } } } },
+        });
+
+        var root = CanonicalToolDocument.Read(reply);
+        Assert.True(reply.IsError == true);
+        Assert.Equal("validation_error", root.GetProperty("error").GetProperty("category").GetString());
+        Assert.Contains("edits[0]", root.GetProperty("error").GetProperty("message").GetString());
+        Assert.DoesNotContain("create_tag", requests.Methods());
+        Assert.DoesNotContain("update_block_logic", requests.Methods());
+    }
+
     [Theory]
     [InlineData("true", false)]
     [InlineData("false", false)]
@@ -279,7 +438,7 @@ public sealed class PlcGuardedWriteMcpTests
         Assert.False(reply.IsError == true);
         Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
         Assert.Equal(dryRun == true ? "preview" : "applied", root.GetProperty("phase").GetString());
-        Assert.Equal("2.0", root.GetProperty("contractVersion").GetString());
+        Assert.Equal("2.1", root.GetProperty("contractVersion").GetString());
         Assert.Equal(0, prompts);
         Assert.Equal(dryRun != true, requests.Methods().Contains("create_tag"));
         Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path));

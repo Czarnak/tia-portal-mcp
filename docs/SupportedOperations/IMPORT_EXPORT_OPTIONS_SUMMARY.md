@@ -2,16 +2,17 @@
 
 ## Operation surface
 
-The MCP provides a focused PLC round-trip interface through four operations (reads through `plc_read`, writes through `plc_write`):
+The MCP provides a focused PLC round-trip interface through five operations (reads through `plc_read`, writes through `plc_write` contract `2.1`):
 
 | Operation | Direction | Default format | Purpose |
 |---|---|---|---|
 | `get_block_content` | Read | `xml` | Reads one existing PLC block. |
 | `update_block_logic` | Write | `xml` | Updates one existing PLC block from supplied document content. |
+| `patch_block_logic` | Write | `xml` | Resolves unique text replacements against a fresh block export, then uses the existing block update path. |
 | `get_type_content` | Read | `source` | Reads one existing PLC data type. |
 | `update_type_content` | Write | `source` | Updates one existing PLC data type from supplied document content. |
 
-The `format` field accepts `xml` and `source`, case-insensitively. Block and type reads use `plc_read`; writes use `plc_write`, passing the document as `content` together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read fails with `state_changed`. A document over the value budget (60,000 characters by default; raise it with `--max-item-chars`, see [response size limits](../guides/mcp-client-configuration.md#response-size-limits)) is omitted from the read, has no hash, and cannot be written.
+The `format` field accepts `xml` and `source`, case-insensitively. Block and type reads use `plc_read`; writes use `plc_write`, passing the document as `content` or block patch replacements as `edits`, together with `expectedContentHash`, the `contentHash` from a `plc_read` of the same object in the same format. Content changed since that read fails with `state_changed`. A document over the value budget (60,000 characters by default; raise it with `--max-item-chars`, see [response size limits](../guides/mcp-client-configuration.md#response-size-limits)) is omitted from the read, has no hash, and cannot be written, including by a patch.
 
 ## Supported formats
 
@@ -37,6 +38,17 @@ Updates are strict updates to an existing object:
 - External-source generation uses `GenerateBlockOption.None`.
 - Root groups, user groups, and software-unit-owned external-source groups are resolved according to the addressed path.
 
+For `patch_block_logic`, the host checks the hash of the whole fresh served export before matching
+edits. XML anchors search only its authoritative `.xml` part and resolve to XML-only content;
+companions and separator bytes remain part of the hash precondition, never patch targets. Source
+anchors search the whole source. Each nonblank anchor must occur once, counting overlapping
+occurrences, and edits use disjoint original spans without cascading. CRLF and LF are equivalent
+for matching; unmatched characters and lone CR are preserved, and replacement line endings follow the
+matched span or original starting line. Empty replacements are allowed. Introduced bundle
+delimiter lines are refused. See [patching block logic](PLC_OPERATIONS_SUMMARY.md#patching-block-logic)
+for exact request fields, newline fallback, delimiter rules and the preview/apply workflow. Type
+updates remain full-document writes.
+
 For block updates, the worker attempts validation, target import or generation, compile observation,
 and an independent fresh postcondition read in order, then reports which stages were established. A
 proven refusal before target invocation leaves import, compile, and final read `not_started`. If
@@ -55,7 +67,7 @@ descriptions in the import outcome remain sanitized; use `compile_check` for com
 
 ### Block-update outcome evidence
 
-`plc_write` reports the non-atomic result of each `update_block_logic` item as an import outcome
+`plc_write` reports the non-atomic result of each `update_block_logic` or `patch_block_logic` item as an import outcome
 object. A succeeded item's `result` is `{ format, importOutcome }`; a failed content import carries
 the same object as `failure.blockImportOutcome`. `blockImportOutcome` is a conditional member on
 every structured tool's failure schema and is omitted from unrelated items. The host requires
@@ -98,9 +110,9 @@ project binding, access policy, guards, and audit of the guarded pipeline apply 
 
 ### Preview evidence
 
-Each `update_block_logic` and `update_type_content` item's `plc_write` effect carries a structured
+Each `update_block_logic`, `patch_block_logic` and `update_type_content` item's `plc_write` effect carries a structured
 `contentDiff` object, in previews and actual calls alike. It compares the current exact-format text
-read at planning with the submitted `content`; it does not predict Siemens post-write state and is
+read at planning with the submitted `content` or resolved patch candidate; it does not predict Siemens post-write state and is
 evidence only, not part of the hash check.
 
 - Each eligible operation has at most 40 excerpt lines and 8,192 excerpt characters per side.
@@ -119,6 +131,11 @@ evidence only, not part of the hash check.
   the whole served bundle, and a one-document bundle's separator line is left out of the requested
   side. `expectedContentHash` still covers the whole bundle. Any other content, including text
   that does not parse as a bundle, is compared whole.
+- XML patches always resolve to the `.xml` document alone and use that same XML-only diff path,
+  while the expected hash still protects the whole served bundle. Source patches compare the
+  whole original source with the resolved source. The audit's conditional
+  `items[].resolvedOperation.content` retains the full input selected for an attempted patch;
+  the public diff remains bounded evidence, and neither establishes import success.
 - Every other operation has `contentDiff: null`.
 
 ## Format matrix
@@ -133,6 +150,7 @@ evidence only, not part of the hash check.
 | PLC data type SimaticML/XML exchange | Supported |
 | PLC data type `.udt` exchange | Supported |
 | Existing-object update | Supported |
+| Unique text patches of existing block XML or eligible external source | Supported; full-export hash required; types and companions excluded |
 | Create, rename, delete, or upsert through import | Not supported |
 | Root, user-group, and software-unit target routing | Supported |
 | Caller-selected Openness `ExportOptions` | Partial: XML export uses `None` |

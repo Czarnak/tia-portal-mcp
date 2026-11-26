@@ -261,6 +261,7 @@ public class ReadOnlyModeTests
     [InlineData("archive_project")]
     [InlineData("close_project")]
     [InlineData("update_block_logic")]
+    [InlineData("patch_block_logic")]
     [InlineData("update_type_content")]
     [InlineData("get_type_content_unrecognized")]
     [InlineData("create_block")]
@@ -298,6 +299,15 @@ public class ReadOnlyModeTests
     public void ReadOnlyMode_DeniesProhibitedOperations(string operation)
     {
         Assert.False(OperationPolicyCatalog.IsAllowed(McpAccessMode.ReadOnly, operation));
+    }
+
+    [Theory]
+    [InlineData(McpAccessMode.ReadWrite)]
+    [InlineData(McpAccessMode.Full)]
+    public void WritableModes_AllowPublicPatchOperation(McpAccessMode mode)
+    {
+        Assert.Equal(OperationCapability.ProjectMutation, OperationPolicyCatalog.GetCapability("patch_block_logic"));
+        Assert.True(OperationPolicyCatalog.IsAllowed(mode, "patch_block_logic"));
     }
 
     [Fact]

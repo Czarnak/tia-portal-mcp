@@ -26,9 +26,9 @@ public static class PlcOperationCatalog
         ["get_type_content"] = Read(new[] { "typePath" }, new[] { "format", "withDependencies" }),
         ["list_tag_tables"] = Read(Array.Empty<string>(), new[] { "plcName", "tableName", "folderPath" }),
 
-        // Write field sets are the batch catalog's, with yamlContent/sourceContent renamed to content and
-        // the two content updates also requiring the hash of the document they were based on.
+        // Public patch requests carry edits; normalized execution uses the full-replacement operation.
         ["update_block_logic"] = Write(new[] { "blockPath", "content", "expectedContentHash" }, new[] { "format" }),
+        ["patch_block_logic"] = Write(new[] { "blockPath", "expectedContentHash", "edits" }, new[] { "format" }),
         ["update_type_content"] = Write(new[] { "typePath", "content", "expectedContentHash" }, new[] { "format" }),
         ["create_tag_table"] = Write(new[] { "tableName" }, new[] { "plcName", "folderPath" }),
         ["delete_tag_table"] = Write(new[] { "tableName" }, new[] { "plcName", "folderPath" }),
@@ -73,6 +73,7 @@ public static class PlcOperationCatalog
             .Concat(new (string, Func<PlcOperationRequest, bool>)[]
             {
                 ("withDependencies", op => op.WithDependencies is not null),
+                ("edits", op => op.Edits is not null),
                 ("externalAccessible", op => op.ExternalAccessible is not null),
                 ("externalVisible", op => op.ExternalVisible is not null),
                 ("externalWritable", op => op.ExternalWritable is not null),
@@ -253,6 +254,22 @@ public static class PlcOperationCatalog
             ValidateObCreation(operation, prefix, errors);
         }
 
+        if (operation.Operation == "patch_block_logic" && operation.Edits is { } edits)
+        {
+            if (edits.Length == 0)
+            {
+                errors.Add($"{prefix}: edits must contain at least one text replacement.");
+            }
+
+            for (var index = 0; index < edits.Length; index++)
+            {
+                if (string.IsNullOrWhiteSpace(edits[index].OldText))
+                {
+                    errors.Add($"{prefix}: edits[{index}].oldText must be nonblank.");
+                }
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(operation.ExpectedContentHash) && formatIsValid)
         {
             ValidateHash(operation, prefix, errors);
@@ -331,10 +348,11 @@ public static class PlcOperationCatalog
             {
                 createdBlocks.Add(BlockKey(operation.BlockPath));
             }
-            else if (operation.Operation == "update_block_logic" && createdBlocks.Contains(BlockKey(operation.BlockPath)))
+            else if (operation.Operation is "update_block_logic" or "patch_block_logic"
+                && createdBlocks.Contains(BlockKey(operation.BlockPath)))
             {
                 errors.Add(
-                    $"Operation 'update_block_logic' (operationId '{operation.OperationId}'): block '{operation.BlockPath}' "
+                    $"Operation '{operation.Operation}' (operationId '{operation.OperationId}'): block '{operation.BlockPath}' "
                     + "is created earlier in this call, so no content hash can exist for it. Read it after the call.");
             }
         }
@@ -359,5 +377,6 @@ public static class PlcOperationCatalog
     }
 
     private static bool IsPresent(PlcOperationRequest operation, string field)
-        => StringFields.Any(entry => entry.Name == field && !string.IsNullOrWhiteSpace(entry.Get(operation)));
+        => field == "edits" ? operation.Edits is not null
+            : StringFields.Any(entry => entry.Name == field && !string.IsNullOrWhiteSpace(entry.Get(operation)));
 }

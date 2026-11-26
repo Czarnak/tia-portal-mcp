@@ -2,6 +2,8 @@ using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Json;
+using System.Text.Json;
 
 namespace TiaMcpServer.Plc;
 
@@ -17,6 +19,8 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     private readonly Dictionary<string, IReadOnlyList<FiredGuard>> _guards = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PlcWriteEffect> _effects = new(StringComparer.Ordinal);
     private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PlcOperationRequest> _resolved = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, JsonElement> _attemptedInputs = new(StringComparer.Ordinal);
     private IReadOnlyList<PlcOperationRequest> _items = Array.Empty<PlcOperationRequest>();
 
     public string ToolName => "plc_write";
@@ -37,6 +41,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
         var result = await _planner.PlanAsync(items).ConfigureAwait(false);
         if (!result.Plan.Success) return result.Plan;
         _items = items.ToArray();
+        foreach (var (id, resolved) in result.ResolvedOperations) _resolved[id] = resolved;
         for (var i = 0; i < items.Count; i++)
         {
             _guards[items[i].OperationId] = result.Guards.GetValueOrDefault(items[i].OperationId) ?? Array.Empty<FiredGuard>();
@@ -51,8 +56,10 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
 
     public async Task<ItemReplan<PlcWriteEffect>> ReplanAsync(PlcOperationRequest item)
     {
+        _resolved.Remove(item.OperationId);
         var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
         if (!result.Replan.Success) return result.Replan;
+        if (result.ResolvedOperation is { } resolved) _resolved[item.OperationId] = resolved;
         _guards[item.OperationId] = result.Guards;
         // The re-plan reads real state, so it knows no dependency; the presented effect keeps the planned one.
         var plan = result.Replan.Plan!;
@@ -63,15 +70,27 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
 
     public Task<WorkerCallResult> MutateAsync(PlcOperationRequest item)
     {
+        var executionItem = ExecutionItem(item);
+        if (item.Operation == "patch_block_logic")
+            _attemptedInputs[item.OperationId] = CanonicalJson.ToElement(executionItem);
         _attempted.Add(item.OperationId);
-        return PlcWorkerInvoker.InvokeWriteAsync(client, item);
+        return PlcWorkerInvoker.InvokeWriteAsync(client, executionItem);
     }
 
     public StructuredOperationItem Project(PlcOperationRequest item, WorkerCallResult result)
-        => PlcPayloadContract.ProjectWrite(item, result);
+        => PlcPayloadContract.ProjectWrite(ExecutionItem(item), result) with { Operation = item.Operation };
+
+    public JsonElement? ResolvedOperationForAudit(PlcOperationRequest item)
+        => _attemptedInputs.TryGetValue(item.OperationId, out var snapshot) ? snapshot : null;
+
+    private PlcOperationRequest ExecutionItem(PlcOperationRequest requested)
+        => requested.Operation != "patch_block_logic" ? requested
+            : _resolved.TryGetValue(requested.OperationId, out var resolved) ? resolved
+            : throw new InvalidOperationException($"Patch '{requested.OperationId}' has no resolved execution input.");
 
     public async Task<PlcWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
-        => await PlcVerificationPolicy.VerifyAsync(client, _items, _effects,
+        => await PlcVerificationPolicy.VerifyAsync(client, _items.Where(item => _attempted.Contains(item.OperationId))
+                .Select(ExecutionItem).ToArray(), _effects,
             StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
 
     public bool VerificationSucceeded(PlcWriteVerification? verification) => verification?.Success == true;
