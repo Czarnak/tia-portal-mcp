@@ -229,17 +229,27 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         var (plc, _, _, path) = ResolveBlock(request.BlockPath!);
         if (driftAtImport) _content[Key(path, format)] = "<Block edited-in-tia-ui=\"true\"/>";
         RequireHash(request, format, Content(plc, path, format));
+        // Item-local source fixtures preserve earlier committed imports in the same batch.
+        if (request.Content!.Contains("// fixture: shared-import-generation-failure", StringComparison.Ordinal))
+            throw PortalRejection("The scripted source generation was rejected.");
         if (importFailure is not null)
         {
             if (importFailure == WorkerFailureCategories.EngineeringRejected) throw PortalRejection("The block import was rejected.");
             Throw(importFailure, "The scripted block import failed.");
         }
         _content[Key(path, format)] = request.Content!;
-        if (invalidImportOutcome)
+        if (invalidImportOutcome || request.Content.Contains("// fixture: shared-import-protocol-error", StringComparison.Ordinal))
             return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded." }, WorkerJson.Envelope);
         var outcome = completedOutcome(format);
         if (request.DeferBlockCompilation)
             outcome = outcome with { CompileStage = "deferred", CompileReport = null, CompileDetailsOmitted = false };
+        if (request.Content.Contains("// fixture: shared-import-committed-failure", StringComparison.Ordinal))
+            return JsonSerializer.Serialize(new WorkerResponse
+            {
+                Success = false, FailureCategory = WorkerFailureCategories.WorkerOperationFailed,
+                Error = "The scripted final read failed after the source import committed.",
+                BlockImportOutcome = outcome with { FinalReadStage = "unavailable", TargetPresent = null, ContentRelation = "unknown" },
+            }, WorkerJson.Envelope);
         return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded.", BlockImportOutcome = outcome }, WorkerJson.Envelope);
     }
 

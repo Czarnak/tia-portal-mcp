@@ -119,7 +119,7 @@ public static class PlcWritePayloadBudget
                 core.Error, core.Warnings, core.Guards,
                 items.Select(i => new PlcWriteEffectPresentation(i.OperationId, null, core.Omission)).ToArray(), core.Batch,
                 new(false, items.Select(i => new PlcOperationVerification(i.OperationId, false, "contentHash", null, null, null, DiagnosticSummary)).ToArray(),
-                    core.Omission), core.Omission));
+                    core.Omission), "per-operation", null, core.Omission));
 
     private static bool AnyOverItemLimit(PlcGuardedWriteResponse response, int maxItemChars)
         => response.Effects.Any(e => e.Effect is not null && Size(e.Effect) > maxItemChars)

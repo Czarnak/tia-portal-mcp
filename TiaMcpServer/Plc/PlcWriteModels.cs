@@ -49,7 +49,7 @@ public sealed record PlcSharedCompilation(string? PlcName, IReadOnlyList<string>
 public sealed record PlcGuardedWriteResponse(string Tool, string ContractVersion, string Phase, bool Success,
     WriteToolError? Error, IReadOnlyList<string> Warnings, IReadOnlyList<WriteGuardReport> Guards,
     IReadOnlyList<PlcWriteEffectPresentation> Effects, StructuredOperationBatch? Batch, PlcWriteVerification? Verification,
-    StructuredOperationOmission? Omission);
+    string CompilationMode, IReadOnlyList<PlcSharedCompilation>? SharedCompilations, StructuredOperationOmission? Omission);
 
 /// <summary>One item resolved against the working state: an effect with its guards, or a call-stopping error.</summary>
 public sealed record PlcResolution(PlcWriteEffect? Effect, IReadOnlyList<FiredGuard> Guards, WriteToolError? Error);

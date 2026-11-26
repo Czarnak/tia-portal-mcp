@@ -29,7 +29,7 @@ public sealed class PlcWriteBudgetTests
 
     private static PlcGuardedWriteResponse Preview(params PlcWriteEffect[] effects)
         => new("plc_write", "2.1", "preview", true, null, Array.Empty<string>(), Array.Empty<WriteGuardReport>(),
-            effects.Select((e, i) => new PlcWriteEffectPresentation("op" + i, e, null)).ToArray(), null, null, null);
+            effects.Select((e, i) => new PlcWriteEffectPresentation("op" + i, e, null)).ToArray(), null, null, "per-operation", null, null);
 
     [Fact]
     public void OversizedDiffEvidenceOmittedWhole()
@@ -67,7 +67,7 @@ public sealed class PlcWriteBudgetTests
         var failed = new StructuredOperationItem("content", "update_block_logic", OperationBatchStatus.Failed, null,
             new StructuredOperationFailure(WorkerFailureCategories.WorkerOperationFailed, "Compile failed.", outcome), null, null, Array.Empty<string>());
         var response = new PlcGuardedWriteResponse("plc_write", "2.1", "applied", false, null, Array.Empty<string>(), Array.Empty<WriteGuardReport>(),
-            Array.Empty<PlcWriteEffectPresentation>(), StructuredOperationBatch.FromItems(new[] { failed }), new(true, Array.Empty<PlcOperationVerification>(), null), null);
+            Array.Empty<PlcWriteEffectPresentation>(), StructuredOperationBatch.FromItems(new[] { failed }), new(true, Array.Empty<PlcOperationVerification>(), null), "per-operation", null, null);
 
         var bounded = PlcWritePayloadBudget.Apply(response, maxDocumentChars: 3_000);
 
@@ -81,7 +81,7 @@ public sealed class PlcWriteBudgetTests
 
     private static PlcGuardedWriteResponse WithDiagnostics(string phase, bool success, WriteToolError? error, params WriteGuardReport[] guards)
         => new("plc_write", "2.1", phase, success, error, Array.Empty<string>(), guards,
-            Array.Empty<PlcWriteEffectPresentation>(), null, null, null);
+            Array.Empty<PlcWriteEffectPresentation>(), null, null, "per-operation", null, null);
 
     [Fact]
     public void MultiErrorValidationMessageDeliveredIntactWhenWithinBudget()
