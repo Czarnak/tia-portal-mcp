@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using TiaMcpServer.OperationBatches;
 
@@ -11,16 +12,16 @@ public sealed class PlcOperationRequest : IOperationBatchItem
     [Description("Client-supplied unique identifier for this PLC operation; returned results are keyed by it.")]
     public string OperationId { get; set; } = string.Empty;
 
-    [Description("PLC operation to run. Reads (plc_read): get_block_content, get_type_content, list_tag_tables. Writes (plc_write): update_block_logic, update_type_content, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, create_block, delete_block, create_block_group, delete_block_group.")]
+    [Description("PLC operation to run. Reads (plc_read): get_block_content, get_type_content, list_tag_tables. Writes (plc_write): update_block_logic, patch_block_logic, update_type_content, create_tag_table, delete_tag_table, create_tag, update_tag, delete_tag, create_user_constant, update_user_constant, delete_user_constant, create_block, delete_block, create_block_group, delete_block_group.")]
     public string Operation { get; set; } = string.Empty;
 
-    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, create_block, delete_block, create_block_group and delete_block_group. create_block, create_block_group and delete_block_group also accept PLC/Name (the PLC root group).")]
+    [Description("PLC block path, e.g. PLC_1/Main or PLC_1/Blocks/Folder/Block. Required by get_block_content, update_block_logic, patch_block_logic, create_block, delete_block, create_block_group and delete_block_group. create_block, create_block_group and delete_block_group also accept PLC/Name (the PLC root group).")]
     public string? BlockPath { get; set; }
 
     [Description("PLC data type path, e.g. PLC_1/Types/AnalogInputSettings. Required by get_type_content and update_type_content.")]
     public string? TypePath { get; set; }
 
-    [Description("Document format. Valid values: source, xml. update_block_logic and update_type_content take the write format and expectedContentHash must carry the same format. get_type_content and update_type_content default to source; get_block_content defaults to xml and honors source for global data blocks and SCL-language FB/FC/OB.")]
+    [Description("Document format. Valid values: source, xml. Content writes require expectedContentHash in the same format. Block reads, update_block_logic and patch_block_logic default to xml; type reads/writes default to source. Block source export is supported for global data blocks and SCL-language FB/FC/OB. XML patch anchors match only the authoritative .xml document.")]
     public string? Format { get; set; }
 
     [Description("Include the object's dependency closure in the exported source. Optional for get_block_content and get_type_content; only meaningful when format is source. The result is context only and carries no contentHash.")]
@@ -38,7 +39,19 @@ public sealed class PlcOperationRequest : IOperationBatchItem
     [Description("Full replacement document for update_block_logic (Simatic ML XML or external source) or update_type_content (external source or Simatic ML XML), in the write format. Required by both.")]
     public string? Content { get; set; }
 
-    [Description("Format-tagged contentHash from a plc_read of the same object in the same format (xml:sha256:<hex> or source:sha256:<hex>). Required by update_block_logic and update_type_content; a changed object fails with state_changed.")]
+    private PlcTextEdit[]? _edits;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Description("One or more unique text replacements, required only by patch_block_logic. All anchors refer to the unchanged original base. XML patches target only the authoritative .xml document; source patches target the complete source. Bundle delimiter lines cannot be inserted.")]
+    public PlcTextEdit[]? Edits
+    {
+        get => _edits;
+        set => _edits = value is null || value.Any(edit => edit is null)
+            ? throw new JsonException("edits must be an array of non-null edit objects.")
+            : value;
+    }
+
+    [Description("Format-tagged contentHash from a plc_read of the same object in the same format (xml:sha256:<hex> or source:sha256:<hex>). Required by update_block_logic, patch_block_logic and update_type_content. The hash covers the whole served export, including XML bundle companions and separators; a changed object fails with state_changed before patch anchors are resolved.")]
     public string? ExpectedContentHash { get; set; }
 
     [Description("Tag or user-constant name. Required by create/update/delete tag and user-constant operations.")]

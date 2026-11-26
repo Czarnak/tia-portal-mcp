@@ -125,6 +125,10 @@
       "applicability": "projectContent"
     },
     {
+      "operation": "patch_block_logic",
+      "applicability": "projectContent"
+    },
+    {
       "operation": "update_type_content",
       "applicability": "projectContent"
     },
@@ -355,6 +359,10 @@
       "applicability": "projectContent"
     },
     {
+      "operation": "patch_block_logic",
+      "applicability": "projectContent"
+    },
+    {
       "operation": "update_type_content",
       "applicability": "projectContent"
     },
@@ -582,6 +590,10 @@
     },
     {
       "operation": "update_block_logic",
+      "applicability": "notYetDelivered"
+    },
+    {
+      "operation": "patch_block_logic",
       "applicability": "notYetDelivered"
     },
     {

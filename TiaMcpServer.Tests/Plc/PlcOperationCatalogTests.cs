@@ -186,6 +186,84 @@ public class PlcOperationCatalogTests
     private const string XmlHash = "xml:sha256:0000000000000000000000000000000000000000000000000000000000000000";
     private const string SourceHash = "source:sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
+    private static PlcOperationRequest Patch(string? format = null, string hash = XmlHash, string edits = "[{\"oldText\":\"old\",\"newText\":\"\"}]")
+        => new()
+        {
+            OperationId = "patch",
+            Operation = "patch_block_logic",
+            BlockPath = "PLC_1/Main",
+            ExpectedContentHash = hash,
+            Format = format,
+            Edits = JsonSerializer.Deserialize<PlcTextEdit[]>(edits,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!,
+        };
+
+    [Theory]
+    [InlineData(null, XmlHash)]
+    [InlineData("source", SourceHash)]
+    public void PatchAcceptsXmlDefaultAndSourceWithEmptyReplacement(string? format, string hash)
+        => Assert.True(PlcOperationCatalog.ValidateWrite([Patch(format, hash)]).IsValid);
+
+    [Theory]
+    [InlineData("[]", "edits")]
+    [InlineData("[{\"oldText\":\"  \",\"newText\":\"x\"}]", "edits[0].oldText")]
+    public void PatchRejectsEmptyEditsOrBlankAnchor(string edits, string expected)
+    {
+        var result = PlcOperationCatalog.ValidateWrite([Patch(edits: edits)]);
+        Assert.False(result.IsValid);
+        Assert.Contains(expected, result.Error);
+    }
+
+    [Fact]
+    public void PatchRequiresEdits()
+    {
+        var item = new PlcOperationRequest { OperationId = "patch", Operation = "patch_block_logic", BlockPath = "PLC_1/Main", ExpectedContentHash = XmlHash };
+        Assert.Contains("missing required field(s): edits", PlcOperationCatalog.ValidateWrite([item]).Error);
+    }
+
+    [Fact]
+    public void PatchFieldApplicabilityIsClosed()
+    {
+        var patch = Patch();
+        patch.Content = "x";
+        patch.TypePath = "PLC_1/Types/T";
+        var error = PlcOperationCatalog.ValidateWrite([patch]).Error;
+        Assert.Contains("'content' is not valid for patch_block_logic", error);
+        Assert.Contains("'typePath' is not valid for patch_block_logic", error);
+        patch.Operation = "update_block_logic";
+        Assert.Contains("'edits' is not valid for update_block_logic", PlcOperationCatalog.ValidateWrite([patch]).Error);
+    }
+
+    [Theory]
+    [InlineData("deadbeef", "malformed")]
+    [InlineData(SourceHash, "'xml'")]
+    public void PatchRetainsHashValidation(string hash, string expected)
+        => Assert.Contains(expected, PlcOperationCatalog.ValidateWrite([Patch(hash: hash)]).Error);
+
+    [Theory]
+    [InlineData("PLC_1/Main", "PLC_1/Blocks/Main")]
+    [InlineData("PLC_1/Blocks/Main", "PLC_1/Main")]
+    [InlineData("PLC_1/Main", "PLC_1/Main")]
+    [InlineData("PLC_1/Blocks/Main", "PLC_1/Blocks/Main")]
+    public void PatchRejectsBlockCreatedEarlierWithEquivalentPath(string createPath, string patchPath)
+    {
+        var patch = Patch();
+        patch.BlockPath = patchPath;
+        var error = PlcOperationCatalog.ValidateWrite([CreateBlock("create", createPath), patch]).Error;
+        Assert.Contains("Operation 'patch_block_logic'", error);
+        Assert.Contains("created earlier in this call", error);
+    }
+
+    [Fact]
+    public void PatchIsAWriteAndUsesPublicNameAuthorization()
+    {
+        var patch = Patch();
+        Assert.Contains("'patch_block_logic' is a write operation", PlcOperationCatalog.ValidateRead([patch]).Error);
+        Assert.NotEmpty(PlcOperationCatalog.ValidateAccessMode([patch], McpAccessMode.ReadOnly));
+        Assert.Empty(PlcOperationCatalog.ValidateAccessMode([patch], McpAccessMode.ReadWrite));
+        Assert.Empty(PlcOperationCatalog.ValidateAccessMode([patch], McpAccessMode.Full));
+    }
+
     private static PlcOperationRequest UpdateBlock(string id = "u", string? hash = XmlHash, string? format = null) => new()
     {
         OperationId = id,
@@ -433,8 +511,8 @@ public class PlcOperationCatalogTests
 
     private static readonly (string Name, string[] Required, string[] Optional)[] ExpectedWriteFields =
     {
-        // Field sets of the retired batch catalog; yamlContent/sourceContent became content and the
-        // two update operations also require expectedContentHash.
+        // Dedicated PLC write catalog: patch input is distinct from full replacement content.
+        ("patch_block_logic", new[] { "blockPath", "expectedContentHash", "edits" }, new[] { "format" }),
         ("update_block_logic", new[] { "blockPath", "content", "expectedContentHash" }, new[] { "format" }),
         ("create_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
         ("delete_tag_table", new[] { "tableName" }, new[] { "plcName", "folderPath" }),
@@ -452,9 +530,9 @@ public class PlcOperationCatalogTests
     };
 
     [Fact]
-    public void WriteSpecsKeepTheRetiredBatchFieldSets()
+    public void WriteSpecsMatchTheDedicatedCatalogFieldSets()
     {
-        Assert.Equal(14, ExpectedWriteFields.Length);
+        Assert.Equal(15, ExpectedWriteFields.Length);
         foreach (var (name, expectedRequired, expectedOptional) in ExpectedWriteFields)
         {
             Assert.True(PlcOperationCatalog.TryGetWriteFields(name, out var required, out var optional), name);
@@ -462,7 +540,7 @@ public class PlcOperationCatalogTests
             Assert.Equal(expectedOptional.OrderBy(x => x), optional.OrderBy(x => x));
         }
 
-        Assert.Equal(14, PlcOperationCatalog.WriteOperationNames.Count);
+        Assert.Equal(15, PlcOperationCatalog.WriteOperationNames.Count);
         Assert.Equal(ExpectedWriteFields.Select(e => e.Name).OrderBy(x => x), PlcOperationCatalog.WriteOperationNames.OrderBy(x => x));
     }
 

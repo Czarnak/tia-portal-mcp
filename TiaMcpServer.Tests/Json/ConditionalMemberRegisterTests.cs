@@ -106,6 +106,10 @@ public sealed class ConditionalMemberRegisterTests
         "HmiPage.NextCursor",
         // read_cross_references: present only on a provisional HMI tag selector; path selectors omit it.
         "CrossReferenceSelectorInfo.Hmi",
+        // Supplied only on public patch requests; absent for other operations and normalized execution requests.
+        "PlcOperationRequest.Edits",
+        // Resolved input selected immediately before an attempted patch mutation; absent previews, denials, skipped items and failed replans.
+        "WriteAuditItem.ResolvedOperation",
     };
 
     [Fact]
@@ -118,6 +122,8 @@ public sealed class ConditionalMemberRegisterTests
             .Append(typeof(TiaMcpServer.Tools.ProjectBindingInfo))
             .Append(typeof(TiaMcpServer.ProjectLifecycle.LifecycleEffects))
             .Append(typeof(TiaMcpServer.Library.LibraryWriteEffect))
+            .Append(typeof(TiaMcpServer.Plc.PlcOperationRequest))
+            .Append(typeof(TiaMcpServer.Safety.Pipeline.WriteAuditItem))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(IsWhenWritingNullConditional)

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Worker;
 using TiaMcpServer.Contracts.Safety;
@@ -40,6 +41,9 @@ public interface IWriteDomain<TItem, TEffect, TVerification, TResponse>
     Task<ItemReplan<TEffect>> ReplanAsync(TItem item);
 
     Task<WorkerCallResult> MutateAsync(TItem item);
+
+    /// <summary>The exact input selected for an attempted mutation, when the domain resolves a public request.</summary>
+    JsonElement? ResolvedOperationForAudit(TItem item) => null;
 
     /// <summary>Projects one item's worker result into its typed per-item result.</summary>
     StructuredOperationItem Project(TItem item, WorkerCallResult result);

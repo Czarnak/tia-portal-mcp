@@ -404,6 +404,300 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Contains(WriteExecution.VerificationFailureMessage, response.Warnings);
     }
 
+    private static PlcOperationRequest Patch(string id, string path, string hash, string? format = null,
+        string oldText = "Main", string newText = "Patched")
+        => new() { OperationId = id, Operation = "patch_block_logic", BlockPath = path, Format = format,
+            ExpectedContentHash = hash, Edits = new[] { new PlcTextEdit { OldText = oldText, NewText = newText } } };
+
+    private static async Task<string> ExportAsync(PlcGuardedWriteFixture fixture, string path, string format)
+    {
+        var result = await PlcWorkerInvoker.InvokeReadAsync(fixture.Client,
+            new PlcOperationRequest { OperationId = "read", Operation = "get_block_content", BlockPath = path, Format = format });
+        Assert.True(result.Success, result.Error);
+        return result.Payload;
+    }
+
+    [Theory]
+    [InlineData(null, "xml")]
+    [InlineData("source", "source")]
+    public async Task PatchExecutesExistingImportAndVerifiesResolvedFormat(string? requestedFormat, string format)
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var original = await ExportAsync(fixture, "PLC_2/Main", format);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", format);
+        var patch = Patch("patch", "PLC_2/Main", hash, requestedFormat);
+
+        var raw = await fixture.RunRawAsync(false, patch);
+
+        Assert.False(raw.IsError);
+        var response = Document(raw);
+        Assert.True(response.Success, JsonSerializer.Serialize(response));
+        Assert.Equal("patch_block_logic", Assert.Single(response.Batch!.Operations).Operation);
+        Assert.Equal("patch_block_logic", Assert.Single(response.Effects).Effect!.Operation);
+        var outcome = response.Batch.Operations[0].Result!.Value.GetProperty("importOutcome");
+        Assert.Equal("success", outcome.GetProperty("importResultState").GetString());
+        Assert.True(outcome.GetProperty("targetMutationCommitted").GetBoolean());
+        var expected = original.Replace("Main", "Patched", StringComparison.Ordinal);
+        Assert.Equal(expected, await ExportAsync(fixture, "PLC_2/Main", format));
+        var verification = Assert.Single(response.Verification!.Operations);
+        Assert.Equal("contentHash", verification.Check);
+        Assert.Equal(ContentHashRules.Compute(format, expected), verification.ContentHash);
+        Assert.Single(requests.Methods(), method => method == "update_block_logic");
+        Assert.DoesNotContain("patch_block_logic", requests.Methods());
+        Assert.Null(patch.Content);
+        Assert.Equal("patch_block_logic", patch.Operation);
+        Assert.Equal(requestedFormat, patch.Format);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DependentPatchReplansBeforeImportAndDriftRetainsEarlierTag(bool drift)
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit,
+            drift ? "plc-write-replan-drift" : Roundtrip);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "xml");
+        var before = requests.Methods().Count(method => method == "get_block_content");
+
+        var response = await fixture.RunAsync(false, CreateTag("tag", "Main"), Patch("patch", "PLC_2/Main", hash));
+
+        Assert.Equal("applied", response.Phase);
+        Assert.Equal("tag", response.Effects[1].Effect!.DependsOn);
+        Assert.Equal("succeeded", response.Batch!.Operations[0].Status);
+        Assert.Contains("Main", await fixture.InventoryAsync());
+        Assert.Equal(drift ? "failed" : "succeeded", response.Batch.Operations[1].Status);
+        Assert.Equal(!drift, response.Success);
+        Assert.Equal(drift ? 0 : 1, requests.Methods().Count(method => method == "update_block_logic"));
+        // Initial resolution plus one late resolution; successful imports additionally re-export for verification.
+        Assert.Equal(drift ? 2 : 3, requests.Methods().Count(method => method == "get_block_content") - before);
+        if (drift)
+        {
+            Assert.Equal(WorkerFailureCategories.StateChanged, response.Batch.Operations[1].Failure!.Category);
+            Assert.Contains(response.Guards, guard => guard.Id == WriteGuardCatalog.PartialWriteGuardId && guard.OperationId == "patch");
+            using var record = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+            Assert.DoesNotContain("resolvedOperation", record.RootElement.GetProperty("items").GetRawText());
+        }
+    }
+
+    [Fact]
+    public async Task FailedPatchReplanDiscardsPreviouslyRunnableResolution()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "xml");
+        var patch = Patch("patch", "PLC_2/Main", hash);
+        var domain = new PlcWriteDomain(fixture.Client);
+        Assert.True((await domain.PlanAsync(new[] { patch })).Success);
+        Assert.True((await fixture.RunAsync(false, UpdateBlock("outside", "PLC_2/Main", hash))).Success);
+
+        var replan = await domain.ReplanAsync(patch);
+
+        Assert.False(replan.Success);
+        var before = requests.Methods().Length;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => domain.MutateAsync(patch));
+        Assert.Equal(before, requests.Methods().Length);
+    }
+
+    [Fact]
+    public async Task SameBlockPatchesKeepWorkerHashRecheckWithoutInventedDependencies()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "xml");
+
+        var response = await fixture.RunAsync(false, Patch("first", "PLC_2/Main", hash),
+            Patch("second", "PLC_2/Main", hash, newText: "Second"));
+
+        Assert.False(response.Success);
+        Assert.Equal(new[] { "succeeded", "failed" }, response.Batch!.Operations.Select(item => item.Status));
+        Assert.Equal(WorkerFailureCategories.StateChanged, response.Batch.Operations[1].Failure!.Category);
+        Assert.Null(response.Effects[1].Effect!.DependsOn);
+        Assert.Equal(2, requests.Methods().Count(method => method == "update_block_logic"));
+        Assert.All(response.Batch.Operations, item => Assert.Equal("patch_block_logic", item.Operation));
+    }
+
+    [Fact]
+    public async Task PatchThenSameTargetDeleteUsesExistingSupersededVerification()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "xml");
+
+        var response = await fixture.RunAsync(false, Patch("patch", "PLC_2/Main", hash),
+            new PlcOperationRequest { OperationId = "delete", Operation = "delete_block", BlockPath = "PLC_2/Blocks/Main" });
+
+        Assert.True(response.Success, JsonSerializer.Serialize(response));
+        Assert.Equal("superseded", response.Verification!.Operations[0].Check);
+        Assert.Equal("patch_block_logic", response.Batch!.Operations[0].Operation);
+    }
+
+    [Theory]
+    [InlineData("xml", "failed")]
+    [InlineData("source", "unavailable")]
+    public async Task PatchKeepsTypedImportAndIndependentCompileEvidence(string format, string compileStage)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-compile-" + compileStage);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", format);
+
+        var response = await fixture.RunAsync(false, Patch("patch", "PLC_2/Main", hash, format), CreateTag("next", "AfterPatch"));
+
+        Assert.True(response.Success, JsonSerializer.Serialize(response));
+        Assert.Equal(new[] { "succeeded", "succeeded" }, response.Batch!.Operations.Select(item => item.Status));
+        var outcome = response.Batch.Operations[0].Result!.Value.GetProperty("importOutcome");
+        Assert.Equal("success", outcome.GetProperty("importResultState").GetString());
+        Assert.Equal(compileStage, outcome.GetProperty("compileStage").GetString());
+        Assert.Equal("patch_block_logic", response.Batch.Operations[0].Operation);
+        Assert.Contains("AfterPatch", await fixture.InventoryAsync());
+    }
+
+    [Fact]
+    public async Task FailedPatchImportRetainsTypedAttemptAndPublicNameWithoutReplay()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-content-drift");
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "xml");
+
+        var raw = await fixture.RunRawAsync(false, Patch("patch", "PLC_2/Main", hash), CreateTag("after", "AfterPatch"));
+
+        Assert.False(raw.IsError);
+        var response = Document(raw);
+        Assert.False(response.Success);
+        Assert.Null(response.Error);
+        Assert.Equal(new[] { "failed", "skipped" }, response.Batch!.Operations.Select(item => item.Status));
+        var failed = response.Batch.Operations[0];
+        Assert.Equal("patch_block_logic", failed.Operation);
+        Assert.Equal(WorkerFailureCategories.StateChanged, failed.Failure!.Category);
+        Assert.Null(failed.Result);
+        Assert.Equal("not_started", failed.Failure.BlockImportOutcome!.ImportStage);
+        Assert.Single(requests.Methods(), method => method == "update_block_logic");
+        Assert.Equal("contentHash", Assert.Single(response.Verification!.Operations).Check);
+    }
+
+    [Theory]
+    [InlineData("plc-write-import-rejected", "engineering_rejected")]
+    [InlineData("plc-write-import-portal-lost", "portal_lost")]
+    [InlineData("plc-write-invalid-import", "protocol_error")]
+    public async Task PatchImportFailuresKeepPublicIdentityAndStopWithoutReplay(string scenario, string category)
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, scenario);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "xml");
+
+        var raw = await fixture.RunRawAsync(false, CreateTag("before", "BeforePatch"),
+            Patch("patch", "PLC_2/Main", hash), CreateTag("after", "AfterPatch"));
+
+        Assert.False(raw.IsError);
+        var response = Document(raw);
+        Assert.False(response.Success);
+        Assert.Null(response.Error);
+        Assert.Equal(new[] { "succeeded", "failed", "skipped" }, response.Batch!.Operations.Select(item => item.Status));
+        var failed = response.Batch.Operations[1];
+        Assert.Equal("patch_block_logic", failed.Operation);
+        Assert.Equal(category, failed.Failure!.Category);
+        if (category == "engineering_rejected")
+        {
+            Assert.Equal("EngineeringTargetInvocationException", failed.Failure.EngineeringError!.Type);
+            Assert.Null(failed.Result);
+            Assert.Equal("not_started", failed.Failure.BlockImportOutcome!.ImportStage);
+        }
+        Assert.Single(requests.Methods(), method => method == "update_block_logic");
+        Assert.Single(requests.Methods(), method => method == "create_tag");
+        Assert.DoesNotContain("patch_block_logic", requests.Methods());
+        using var record = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        Assert.True(record.RootElement.GetProperty("items")[1].TryGetProperty("resolvedOperation", out _));
+        Assert.False(record.RootElement.GetProperty("items")[2].TryGetProperty("resolvedOperation", out _));
+    }
+
+    [Fact]
+    public async Task WholeSourceDeletionReachesExistingImporterWithEmptyContent()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var original = await ExportAsync(fixture, "PLC_2/Main", "source");
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "source");
+
+        var response = await fixture.RunAsync(false,
+            Patch("delete-content", "PLC_2/Main", hash, "source", original, ""));
+
+        Assert.Null(response.Error);
+        Assert.Equal("succeeded", Assert.Single(response.Batch!.Operations).Status);
+        Assert.Single(requests.Methods(), method => method == "update_block_logic");
+        Assert.Equal("", await ExportAsync(fixture, "PLC_2/Main", "source"));
+        using var record = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        Assert.Equal("", record.RootElement.GetProperty("items")[0].GetProperty("resolvedOperation").GetProperty("content").GetString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PatchAuditKeepsCallerEditsAndExactResolvedAttemptOnlyOnApply(bool dryRun)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "xml");
+        var original = await ExportAsync(fixture, "PLC_2/Main", "xml");
+
+        var response = await fixture.RunAsync(dryRun, Patch("patch", "PLC_2/Main", hash));
+
+        Assert.True(response.Success, JsonSerializer.Serialize(response));
+        using var record = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        var requested = Assert.Single(record.RootElement.GetProperty("requestedOperations").EnumerateArray());
+        Assert.Equal("patch_block_logic", requested.GetProperty("operation").GetString());
+        Assert.Equal("Main", requested.GetProperty("edits")[0].GetProperty("oldText").GetString());
+        var item = Assert.Single(record.RootElement.GetProperty("items").EnumerateArray());
+        if (dryRun)
+        {
+            Assert.False(item.TryGetProperty("resolvedOperation", out _));
+            return;
+        }
+        var resolved = item.GetProperty("resolvedOperation");
+        Assert.Equal("update_block_logic", resolved.GetProperty("operation").GetString());
+        Assert.Equal("patch", resolved.GetProperty("operationId").GetString());
+        Assert.Equal("PLC_2/Main", resolved.GetProperty("blockPath").GetString());
+        Assert.Equal("xml", resolved.GetProperty("format").GetString());
+        Assert.Equal(hash, resolved.GetProperty("expectedContentHash").GetString());
+        Assert.False(resolved.TryGetProperty("edits", out _));
+        Assert.Equal(original.Replace("Main", "Patched", StringComparison.Ordinal), resolved.GetProperty("content").GetString());
+        Assert.Equal(await ExportAsync(fixture, "PLC_2/Main", "xml"), resolved.GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task PatchAuditRetainsExactResolvedLineEndingsAfterLaterFailure()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        var hash = await fixture.ReadHashAsync("PLC_2/Main", "source");
+        const string source = "first\r\nanchor\r\nlast\n";
+        var seed = UpdateBlock("seed", "PLC_2/Main", hash, "source");
+        seed.Content = source;
+        Assert.True((await fixture.RunAsync(false, seed)).Success);
+        hash = await fixture.ReadHashAsync("PLC_2/Main", "source");
+
+        var response = await fixture.RunAsync(false,
+            Patch("patch", "PLC_2/Main", hash, "source", "anchor\n", "changed\nmore\n"),
+            CreateTag("failure", "RejectedByPortal"));
+
+        Assert.False(response.Success);
+        Assert.Equal(new[] { "succeeded", "failed" }, response.Batch!.Operations.Select(item => item.Status));
+        using var record = JsonDocument.Parse(NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Last());
+        var resolved = record.RootElement.GetProperty("items")[0].GetProperty("resolvedOperation");
+        const string expected = "first\r\nchanged\r\nmore\r\nlast\n";
+        Assert.Equal(expected, resolved.GetProperty("content").GetString());
+        Assert.Equal(await ExportAsync(fixture, "PLC_2/Main", "source"), resolved.GetProperty("content").GetString());
+        Assert.Equal(hash, resolved.GetProperty("expectedContentHash").GetString());
+        Assert.False(record.RootElement.GetProperty("items")[1].TryGetProperty("resolvedOperation", out _));
+    }
+
     [Theory]
     [InlineData("validation", McpAccessMode.ReadWrite, "error", "none")]
     [InlineData("blocked", McpAccessMode.ReadWrite, "blocked", "none")]

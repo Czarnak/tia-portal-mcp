@@ -294,4 +294,228 @@ public class PlcWritePlannerTests
         Assert.False(replan.Replan.Success);
         Assert.Equal(WorkerFailureCategories.TargetNotFound, replan.Replan.Error!.Category);
     }
+
+    private static PlcOperationRequest PatchBlock(string id, string hash, string oldText = "<Network>A</Network>",
+        string newText = "<Network>B</Network>", string? format = null, string path = "Station_1/Main") => new()
+    {
+        OperationId = id, Operation = "patch_block_logic", BlockPath = path, Format = format,
+        ExpectedContentHash = hash, Edits = new[] { new PlcTextEdit { OldText = oldText, NewText = newText } },
+    };
+
+    private const string PatchXml = "<Document>\r\n  <Network>A</Network>\r\n</Document>\r\n";
+
+    private static async Task<string> SeedPatchBundle(OpennessWorkerClient client)
+    {
+        var bundle = BlockBundleText.Compose(new[]
+        {
+            new BlockImportDocument("Main.xml", "Main.xml", PatchXml),
+            new BlockImportDocument("Main.s7dcl", "Main.s7dcl", "BLOCK Main\r\n"),
+        });
+        var seeded = await client.UpdateBlockLogicAsync("Station_1/Main", bundle, format: "xml",
+            expectedContentHash: await HashOf(client, "Station_1/Main"));
+        Assert.True(seeded.Success, seeded.Error);
+        return bundle;
+    }
+
+    [Fact]
+    public async Task PatchXmlBundle_UsesWholeExportHashAndOneExport_AndResolvesXmlOnly()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        var bundle = await SeedPatchBundle(client);
+        var hash = await HashOf(client, "Station_1/Main");
+        var request = PatchBlock("patch", hash);
+        var before = log.Methods().Length;
+
+        var result = await new PlcWritePlanner(client).PlanAsync(new[] { request });
+
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal(new[] { Inventory, "get_block_content" }, log.Methods().Skip(before));
+        var effect = Assert.Single(result.Plan.Items).Effect!;
+        Assert.Equal("patch_block_logic", effect.Operation);
+        Assert.Equal(1, effect.ContentDiff!.CurrentChangedLineCount);
+        Assert.Equal(1, effect.ContentDiff.RequestedChangedLineCount);
+        var precondition = Assert.Single(result.Plan.Items[0].Preconditions);
+        Assert.Equal(ContentHashes.Compute("xml", bundle), precondition.Actual);
+        Assert.Equal(hash, precondition.Expected);
+        Assert.True(precondition.Satisfied);
+        var execution = Assert.Single(result.ResolvedOperations).Value;
+        Assert.Equal("patch", execution.OperationId);
+        Assert.Equal("update_block_logic", execution.Operation);
+        Assert.Equal("Station_1/Main", execution.BlockPath);
+        Assert.Equal("xml", execution.Format);
+        Assert.Equal(hash, execution.ExpectedContentHash);
+        Assert.Equal(PatchXml.Replace("<Network>A</Network>", "<Network>B</Network>"), execution.Content);
+        Assert.Null(execution.Edits);
+        Assert.Null(request.Content);
+        Assert.Null(request.Format);
+        Assert.Equal("patch_block_logic", request.Operation);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PatchHashCheckPrecedesAnchorLookup_AndRejectsXmlPartHash(bool xmlPartHash)
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        await SeedPatchBundle(client);
+        var hash = ContentHashes.Compute("xml", xmlPartHash ? PatchXml : "stale");
+
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            CreateTag("first", "PLC_2"), PatchBlock("patch", hash, oldText: "absent anchor"),
+        });
+
+        Assert.False(result.Plan.Success);
+        Assert.Equal(WorkerFailureCategories.StateChanged, result.Plan.Error!.Category);
+        Assert.Contains("patch", result.Plan.Error.Message);
+        Assert.Empty(result.ResolvedOperations);
+        Assert.DoesNotContain("Fresh", (await client.ListTagTablesAsync(plcName: "PLC_2")).Payload);
+    }
+
+    [Theory]
+    [InlineData("absent anchor")]
+    [InlineData("Network")]
+    public async Task PatchInvalidAnchorOnCurrentBase_RejectsWholePlanWithoutCreatingEarlierItem(string anchor)
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        await SeedPatchBundle(client);
+
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            CreateTag("first", "PLC_2"), PatchBlock("patch", await HashOf(client, "Station_1/Main"), oldText: anchor),
+        });
+
+        Assert.False(result.Plan.Success);
+        Assert.Equal(WorkerFailureCategories.ValidationError, result.Plan.Error!.Category);
+        Assert.Contains("patch", result.Plan.Error.Message);
+        Assert.Contains("edits[0]", result.Plan.Error.Message);
+        Assert.Empty(result.ResolvedOperations);
+        Assert.DoesNotContain("Fresh", (await client.ListTagTablesAsync(plcName: "PLC_2")).Payload);
+    }
+
+    [Fact]
+    public async Task PatchSource_ResolvesWholeSourceAndExplicitFormat()
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        const string source = "ORGANIZATION_BLOCK Main\r\nBEGIN\r\n  x := FALSE;\r\nEND_ORGANIZATION_BLOCK\r\n";
+        var current = await client.GetBlockContentAsync("Station_1/Main", format: "source");
+        Assert.True(current.Success, current.Error);
+        var seed = await client.UpdateBlockLogicAsync("Station_1/Main", source, format: "source",
+            expectedContentHash: ContentHashes.Compute("source", current.Payload));
+        Assert.True(seed.Success, seed.Error);
+
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            PatchBlock("source", ContentHashes.Compute("source", source), "x := FALSE;", "x := TRUE;", "source"),
+        });
+
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        var resolved = result.ResolvedOperations["source"];
+        Assert.Equal("source", resolved.Format);
+        Assert.Equal(source.Replace("x := FALSE;", "x := TRUE;"), resolved.Content);
+        Assert.Equal("patch_block_logic", result.Plan.Items[0].Effect!.Operation);
+    }
+
+    [Fact]
+    public async Task PatchUnreadableOrEmptyExport_FiresGuardWithoutRunnableResolution()
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            PatchBlock("empty", ContentHashes.Compute("xml", "x"), path: "Station_1/Blocks/Empty_DB"),
+            PatchBlock("locked", ContentHashes.Compute("xml", "x"), path: "Station_1/Blocks/Locked"),
+        });
+
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Empty(result.ResolvedOperations);
+        foreach (var id in new[] { "empty", "locked" })
+            Assert.Contains(result.Guards[id], g => g.Id == PlcGuardDefinitions.StateUnverifiable);
+        Assert.All(result.Plan.Items, item => Assert.Null(item.Effect!.ContentDiff));
+        Assert.All(result.Plan.Items, item => Assert.Empty(item.Preconditions));
+    }
+
+    [Fact]
+    public async Task PatchIncompleteInventoryUnknownPlc_IsGuardWithoutRunnableResolution()
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync("plc-write-incomplete");
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            PatchBlock("hidden", ContentHashes.Compute("xml", "x"), path: "PLC_9/Blocks/Main"),
+        });
+
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Contains(result.Guards["hidden"], g => g.Id == PlcGuardDefinitions.StateUnverifiable);
+        Assert.Empty(result.ResolvedOperations);
+    }
+
+    [Fact]
+    public async Task PatchIncompleteInventoryKnownPlcAndReadableExport_IsGuardWithoutRunnableResolution()
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync("plc-write-incomplete");
+        var bundle = await SeedPatchBundle(client);
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            PatchBlock("known", ContentHashes.Compute("xml", bundle)),
+        });
+
+        Assert.True(result.Plan.Success, result.Plan.Error?.Message);
+        Assert.Equal("patch_block_logic", Assert.Single(result.Plan.Items).Effect!.Operation);
+        Assert.Contains(result.Guards["known"], g => g.Id == PlcGuardDefinitions.StateUnverifiable);
+        Assert.Empty(result.ResolvedOperations);
+    }
+
+    [Theory]
+    [InlineData("Station_1/Blocks/Missing", WorkerFailureCategories.TargetNotFound)]
+    [InlineData("PLC_1/Main", WorkerFailureCategories.TargetAmbiguous)]
+    public async Task PatchTargetLookup_PreservesCategoryAndCannotRun(string path, string category)
+    {
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        var result = await new PlcWritePlanner(client).PlanAsync(new[]
+        {
+            PatchBlock("patch", ContentHashes.Compute("xml", "x"), path: path),
+        });
+
+        Assert.False(result.Plan.Success);
+        Assert.Equal(category, result.Plan.Error!.Category);
+        Assert.Empty(result.ResolvedOperations);
+    }
+
+    [Fact]
+    public async Task PatchLateReplan_ExportsOnceAndReturnsFreshExecutionOrStateChanged()
+    {
+        using var directory = new TempAuditDirectory();
+        Directory.CreateDirectory(directory.Path);
+        using var log = new FakeWorkerRequestLog(directory.Path);
+        using var client = await FakeWorkerClients.CreateBoundAsync(Scenario);
+        await SeedPatchBundle(client);
+        var hash = await HashOf(client, "Station_1/Main");
+        var patch = PatchBlock("patch", hash);
+        var planner = new PlcWritePlanner(client);
+        var initial = await planner.PlanAsync(new[] { CreateTag("touch", "Station_1", name: "Main"), patch });
+        Assert.True(initial.Plan.Success, initial.Plan.Error?.Message);
+        Assert.Equal("touch", initial.Plan.Items[1].DependsOn);
+        var before = log.Methods().Length;
+
+        var replan = await planner.ReplanAsync(patch);
+
+        Assert.True(replan.Replan.Success, replan.Replan.Error?.Message);
+        Assert.Equal(new[] { Inventory, "get_block_content" }, log.Methods().Skip(before));
+        Assert.NotSame(initial.ResolvedOperations["patch"], replan.ResolvedOperation);
+        Assert.Equal(initial.ResolvedOperations["patch"].Content, replan.ResolvedOperation!.Content);
+        Assert.Null(replan.Replan.Plan!.DependsOn);
+        var drift = await client.UpdateBlockLogicAsync("Station_1/Main", "<Document>changed externally</Document>",
+            format: "xml", expectedContentHash: hash);
+        Assert.True(drift.Success, drift.Error);
+        before = log.Methods().Length;
+
+        var failed = await planner.ReplanAsync(patch);
+
+        Assert.False(failed.Replan.Success);
+        Assert.Equal(WorkerFailureCategories.StateChanged, failed.Replan.Error!.Category);
+        Assert.Null(failed.ResolvedOperation);
+        Assert.Equal(new[] { Inventory, "get_block_content" }, log.Methods().Skip(before));
+    }
 }

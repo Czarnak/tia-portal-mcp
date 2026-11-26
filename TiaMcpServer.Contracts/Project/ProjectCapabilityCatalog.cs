@@ -52,7 +52,7 @@ public static class ProjectCapabilityCatalog
     .Concat(HmiWriteMethods.All)
     .Concat(new[]
     {
-        "update_block_logic", "update_type_content", "create_tag_table", "delete_tag_table",
+        "update_block_logic", "patch_block_logic", "update_type_content", "create_tag_table", "delete_tag_table",
         "create_tag", "update_tag", "delete_tag", "create_user_constant",
         "update_user_constant", "delete_user_constant", "create_block", "delete_block",
         "create_block_group", "delete_block_group",

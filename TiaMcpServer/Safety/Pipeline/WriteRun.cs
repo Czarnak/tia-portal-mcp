@@ -604,7 +604,10 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             outcome?.Failure?.Category,
             outcome?.Failure?.Message,
             outcome?.Warnings ?? Array.Empty<string>(),
-            _durations.ElementAtOrDefault(index));
+            _durations.ElementAtOrDefault(index))
+        {
+            ResolvedOperation = item is null ? null : _domain.ResolvedOperationForAudit(item)
+        };
     }
 
     private static bool HasEffect(ItemPlan<TEffect>? plan) => plan is not null && plan.Effect is not null;

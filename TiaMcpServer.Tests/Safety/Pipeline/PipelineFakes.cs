@@ -57,6 +57,7 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     private readonly FakeWriteBindingGate _gate;
     private readonly HashSet<string> _replanned = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, JsonElement> _resolvedAttempts = new(StringComparer.Ordinal);
 
     public FakeWriteDomain(FakeWriteBindingGate gate)
     {
@@ -107,6 +108,13 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
     public bool VerificationPasses { get; set; } = true;
 
     public Action? OnMutate { get; set; }
+
+    public Func<FakeWriteItem, JsonElement?>? ResolvedOperationOnMutation { get; set; }
+
+    public Func<FakeWriteItem, WorkerCallResult>? MutationResultOverride { get; set; }
+
+    public JsonElement? ResolvedOperationForAudit(FakeWriteItem item)
+        => _resolvedAttempts.TryGetValue(item.OperationId, out var resolved) ? resolved : null;
 
     /// <summary>The mutation of this operation throws after it was dispatched.</summary>
     public string? ThrowOnMutate { get; set; }
@@ -183,6 +191,11 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
 
     public Task<WorkerCallResult> MutateAsync(FakeWriteItem item)
     {
+        if (ResolvedOperationOnMutation?.Invoke(item) is { } resolved)
+        {
+            _resolvedAttempts[item.OperationId] = resolved.Clone();
+        }
+
         RecordCall($"mutate:{item.OperationId}");
         if (!_gate.LeaseActive)
         {
@@ -196,9 +209,9 @@ public sealed class FakeWriteDomain : IWriteDomain<FakeWriteItem, FakeEffect, Fa
             throw new InvalidOperationException($"{item.OperationId} exploded.");
         }
 
-        return Task.FromResult(item.FailWith is null
+        return Task.FromResult(MutationResultOverride?.Invoke(item) ?? (item.FailWith is null
             ? WorkerCallResult.Ok("{\"done\":true}")
-            : WorkerCallResult.Fail(item.FailWith, $"{item.OperationId} failed.") with { EngineeringError = FailureEngineeringError });
+            : WorkerCallResult.Fail(item.FailWith, $"{item.OperationId} failed.") with { EngineeringError = FailureEngineeringError }));
     }
 
     /// <summary>Siemens evidence the worker attached to a scripted failure; the domain's own projection ignores it.</summary>
