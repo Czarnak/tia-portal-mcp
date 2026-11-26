@@ -1,6 +1,7 @@
 # Issue #224 PR 3: `patch_block_logic` implementation plan
 
-Date: 2026-11-26. Status: implemented and verified offline; see the implementation record below.
+Date: 2026-11-26. Status: implemented and verified offline; later scoped live acceptance passed.
+See the separate implementation and live-acceptance records below.
 
 **Goal:** Let a client update a PLC block by sending unique text replacements, while retaining the existing content hash, diff, guards, import, verification and audit guarantees.
 
@@ -392,3 +393,24 @@ source links, so packaging tests were not required. The installed-assembly build
 evidence only. No live TIA actions, fidelity probes, push or PR changes were performed. Native
 acceptance and workflow-effort measurement still require a later owner-authorized disposable
 fixture run. PR 2, working copies and pre-merge transient-file pruning remain deferred.
+
+## Later authorized live acceptance (2026-11-26)
+
+After the implementation session above, the owner separately authorized MCP-only live acceptance
+on an isolated disposable V21 fixture, including cleanup. The implementation-stage no-live record
+remains the evidence boundary for that earlier session.
+
+Installed candidate `4.4.0-local.21.g3409c2d0` passed source/XML preview and apply, stale whole-export
+hash refusals, XML-part-only hash refusal, exact public-edit/resolved-input audit checks and fresh
+verification hashes. All 37 functional assertions passed (16 XML, 13 source, 8 cleanup). The
+isolated FB/group was deleted, fresh public reads confirmed its absence, and the original Main
+served XML-bundle bytes/hash and root block inventory were unchanged. The project remained open,
+modified and unsaved; no save, close, download or PLC-control operation was called.
+
+Compact UTF-8 argument-object measurements were 459 versus 7,079 bytes for XML and 360 versus
+516 for source, comparing each patch with its equivalent full-replacement request. This measures
+request arguments only; it establishes no model-effort, token, wire-size or latency result.
+The [scoped live-verification report](../acceptance/reports/2026-11-26-issue-224-pr3-patch-block-logic-live-verification.md)
+records candidate provenance, observed compile scopes, audit checks, cleanup and qualification
+limits. Other environments and native fault interleavings remain unqualified; PR 2 and working
+copies remain deferred.
