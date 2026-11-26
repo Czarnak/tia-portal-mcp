@@ -20,7 +20,7 @@ public class HmiGuardedWriteMcpTests
     [
         new { operationId = "table", operation = "create_tag_table", tableName = "NewTable" },
         new { operationId = "tag", operation = "create_tag", tableName = "NewTable", tagName = "NewTag", dataType = "Bool" },
-        new { operationId = "alarm", operation = "create_alarm", alarmName = "NewAlarm", alarmKind = "discrete", triggerTag = "NewTag", eventText = new[] { new { culture = "en-US", text = "A & B" } } },
+        new { operationId = "alarm", operation = "create_alarm", alarmName = "NewAlarm", alarmKind = "discrete", triggerTag = "NewTag", eventText = new[] { new { culture = "en-US", text = "A & B \u00e4\u0141\u6f22" } } },
     ];
 
     [Theory]
@@ -35,16 +35,34 @@ public class HmiGuardedWriteMcpTests
             Capabilities = new() { Elicitation = new() { Form = new() } },
             Handlers = new() { ElicitationHandler = (_, _) => { prompts++; return ValueTask.FromResult(new ElicitResult { Action = "decline" }); } },
         });
-        var preview = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence(), ["dryRun"] = true }));
-        var applied = CanonicalToolDocument.Read(await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence() }));
+        var previewReply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence(), ["dryRun"] = true });
+        var appliedReply = await harness.Client.CallToolAsync("hmi_write", new Dictionary<string, object?> { ["operations"] = Sequence() });
+        var preview = CanonicalToolDocument.Read(previewReply);
+        var applied = CanonicalToolDocument.Read(appliedReply);
         Assert.True(preview.GetProperty("success").GetBoolean(), preview.GetRawText());
         Assert.True(applied.GetProperty("success").GetBoolean(), applied.GetRawText());
         Assert.Equal(preview.GetProperty("effects").GetRawText(), applied.GetProperty("effects").GetRawText());
         Assert.Equal("table", applied.GetProperty("effects")[1].GetProperty("effect").GetProperty("dependsOn").GetString());
-        Assert.Contains("&amp;", applied.GetRawText().Replace("\\u0026", "&"));
+        const string normalizedAlarmText = "<body><p>A &amp; B \u00e4\u0141\u6f22</p></body>";
+        foreach (var root in new[] { preview, applied })
+        {
+            var alarmTextChange = Assert.Single(root.GetProperty("effects")[2].GetProperty("effect")
+                .GetProperty("changes").EnumerateArray(), change => change.GetProperty("field").GetString() == "eventText[en-US]");
+            Assert.Equal(normalizedAlarmText, alarmTextChange.GetProperty("requested").GetString());
+        }
         Assert.Equal(0, prompts);
         var lines = NetworkGuardedWriteMcpTests.AuditLines(audit.Path);
         Assert.Equal(2, lines.Length);
+        var replies = new[] { previewReply, appliedReply };
+        for (var index = 0; index < replies.Length; index++)
+        {
+            var text = Assert.Single(replies[index].Content.OfType<TextContentBlock>()).Text;
+            Assert.Contains(normalizedAlarmText, text);
+            using var record = JsonDocument.Parse(lines[index]);
+            Assert.Equal(text, record.RootElement.GetProperty("responseText").GetString());
+            var responseHash = "sha256:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
+            Assert.Equal(responseHash, record.RootElement.GetProperty("responseHash").GetString());
+        }
         Assert.Equal(confirmation, JsonDocument.Parse(lines[1]).RootElement.GetProperty("confirmation").GetProperty("by").GetString());
     }
 

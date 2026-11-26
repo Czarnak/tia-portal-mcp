@@ -108,12 +108,35 @@ public sealed class StandaloneStatusContractTests
     }
 
     [Fact]
-    public void ValueBudget_AccountsForEscapedStrings()
+    public void ValueBudget_AdmitsQuoteHeavyStringsWithoutOmission()
     {
-        var value = new ProjectStatusInfo { Author = new string('"', 11000) };
+        var author = new string('"', 11000);
+        var value = new ProjectStatusInfo { Author = author };
         var outcome = new StandaloneToolOutcome<ProjectStatusInfo>("succeeded", value, null, null);
         var root = CanonicalToolDocument.Read(StructuredStandaloneResult.Create("get_project_status", outcome, []));
-        Assert.Equal("omitted", root.GetProperty("result").GetProperty("status").GetString());
+        var result = root.GetProperty("result");
+        Assert.True(root.GetProperty("success").GetBoolean());
+        Assert.Equal("succeeded", result.GetProperty("status").GetString());
+        Assert.Equal(author, result.GetProperty("value").GetProperty("author").GetString());
+        Assert.Equal(JsonValueKind.Null, result.GetProperty("omission").ValueKind);
+    }
+
+    [Fact]
+    public void ValueBudget_AccountsForEscapedStrings()
+    {
+        var value = new ProjectStatusInfo { Author = new string('\u0001', 11000) };
+        var outcome = new StandaloneToolOutcome<ProjectStatusInfo>("succeeded", value, null, null);
+        var root = CanonicalToolDocument.Read(StructuredStandaloneResult.Create("get_project_status", outcome, []));
+        var result = root.GetProperty("result");
+        Assert.Equal("omitted", result.GetProperty("status").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, result.GetProperty("value").ValueKind);
+        var omission = result.GetProperty("omission");
+        Assert.Equal(StructuredOperationBatchPayloadBudget.ItemLimitReason, omission.GetProperty("reason").GetString());
+        Assert.Equal(StructuredOperationBatchPayloadBudget.MaxItemChars, omission.GetProperty("limitChars").GetInt32());
+        Assert.Equal(CanonicalJson.Serialize(value).Length, omission.GetProperty("originalChars").GetInt32());
+        Assert.Equal("get_project_status", omission.GetProperty("retryTool").GetString());
+        Assert.True(root.GetRawText().Length <= StructuredOperationBatchPayloadBudget.MaxDocumentChars);
     }
 
     [Fact]

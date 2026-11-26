@@ -307,6 +307,7 @@ internal sealed partial class NetworkScenarios
             case "network-qualified-budget-known-observations":
             case "network-qualified-budget-long":
             case "network-qualified-budget-item":
+            case "network-qualified-budget-item-cjk":
             case "network-qualified-budget-escaped":
             case "network-qualified-budget-late-growth":
             case "network-qualified-owner-drift":
@@ -339,6 +340,8 @@ internal sealed partial class NetworkScenarios
                 if (scenario == "network-qualified-budget-long")
                     qualifiedDevice.Items[0].Name = new string('\u4e00', 800);
                 if (scenario == "network-qualified-budget-item")
+                    qualifiedDevice.Items[0].Name = new string('\u0001', 12000);
+                if (scenario == "network-qualified-budget-item-cjk")
                     qualifiedDevice.Items[0].Name = new string('\u4e00', 12000);
                 if (scenario == "network-qualified-budget-escaped")
                     qualifiedDevice.Items[0].Name = string.Concat(Enumerable.Repeat("rack/\\\"\u4e00", 80));

@@ -11,8 +11,9 @@ internal static class CanonicalToolDocument
     {
         var structured = Assert.IsType<JsonElement>(result.StructuredContent);
         var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+        // The SDK may reserialize structuredContent with different escaping, spacing or
+        // property order. Its values must still canonicalize to the original text document.
         Assert.Equal(CanonicalJson.Serialize(structured), text);
-        Assert.Equal(text, structured.GetRawText());
         return structured.Clone();
     }
 }
