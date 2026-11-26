@@ -27,6 +27,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-26 | [Issue #238 shared source compilation — scoped installed-MCP PASS: independent and dependent source updates, informational compile failures, committed-prefix generation stop, source patch/tag mix, fresh hashes, one-pair timing comparison and verified discard/reopen restoration](acceptance/reports/2026-11-26-issue-238-shared-source-compilation-live.md) |
 | 2026-11-26 | [Issue #224 PR 2 relaxed JSON — PARTIAL: native read-only baseline/candidate comparison and candidate Codex reads; baseline in the actual client, BMP and model-facing evidence remain open](acceptance/reports/2026-11-26-issue-224-pr2-relaxed-json-client-verification.md) |
 | 2026-11-26 | [Issue #224 PR 3 block-logic patches — scoped installed-MCP PASS: source/XML preview/apply, hash refusals, exact audit, measured argument-size reductions and verified cleanup; project left open, modified and unsaved](acceptance/reports/2026-11-26-issue-224-pr3-patch-block-logic-live-verification.md) |
 | 2026-11-09 | [Library metadata PR B — built-MCP comments/languages, native read-only failures, previews, confirmation/staging, persistence and restoration; optional oversized MCP native case unavailable](acceptance/reports/2026-11-09-library-metadata-pr-b-live-verification.md) |
