@@ -1049,13 +1049,17 @@ before binding, using the longest encoded ID, with `N` items:
 
 | Domain | Guard reserve | Diagnostic policy | Document-root omission priority |
 | --- | --- | --- | --- |
-| PLC | `2N+1` | Preserve diagnostics while they fit; compact under pressure | Content diffs, failure import outcomes, verification operations, whole effects; size descending, request-order ties within each priority |
+| PLC | `2N+1` | Preserve diagnostics while they fit; compact under pressure | Content diffs, shared compile reports, failure import outcomes, verification operations, whole effects; size descending, request-order ties within each priority |
 | Network | `2N+1` | 512-character cap first, then full compaction under pressure | Early batch-result pass retaining recovery evidence; verification checks before effects, then size descending with request-order ties |
 | HMI | `4N+3` | Compact only on document/item pressure; includes `CleanupMessage` | Verification operations, then effects largest first with request-order ties |
 | VCI | `5N+5` | Compact only on document/item pressure | Verification operations, then effects largest first with request-order ties |
 
 Under item pressure PLC drops an effect's content diff before the whole effect. The reserves are
 upper bounds: for HMI, blockers stop a call at 4N, while an applied call has at most 2N+1 guards.
+Shared PLC calls additionally reserve one worst-case compilation entry per eligible import before
+grouping, including the encoded ID and selector. Compile reports have independent item/document
+roots, so omitting one cannot drop a verification content hash. Their omissions use `compile_check`
+guidance and retain the existing incomplete-delivery success semantics.
 
 ### Exact host-to-worker selector boundary
 
@@ -1273,6 +1277,35 @@ and re-wrap them in `WorkerOperationException` without `EngineeringError`, so th
 `worker_operation_failed`; `Describe` is available to them. Portal silently ignores an `update_tag`
 rename to a colliding name, so `TagMutationService.UpdateTag` applies the rename first, reads
 `Name` back and throws `postcondition_failed` before any other property changes.
+
+For validated calls with at least two source-format `update_block_logic`/`patch_block_logic` items,
+`PlcSharedCompilationPolicy` selects the operation IDs in `PlcWriteDomain.Validate` and the response
+reports `compilationMode:"shared-per-plc"`; otherwise it reports `"per-operation"`. Generic envelope
+gates can reject a call before that selection. Patches use the same resolved execution input for
+deferral, invocation, commit tracking and verification. The host-only `DeferBlockCompilation` flag
+skips only the source import's whole-PLC compile: hash rechecks, source generation, temporary-source
+cleanup and the independent fresh final read remain per item. A completed deferred import reports
+`compileStage:"deferred"` with a null per-item compile report.
+
+`PlcSharedCompilationTracker` records only source imports with `TargetMutationCommitted=true`,
+including an item that committed before failing. Its selector is
+`BlockAddress.Parse(blockPath).PlcName`, not a resolved PLC identity; selectors compare
+`OrdinalIgnoreCase`, with null kept separate, in first-commit order. Software/device aliases can
+therefore compile the same PLC twice. `VerifyAsync` calls the existing
+`CompileCheckAsync(blockPath:null, plcName)` once per recorded selector, then runs the unchanged
+`PlcVerificationPolicy`. Null preserves the existing unqualified scope of every project PLC;
+explicit selectors preserve software/device-name filtering. XML, type, tag and structural items
+retain their existing behavior in a mixed call.
+
+The root `sharedCompilations` is null for per-operation calls, previews and pre-apply rejections,
+and is a list after shared apply, possibly empty when nothing committed. Its reports use
+`StandalonePayloadContract.DecodeCompile` and `StandaloneCompileOutcome.IsPassed`: warnings pass,
+compiler errors fail, missing/non-passing reports without errors are unavailable. Compiler outcomes
+remain informational and do not enter `VerificationSucceeded` or execution success. An early stop
+still compiles committed selectors unless the first failed item reports `portal_lost`,
+`worker_timeout`, `worker_crashed`, `protocol_error` or `binding_conflict`; then all entries are
+`skipped`. Existing cancellation gates can leave deferred imports uncompiled, requiring an explicit
+`compile_check`; no cancellation token, rollback or replay is added to the domain.
 
 Verification (`TrustedWriteVerifier` with `PlcVerificationPolicy`, PLC write contract `2.1`) reads back content only: `contentHash` for a
 content item (one re-export, whose hash cannot be predicted because the export carries a generated

@@ -37,6 +37,78 @@ public class BlockImportOutcomeInfoTests
         FinalReadStage = "unavailable"
     };
 
+    private static BlockImportOutcomeInfo Deferred() => Completed() with
+    {
+        CompileStage = "deferred",
+        FinalReadStage = "succeeded",
+        TargetPresent = true,
+        TemporarySourceState = "removed"
+    };
+
+    [Fact]
+    public void Validate_DeferredStage_AcceptsCompletedSourceWithNoCompileEvidence()
+        => Assert.True(BlockImportOutcomeValidator.Validate(Deferred(), SourceFormatNames.Source, compilationDeferred: true));
+
+    [Theory]
+    [InlineData("request")]
+    [InlineData("xml")]
+    [InlineData("unknown-format")]
+    [InlineData("not_started")]
+    [InlineData("unknown")]
+    [InlineData("report")]
+    [InlineData("details-omitted")]
+    public void Validate_DeferredStage_RequiresRequestCompletedSourceAndNoReport(string violation)
+    {
+        var outcome = Deferred();
+        string? format = SourceFormatNames.Source;
+        var requested = true;
+        switch (violation)
+        {
+            case "request": requested = false; break;
+            case "xml": format = SourceFormatNames.Xml; outcome = outcome with { TemporarySourceState = "not_applicable" }; break;
+            case "unknown-format": format = null; outcome = outcome with { TemporarySourceState = "unknown" }; break;
+            case "not_started": outcome = Valid() with { CompileStage = "deferred", TemporarySourceState = "not_created" }; break;
+            case "unknown": outcome = Unknown() with { CompileStage = "deferred", TemporarySourceState = "unknown" }; break;
+            case "report": outcome = outcome with { CompileReport = CompleteReport() }; break;
+            case "details-omitted": outcome = outcome with { CompileDetailsOmitted = true }; break;
+        }
+
+        Assert.False(BlockImportOutcomeValidator.Validate(outcome, format, requested));
+    }
+
+    [Fact]
+    public void Validate_DeferredStageWithoutRequest_IsRejected()
+        => Assert.False(BlockImportOutcomeValidator.Validate(Deferred(), SourceFormatNames.Source));
+
+    [Theory]
+    [InlineData("succeeded")]
+    [InlineData("failed")]
+    [InlineData("unavailable")]
+    public void Validate_DeferralRequestedButCompiled_IsRejected(string stage)
+    {
+        var report = stage == "unavailable" ? null : CompleteReport();
+        if (stage == "failed")
+        {
+            report!.OverallState = "Error";
+            report.TotalErrorCount = 1;
+        }
+        var outcome = Deferred() with { CompileStage = stage, CompileReport = report };
+
+        Assert.False(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Source, compilationDeferred: true));
+    }
+
+    [Theory]
+    [InlineData("not_started")]
+    [InlineData("unknown")]
+    public void Validate_DeferralRequested_FailedGenerationKeepsExistingStages(string importStage)
+    {
+        var outcome = AtImportStage(importStage) with
+        {
+            TemporarySourceState = importStage == "not_started" ? "not_created" : "unknown"
+        };
+        Assert.True(BlockImportOutcomeValidator.Validate(outcome, SourceFormatNames.Source, compilationDeferred: true));
+    }
+
     private static BlockImportOutcomeInfo AtImportStage(string stage) => stage switch
     {
         "completed" => Completed(),

@@ -50,7 +50,7 @@ internal static partial class Program
                 var response = WithEngineeringRoot(request, project =>
                 {
                     importerEntered = true;
-                    var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat, request.ExpectedContentHash);
+                    var result = BlockImporter.Import(project, request.BlockPath!, request.Content!, normalizedFormat, request.ExpectedContentHash, request.DeferBlockCompilation);
                     return RawPayload(result.Payload, result.Warnings, result.Outcome);
                 });
                 return response.Success

@@ -217,10 +217,11 @@ If the object changed since that read, the call fails with `state_changed` befor
 change between planning and import fails that item with `state_changed`. A document over the value
 budget (60,000 characters by default) is omitted from `plc_read`, has no hash, and cannot be updated through
 `plc_write`. A source declaring more than one object (a `withDependencies` read) is refused.
-Block updates import into the existing block, then compile the affected scope and verify the result
-by re-export (the verification `contentHash`, below). Compilation is reported separately in
-`result.importOutcome.compileStage` and `compileReport`: compiler errors or unavailable compile
-evidence alone do not fail a completed, verified import or skip later batch items. Import success
+Block updates import into the existing block and verify the result by re-export (the verification
+`contentHash`, below). Compilation normally runs per operation and is reported separately in
+`result.importOutcome.compileStage` and `compileReport`; eligible source batches defer only that
+compile step to shared finalization below. Compiler errors or unavailable compile evidence alone
+do not fail a completed, verified import or skip later batch items. Import success
 does not certify that the PLC compiles. Import, final verification, and Portal-loss failures still
 fail the item. Type updates require a declaration whose name matches the target. Import/update never
 creates, renames, deletes, or upserts the addressed object. A preview can carry a bounded
@@ -233,6 +234,37 @@ For an XML-only full `update_block_logic` submission, the preview compares the a
 `.xml` document with the submitted XML, including a one-document XML bundle. The hash precondition
 still covers the whole served export and its companions. Other formats, multi-document submissions
 and bundle-selection failures retain whole-text diffs.
+
+### Shared source compilation
+
+A validated call containing at least two source-format `update_block_logic` or `patch_block_logic`
+items uses `compilationMode:"shared-per-plc"`. A patch counts after its source format is normalized;
+XML imports, type writes, tags and structural operations do not count and retain their existing
+behavior in a mixed call. Fewer than two eligible imports use `compilationMode:"per-operation"`.
+Generic argument or item-count rejection can occur before this mode is selected.
+
+Only the whole-PLC compile moves. Each source import still checks its hash, generates the block,
+cleans up its temporary source and performs its independent fresh final read. Completed deferred
+imports report `importOutcome.compileStage:"deferred"` with `compileReport:null`. After the mutation
+loop, one `compile_check` runs per committed compile selector, before the unchanged content-hash
+verification. A selector is exactly `BlockAddress.Parse(blockPath).PlcName`, passed with
+`blockPath:null`, preserving the former per-operation compile scope. An explicit selector matches
+PLC software or device names; an unqualified path produces a null selector and compiles every PLC
+in the bound project. Groups compare selectors case-insensitively and run in first-commit order.
+Different software/device aliases for the same PLC remain separate groups and can compile it twice.
+
+`sharedCompilations` is null in per-operation mode, previews and pre-apply rejections. After shared
+apply it is a list, possibly empty when no import committed. Each entry contains `plcName`,
+`operationIds`, `stage`, `report`, `failure` and `omission`. Its stage is `succeeded` for a passing
+report, including warnings; `failed` for compiler errors; or `unavailable` when no passing report
+or compiler-error result can be established. These compiler outcomes are informational: they do
+not change item status, verification or execution success.
+
+After an early stop, selectors with a committed import are still compiled, including an import
+that committed before a later failure. Imports without established commitment are excluded. If the
+first failed item reports `portal_lost`, `worker_timeout`, `worker_crashed`, `protocol_error` or `binding_conflict`,
+every shared compile is instead `skipped`. Cancellation before finalization leaves deferred imports
+uncompiled; run `compile_check` explicitly. No rollback or replay is added.
 
 ### Patching block logic
 
@@ -405,6 +437,12 @@ characters per value and 180,000 per document by default; whole values are omitt
 entered call appends one audit v2 record to `writes-yyyy-MM-dd.jsonl`, with the actual item
 statuses and confirmation `none` in read-write and `policy` in full.
 
+The response includes the required `compilationMode` and `sharedCompilations` members described
+above, with explicit nulls where no shared results apply. Each shared compile report is a separate
+omittable value: it is dropped whole after content diffs and before verification checks. Its
+omission points to `compile_check` for fresh evidence. As with other delivery omissions, this can
+make root `success:false` while item status, verification and returned content hashes stay intact.
+
 Verification (write contract `2.1`; `plc_read` stays `1.0`) reads back only content:
 
 - `trusted`: a completed non-content item. The Openness call returned without rejection and nothing
@@ -434,6 +472,10 @@ of public-response budgets; inspect dispatch and outcome evidence separately.
 
 ### Known limits
 
+- Interface changes can require explicit updates to dependent callers; shared compilation does not
+  repair callers, and Portal may rewrite their content. Re-read callers when repairing compiler errors.
+- Compile groups use parsed selectors rather than resolved PLC identity: software/device aliases can
+  compile one PLC twice, and the null selector retains the existing all-PLC scope.
 - The address-overlap check is an exact string match (`%MW0` and `%M0.0` are not detected as
   overlapping), at info severity.
 - Two content updates of the same block in one call cannot both plan.

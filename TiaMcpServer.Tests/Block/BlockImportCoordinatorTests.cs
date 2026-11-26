@@ -10,6 +10,70 @@ namespace TiaMcpServer.Tests.Block;
 public class BlockImportCoordinatorTests
 {
     [Fact]
+    public void DeferredSourceImport_CompletesWithDeferredStageAndFreshFinalRead()
+    {
+        var finalReads = 0;
+        var result = BlockImportCoordinator.ExecuteSource(
+            (boundary, sourceTracker) =>
+            {
+                sourceTracker.BeforeCreateFromFile();
+                sourceTracker.AfterCreateFromFileReturned();
+                boundary.BeforeSiemensCall();
+                boundary.AfterSiemensCallReturned();
+                boundary.RecordReturnedResult(BlockImportReturnedState.Success);
+                sourceTracker.AfterDeleteAttempt(removed: true);
+            },
+            compileAllowed =>
+            {
+                Assert.True(compileAllowed);
+                finalReads++;
+                return BlockPostconditionEvidence.Import(
+                    BlockCompileObservation.Deferred(), "succeeded", targetPresent: true);
+            });
+
+        Assert.Equal(1, finalReads);
+        Assert.Equal("completed", result.Outcome.ImportStage);
+        Assert.Equal("success", result.Outcome.ImportResultState);
+        Assert.True(result.Outcome.TargetMutationCommitted);
+        Assert.Equal("deferred", result.Outcome.CompileStage);
+        Assert.Null(result.Outcome.CompileReport);
+        Assert.False(result.Outcome.CompileDetailsOmitted);
+        Assert.Equal("succeeded", result.Outcome.FinalReadStage);
+        Assert.True(result.Outcome.TargetPresent);
+        Assert.Equal("removed", result.Outcome.TemporarySourceState);
+    }
+
+    [Theory]
+    [InlineData(false, "not_started", "not_started", 0)]
+    [InlineData(true, "unknown", "unavailable", 1)]
+    public void DeferredSourceImport_FailedGeneration_KeepsExistingStages(
+        bool generationStarted, string importStage, string compileStage, int expectedReads)
+    {
+        var finalReads = 0;
+        var exception = Assert.Throws<WorkerOperationException>(() =>
+            BlockImportCoordinator.ExecuteSource(
+                (boundary, _) =>
+                {
+                    if (generationStarted)
+                        boundary.BeforeSiemensCall();
+                    throw new InvalidOperationException("Generation failed.");
+                },
+                compileAllowed =>
+                {
+                    Assert.False(compileAllowed);
+                    finalReads++;
+                    return BlockPostconditionEvidence.Import(
+                        BlockCompileObservation.Unavailable(null), "succeeded", targetPresent: true);
+                }));
+
+        Assert.Equal(expectedReads, finalReads);
+        Assert.Equal(importStage, exception.BlockImportOutcome!.ImportStage);
+        Assert.Equal(compileStage, exception.BlockImportOutcome.CompileStage);
+        Assert.Null(exception.BlockImportOutcome.CompileReport);
+        Assert.False(exception.BlockImportOutcome.CompileDetailsOmitted);
+    }
+
+    [Fact]
     public void InvocationBoundary_PreflightSnapshotIsNotStartedAndUncommitted()
     {
         var snapshot = new BlockImportInvocationBoundary().Snapshot();

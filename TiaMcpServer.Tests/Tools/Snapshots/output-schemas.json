@@ -11754,6 +11754,140 @@
         ],
         "additionalProperties": false
       },
+      "compilationMode": {
+        "type": "string"
+      },
+      "sharedCompilations": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "items": {
+          "type": "object",
+          "properties": {
+            "plcName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "operationIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stage": {
+              "type": "string"
+            },
+            "report": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "scope": {
+                  "type": "string"
+                },
+                "blockPath": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "plcs": {
+                  "$ref": "#/properties/batch/properties/operations/items/properties/failure/properties/blockImportOutcome/properties/compileReport/properties/plcs",
+                  "items": {}
+                },
+                "totalErrorCount": {
+                  "type": "integer"
+                },
+                "totalWarningCount": {
+                  "type": "integer"
+                },
+                "overallState": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "failure": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "blockImportOutcome": {
+                  "$ref": "#/properties/batch/properties/operations/items/properties/failure/properties/blockImportOutcome",
+                  "default": null
+                },
+                "engineeringError": {
+                  "$ref": "#/properties/batch/properties/operations/items/properties/failure/properties/engineeringError",
+                  "default": null
+                }
+              },
+              "required": [
+                "category",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            "omission": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "limitChars": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "originalChars": {
+                  "type": "integer"
+                },
+                "retryTool": {
+                  "type": "string"
+                },
+                "guidance": {
+                  "type": "string"
+                },
+                "subject": {
+                  "$ref": "#/properties/effects/items/properties/omission/properties/subject",
+                  "default": null
+                }
+              },
+              "required": [
+                "reason",
+                "limitChars",
+                "originalChars",
+                "retryTool",
+                "guidance"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "plcName",
+            "operationIds",
+            "stage",
+            "report",
+            "failure",
+            "omission"
+          ],
+          "additionalProperties": false
+        }
+      },
       "omission": {
         "type": [
           "object",
@@ -11804,6 +11938,8 @@
       "effects",
       "batch",
       "verification",
+      "compilationMode",
+      "sharedCompilations",
       "omission"
     ],
     "additionalProperties": false

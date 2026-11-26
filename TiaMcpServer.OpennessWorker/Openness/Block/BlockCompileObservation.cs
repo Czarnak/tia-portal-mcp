@@ -73,4 +73,7 @@ internal sealed class BlockCompileObservation
 
     public static BlockCompileObservation NotStarted() =>
         new BlockCompileObservation("not_started", report: null, detailsOmitted: false);
+
+    public static BlockCompileObservation Deferred() =>
+        new BlockCompileObservation("deferred", report: null, detailsOmitted: false);
 }

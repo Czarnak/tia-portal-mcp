@@ -22,6 +22,41 @@ public sealed class PlcGuardedWriteDomainTests
     private static readonly string[] WriteMethods = PlcOperationCatalog.WriteOperationNames.ToArray();
 
     [Fact]
+    public async Task Readonly_TwoSourceImports_ReportSharedModeBeforeGate()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip, McpAccessMode.ReadOnly);
+        var first = UpdateBlock("first", "PLC_2/Main", "source:sha256:" + new string('0', 64), "source");
+        var second = UpdateBlock("second", "Station_1/Main", "source:sha256:" + new string('0', 64), "source");
+        var before = requests.Methods();
+
+        var response = await fixture.RunAsync(false, first, second);
+
+        Assert.Equal(WorkerFailureCategories.AccessDenied, response.Error!.Category);
+        Assert.Equal("shared-per-plc", response.CompilationMode);
+        Assert.Null(response.SharedCompilations);
+        Assert.Equal(before, requests.Methods());
+    }
+
+    [Fact]
+    public async Task AppliedSharedMode_WithoutCommittedImports_ReportsEmptyCompilations()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-import-rejected");
+        var first = UpdateBlock("first", "PLC_2/Main", await fixture.ReadHashAsync("PLC_2/Main", "source"), "source");
+        var second = UpdateBlock("second", "Station_1/Main", await fixture.ReadHashAsync("Station_1/Main", "source"), "source");
+
+        var response = await fixture.RunAsync(false, first, second);
+
+        Assert.Equal("applied", response.Phase);
+        Assert.False(response.Success);
+        Assert.Equal("shared-per-plc", response.CompilationMode);
+        Assert.NotNull(response.SharedCompilations);
+        Assert.Empty(response.SharedCompilations);
+    }
+
+    [Fact]
     public async Task Readonly_DeniesBeforeGate()
     {
         using var audit = new TempAuditDirectory();

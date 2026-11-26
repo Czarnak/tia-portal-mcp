@@ -6,7 +6,7 @@ public static class PlcContractVersion
     public const string Current = "1.0";
 }
 
-/// <summary>Version of the plc_write JSON contract; 2.1 adds block text patches.</summary>
+/// <summary>Version of the plc_write JSON contract; 2.1 adds block text patches and shared source compilation.</summary>
 public static class PlcWriteContractVersion
 {
     public const string Current = "2.1";

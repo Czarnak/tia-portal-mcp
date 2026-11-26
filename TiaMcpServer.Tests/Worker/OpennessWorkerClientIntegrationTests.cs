@@ -3,6 +3,7 @@ using TiaMcpServer.Contracts.Json;
 using TiaMcpServer.Contracts.Network;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Contracts.Worker;
 using TiaMcpServer.Safety;
 using TiaMcpServer.Tests.TestSupport;
@@ -764,6 +765,98 @@ public class OpennessWorkerClientIntegrationTests
         Assert.NotNull(result.BlockImportOutcome);
         Assert.Equal("completed", result.BlockImportOutcome.ImportStage);
         Assert.True(result.BlockImportOutcome.TargetMutationCommitted);
+    }
+
+    [Fact]
+    public async Task UpdateBlockLogic_DeferredRoundtrip_ForwardsFlagAndAcceptsDeferredOutcome()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "plc-write-roundtrip");
+        var current = await client.GetBlockContentAsync("PLC_2/Main", SourceFormatNames.Source);
+        Assert.True(current.Success, current.Error);
+
+        var result = await client.UpdateBlockLogicAsync("PLC_2/Main", "new source", SourceFormatNames.Source,
+            ContentHashRules.Compute(SourceFormatNames.Source, current.Payload), deferCompilation: true);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Equal("deferred", result.BlockImportOutcome?.CompileStage);
+        Assert.Null(result.BlockImportOutcome?.CompileReport);
+        Assert.False(result.BlockImportOutcome?.CompileDetailsOmitted);
+        Assert.True(BlockImportOutcomeValidator.Validate(result.BlockImportOutcome, SourceFormatNames.Source, compilationDeferred: true));
+    }
+
+    [Fact]
+    public async Task UpdateBlockLogic_DeferralIgnoredByWorker_IsProtocolError()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "block-outcome-success");
+
+        var result = await client.UpdateBlockLogicAsync("PLC/Blocks/Main", "source", SourceFormatNames.Source, deferCompilation: true);
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.ProtocolError, result.FailureCategory);
+        Assert.Equal("unknown", result.BlockImportOutcome?.ImportStage);
+        Assert.Null(result.BlockImportOutcome?.CompileReport);
+        Assert.DoesNotContain("attempt", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("", 0)]
+    [InlineData("// fixture: shared-compile-errors", 1)]
+    public async Task SharedCompilationRoundtrip_ReturnsReportForSelectedPlc(string source, int errors)
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "plc-write-roundtrip");
+        var current = await client.GetBlockContentAsync("PLC_2/Main", SourceFormatNames.Source);
+        var imported = await client.UpdateBlockLogicAsync("PLC_2/Main", source, SourceFormatNames.Source,
+            ContentHashRules.Compute(SourceFormatNames.Source, current.Payload), deferCompilation: true);
+        Assert.True(imported.Success, imported.Error);
+
+        var result = await client.CompileCheckAsync(null, "PLC_2");
+
+        Assert.True(result.Success, result.Error);
+        using var document = System.Text.Json.JsonDocument.Parse(result.Payload);
+        Assert.Equal(errors, document.RootElement.GetProperty("totalErrorCount").GetInt32());
+        Assert.Equal("plc", document.RootElement.GetProperty("scope").GetString());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, document.RootElement.GetProperty("blockPath").ValueKind);
+        var plc = Assert.Single(document.RootElement.GetProperty("plcs").EnumerateArray());
+        Assert.Equal("PLC_2", plc.GetProperty("plcName").GetString());
+        Assert.Null(StandalonePayloadContract.DecodeCompile(result).Failure);
+    }
+
+    [Theory]
+    [InlineData("// fixture: shared-compile-worker-failure", WorkerFailureCategories.WorkerOperationFailed)]
+    [InlineData("// fixture: shared-compile-malformed", WorkerFailureCategories.ProtocolError)]
+    public async Task SharedCompilationRoundtrip_FailureFixturesKeepTheirCategory(string source, string category)
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "plc-write-roundtrip");
+        var current = await client.GetBlockContentAsync("PLC_2/Main", SourceFormatNames.Source);
+        var imported = await client.UpdateBlockLogicAsync("PLC_2/Main", source, SourceFormatNames.Source,
+            ContentHashRules.Compute(SourceFormatNames.Source, current.Payload), deferCompilation: true);
+        Assert.True(imported.Success, imported.Error);
+
+        var result = await client.CompileCheckAsync(null, "PLC_2");
+
+        var decoded = StandalonePayloadContract.DecodeCompile(result);
+        Assert.Equal(category, decoded.Failure?.Category);
+    }
+
+    [Fact]
+    public async Task SharedCompilationRoundtrip_RequiresNullBlockPath()
+    {
+        var binding = new ProjectSessionBinding(null);
+        using var client = FakeWorkerClients.Create(McpAccessMode.Full, binding: binding);
+        await FakeWorkerBinding.BindVerifiedAsync(client, binding, "plc-write-roundtrip");
+
+        var result = await client.CompileCheckAsync("PLC_2/Main", "PLC_2");
+
+        Assert.False(result.Success);
+        Assert.Equal(WorkerFailureCategories.ValidationError, result.FailureCategory);
     }
 
     [Theory]

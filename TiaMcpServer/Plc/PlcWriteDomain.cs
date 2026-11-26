@@ -21,6 +21,9 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PlcOperationRequest> _resolved = new(StringComparer.Ordinal);
     private readonly Dictionary<string, JsonElement> _attemptedInputs = new(StringComparer.Ordinal);
+    private readonly PlcSharedCompilationTracker _compilationTracker = new();
+    private IReadOnlySet<string> _deferred = new HashSet<string>(StringComparer.Ordinal);
+    private IReadOnlyList<PlcSharedCompilation>? _sharedCompilations;
     private IReadOnlyList<PlcOperationRequest> _items = Array.Empty<PlcOperationRequest>();
 
     public string ToolName => "plc_write";
@@ -30,11 +33,14 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     public bool ConfirmsEveryCall => false;
 
     public WriteValidation Validate(IReadOnlyList<PlcOperationRequest> items, McpAccessMode accessMode)
-        => WriteValidation.Compose(
+    {
+        _deferred = PlcSharedCompilationPolicy.DeferredOperationIds(items);
+        return WriteValidation.Compose(
             PlcOperationCatalog.ValidateWrite(items),
             () => PlcWritePayloadBudget.MeasureProtectedCore(items),
             () => PlcOperationCatalog.ValidateAccessMode(items, accessMode),
             ToolName);
+    }
 
     public async Task<WritePlan<PlcWriteEffect>> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
@@ -68,13 +74,16 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
         return ItemReplan<PlcWriteEffect>.Ok(plan with { Effect = effect });
     }
 
-    public Task<WorkerCallResult> MutateAsync(PlcOperationRequest item)
+    public async Task<WorkerCallResult> MutateAsync(PlcOperationRequest item)
     {
         var executionItem = ExecutionItem(item);
         if (item.Operation == "patch_block_logic")
             _attemptedInputs[item.OperationId] = CanonicalJson.ToElement(executionItem);
         _attempted.Add(item.OperationId);
-        return PlcWorkerInvoker.InvokeWriteAsync(client, executionItem);
+        var result = await PlcWorkerInvoker.InvokeWriteAsync(client, executionItem,
+            deferCompilation: _deferred.Contains(item.OperationId)).ConfigureAwait(false);
+        _compilationTracker.Record(executionItem, result);
+        return result;
     }
 
     public StructuredOperationItem Project(PlcOperationRequest item, WorkerCallResult result)
@@ -89,9 +98,14 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
             : throw new InvalidOperationException($"Patch '{requested.OperationId}' has no resolved execution input.");
 
     public async Task<PlcWriteVerification?> VerifyAsync(StructuredOperationBatch batch)
-        => await PlcVerificationPolicy.VerifyAsync(client, _items.Where(item => _attempted.Contains(item.OperationId))
+    {
+        if (_deferred.Count > 0)
+            _sharedCompilations = await _compilationTracker.CompileAsync(
+                plc => client.CompileCheckAsync(null, plc), batch).ConfigureAwait(false);
+        return await PlcVerificationPolicy.VerifyAsync(client, _items.Where(item => _attempted.Contains(item.OperationId))
                 .Select(ExecutionItem).ToArray(), _effects,
             StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
+    }
 
     public bool VerificationSucceeded(PlcWriteVerification? verification) => verification?.Success == true;
 
@@ -99,5 +113,5 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
         => PlcWritePayloadBudget.Apply(new PlcGuardedWriteResponse(ToolName, ContractVersion, report.Phase, report.Success,
             report.Error, report.Warnings, report.Guards,
             report.Effects.Select(e => new PlcWriteEffectPresentation(e.OperationId, e.Effect, null)).ToArray(),
-            report.Batch, report.Verification, null));
+            report.Batch, report.Verification, _deferred.Count > 0 ? "shared-per-plc" : "per-operation", _sharedCompilations, null));
 }

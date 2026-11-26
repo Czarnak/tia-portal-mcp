@@ -270,6 +270,24 @@ public sealed class ToolOutputContractConformanceTests
                     edits = new[] { new { oldText = "format=\"xml\"", newText = "format=\"patched\"" } },
                 } },
             }),
+        new ToolProbe("plc_write", "sharedSucceeded", false, "plc-write-roundtrip",
+            new Dictionary<string, object?>
+            {
+                ["operations"] = new[]
+                {
+                    SourceUpdate("first", "Station_1/Main", "PLC_1/Blocks/Main"),
+                    SourceUpdate("second", "Station_1/Blocks/Motors/FB_Motor", "PLC_1/Blocks/Motors/FB_Motor"),
+                },
+            }),
+        new ToolProbe("plc_write", "sharedRejected", true, null,
+            new Dictionary<string, object?>
+            {
+                ["operations"] = new[]
+                {
+                    SourceUpdate("first", "Station_1/Main", "PLC_1/Blocks/Main", "invalid"),
+                    SourceUpdate("second", "Station_1/Blocks/Motors/FB_Motor", "PLC_1/Blocks/Motors/FB_Motor"),
+                },
+            }),
         new ToolProbe(
             "browse_project_tree",
             "rejected",
@@ -479,15 +497,34 @@ public sealed class ToolOutputContractConformanceTests
             Assert.Equal("plc_write", document.GetProperty("tool").GetString());
             Assert.Equal("2.1", document.GetProperty("contractVersion").GetString());
             Assert.Equal(System.Text.Json.JsonValueKind.Array, document.GetProperty("warnings").ValueKind);
-            Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
-            Assert.Equal(probe.ExpectIsError ? "error" : "preview", document.GetProperty("phase").GetString());
-            if (!probe.ExpectIsError)
+            var shared = probe.Case is "sharedSucceeded" or "sharedRejected";
+            Assert.Equal(shared ? "shared-per-plc" : "per-operation", document.GetProperty("compilationMode").GetString());
+            if (probe.Case == "sharedSucceeded")
             {
-                Assert.True(document.GetProperty("success").GetBoolean());
-                if (probe.Case == "patchPreviewed")
-                    Assert.Equal("patch_block_logic", document.GetProperty("effects")[0].GetProperty("effect").GetProperty("operation").GetString());
-                else
-                    Assert.Equal("table", document.GetProperty("effects")[1].GetProperty("effect").GetProperty("dependsOn").GetString());
+                Assert.Equal("applied", document.GetProperty("phase").GetString());
+                Assert.True(document.GetProperty("success").GetBoolean(), TextOf(result));
+                var compilation = Assert.Single(document.GetProperty("sharedCompilations").EnumerateArray());
+                Assert.Equal("Station_1", compilation.GetProperty("plcName").GetString());
+                Assert.Equal("succeeded", compilation.GetProperty("stage").GetString());
+                Assert.Equal(new[] { "first", "second" }, compilation.GetProperty("operationIds").EnumerateArray().Select(id => id.GetString()));
+                Assert.All(document.GetProperty("batch").GetProperty("operations").EnumerateArray(), item =>
+                    Assert.Equal("deferred", item.GetProperty("result").GetProperty("importOutcome").GetProperty("compileStage").GetString()));
+            }
+            else
+            {
+                Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("batch").ValueKind);
+                Assert.Equal(System.Text.Json.JsonValueKind.Null, document.GetProperty("sharedCompilations").ValueKind);
+                Assert.Equal(probe.ExpectIsError ? "error" : "preview", document.GetProperty("phase").GetString());
+                if (!probe.ExpectIsError)
+                {
+                    Assert.True(document.GetProperty("success").GetBoolean());
+                    if (probe.Case == "patchPreviewed")
+                        Assert.Equal("patch_block_logic", document.GetProperty("effects")[0].GetProperty("effect").GetProperty("operation").GetString());
+                    else
+                        Assert.Equal("table", document.GetProperty("effects")[1].GetProperty("effect").GetProperty("dependsOn").GetString());
+                }
+                else if (shared)
+                    Assert.Equal("validation_error", document.GetProperty("error").GetProperty("category").GetString());
             }
         }
         if (probe.Tool == "read_cross_references")
@@ -757,6 +794,17 @@ public sealed class ToolOutputContractConformanceTests
         // Control: the same call without projectPath is not an argument-shape failure.
         var control = await harness.Client.CallToolAsync(tool, valid);
         Assert.DoesNotContain("unknown argument", TextOf(control), StringComparison.Ordinal);
+    }
+
+    private static object SourceUpdate(string operationId, string blockPath, string fixturePath, string? expectedContentHash = null)
+    {
+        var original = $"<Content of=\"{fixturePath}\" format=\"source\"/>";
+        return new
+        {
+            operationId, operation = "update_block_logic", blockPath, format = "source",
+            content = original + "\n// updated",
+            expectedContentHash = expectedContentHash ?? TiaMcpServer.Contracts.Shared.ContentHashRules.Compute("source", original),
+        };
     }
 
     private static Dictionary<string, object?> Operations(object item)

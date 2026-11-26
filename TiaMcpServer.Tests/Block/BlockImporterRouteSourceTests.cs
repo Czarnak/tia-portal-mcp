@@ -77,6 +77,40 @@ public class BlockImporterRouteSourceTests
     }
 
     [Fact]
+    public void DeferredFlagWithXml_IsValidationErrorBeforeReads()
+    {
+        var source = RepositoryFiles.ReadSource(
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "BlockImporter.cs");
+
+        const string guard = "if (deferCompilation && !string.Equals(format, SourceFormatNames.Source, StringComparison.Ordinal))";
+        AssertBefore(source, guard, "return ImportSource(");
+        AssertBefore(source, guard, "BlockImportCoordinator.ExecuteWithPreTargetOutcome(");
+        var guardStart = source.IndexOf(guard, StringComparison.Ordinal);
+        var guardEnd = source.IndexOf("return ImportSource(", guardStart, StringComparison.Ordinal);
+        Assert.Contains("WorkerFailureCategories.ValidationError", source[guardStart..guardEnd], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DeferredSourceRoute_SkipsCompileAndKeepsFreshFinalReader()
+    {
+        var source = RepositoryFiles.ReadSource(
+            "TiaMcpServer.OpennessWorker", "Openness", "Block", "BlockImporter.cs");
+
+        Assert.Contains("bool deferCompilation = false", source, StringComparison.Ordinal);
+        Assert.Contains("expectedContentHash, deferCompilation)", source, StringComparison.Ordinal);
+        Assert.Contains("deferCompilation: false,", source, StringComparison.Ordinal);
+        var observationStart = source.IndexOf("var compile = compileAllowed", StringComparison.Ordinal);
+        var observationEnd = source.IndexOf("return ObserveFinalState(", observationStart, StringComparison.Ordinal);
+        var observation = source[observationStart..observationEnd];
+        AssertBefore(observation, "? deferCompilation", "? BlockCompileObservation.Deferred()");
+        AssertBefore(observation, "? BlockCompileObservation.Deferred()", ": BlockCompileObservation.Observe(CompileChecker.CompileObserved(");
+        Assert.Contains(": BlockCompileObservation.Unavailable(report: null)", observation, StringComparison.Ordinal);
+
+        var dispatch = RepositoryFiles.ReadSource("TiaMcpServer.OpennessWorker", "Program.PlcDispatch.cs");
+        Assert.Contains("request.ExpectedContentHash, request.DeferBlockCompilation)", dispatch, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void XmlAndSourcePreflightDecorationEndsBeforeCoordinatorEntry()
     {
         var source = RepositoryFiles.ReadSource(

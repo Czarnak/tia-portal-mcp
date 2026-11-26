@@ -10,6 +10,28 @@ namespace TiaMcpServer.Tests.Block;
 public class BlockPostconditionVerifierTests
 {
     [Fact]
+    public void VerifyImport_DeferredStage_DoesNotAffectSuccess()
+    {
+        var compile = BlockCompileObservation.Deferred();
+        var evidence = BlockPostconditionEvidence.Import(compile, "succeeded", targetPresent: true);
+
+        var outcome = BlockPostconditionVerifier.VerifyImport(
+            evidence, CompletedBoundary().Snapshot(), temporarySourceState: "removed");
+
+        Assert.Equal("deferred", compile.Stage);
+        Assert.Null(compile.Report);
+        Assert.False(compile.DetailsOmitted);
+        Assert.True(compile.SessionAvailable);
+        Assert.Equal("completed", outcome.ImportStage);
+        Assert.True(outcome.TargetMutationCommitted);
+        Assert.Equal("deferred", outcome.CompileStage);
+        Assert.Null(outcome.CompileReport);
+        Assert.False(outcome.CompileDetailsOmitted);
+        Assert.Equal("succeeded", outcome.FinalReadStage);
+        Assert.True(outcome.TargetPresent);
+    }
+
+    [Fact]
     public void VerifyImport_AcceptsWarningOnlyCompileAndPresentFinalRead()
     {
         var boundary = CompletedBoundary();
