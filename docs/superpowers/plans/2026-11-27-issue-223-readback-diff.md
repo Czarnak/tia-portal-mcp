@@ -1,6 +1,6 @@
 # Issue #223: implementation plan
 
-Status: implemented and qualified offline on 2026-11-27; live TIA testing not performed
+Status: implemented and qualified offline; [scoped live qualification](../acceptance/reports/2026-11-27-issue-223-readback-diff-live-verification.md) completed on 2026-11-27
 
 Spec: [approved design](../specs/2026-11-27-issue-223-readback-diff-design.md)
 
@@ -331,7 +331,7 @@ Only the test `.csproj` is planned to change, so Packaging is not triggered. If 
 - The full non-packaging suite passed 9,086 tests with no failures. Independent review then prompted one additional domain-level regression, `ReadBackDomainSharesDefaultAllowanceThroughLateReplanAndResetsPerCall`; it passed separately. Three deliberate mutations resetting the allowance at planning, replanning or verification each failed that regression at the intended assertion. Production source was restored byte-for-byte, and all 57 read-back/patch/audit regressions passed afterward. The full-suite count predates this final added test.
 - The serialized stub solution build passed with zero errors and eight nullable warnings in existing Network/HMI/VCI test sources. Documentation validation passed with zero errors and the two expected transient plan/spec warnings; `git diff --check` passed.
 - Independent review has no unresolved actionable findings. Budget regressions cover encoded aggregate limits, omission order/counts, repeat application, immutable copies, nested delivery success and preserved hashes; canonical MCP/audit tests retain exact delivered text/hash and attempted execution input.
-- No live TIA operation, package installation, remote write, push or PR creation was performed. Live normalization remains unverified; retain the working plan/spec until the later pre-merge pruning step below.
+- During the offline implementation phase, no live TIA operation, package installation, remote write, push or PR creation was performed. A subsequent user-authorized live follow-up verified the scoped normalization, patch, shared-compilation and preservation cases in the [live report](../acceptance/reports/2026-11-27-issue-223-readback-diff-live-verification.md). Retain the working plan/spec until the later pre-merge pruning step below.
 
 ## Acceptance mapping and delivery boundary
 

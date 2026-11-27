@@ -1,6 +1,6 @@
 # Issue #223: submitted versus observed PLC content
 
-Status: implemented and qualified offline on 2026-11-27; live TIA testing not performed
+Status: implemented and qualified offline; [scoped live qualification](../acceptance/reports/2026-11-27-issue-223-readback-diff-live-verification.md) completed on 2026-11-27
 
 Issue: <https://github.com/Czarnak/tia-portal-mcp/issues/223>
 

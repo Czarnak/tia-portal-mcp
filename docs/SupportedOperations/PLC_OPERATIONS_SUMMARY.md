@@ -501,6 +501,10 @@ the compact checks fit. These delivery omissions can make root `success:false` w
 batch item statuses or `verification.success`. The canonical delivered response and audit carry
 the same omissions; inspect affected objects before deciding on another write.
 
+A [scoped V21 qualification](../superpowers/acceptance/reports/2026-11-27-issue-223-readback-diff-live-verification.md)
+observed the `LReal` to `Real` round-trip, resolved XML/source patches and an equal-source control,
+with independent exports confirming comparison fields and reusable whole-export hashes.
+
 Audit `requestedOperations` retains the public patch and its edits. An attempted patch additionally
 records the exact full normalized `update_block_logic` input in `items[].resolvedOperation`, including
 `content`, explicit format, selector and original hash. This is the input selected for that mutation
