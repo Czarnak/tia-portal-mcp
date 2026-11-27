@@ -13,22 +13,29 @@ internal static class PlcContentDiffSides
 {
     public static (string Current, string Requested) Select(string format, string currentExport, string submitted)
     {
+        var sides = SelectWithScope(format, currentExport, submitted);
+        return (sides.Current, sides.Requested);
+    }
+
+    public static (string Current, string Requested, string ComparisonScope) SelectWithScope(
+        string format, string currentExport, string submitted)
+    {
         if (!string.Equals(format, SourceFormatNames.Xml, StringComparison.Ordinal))
-            return (currentExport, submitted);
+            return (currentExport, submitted, "wholeText");
 
         var currentXml = SimaticMlDocument(currentExport, "current.xml");
         if (currentXml is null)
-            return (currentExport, submitted);
+            return (currentExport, submitted, "wholeText");
 
         if (!BlockBundleText.ContainsDelimiterLine(submitted))
-            return (currentXml.Content, submitted);
+            return (currentXml.Content, submitted, "xmlDocument");
 
         var submittedBundle = TryParse("submitted.xml", submitted);
         if (submittedBundle is { Documents.Count: 1 }
             && BlockBundleText.FindSimaticMlDocument(submittedBundle) is { } submittedXml)
-            return (currentXml.Content, submittedXml.Content);
+            return (currentXml.Content, submittedXml.Content, "xmlDocument");
 
-        return (currentExport, submitted);
+        return (currentExport, submitted, "wholeText");
     }
 
     private static BlockImportDocument? SimaticMlDocument(string text, string fallbackName)

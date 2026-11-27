@@ -23,6 +23,7 @@ public class PlcContentDiffSidesTests
 
         Assert.Equal(Xml, sides.Current);
         Assert.Equal(EditedXml, sides.Requested);
+        Assert.Equal("xmlDocument", PlcContentDiffSides.SelectWithScope("xml", CurrentExport, EditedXml).ComparisonScope);
     }
 
     [Fact]
@@ -32,6 +33,8 @@ public class PlcContentDiffSidesTests
 
         Assert.Equal(Xml, sides.Current);
         Assert.Equal(EditedXml, sides.Requested);
+        Assert.Equal("xmlDocument", PlcContentDiffSides.SelectWithScope(
+            "xml", CurrentExport, "--- FILE: B.xml ---\n" + EditedXml).ComparisonScope);
     }
 
     [Fact]
@@ -40,6 +43,8 @@ public class PlcContentDiffSidesTests
         var sides = PlcContentDiffSides.Select("xml", CurrentExport, Xml.Replace("\r\n", "\n"));
 
         Assert.True(PlcContentDiff.Build(sides.Current, sides.Requested).LineEndingOnly);
+        Assert.Equal("xmlDocument", PlcContentDiffSides.SelectWithScope(
+            "xml", CurrentExport, Xml.Replace("\r\n", "\n")).ComparisonScope);
     }
 
     [Fact]
@@ -55,6 +60,7 @@ public class PlcContentDiffSidesTests
 
         Assert.Equal(CurrentExport, sides.Current);
         Assert.Equal(submitted, sides.Requested);
+        Assert.Equal("wholeText", PlcContentDiffSides.SelectWithScope("xml", CurrentExport, submitted).ComparisonScope);
     }
 
     [Fact]
@@ -65,6 +71,10 @@ public class PlcContentDiffSidesTests
 
         Assert.Equal((CurrentExport, "--- FILE: bad\n<x/>"), badSubmission);
         Assert.Equal(("--- FILE: bad\n", EditedXml), badExport);
+        Assert.Equal("wholeText", PlcContentDiffSides.SelectWithScope(
+            "xml", CurrentExport, "--- FILE: bad\n<x/>").ComparisonScope);
+        Assert.Equal("wholeText", PlcContentDiffSides.SelectWithScope(
+            "xml", "--- FILE: bad\n", EditedXml).ComparisonScope);
     }
 
     [Fact]
@@ -75,6 +85,7 @@ public class PlcContentDiffSidesTests
         var sides = PlcContentDiffSides.Select("xml", export, Xml);
 
         Assert.Equal((export, Xml), sides);
+        Assert.Equal("wholeText", PlcContentDiffSides.SelectWithScope("xml", export, Xml).ComparisonScope);
     }
 
     [Fact]
@@ -83,5 +94,6 @@ public class PlcContentDiffSidesTests
         var sides = PlcContentDiffSides.Select("source", CurrentExport, EditedXml);
 
         Assert.Equal((CurrentExport, EditedXml), sides);
+        Assert.Equal("wholeText", PlcContentDiffSides.SelectWithScope("source", CurrentExport, EditedXml).ComparisonScope);
     }
 }

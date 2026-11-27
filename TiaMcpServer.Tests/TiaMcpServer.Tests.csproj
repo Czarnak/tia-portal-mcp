@@ -217,6 +217,7 @@
     <Compile Include="..\TiaMcpServer\Plc\PlcContentDiff.cs" Link="Host\Plc\PlcContentDiff.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcBlockLogicPatch.cs" Link="Host\Plc\PlcBlockLogicPatch.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcContentDiffSides.cs" Link="Host\Plc\PlcContentDiffSides.cs" />
+    <Compile Include="..\TiaMcpServer\Plc\PlcReadBackComparison.cs" Link="Plc\PlcReadBackComparison.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcContractVersion.cs" Link="Host\Plc\PlcContractVersion.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcFormatNames.cs" Link="Host\Plc\PlcFormatNames.cs" />
     <Compile Include="..\TiaMcpServer\Plc\PlcOperationCatalog.cs" Link="Host\Plc\PlcOperationCatalog.cs" />

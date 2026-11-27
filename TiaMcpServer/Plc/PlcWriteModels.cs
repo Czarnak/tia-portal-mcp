@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Text.Json.Serialization;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Safety.Pipeline;
@@ -60,14 +62,32 @@ public sealed record PlcResolution(PlcWriteEffect? Effect, IReadOnlyList<FiredGu
 /// without rejection; nothing was read back) or <c>superseded</c>.
 /// </summary>
 public sealed record PlcOperationVerification(string OperationId, bool Success, string Check,
-    string? Expected, string? Actual, string? ContentHash, string? Message);
+    string? Expected, string? Actual, string? ContentHash, string? Message)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Description("Present only when written PLC content was successfully re-exported and compared with the submitted execution content.")]
+    public PlcReadBackEvidence? ReadBack { get; init; }
+}
+
+/// <summary>Selected-text comparison; side hashes are diagnostics, not concurrency hashes.</summary>
+public sealed record PlcReadBackEvidence(
+    string ComparisonScope,
+    bool RawTextEqual, bool NormalizedLinesEqual, bool LineEndingOnly,
+    PlcContentDiffSide Submitted, PlcContentDiffSide Observed,
+    int SubmittedChangedSpanLineCount, int ObservedChangedSpanLineCount,
+    bool BudgetExhausted, StructuredOperationOmission? Omission);
 
 public sealed record PlcWriteVerification(bool Success, IReadOnlyList<PlcOperationVerification> Operations,
     StructuredOperationOmission? Omission)
 {
     /// <summary>ContentHash = Actual for "contentHash" entries, null otherwise.</summary>
-    public static PlcWriteVerification From(WriteVerification shared)
+    public static PlcWriteVerification From(WriteVerification shared,
+        IReadOnlyDictionary<string, PlcReadBackEvidence>? readBack = null)
         => new(shared.Success, shared.Operations.Select(o => new PlcOperationVerification(
             o.OperationId, o.Success, o.Check, o.Expected, o.Actual,
-            o.Check == "contentHash" ? o.Actual : null, o.Message)).ToArray(), shared.Omission);
+            o.Check == "contentHash" ? o.Actual : null, o.Message)
+        {
+            ReadBack = readBack is not null && readBack.TryGetValue(o.OperationId, out var evidence)
+                ? evidence : null,
+        }).ToArray(), shared.Omission);
 }
