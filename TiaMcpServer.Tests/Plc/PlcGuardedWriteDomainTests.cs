@@ -524,6 +524,70 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Single(fresh.Observed.Excerpt.Lines);
     }
 
+    [Fact]
+    public async Task ReadBackDomainSharesDefaultAllowanceThroughLateReplanAndResetsPerCall()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-readback-normalizes");
+        const string path = "PLC_2/Main";
+        const string marker = "<ConstantType>LReal</ConstantType>";
+        var submitted = string.Join("\n", Enumerable.Range(0, 32).Select(index =>
+            (index is 0 or 31 ? marker : "line " + index) + new string('x', 300)));
+        var observed = submitted.Replace(marker, "<ConstantType>Real</ConstantType>", StringComparison.Ordinal);
+        var original = await ExportAsync(fixture, path, "source");
+        var planning = PlcContentDiff.Build(original, submitted);
+        var comparison = PlcReadBackComparison.Build("source", submitted, observed, new());
+        var planningChars = planning.Current.Excerpt.Lines.Sum(line => line.Text.Length)
+            + planning.Requested.Excerpt.Lines.Sum(line => line.Text.Length);
+        var comparisonChars = comparison.Submitted.Excerpt.Lines.Sum(line => line.Text.Length)
+            + comparison.Observed.Excerpt.Lines.Sum(line => line.Text.Length);
+        Assert.Equal(2 * PlcContentDiff.MaxExcerptCharsPerSide, comparisonChars);
+        Assert.True(2 * planningChars + comparisonChars > PlcContentDiff.MaxCallExcerptChars);
+        Assert.True(planningChars + comparisonChars <= PlcContentDiff.MaxCallExcerptChars);
+        Assert.True(2 * comparisonChars <= PlcContentDiff.MaxCallExcerptChars);
+        var item = new PlcOperationRequest { OperationId = "content", Operation = "update_block_logic", BlockPath = path,
+            Format = "source", Content = submitted, ExpectedContentHash = await fixture.ReadHashAsync(path, "source") };
+        var before = requests.Methods().Count(method => method == "get_block_content");
+
+        // Both initial planning and the tag-dependent late replan fit individually. Together
+        // with read-back they exceed the default allowance; dropping any domain budget argument
+        // makes the comparison fit and breaks the exhaustion assertion below.
+        var response = await fixture.RunAsync(false, CreateTag("tag", "Main"), item);
+
+        Assert.True(response.Success, CanonicalJson.Serialize(response));
+        Assert.Equal("tag", response.Effects[1].Effect!.DependsOn);
+        Assert.Equal(new[] { "succeeded", "succeeded" }, response.Batch!.Operations.Select(operation => operation.Status));
+        Assert.Equal(3, requests.Methods().Count(method => method == "get_block_content") - before);
+        Assert.True(response.Verification!.Success);
+        var check = Assert.Single(response.Verification.Operations, operation => operation.OperationId == item.OperationId);
+        Assert.True(check.Success);
+        Assert.Equal(check.Actual, check.ContentHash);
+        Assert.Equal(await fixture.ReadHashAsync(path, "source"), check.ContentHash);
+        var readBack = Assert.IsType<PlcReadBackEvidence>(check.ReadBack);
+        Assert.False(readBack.RawTextEqual);
+        Assert.True(readBack.BudgetExhausted);
+        Assert.Equal(32, readBack.SubmittedChangedSpanLineCount);
+        Assert.Equal(32, readBack.ObservedChangedSpanLineCount);
+        Assert.Empty(readBack.Submitted.Excerpt.Lines);
+        Assert.Empty(readBack.Observed.Excerpt.Lines);
+        Assert.Null(readBack.Omission);
+
+        item.ExpectedContentHash = check.ContentHash;
+        var next = await fixture.RunAsync(false, item);
+
+        Assert.True(next.Success, CanonicalJson.Serialize(next));
+        Assert.Equal("succeeded", Assert.Single(next.Batch!.Operations).Status);
+        var freshCheck = Assert.Single(next.Verification!.Operations);
+        var fresh = Assert.IsType<PlcReadBackEvidence>(freshCheck.ReadBack);
+        Assert.False(fresh.BudgetExhausted);
+        Assert.NotEmpty(fresh.Submitted.Excerpt.Lines);
+        Assert.NotEmpty(fresh.Observed.Excerpt.Lines);
+        Assert.Equal(comparisonChars, fresh.Submitted.Excerpt.Lines.Sum(line => line.Text.Length)
+            + fresh.Observed.Excerpt.Lines.Sum(line => line.Text.Length));
+        Assert.Equal(await fixture.ReadHashAsync(path, "source"), freshCheck.ContentHash);
+    }
+
     [Theory]
     [InlineData("xml", "failed")]
     [InlineData("source", "failed")]

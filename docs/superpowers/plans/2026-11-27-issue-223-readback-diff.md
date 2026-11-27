@@ -1,6 +1,6 @@
 # Issue #223: implementation plan
 
-Status: ready for implementation; no implementation or live verification performed
+Status: implemented and qualified offline on 2026-11-27; live TIA testing not performed
 
 Spec: [approved design](../specs/2026-11-27-issue-223-readback-diff-design.md)
 
@@ -92,8 +92,8 @@ internal static class PlcReadBackComparison
 
 Implement `SelectWithScope` by moving the existing selection branches into it, returning `xmlDocument` only for selected XML-document sides and `wholeText` for every unchanged/fallback whole-text branch. Have existing `Select` delegate and return only `(Current, Requested)`. In `Build`, call `SelectWithScope(format, observed, submitted)`, then `PlcContentDiff.Build(sides.Requested, sides.Current, budget)`. Map its `Current` side to `Submitted` and `Requested` side to `Observed`, including the corresponding changed-span counts; initialize `Omission` to null. Do not copy or modify the existing diff algorithm or sanitize differences.
 
-- [ ] Add the new source link, record, and builder signature, initially throwing `NotImplementedException` in `Build`, so the tests compile and have an intentional red state.
-- [ ] Write these literal tests in `PlcReadBackComparisonTests` with `using TiaMcpServer.Plc;` and `using Xunit;`:
+- [x] Add the new source link, record, and builder signature, initially throwing `NotImplementedException` in `Build`, so the tests compile and have an intentional red state.
+- [x] Write these literal tests in `PlcReadBackComparisonTests` with `using TiaMcpServer.Plc;` and `using Xunit;`:
 
 ```csharp
 [Fact]
@@ -138,11 +138,11 @@ public void GenerationExhaustionPreservesComparisonSummary()
 }
 ```
 
-- [ ] Add explicit cases named `IdenticalSelectedTextHasEmptyExcerpts`, `XmlOnlySubmissionIgnoresObservedCompanions`, `SingleXmlBundleUsesXmlDocumentScope`, `MultipleDocumentSubmissionUsesWholeTextScope`, `CompanionOnlyObservedExportUsesWholeTextFallback`, `MalformedBundleUsesWholeTextFallback`, and `DisjointDifferencesCountTheWholeChangedSpan`. Reuse `BlockBundleText.Compose` and the existing selector fixtures. For disjoint differences, compare `a\nkeep\nb` with `x\nkeep\ny` and assert both changed-span counts are 3, not 2. For equal XML plus companions, assert both equality flags true despite unequal full input strings. Add `GenerationExhaustionOnEqualTextOmitsNothing`: use an already-exhausted budget and identical text; assert equal flags, `BudgetExhausted:true`, empty excerpts, and zero omitted lines/characters. This preserves the existing helper's state semantics without implying that equal text lost evidence.
-- [ ] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~PlcReadBackComparisonTests"`; expect FAIL with `NotImplementedException` before the builder implementation.
-- [ ] Implement the selector/builder mapping exactly as above; remove the intentional throw.
-- [ ] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~PlcReadBackComparisonTests|FullyQualifiedName~PlcContentDiffSidesTests|FullyQualifiedName~PlcContentDiffTests"`; expect all selected tests to pass. Existing raw/per-side/long-line bounds remain covered by `PlcContentDiffTests`.
-- [ ] Review the diff for scope and source-link correctness, update the code index for edited files, and commit `feat: add scoped PLC read-back comparisons`.
+- [x] Add explicit cases named `IdenticalSelectedTextHasEmptyExcerpts`, `XmlOnlySubmissionIgnoresObservedCompanions`, `SingleXmlBundleUsesXmlDocumentScope`, `MultipleDocumentSubmissionUsesWholeTextScope`, `CompanionOnlyObservedExportUsesWholeTextFallback`, `MalformedBundleUsesWholeTextFallback`, and `DisjointDifferencesCountTheWholeChangedSpan`. Reuse `BlockBundleText.Compose` and the existing selector fixtures. For disjoint differences, compare `a\nkeep\nb` with `x\nkeep\ny` and assert both changed-span counts are 3, not 2. For equal XML plus companions, assert both equality flags true despite unequal full input strings. Add `GenerationExhaustionOnEqualTextOmitsNothing`: use an already-exhausted budget and identical text; assert equal flags, `BudgetExhausted:true`, empty excerpts, and zero omitted lines/characters. This preserves the existing helper's state semantics without implying that equal text lost evidence.
+- [x] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~PlcReadBackComparisonTests"`; expect FAIL with `NotImplementedException` before the builder implementation.
+- [x] Implement the selector/builder mapping exactly as above; remove the intentional throw.
+- [x] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~PlcReadBackComparisonTests|FullyQualifiedName~PlcContentDiffSidesTests|FullyQualifiedName~PlcContentDiffTests"`; expect all selected tests to pass. Existing raw/per-side/long-line bounds remain covered by `PlcContentDiffTests`.
+- [x] Review the diff for scope and source-link correctness, update the code index for edited files, and commit `feat: add scoped PLC read-back comparisons`.
 
 ## Task 2: attach evidence to the PLC verification contract
 
@@ -187,7 +187,7 @@ public static Task<PlcWriteVerification> VerifyAsync(OpennessWorkerClient client
 
 The policy owns an ordinal `Dictionary<string, PlcReadBackEvidence>`. After a nonempty export, populate it with `Build(format, item.Content!, export.Payload, budget)` and retain the existing full-export hash calculation and generic verification result. Static verification creates the policy, awaits the unchanged shared verifier, then joins the dictionary through `PlcWriteVerification.From`. Join only to matching operation IDs; missing evidence leaves `ReadBack` null. Do not compare in the response composer or perform another export.
 
-- [ ] Add failing integration assertions for the test matrix below before changing policy/projection behavior. Add the DTO property and optional method signatures first if needed to compile assertions.
+- [x] Add failing integration assertions for the test matrix below before changing policy/projection behavior. Add the DTO property and optional method signatures first if needed to compile assertions.
 
 | Test name / existing anchor | Exact setup and required assertion |
 | --- | --- |
@@ -201,13 +201,13 @@ The policy owns an ordinal `Dictionary<string, PlcReadBackEvidence>`. After a no
 | `ReadBackSharesPlanningAndReplanningExcerptAllowance` | Use the same explicit budget for planner initial planning, one dependent replan, and policy verification. Seed small remaining limits so planning/replanning spend the last allowance; verify subsequent read-back excerpts are exhausted while flags, counts, hashes and item status remain available. Also verify a new call has a fresh budget. |
 | Populated MCP response/audit case | Assert text equals canonical structured content and the audited delivered document/hash with `readBack` present. The audit still retains requested operations and exact resolved patch input independently. |
 
-- [ ] Register the two scenario names in FakeWorker dispatch. Gate transformations on those scenario names and literal markers so existing default scenario behavior remains identical. Keep these transformations Siemens-free.
-- [ ] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~ReadBack|FullyQualifiedName~PatchExecutesExistingImportAndVerifiesResolvedFormat"`; expect FAIL on missing/null `ReadBack` or absent expected observed marker before policy wiring.
-- [ ] Implement policy collection, PLC-only projection and shared allowance propagation as specified. Keep shared compilation before verification and preserve the shared verifier's supersession/failure logic.
-- [ ] Add `typeof(PlcOperationVerification)` to the host-type scan and register `PlcOperationVerification.ReadBack` with its appearance condition. Keep `PlcReadBackEvidence.Omission` explicit nullable, requiring no conditional-register entry.
-- [ ] Keep `PlcWriteContractVersion.Current` at `2.1`, PLC read version at `1.0`, and emitted-version assertions unchanged. `PlcContractVersion.cs` and `ToolOutputContractConformanceTests.cs` need no changes for versioning; retain the conformance suite in regression validation. Preserve historical text and literal budget fixtures.
-- [ ] Add schema assertions using the existing current/`2025-11-25` protocol theory: `readBack` is optional, its present members are typed/required according to the records, nullable omission remains represented, and no unrelated tool schema gains the field.
-- [ ] Refresh only the generated `plc_write` subtree using the temporary capture procedure below; the repository currently has a snapshot reader/comparer, not an updater. Remove the temporary capture method before committing and inspect that only the `plc_write` subtree changed. The permanent schema theory and `OutputSchemasMatchMain` must pass for both protocols afterward.
+- [x] Register the two scenario names in FakeWorker dispatch. Gate transformations on those scenario names and literal markers so existing default scenario behavior remains identical. Keep these transformations Siemens-free.
+- [x] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~ReadBack|FullyQualifiedName~PatchExecutesExistingImportAndVerifiesResolvedFormat"`; expect FAIL on missing/null `ReadBack` or absent expected observed marker before policy wiring.
+- [x] Implement policy collection, PLC-only projection and shared allowance propagation as specified. Keep shared compilation before verification and preserve the shared verifier's supersession/failure logic.
+- [x] Add `typeof(PlcOperationVerification)` to the host-type scan and register `PlcOperationVerification.ReadBack` with its appearance condition. Keep `PlcReadBackEvidence.Omission` explicit nullable, requiring no conditional-register entry.
+- [x] Keep `PlcWriteContractVersion.Current` at `2.1`, PLC read version at `1.0`, and emitted-version assertions unchanged. `PlcContractVersion.cs` and `ToolOutputContractConformanceTests.cs` need no changes for versioning; retain the conformance suite in regression validation. Preserve historical text and literal budget fixtures.
+- [x] Add schema assertions using the existing current/`2025-11-25` protocol theory: `readBack` is optional, its present members are typed/required according to the records, nullable omission remains represented, and no unrelated tool schema gains the field.
+- [x] Refresh only the generated `plc_write` subtree using the temporary capture procedure below; the repository currently has a snapshot reader/comparer, not an updater. Remove the temporary capture method before committing and inspect that only the `plc_write` subtree changed. The permanent schema theory and `OutputSchemasMatchMain` must pass for both protocols afterward.
 
 Temporary capture method inside the existing `McpToolSchemaTests` class:
 
@@ -252,10 +252,10 @@ path.write_bytes(updated.encode('utf-8'))
 Remove-Item Env:\TIA_ISSUE223_SCHEMA_PATH
 ```
 
-- [ ] Remove `CaptureIssue223PlcWriteSchema` from `McpToolSchemaTests.cs`, retain the permanent assertions, and run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~McpToolSchemaTests"`; expect both protocol snapshot comparisons to pass.
-- [ ] Document the comparison scope and newline rules under existing unreleased PLC write contract `2.1`, distinguish side `sha256` from the reusable full-export `contentHash`, and state that failed/after-compile evidence is observational. Update the compact current behavior rule in `AGENTS.md` without changing its contract number or copying acceptance claims.
-- [ ] Run `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging&(FullyQualifiedName~Plc|FullyQualifiedName~McpToolSchemaTests|FullyQualifiedName~ConditionalMemberRegisterTests|FullyQualifiedName~ToolOutputContractConformanceTests)"`; expect all selected tests to pass.
-- [ ] Review source, schema and FakeWorker changes, update the code index, and commit `feat: report PLC submitted versus observed content`.
+- [x] Remove `CaptureIssue223PlcWriteSchema` from `McpToolSchemaTests.cs`, retain the permanent assertions, and run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~McpToolSchemaTests"`; expect both protocol snapshot comparisons to pass.
+- [x] Document the comparison scope and newline rules under existing unreleased PLC write contract `2.1`, distinguish side `sha256` from the reusable full-export `contentHash`, and state that failed/after-compile evidence is observational. Update the compact current behavior rule in `AGENTS.md` without changing its contract number or copying acceptance claims.
+- [x] Run `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging&(FullyQualifiedName~Plc|FullyQualifiedName~McpToolSchemaTests|FullyQualifiedName~ConditionalMemberRegisterTests|FullyQualifiedName~ToolOutputContractConformanceTests)"`; expect all selected tests to pass.
+- [x] Review source, schema and FakeWorker changes, update the code index, and commit `feat: report PLC submitted versus observed content`.
 
 ## Task 3: preserve evidence through response budgeting and qualify delivery
 
@@ -286,9 +286,9 @@ Item-limit handling must inspect the serialized aggregate `verification.Operatio
 
 For document-limit removal, retain the existing domain order for old roots while inserting comparison excerpts and then whole comparisons immediately before aggregate verification checks: preview content diffs, shared compilation reports, failure import outcomes, comparison excerpts, comparison summaries, verification checks, effects, and existing batch fallback. Measure candidate sizes using `CanonicalJson`, recheck the current document after each omission, and keep the existing largest-first/stable-order convention inside each class. Call `Present` with nested read-back omissions included in `HasOmission` alongside existing compilation omissions. Comparison removal may set root delivery `Success` false; it never changes batch item status, `verification.Success`, `Actual`, or `ContentHash` while operations remain deliverable.
 
-- [ ] Add budget tests named `ReadBackExcerptsYieldBeforeContentHashes`, `AggregateReadBackOverflowCompactsExcerpts`, `ReadBackSummariesYieldBeforeChecks`, `NestedReadBackOmissionChangesOnlyDeliverySuccess`, `ReadBackBudgetingDoesNotMutateExecutionResponse`, `ReadBackOmissionAccountsForRetainedAndAlreadyOmittedText`, and `ReadBackUsesEncodedSizesAndEffectiveLimits`.
-- [ ] Build fixtures with successful `contentHash` entries containing actual format-tagged hashes and populated `ReadBack` from `PlcReadBackComparison.Build`. For the aggregate case, include at least 10 entries, prove each comparison alone is below the explicit item limit, and prove the combined operations array is over it. Choose explicit limits between measured original and compact forms, including omission-record overhead.
-- [ ] In the excerpt-removal cases assert these literal invariants, using `source` for the original response and `bounded` for `Apply(source, ...)`:
+- [x] Add budget tests named `ReadBackExcerptsYieldBeforeContentHashes`, `AggregateReadBackOverflowCompactsExcerpts`, `ReadBackSummariesYieldBeforeChecks`, `NestedReadBackOmissionChangesOnlyDeliverySuccess`, `ReadBackBudgetingDoesNotMutateExecutionResponse`, `ReadBackOmissionAccountsForRetainedAndAlreadyOmittedText`, and `ReadBackUsesEncodedSizesAndEffectiveLimits`.
+- [x] Build fixtures with successful `contentHash` entries containing actual format-tagged hashes and populated `ReadBack` from `PlcReadBackComparison.Build`. For the aggregate case, include at least 10 entries, prove each comparison alone is below the explicit item limit, and prove the combined operations array is over it. Choose explicit limits between measured original and compact forms, including omission-record overhead.
+- [x] In the excerpt-removal cases assert these literal invariants, using `source` for the original response and `bounded` for `Apply(source, ...)`:
 
 ```csharp
 Assert.True(source.Success);
@@ -302,14 +302,14 @@ Assert.All(bounded.Verification.Operations, o => Assert.True(o.Success));
 Assert.Contains(bounded.Verification.Operations, o => o.ReadBack?.Omission is not null);
 ```
 
-- [ ] For summary removal, use an item limit below summary-only size and above measured original compact-check size; assert operations/hashes survive and `verification.Omission` is nonnull. For immutability, compare `CanonicalJson.Serialize(source)` before/after and assert the source still contains its excerpts and null omissions.
-- [ ] For omission counts, start with a line longer than the per-line cap so characters were already omitted, then remove its retained excerpt and assert the new omitted-character count equals the complete original changed-span text length without duplication. Preserve the original generation-budget flag.
-- [ ] For encoded-size coverage, include control characters requiring JSON escapes and 256-character IDs. Test both explicit small limits and an isolated effective-limit configuration above defaults using the repository's existing serialized configuration test pattern; restore that configuration afterward. Assert actual canonical sizes fit their applicable limits and an already-fitting response is unchanged.
-- [ ] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~PlcWriteBudgetTests"`; expect FAIL because the baseline aggregate fallback removes hashes before comparison diagnostics or because nested omission is not counted.
-- [ ] Implement comparison-aware omission and immutable copies with the ordering above; keep the protected-core admission behavior and original no-comparison fallback intact. Read-back comparisons are optional diagnostics and do not need admission reservation because they can be omitted before original protected checks.
-- [ ] Extend the canonical audit test with a budgeted response: delivered text, structured content, delivered audit document/hash and omission fields agree, while audited item statuses and attempted input remain truthful.
-- [ ] Update documentation to distinguish intrinsic generation truncation from outer encoded delivery omission, explain conservative spending across replans, and retain inspection guidance without recommending write replay.
-- [ ] Run focused tests, then the full non-packaging suite, stub build and documentation checks sequentially:
+- [x] For summary removal, use an item limit below summary-only size and above measured original compact-check size; assert operations/hashes survive and `verification.Omission` is nonnull. For immutability, compare `CanonicalJson.Serialize(source)` before/after and assert the source still contains its excerpts and null omissions.
+- [x] For omission counts, start with a line longer than the per-line cap so characters were already omitted, then remove its retained excerpt and assert the new omitted-character count equals the complete original changed-span text length without duplication. Preserve the original generation-budget flag.
+- [x] For encoded-size coverage, include control characters requiring JSON escapes and 256-character IDs. Test both explicit small limits and an isolated effective-limit configuration above defaults using the repository's existing serialized configuration test pattern; restore that configuration afterward. Assert actual canonical sizes fit their applicable limits and an already-fitting response is unchanged.
+- [x] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~PlcWriteBudgetTests"`; expect FAIL because the baseline aggregate fallback removes hashes before comparison diagnostics or because nested omission is not counted.
+- [x] Implement comparison-aware omission and immutable copies with the ordering above; keep the protected-core admission behavior and original no-comparison fallback intact. Read-back comparisons are optional diagnostics and do not need admission reservation because they can be omitted before original protected checks.
+- [x] Extend the canonical audit test with a budgeted response: delivered text, structured content, delivered audit document/hash and omission fields agree, while audited item statuses and attempted input remain truthful.
+- [x] Update documentation to distinguish intrinsic generation truncation from outer encoded delivery omission, explain conservative spending across replans, and retain inspection guidance without recommending write replay.
+- [x] Run focused tests, then the full non-packaging suite, stub build and documentation checks sequentially:
 
 ```powershell
 dotnet test TiaMcpServer.Tests --filter "Category!=Packaging&(FullyQualifiedName~Plc|FullyQualifiedName~McpToolSchemaTests|FullyQualifiedName~ConditionalMemberRegisterTests|FullyQualifiedName~ToolOutputContractConformanceTests)"
@@ -319,10 +319,19 @@ python -I scripts/verify-docs.py --archive-tag docs-archive-2026-10-30
 git diff --check
 ```
 
-- [ ] Request independent review of the implementation diff, especially selected-scope equality, map/projection lifetime, aggregate budget handling, omission counts, schema registration and hash preservation. Resolve actionable findings, rerun the checks affected by fixes, and record exact verification results and remaining live limits.
-- [ ] Review the final diff, update the code index and commit `fix: preserve PLC hashes when read-back evidence is budgeted`.
+- [x] Request independent review of the implementation diff, especially selected-scope equality, map/projection lifetime, aggregate budget handling, omission counts, schema registration and hash preservation. Resolve actionable findings, rerun the checks affected by fixes, and record exact verification results and remaining live limits.
+- [x] Review the final diff, update the code index and commit `fix: preserve PLC hashes when read-back evidence is budgeted`.
 
 Only the test `.csproj` is planned to change, so Packaging is not triggered. If implementation expands to a product `.csproj`, `Directory.Build.props`, `global.json`, packaging verification scripts or reference stubs, also run `dotnet test TiaMcpServer.Tests --filter "Category=Packaging"` before committing that change. Do not run builds/tests concurrently.
+
+## Offline execution record (2026-11-27)
+
+- Task 1 was committed as `081badab`; its intentional `NotImplementedException` red phase was observed, then all 33 comparison/selector/diff tests passed.
+- Verification, shared allowance wiring, schemas and durable behavior documentation were committed as `8feeccf5`. The focused acceptance suite passed all 764 tests. Both MCP protocol schema paths passed; only the `plc_write` snapshot subtree changed.
+- The full non-packaging suite passed 9,086 tests with no failures. Independent review then prompted one additional domain-level regression, `ReadBackDomainSharesDefaultAllowanceThroughLateReplanAndResetsPerCall`; it passed separately. Three deliberate mutations resetting the allowance at planning, replanning or verification each failed that regression at the intended assertion. Production source was restored byte-for-byte, and all 57 read-back/patch/audit regressions passed afterward. The full-suite count predates this final added test.
+- The serialized stub solution build passed with zero errors and eight nullable warnings in existing Network/HMI/VCI test sources. Documentation validation passed with zero errors and the two expected transient plan/spec warnings; `git diff --check` passed.
+- Independent review has no unresolved actionable findings. Budget regressions cover encoded aggregate limits, omission order/counts, repeat application, immutable copies, nested delivery success and preserved hashes; canonical MCP/audit tests retain exact delivered text/hash and attempted execution input.
+- No live TIA operation, package installation, remote write, push or PR creation was performed. Live normalization remains unverified; retain the working plan/spec until the later pre-merge pruning step below.
 
 ## Acceptance mapping and delivery boundary
 

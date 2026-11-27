@@ -395,4 +395,213 @@ public sealed class PlcWriteBudgetTests
         document.Remove("sharedCompilations");
         Assert.Equal("""{"batch":null,"contractVersion":"2.1","effects":[],"error":null,"guards":[],"omission":null,"phase":"applied","success":true,"tool":"plc_write","verification":null,"warnings":[]}""", document.ToJsonString());
     }
+
+    private static PlcGuardedWriteResponse ReadBackResponse(int count = 1, bool escaped = false,
+        string? submitted = null, string? observed = null, bool exhausted = false)
+    {
+        var budget = exhausted ? new PlcContentDiffBudget { RemainingLines = 0, RemainingChars = 0 } : new();
+        var operations = Enumerable.Range(0, count).Select(index =>
+        {
+            var before = submitted ?? string.Join("\n", Enumerable.Range(0, 12)
+                .Select(line => $"submitted {index}:{line} " + new string(escaped ? '\u0001' : 's', 180)));
+            var after = observed ?? string.Join("\n", Enumerable.Range(0, 12)
+                .Select(line => $"observed {index}:{line} " + new string(escaped ? '\u0002' : 'o', 180)));
+            var id = escaped ? index.ToString("D3") + new string('\u0001', 253) : "op" + index;
+            var hash = "source:sha256:" + Convert.ToHexStringLower(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(after)));
+            return new PlcOperationVerification(id, true, "contentHash", null, hash, hash, null)
+            {
+                ReadBack = PlcReadBackComparison.Build("source", before, after, budget),
+            };
+        }).ToArray();
+        var batch = StructuredOperationBatch.FromItems(operations.Select(operation => new StructuredOperationItem(
+            operation.OperationId, "update_block_logic", OperationBatchStatus.Succeeded, null, null, null, null, [])).ToArray());
+        return WithDiagnostics("applied", true, null) with { Verification = new(true, operations, null), Batch = batch };
+    }
+
+    private static void AssertReadBackPreservesHashes(PlcGuardedWriteResponse source, PlcGuardedWriteResponse bounded)
+    {
+        Assert.True(source.Success);
+        Assert.False(bounded.Success);
+        Assert.True(bounded.Verification!.Success);
+        Assert.Equal(source.Verification!.Operations.Select(o => o.ContentHash),
+            bounded.Verification.Operations.Select(o => o.ContentHash));
+        Assert.Equal(source.Verification.Operations.Select(o => o.Actual),
+            bounded.Verification.Operations.Select(o => o.Actual));
+        Assert.All(bounded.Verification.Operations, o => Assert.True(o.Success));
+        Assert.All(bounded.Batch!.Operations, o => Assert.Equal(OperationBatchStatus.Succeeded, o.Status));
+    }
+
+    [Fact]
+    public void ReadBackExcerptsYieldBeforeContentHashes()
+    {
+        var source = ReadBackResponse();
+        const int itemLimit = 2_500;
+        Assert.True(CanonicalJson.Serialize(source.Verification!.Operations).Length > itemLimit);
+
+        var bounded = PlcWritePayloadBudget.Apply(source, maxItemChars: itemLimit);
+
+        AssertReadBackPreservesHashes(source, bounded);
+        var comparison = Assert.Single(bounded.Verification!.Operations).ReadBack!;
+        Assert.NotNull(comparison.Omission);
+        Assert.Empty(comparison.Submitted.Excerpt.Lines);
+        Assert.Empty(comparison.Observed.Excerpt.Lines);
+        Assert.Null(bounded.Verification.Omission);
+        Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations).Length, 0, itemLimit);
+    }
+
+    [Fact]
+    public void AggregateReadBackOverflowCompactsExcerpts()
+    {
+        var source = ReadBackResponse(10);
+        var itemLimit = CanonicalJson.Serialize(source.Verification!.Operations).Length / 2;
+        Assert.All(source.Verification.Operations, o =>
+            Assert.True(CanonicalJson.Serialize(o.ReadBack).Length < itemLimit));
+        Assert.True(CanonicalJson.Serialize(source.Verification.Operations).Length > itemLimit);
+
+        var bounded = PlcWritePayloadBudget.Apply(source, maxItemChars: itemLimit);
+
+        AssertReadBackPreservesHashes(source, bounded);
+        Assert.Contains(bounded.Verification!.Operations, o => o.ReadBack?.Omission is not null);
+        Assert.Contains(bounded.Verification.Operations, o => o.ReadBack?.Submitted.Excerpt.Lines.Count > 0);
+        Assert.All(bounded.Verification.Operations, o => Assert.NotNull(o.ReadBack));
+        Assert.Null(bounded.Verification.Omission);
+        Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations).Length, 0, itemLimit);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadBackSummariesYieldBeforeChecks(bool documentLimit)
+    {
+        var source = ReadBackResponse(10, exhausted: true);
+        var checks = source.Verification!.Operations.Select(o => o with { ReadBack = null }).ToArray();
+        var checkChars = CanonicalJson.Serialize(checks).Length;
+        var summaryChars = CanonicalJson.Serialize(source.Verification.Operations).Length;
+        var itemLimit = (checkChars + summaryChars) / 2;
+        Assert.InRange(itemLimit, checkChars + 1, summaryChars - 1);
+
+        var documentChars = CanonicalJson.Serialize(source).Length - summaryChars + itemLimit + 500;
+        var bounded = documentLimit
+            ? PlcWritePayloadBudget.Apply(source, maxDocumentChars: documentChars)
+            : PlcWritePayloadBudget.Apply(source, maxItemChars: itemLimit);
+
+        AssertReadBackPreservesHashes(source, bounded);
+        Assert.Contains(bounded.Verification!.Operations, o => o.ReadBack is null);
+        Assert.NotNull(bounded.Verification.Omission);
+        if (documentLimit)
+            Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentChars);
+        else
+            Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations).Length, 0, itemLimit);
+    }
+
+    [Fact]
+    public void NestedReadBackOmissionChangesOnlyDeliverySuccess()
+    {
+        var source = ReadBackResponse();
+        var withoutReadBack = source with
+        {
+            Verification = source.Verification! with
+            {
+                Operations = source.Verification.Operations.Select(o => o with { ReadBack = null }).ToArray(),
+            },
+        };
+        var documentLimit = CanonicalJson.Serialize(withoutReadBack).Length + 2_500;
+
+        var bounded = PlcWritePayloadBudget.Apply(source, maxDocumentChars: documentLimit);
+
+        AssertReadBackPreservesHashes(source, bounded);
+        Assert.Contains(bounded.Verification!.Operations, o => o.ReadBack?.Omission is not null);
+        Assert.Null(bounded.Omission);
+        Assert.Null(bounded.Verification.Omission);
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentLimit);
+    }
+
+    [Fact]
+    public void ReadBackBudgetingDoesNotMutateExecutionResponse()
+    {
+        var source = ReadBackResponse(10);
+        var original = CanonicalJson.Serialize(source);
+        var itemLimit = CanonicalJson.Serialize(source.Verification!.Operations).Length / 2;
+
+        var bounded = PlcWritePayloadBudget.Apply(source, maxItemChars: itemLimit);
+
+        AssertReadBackPreservesHashes(source, bounded);
+        Assert.Equal(original, CanonicalJson.Serialize(source));
+        Assert.Contains(source.Verification.Operations, o => o.ReadBack!.Submitted.Excerpt.Lines.Count > 0);
+        Assert.Contains(source.Verification.Operations, o => o.ReadBack!.Observed.Excerpt.Lines.Count > 0);
+        Assert.All(source.Verification.Operations, o =>
+        {
+            Assert.Null(o.ReadBack!.Omission);
+        });
+        Assert.Null(source.Verification.Omission);
+        Assert.Equal(CanonicalJson.Serialize(bounded),
+            CanonicalJson.Serialize(PlcWritePayloadBudget.Apply(bounded, maxItemChars: itemLimit)));
+    }
+
+    [Fact]
+    public void ReadBackOmissionAccountsForRetainedAndAlreadyOmittedText()
+    {
+        var submitted = new string('s', 1_600);
+        var observed = new string('o', 1_700);
+        var source = ReadBackResponse(submitted: submitted, observed: observed);
+        var originalComparison = Assert.Single(source.Verification!.Operations).ReadBack!;
+        Assert.True(originalComparison.Submitted.Excerpt.OmittedCharacterCount > 0);
+        Assert.True(originalComparison.Observed.Excerpt.OmittedCharacterCount > 0);
+
+        var bounded = PlcWritePayloadBudget.Apply(source, maxItemChars: 1_800);
+
+        AssertReadBackPreservesHashes(source, bounded);
+        var comparison = Assert.Single(bounded.Verification!.Operations).ReadBack!;
+        Assert.NotNull(comparison.Omission);
+        Assert.Equal(submitted.Length, comparison.Submitted.Excerpt.OmittedCharacterCount);
+        Assert.Equal(observed.Length, comparison.Observed.Excerpt.OmittedCharacterCount);
+        Assert.Equal(1, comparison.Submitted.Excerpt.OmittedLineCount);
+        Assert.Equal(1, comparison.Observed.Excerpt.OmittedLineCount);
+        Assert.Equal(originalComparison.BudgetExhausted, comparison.BudgetExhausted);
+        Assert.Equal(originalComparison.Submitted.Excerpt.BudgetExhausted, comparison.Submitted.Excerpt.BudgetExhausted);
+        Assert.Equal(originalComparison.Observed.Excerpt.BudgetExhausted, comparison.Observed.Excerpt.BudgetExhausted);
+        Assert.Equal(CanonicalJson.Serialize(originalComparison).Length, comparison.Omission!.OriginalChars);
+    }
+
+    [Fact]
+    public void ReadBackUsesEncodedSizesAndEffectiveLimits()
+    {
+        var source = ReadBackResponse(escaped: true);
+        var comparison = Assert.Single(source.Verification!.Operations).ReadBack!;
+        Assert.Equal(256, Assert.Single(source.Verification.Operations).OperationId.Length);
+        Assert.True(CanonicalJson.Serialize(comparison).Length >
+            comparison.Submitted.CharacterCount + comparison.Observed.CharacterCount);
+        const int itemLimit = 6_000;
+        const int documentLimit = 10_000;
+
+        var bounded = PlcWritePayloadBudget.Apply(source, itemLimit, documentLimit);
+
+        AssertReadBackPreservesHashes(source, bounded);
+        Assert.Contains(bounded.Verification!.Operations, o => o.ReadBack?.Omission is not null);
+        Assert.InRange(CanonicalJson.Serialize(bounded.Verification.Operations).Length, 0, itemLimit);
+        Assert.InRange(CanonicalJson.Serialize(bounded).Length, 0, documentLimit);
+
+        // This collection disables parallelization, as do the existing configured-budget tests.
+        var oldItemLimit = StructuredOperationBatchPayloadBudget.MaxItemChars;
+        var oldDocumentLimit = StructuredOperationBatchPayloadBudget.MaxDocumentChars;
+        var large = ReadBackResponse(20, escaped: true);
+        Assert.True(CanonicalJson.Serialize(large.Verification!.Operations).Length >
+            StructuredOperationBatchPayloadBudget.DefaultItemChars);
+        try
+        {
+            StructuredOperationBatchPayloadBudget.Configure(300_000, 500_000);
+            Assert.Equal(CanonicalJson.Serialize(large), CanonicalJson.Serialize(PlcWritePayloadBudget.Apply(large)));
+            var defaultBounded = PlcWritePayloadBudget.Apply(large,
+                StructuredOperationBatchPayloadBudget.DefaultItemChars, StructuredOperationBatchPayloadBudget.DefaultDocumentChars);
+            AssertReadBackPreservesHashes(large, defaultBounded);
+            Assert.Contains(defaultBounded.Verification!.Operations, o => o.ReadBack?.Omission is not null);
+            Assert.InRange(CanonicalJson.Serialize(defaultBounded.Verification.Operations).Length,
+                0, StructuredOperationBatchPayloadBudget.DefaultItemChars);
+        }
+        finally
+        {
+            StructuredOperationBatchPayloadBudget.Configure(oldItemLimit, oldDocumentLimit);
+        }
+    }
 }

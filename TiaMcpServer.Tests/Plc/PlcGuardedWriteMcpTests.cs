@@ -3,6 +3,8 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Safety;
+using TiaMcpServer.Contracts.Shared;
+using TiaMcpServer.Json;
 using TiaMcpServer.Tests.Network;
 using TiaMcpServer.Tests.TestSupport;
 using Xunit;
@@ -190,8 +192,93 @@ public sealed class PlcGuardedWriteMcpTests
         var verification = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
         Assert.Equal("contentHash", verification.GetProperty("check").GetString());
         Assert.Equal(fresh.Hash, verification.GetProperty("actual").GetString());
+        Assert.Equal(fresh.Hash, verification.GetProperty("contentHash").GetString());
+        var readBack = verification.GetProperty("readBack");
+        Assert.Equal("xmlDocument", readBack.GetProperty("comparisonScope").GetString());
+        Assert.True(readBack.GetProperty("rawTextEqual").GetBoolean());
+        Assert.True(readBack.GetProperty("normalizedLinesEqual").GetBoolean());
+        Assert.Empty(readBack.GetProperty("submitted").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
+        Assert.Empty(readBack.GetProperty("observed").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, readBack.GetProperty("omission").ValueKind);
         Assert.Equal(0, prompts);
         Assert.Equal(2, NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Length);
+        var record = AssertCanonicalAudit(applied, NetworkGuardedWriteMcpTests.AuditLines(audit.Path).Last());
+        var requested = Assert.Single(record.GetProperty("requestedOperations").EnumerateArray());
+        Assert.Equal("patch_block_logic", requested.GetProperty("operation").GetString());
+        Assert.Equal("format=\"xml\"", requested.GetProperty("edits")[0].GetProperty("oldText").GetString());
+        var attempted = Assert.Single(record.GetProperty("items").EnumerateArray()).GetProperty("resolvedOperation");
+        Assert.Equal("update_block_logic", attempted.GetProperty("operation").GetString());
+        Assert.Equal(fresh.Content, attempted.GetProperty("content").GetString());
+        Assert.Equal(original.Hash, attempted.GetProperty("expectedContentHash").GetString());
+        Assert.False(attempted.TryGetProperty("edits", out _));
+    }
+
+    [Fact]
+    public async Task ReadBackOmissionMatchesCanonicalAuditAndRetainsAttempt()
+    {
+        using var audit = new TempAuditDirectory();
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite,
+            audit.Path, "plc-write-readback-normalizes");
+        var original = await ReadBlockAsync(harness.Client);
+        // JSON expansion exercises the encoded delivery limit in this Siemens-free fixture.
+        // Differences at both ends keep the intervening lines inside the observed changed span.
+        var submitted = "<Document><ConstantType>LReal</ConstantType>\n"
+            + string.Concat(Enumerable.Repeat("<!--" + new string('\u0001', 400) + "-->\n", 18))
+            + "<ConstantType>LReal</ConstantType></Document>";
+        var patch = new
+        {
+            operationId = "budgeted-patch", operation = "patch_block_logic", blockPath = "PLC_2/Main",
+            expectedContentHash = original.Hash,
+            edits = new[] { new { oldText = original.Content, newText = submitted } },
+        };
+
+        var reply = await harness.Client.CallToolAsync("plc_write", new Dictionary<string, object?>
+        {
+            ["operations"] = new[] { patch },
+        });
+
+        var root = CanonicalToolDocument.Read(reply);
+        Assert.False(reply.IsError == true);
+        Assert.Equal("2.1", root.GetProperty("contractVersion").GetString());
+        Assert.False(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal("succeeded", Assert.Single(root.GetProperty("batch").GetProperty("operations").EnumerateArray())
+            .GetProperty("status").GetString());
+        Assert.True(root.GetProperty("verification").GetProperty("success").GetBoolean());
+        var check = Assert.Single(root.GetProperty("verification").GetProperty("operations").EnumerateArray());
+        Assert.True(check.GetProperty("success").GetBoolean());
+        var readBack = check.GetProperty("readBack");
+        Assert.False(readBack.GetProperty("rawTextEqual").GetBoolean());
+        Assert.Equal(JsonValueKind.Object, readBack.GetProperty("omission").ValueKind);
+        Assert.Empty(readBack.GetProperty("submitted").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
+        Assert.Empty(readBack.GetProperty("observed").GetProperty("excerpt").GetProperty("lines").EnumerateArray());
+        var record = AssertCanonicalAudit(reply, Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
+        var requested = Assert.Single(record.GetProperty("requestedOperations").EnumerateArray());
+        Assert.Equal("patch_block_logic", requested.GetProperty("operation").GetString());
+        Assert.Equal(submitted, requested.GetProperty("edits")[0].GetProperty("newText").GetString());
+        var item = Assert.Single(record.GetProperty("items").EnumerateArray());
+        Assert.Equal("succeeded", item.GetProperty("status").GetString());
+        var attempted = item.GetProperty("resolvedOperation");
+        Assert.Equal("update_block_logic", attempted.GetProperty("operation").GetString());
+        var attemptedContent = attempted.GetProperty("content").GetString()!;
+        // The original single-line export has no terminator, so patch resolution uses CRLF.
+        Assert.Equal(submitted.Replace("\n", "\r\n", StringComparison.Ordinal), attemptedContent);
+        Assert.Equal(original.Hash, attempted.GetProperty("expectedContentHash").GetString());
+        Assert.False(attempted.TryGetProperty("edits", out _));
+        var fresh = await ReadBlockAsync(harness.Client);
+        Assert.Equal(attemptedContent.Replace("<ConstantType>LReal</ConstantType>", "<ConstantType>Real</ConstantType>", StringComparison.Ordinal), fresh.Content);
+        Assert.Equal(fresh.Hash, check.GetProperty("actual").GetString());
+        Assert.Equal(fresh.Hash, check.GetProperty("contentHash").GetString());
+    }
+
+    private static JsonElement AssertCanonicalAudit(CallToolResult reply, string auditLine)
+    {
+        var text = Assert.Single(reply.Content.OfType<TextContentBlock>()).Text;
+        Assert.InRange(text.Length, 1, 180_000);
+        Assert.Equal(text, CanonicalJson.Serialize(reply.StructuredContent!.Value));
+        using var record = JsonDocument.Parse(auditLine);
+        Assert.Equal(text, record.RootElement.GetProperty("responseText").GetString());
+        Assert.Equal("sha256:" + ContentHashRules.Sha256Hex(text), record.RootElement.GetProperty("responseHash").GetString());
+        return record.RootElement.Clone();
     }
 
     [Fact]
