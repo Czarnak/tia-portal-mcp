@@ -12,11 +12,6 @@ are the authorities on current behavior. For why the design is as it is, and the
 start at the [architecture decision records](../adr/README.md). Removed plans and specs remain at the
 `docs-archive-2026-10-30` tag; later working files remain in their PR commit history.
 
-## Active working documents
-
-- [Issue #223: approved submitted/observed PLC content design](specs/2026-11-27-issue-223-readback-diff-design.md)
-- [Issue #223: implementation plan](plans/2026-11-27-issue-223-readback-diff.md)
-
 ## Acceptance definitions
 
 | Date | Document |
@@ -32,6 +27,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-27 | [Issue #223 read-back comparisons — scoped candidate-MCP PASS: LReal/Real observation, XML/source patches, equal-source control, shared compilation, fresh hashes, exact audits and verified cleanup; project left open, modified and unsaved](acceptance/reports/2026-11-27-issue-223-readback-diff-live-verification.md) |
 | 2026-11-26 | [Issue #238 shared source compilation — scoped installed-MCP PASS: independent and dependent source updates, informational compile failures, committed-prefix generation stop, source patch/tag mix, fresh hashes, one-pair timing comparison and verified discard/reopen restoration](acceptance/reports/2026-11-26-issue-238-shared-source-compilation-live.md) |
 | 2026-11-26 | [Issue #224 PR 2 relaxed JSON — PARTIAL: native read-only baseline/candidate comparison and candidate Codex reads; baseline in the actual client, BMP and model-facing evidence remain open](acceptance/reports/2026-11-26-issue-224-pr2-relaxed-json-client-verification.md) |
 | 2026-11-26 | [Issue #224 PR 3 block-logic patches — scoped installed-MCP PASS: source/XML preview/apply, hash refusals, exact audit, measured argument-size reductions and verified cleanup; project left open, modified and unsaved](acceptance/reports/2026-11-26-issue-224-pr3-patch-block-logic-live-verification.md) |
