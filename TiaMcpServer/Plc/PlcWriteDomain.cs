@@ -16,6 +16,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     : IWriteDomain<PlcOperationRequest, PlcWriteEffect, PlcWriteVerification, PlcGuardedWriteResponse>
 {
     private readonly PlcWritePlanner _planner = new(client);
+    private readonly PlcContentDiffBudget _contentDiffBudget = new();
     private readonly Dictionary<string, IReadOnlyList<FiredGuard>> _guards = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PlcWriteEffect> _effects = new(StringComparer.Ordinal);
     private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
@@ -44,7 +45,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
 
     public async Task<WritePlan<PlcWriteEffect>> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
     {
-        var result = await _planner.PlanAsync(items).ConfigureAwait(false);
+        var result = await _planner.PlanAsync(items, _contentDiffBudget).ConfigureAwait(false);
         if (!result.Plan.Success) return result.Plan;
         _items = items.ToArray();
         foreach (var (id, resolved) in result.ResolvedOperations) _resolved[id] = resolved;
@@ -63,7 +64,7 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
     public async Task<ItemReplan<PlcWriteEffect>> ReplanAsync(PlcOperationRequest item)
     {
         _resolved.Remove(item.OperationId);
-        var result = await _planner.ReplanAsync(item).ConfigureAwait(false);
+        var result = await _planner.ReplanAsync(item, _contentDiffBudget).ConfigureAwait(false);
         if (!result.Replan.Success) return result.Replan;
         if (result.ResolvedOperation is { } resolved) _resolved[item.OperationId] = resolved;
         _guards[item.OperationId] = result.Guards;
@@ -104,7 +105,8 @@ public sealed class PlcWriteDomain(OpennessWorkerClient client)
                 plc => client.CompileCheckAsync(null, plc), batch).ConfigureAwait(false);
         return await PlcVerificationPolicy.VerifyAsync(client, _items.Where(item => _attempted.Contains(item.OperationId))
                 .Select(ExecutionItem).ToArray(), _effects,
-            StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray())).ConfigureAwait(false);
+            StructuredOperationBatch.FromItems(batch.Operations.Where(o => _attempted.Contains(o.OperationId)).ToArray()),
+            _contentDiffBudget).ConfigureAwait(false);
     }
 
     public bool VerificationSucceeded(PlcWriteVerification? verification) => verification?.Success == true;

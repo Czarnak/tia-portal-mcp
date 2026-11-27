@@ -45,13 +45,12 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             .Select(item => MatchPlc(item, inventory).Plc).OfType<PlcTagInventoryPlcInfo>(), ReferenceEqualityComparer.Instance);
     }
 
-    public async Task<PlcWritePlanResult> PlanAsync(IReadOnlyList<PlcOperationRequest> items)
+    public async Task<PlcWritePlanResult> PlanAsync(IReadOnlyList<PlcOperationRequest> items, PlcContentDiffBudget? budget = null)
     {
+        budget ??= new PlcContentDiffBudget();
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         if (evidence.Error is { } inventoryError) return Failed(inventoryError);
         var reads = new CallReads(evidence.Inventory!, items);
-        // One budget per call keeps every diff of the call inside the per-call excerpt bound.
-        var budget = new PlcContentDiffBudget();
         var plans = new List<ItemPlan<PlcWriteEffect>>();
         var guards = new Dictionary<string, IReadOnlyList<FiredGuard>>(StringComparer.Ordinal);
         var resolved = new Dictionary<string, PlcOperationRequest>(StringComparer.Ordinal);
@@ -77,12 +76,13 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
     }
 
     /// <summary>Re-reads real state for one dependent item just before its own mutation, with that item's read set.</summary>
-    public async Task<PlcWriteReplanResult> ReplanAsync(PlcOperationRequest item)
+    public async Task<PlcWriteReplanResult> ReplanAsync(PlcOperationRequest item, PlcContentDiffBudget? budget = null)
     {
+        budget ??= new PlcContentDiffBudget();
         var evidence = await ReadInventoryAsync().ConfigureAwait(false);
         var outcome = evidence.Error is { } inventoryError
             ? new ItemOutcome(null, null, Array.Empty<FiredGuard>(), Array.Empty<CheckedPrecondition>(), inventoryError)
-            : await ResolveAsync(item, new CallReads(evidence.Inventory!, new[] { item }), new PlcContentDiffBudget()).ConfigureAwait(false);
+            : await ResolveAsync(item, new CallReads(evidence.Inventory!, new[] { item }), budget).ConfigureAwait(false);
         return outcome.Error is { } error
             ? new PlcWriteReplanResult(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>(), null)
             : new PlcWriteReplanResult(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards, outcome.ResolvedOperation);

@@ -7,7 +7,8 @@ namespace TiaMcpServer.Plc;
 /// <summary>
 /// Bounds the delivered plc_write document only; plans, worker results and audit item truth stay
 /// intact. When the document or an item is over budget, diagnostics are compacted first; then whole values are omitted, never cut: content
-/// diffs, shared compile reports, failure-side block import outcomes, verification checks and effects, and finally batch
+/// diffs, shared compile reports, failure-side block import outcomes, read-back excerpts and summaries,
+/// verification checks and effects, and finally batch
 /// results through the shared batch budget.
 /// </summary>
 public static class PlcWritePayloadBudget
@@ -47,7 +48,9 @@ public static class PlcWritePayloadBudget
                 SharedCompilations = compilations?.ToArray(),
             };
             return result with { Success = response.Success && !HasOmission(result.Omission,
-                effects.Select(e => e.Omission), result.Batch, verification?.Omission, compilations?.Select(c => c.Omission)) };
+                effects.Select(e => e.Omission), result.Batch, verification?.Omission,
+                (compilations?.Select(c => c.Omission) ?? []).Concat(
+                    verification?.Operations.Select(o => o.ReadBack?.Omission) ?? [])) };
         }
 
         // A presentation whose diff was dropped keeps its effect and records the omission beside it.
@@ -74,6 +77,34 @@ public static class PlcWritePayloadBudget
             Report = null, Omission = CompilationBudget.Omission(reason, limit, Size(compilations[i].Report)),
         };
 
+        void ReplaceReadBack(int index, PlcReadBackEvidence? readBack, StructuredOperationOmission? omission = null)
+        {
+            var checks = verification!.Operations.ToArray();
+            checks[index] = checks[index] with { ReadBack = readBack };
+            verification = verification with { Operations = checks, Omission = omission ?? verification.Omission };
+        }
+
+        void OmitReadBackExcerpts(int index, string reason, int limit)
+        {
+            if (verification!.Operations[index].ReadBack is { } readBack && HasReadBackExcerpts(readBack))
+                ReplaceReadBack(index, WithoutReadBackExcerpts(readBack, reason, limit));
+        }
+
+        void OmitReadBack(int index, string reason, int limit)
+        {
+            if (verification!.Operations[index].ReadBack is { } readBack)
+                ReplaceReadBack(index, null, Budget.Omission(reason, limit, Size(readBack)));
+        }
+
+        IEnumerable<(int Index, int Chars)> ReadBackCandidates(bool excerpts)
+            => Enumerable.Range(0, verification?.Operations.Count ?? 0)
+                .Select(index => (Index: index, ReadBack: verification!.Operations[index].ReadBack))
+                .Where(candidate => candidate.ReadBack is not null && (!excerpts || HasReadBackExcerpts(candidate.ReadBack)))
+                .Select(candidate => (candidate.Index, Chars: excerpts
+                    ? Size(new[] { candidate.ReadBack!.Submitted.Excerpt, candidate.ReadBack.Observed.Excerpt })
+                    : Size(candidate.ReadBack)))
+                .OrderByDescending(candidate => candidate.Chars).ThenBy(candidate => candidate.Index);
+
         IEnumerable<GuardedWriteBudgetRoot> ItemRoots()
         {
             for (var i = 0; i < effects.Length; i++)
@@ -97,32 +128,72 @@ public static class PlcWritePayloadBudget
                     yield return new(Size(outcome), (reason, limit) => OmitOutcome(index, reason, limit));
             }
             if (verification is { Operations.Count: > 0 })
+            {
+                // The aggregate is the item-budget root. Many individually small comparisons can
+                // overflow it, so remeasure it after each diagnostic removal before dropping checks.
+                foreach (var candidate in ReadBackCandidates(excerpts: true))
+                {
+                    if (Size(verification.Operations) <= maxItemChars) break;
+                    OmitReadBackExcerpts(candidate.Index, StructuredOperationBatchPayloadBudget.ItemLimitReason, maxItemChars);
+                }
+                foreach (var candidate in ReadBackCandidates(excerpts: false))
+                {
+                    if (Size(verification.Operations) <= maxItemChars) break;
+                    OmitReadBack(candidate.Index, StructuredOperationBatchPayloadBudget.ItemLimitReason, maxItemChars);
+                }
                 yield return new(Size(verification.Operations), OmitChecks);
+            }
         }
 
         IEnumerable<GuardedWriteBudgetRoot> DocumentRoots()
-            => effects.Select((e, i) => (Kind: 0, Index: i, Chars: e.Effect?.ContentDiff is null ? 0 : Size(e.Effect.ContentDiff)))
+        {
+            var originalRoots = effects.Select((e, i) => (Kind: 0, Index: i, Chars: e.Effect?.ContentDiff is null ? 0 : Size(e.Effect.ContentDiff)))
                 .Concat((compilations ?? []).Select((c, i) => (Kind: 1, Index: i, Chars: c.Report is null ? 0 : Size(c.Report))))
                 .Concat((items ?? []).Select((o, i) => (Kind: 2, Index: i, Chars: o.Failure?.BlockImportOutcome is null ? 0 : Size(o.Failure.BlockImportOutcome))))
-                .Append((Kind: 3, Index: 0, Chars: verification is { Operations.Count: > 0 } ? Size(verification.Operations) : 0))
-                .Concat(effects.Select((e, i) => (Kind: 4, Index: i, Chars: e.Effect is null ? 0 : Size(e.Effect))))
-                .Where(c => c.Chars > 0).OrderBy(c => c.Kind).ThenByDescending(c => c.Chars).ThenBy(c => c.Index)
-                .Select(candidate => new GuardedWriteBudgetRoot(candidate.Chars, (reason, limit) =>
+                .Where(c => c.Chars > 0).OrderBy(c => c.Kind).ThenByDescending(c => c.Chars).ThenBy(c => c.Index);
+            foreach (var candidate in originalRoots)
+                yield return new(candidate.Chars, (reason, limit) =>
                 {
                     switch (candidate.Kind)
                     {
                         case 0 when effects[candidate.Index].Effect?.ContentDiff is not null: OmitDiff(candidate.Index, reason, limit); break;
                         case 1: OmitCompilationReport(candidate.Index, reason, limit); break;
                         case 2: OmitOutcome(candidate.Index, reason, limit); break;
-                        case 3: OmitChecks(reason, limit); break;
-                        case 4 when effects[candidate.Index].Effect is not null: OmitEffect(candidate.Index, reason, limit); break;
                     }
-                }));
+                });
+            foreach (var candidate in ReadBackCandidates(excerpts: true))
+                yield return new(candidate.Chars, (reason, limit) => OmitReadBackExcerpts(candidate.Index, reason, limit));
+            // Enumerate summaries only after excerpt removals, so their ordering uses their
+            // current encoded sizes rather than the sizes of the original comparisons.
+            foreach (var candidate in ReadBackCandidates(excerpts: false))
+                yield return new(candidate.Chars, (reason, limit) => OmitReadBack(candidate.Index, reason, limit));
+            if (verification is { Operations.Count: > 0 })
+                yield return new(Size(verification.Operations), OmitChecks);
+            foreach (var candidate in effects.Select((effect, index) =>
+                    (Index: index, Chars: effect.Effect is null ? 0 : Size(effect.Effect)))
+                .Where(candidate => candidate.Chars > 0).OrderByDescending(candidate => candidate.Chars).ThenBy(candidate => candidate.Index))
+                yield return new(candidate.Chars, (reason, limit) => OmitEffect(candidate.Index, reason, limit));
+        }
 
         return Budget.Apply(Present,
             () => items is null ? null : StructuredOperationBatch.FromItems(items.ToArray(), current.Batch!.Truncation),
             ItemRoots(), DocumentRoots, maxItemChars, maxDocumentChars);
     }
+
+    private static bool HasReadBackExcerpts(PlcReadBackEvidence readBack)
+        => readBack.Submitted.Excerpt.Lines.Count > 0 || readBack.Observed.Excerpt.Lines.Count > 0;
+
+    private static PlcReadBackEvidence WithoutReadBackExcerpts(PlcReadBackEvidence readBack, string reason, int limit)
+        => readBack with
+        {
+            Submitted = readBack.Submitted with { Excerpt = WithoutExcerptLines(readBack.Submitted.Excerpt) },
+            Observed = readBack.Observed with { Excerpt = WithoutExcerptLines(readBack.Observed.Excerpt) },
+            Omission = Budget.Omission(reason, limit, Size(readBack)),
+        };
+
+    private static PlcContentDiffExcerpt WithoutExcerptLines(PlcContentDiffExcerpt excerpt)
+        => new(Array.Empty<PlcContentDiffLine>(), excerpt.OmittedLineCount + excerpt.Lines.Count,
+            excerpt.OmittedCharacterCount + excerpt.Lines.Sum(line => line.Text.Length), excerpt.BudgetExhausted);
 
     /// <summary>
     /// The worst compact shape of the call's protected roots: every identity copy, two guards per

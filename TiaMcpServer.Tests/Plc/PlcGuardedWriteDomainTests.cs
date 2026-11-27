@@ -2,6 +2,8 @@ using System.Text.Json;
 using TiaMcpServer.Contracts.Safety;
 using TiaMcpServer.Contracts.Shared;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.Json;
+using TiaMcpServer.OperationBatches;
 using TiaMcpServer.Plc;
 using TiaMcpServer.Safety.Pipeline;
 using TiaMcpServer.Tests.Network;
@@ -166,6 +168,8 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Equal("table", response.Effects[1].Effect!.DependsOn);
         Assert.True(response.Verification!.Success);
         Assert.Equal(new[] { "trusted", "trusted" }, response.Verification.Operations.Select(o => o.Check));
+        Assert.All(response.Verification.Operations, operation => Assert.Null(operation.ReadBack));
+        Assert.DoesNotContain("\"readBack\"", CanonicalJson.Serialize(response));
         Assert.Contains("Valve1", await fixture.InventoryAsync());
     }
 
@@ -182,6 +186,7 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.True(response.Success);
         Assert.Null(response.Batch);
         Assert.Null(response.Verification);
+        Assert.DoesNotContain("\"readBack\"", CanonicalJson.Serialize(response));
         Assert.Equal(new[] { "table", "tag" }, response.Effects.Select(e => e.OperationId));
         Assert.Null(response.Effects[0].Effect!.DependsOn);
         Assert.Equal("table", response.Effects[1].Effect!.DependsOn);
@@ -371,6 +376,218 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Equal(updates, requests.Methods().Count(m => m == "update_block_logic"));
     }
 
+    [Fact]
+    public async Task ReadBackMismatchDoesNotFailSuccessfulImport()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-readback-normalizes");
+        const string submitted = "<ConstantType>LReal</ConstantType>";
+        var item = new PlcOperationRequest { OperationId = "content", Operation = "update_block_logic",
+            BlockPath = "PLC_2/Main", Format = "xml", Content = submitted,
+            ExpectedContentHash = await fixture.ReadHashAsync("PLC_2/Main", "xml") };
+
+        var response = await fixture.RunAsync(false, item);
+
+        Assert.True(response.Success, CanonicalJson.Serialize(response));
+        Assert.Equal("succeeded", Assert.Single(response.Batch!.Operations).Status);
+        Assert.True(response.Verification!.Success);
+        var check = Assert.Single(response.Verification.Operations);
+        Assert.True(check.Success);
+        Assert.Null(check.Expected);
+        Assert.Equal(check.Actual, check.ContentHash);
+        Assert.Equal(await fixture.ReadHashAsync("PLC_2/Main", "xml"), check.ContentHash);
+        var readBack = Assert.IsType<PlcReadBackEvidence>(check.ReadBack);
+        Assert.Equal("xmlDocument", readBack.ComparisonScope);
+        Assert.False(readBack.RawTextEqual);
+        Assert.False(readBack.NormalizedLinesEqual);
+        Assert.Equal(submitted, Assert.Single(readBack.Submitted.Excerpt.Lines).Text);
+        Assert.Equal("<ConstantType>Real</ConstantType>", Assert.Single(readBack.Observed.Excerpt.Lines).Text);
+    }
+
+    [Fact]
+    public async Task ReadBackEqualContentKeepsHashAndEmptyExcerpts()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        const string submitted = "FUNCTION Main : Void\nBEGIN\nEND_FUNCTION";
+        var item = new PlcOperationRequest { OperationId = "content", Operation = "update_block_logic",
+            BlockPath = "PLC_2/Main", Format = "source", Content = submitted,
+            ExpectedContentHash = await fixture.ReadHashAsync("PLC_2/Main", "source") };
+
+        var response = await fixture.RunAsync(false, item);
+
+        Assert.True(response.Success);
+        var check = Assert.Single(response.Verification!.Operations);
+        Assert.Equal("contentHash", check.Check);
+        Assert.Equal(await fixture.ReadHashAsync("PLC_2/Main", "source"), check.ContentHash);
+        var readBack = Assert.IsType<PlcReadBackEvidence>(check.ReadBack);
+        Assert.True(readBack.RawTextEqual);
+        Assert.True(readBack.NormalizedLinesEqual);
+        Assert.False(readBack.LineEndingOnly);
+        Assert.Empty(readBack.Submitted.Excerpt.Lines);
+        Assert.Empty(readBack.Observed.Excerpt.Lines);
+        Assert.Null(readBack.Omission);
+    }
+
+    [Theory]
+    [InlineData("xml", "xmlDocument")]
+    [InlineData("source", "wholeText")]
+    public async Task TypeReadBackUsesSubmittedExecutionContent(string format, string scope)
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, Roundtrip);
+        const string path = "Station_1/Types/UDT_Settings";
+        var read = new PlcOperationRequest { OperationId = "read", Operation = "get_type_content", TypePath = path, Format = format };
+        var initial = PlcPayloadContract.Project(read, await PlcWorkerInvoker.InvokeReadAsync(fixture.Client, read));
+        var submitted = format == "xml" ? "<SW.Types.PlcStruct><Name>UDT_Settings</Name></SW.Types.PlcStruct>"
+            : "TYPE \"UDT_Settings\"\nSTRUCT\nValue : Bool;\nEND_STRUCT;\nEND_TYPE";
+        var item = new PlcOperationRequest { OperationId = "type", Operation = "update_type_content", TypePath = path,
+            Format = format, Content = submitted, ExpectedContentHash = initial.Result!.Value.GetProperty("contentHash").GetString() };
+
+        var response = await fixture.RunAsync(false, item);
+
+        Assert.True(response.Success, CanonicalJson.Serialize(response));
+        var check = Assert.Single(response.Verification!.Operations);
+        var readBack = Assert.IsType<PlcReadBackEvidence>(check.ReadBack);
+        Assert.Equal(scope, readBack.ComparisonScope);
+        Assert.True(readBack.RawTextEqual);
+        Assert.Equal(submitted.Length, readBack.Submitted.CharacterCount);
+        var fresh = PlcPayloadContract.Project(read, await PlcWorkerInvoker.InvokeReadAsync(fixture.Client, read));
+        Assert.Equal(fresh.Result!.Value.GetProperty("contentHash").GetString(), check.ContentHash);
+    }
+
+    [Fact]
+    public async Task FailedContentAttemptReportsObservedComparison()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-content-drift");
+        var item = UpdateBlock("content", "PLC_2/Main", await fixture.ReadHashAsync("PLC_2/Main", "xml"));
+
+        var response = await fixture.RunAsync(false, item);
+
+        Assert.False(response.Success);
+        Assert.Equal("failed", Assert.Single(response.Batch!.Operations).Status);
+        Assert.Equal(WorkerFailureCategories.StateChanged, response.Batch.Operations[0].Failure!.Category);
+        Assert.True(response.Verification!.Success);
+        var check = Assert.Single(response.Verification.Operations);
+        Assert.True(check.Success);
+        Assert.Equal(await fixture.ReadHashAsync("PLC_2/Main", "xml"), check.ContentHash);
+        var readBack = Assert.IsType<PlcReadBackEvidence>(check.ReadBack);
+        Assert.False(readBack.RawTextEqual);
+        Assert.Equal(item.Content, Assert.Single(readBack.Submitted.Excerpt.Lines).Text);
+        Assert.Equal("<Block edited-in-tia-ui=\"true\"/>", Assert.Single(readBack.Observed.Excerpt.Lines).Text);
+    }
+
+    [Fact]
+    public async Task ReadBackSharesPlanningAndReplanningExcerptAllowance()
+    {
+        using var audit = new TempAuditDirectory();
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-readback-normalizes");
+        var item = new PlcOperationRequest { OperationId = "content", Operation = "update_block_logic", BlockPath = "PLC_2/Main",
+            Format = "xml", Content = "<ConstantType>LReal</ConstantType>",
+            ExpectedContentHash = await fixture.ReadHashAsync("PLC_2/Main", "xml") };
+        var budget = new PlcContentDiffBudget { RemainingLines = 4, RemainingChars = 1000 };
+        var planner = new PlcWritePlanner(fixture.Client);
+
+        // An earlier same-name tag marks the content item dependent in the initial working state.
+        var plan = await planner.PlanAsync(new[] { CreateTag("tag", "Main"), item }, budget);
+        Assert.True(plan.Plan.Success);
+        Assert.Equal("tag", plan.Plan.Items[1].DependsOn);
+        Assert.Equal(2, budget.RemainingLines);
+        Assert.True((await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, CreateTag("tag", "Main"))).Success);
+        var replan = await planner.ReplanAsync(item, budget);
+        Assert.True(replan.Replan.Success);
+        Assert.Equal(0, budget.RemainingLines);
+        var result = await PlcWorkerInvoker.InvokeWriteAsync(fixture.Client, item);
+        var batch = StructuredOperationBatch.FromItems(new[] { PlcPayloadContract.ProjectWrite(item, result) });
+        var verification = await PlcVerificationPolicy.VerifyAsync(fixture.Client, new[] { item },
+            new Dictionary<string, PlcWriteEffect> { [item.OperationId] = replan.Replan.Plan!.Effect! }, batch, budget);
+
+        Assert.True(verification.Success);
+        var check = Assert.Single(verification.Operations);
+        Assert.Equal(await fixture.ReadHashAsync("PLC_2/Main", "xml"), check.ContentHash);
+        var readBack = Assert.IsType<PlcReadBackEvidence>(check.ReadBack);
+        Assert.False(readBack.RawTextEqual);
+        Assert.True(readBack.BudgetExhausted);
+        Assert.Equal(1, readBack.SubmittedChangedSpanLineCount);
+        Assert.Equal(1, readBack.ObservedChangedSpanLineCount);
+        Assert.Empty(readBack.Submitted.Excerpt.Lines);
+        Assert.Empty(readBack.Observed.Excerpt.Lines);
+        Assert.Equal("succeeded", Assert.Single(batch.Operations).Status);
+
+        item.ExpectedContentHash = check.ContentHash;
+        var next = await fixture.RunAsync(false, item);
+        Assert.True(next.Success);
+        var fresh = Assert.IsType<PlcReadBackEvidence>(Assert.Single(next.Verification!.Operations).ReadBack);
+        Assert.False(fresh.BudgetExhausted);
+        Assert.Single(fresh.Submitted.Excerpt.Lines);
+        Assert.Single(fresh.Observed.Excerpt.Lines);
+    }
+
+    [Fact]
+    public async Task ReadBackDomainSharesDefaultAllowanceThroughLateReplanAndResetsPerCall()
+    {
+        using var audit = new TempAuditDirectory();
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        using var fixture = await PlcGuardedWriteFixture.CreateAsync(audit, "plc-write-readback-normalizes");
+        const string path = "PLC_2/Main";
+        const string marker = "<ConstantType>LReal</ConstantType>";
+        var submitted = string.Join("\n", Enumerable.Range(0, 32).Select(index =>
+            (index is 0 or 31 ? marker : "line " + index) + new string('x', 300)));
+        var observed = submitted.Replace(marker, "<ConstantType>Real</ConstantType>", StringComparison.Ordinal);
+        var original = await ExportAsync(fixture, path, "source");
+        var planning = PlcContentDiff.Build(original, submitted);
+        var comparison = PlcReadBackComparison.Build("source", submitted, observed, new());
+        var planningChars = planning.Current.Excerpt.Lines.Sum(line => line.Text.Length)
+            + planning.Requested.Excerpt.Lines.Sum(line => line.Text.Length);
+        var comparisonChars = comparison.Submitted.Excerpt.Lines.Sum(line => line.Text.Length)
+            + comparison.Observed.Excerpt.Lines.Sum(line => line.Text.Length);
+        Assert.Equal(2 * PlcContentDiff.MaxExcerptCharsPerSide, comparisonChars);
+        Assert.True(2 * planningChars + comparisonChars > PlcContentDiff.MaxCallExcerptChars);
+        Assert.True(planningChars + comparisonChars <= PlcContentDiff.MaxCallExcerptChars);
+        Assert.True(2 * comparisonChars <= PlcContentDiff.MaxCallExcerptChars);
+        var item = new PlcOperationRequest { OperationId = "content", Operation = "update_block_logic", BlockPath = path,
+            Format = "source", Content = submitted, ExpectedContentHash = await fixture.ReadHashAsync(path, "source") };
+        var before = requests.Methods().Count(method => method == "get_block_content");
+
+        // Both initial planning and the tag-dependent late replan fit individually. Together
+        // with read-back they exceed the default allowance; dropping any domain budget argument
+        // makes the comparison fit and breaks the exhaustion assertion below.
+        var response = await fixture.RunAsync(false, CreateTag("tag", "Main"), item);
+
+        Assert.True(response.Success, CanonicalJson.Serialize(response));
+        Assert.Equal("tag", response.Effects[1].Effect!.DependsOn);
+        Assert.Equal(new[] { "succeeded", "succeeded" }, response.Batch!.Operations.Select(operation => operation.Status));
+        Assert.Equal(3, requests.Methods().Count(method => method == "get_block_content") - before);
+        Assert.True(response.Verification!.Success);
+        var check = Assert.Single(response.Verification.Operations, operation => operation.OperationId == item.OperationId);
+        Assert.True(check.Success);
+        Assert.Equal(check.Actual, check.ContentHash);
+        Assert.Equal(await fixture.ReadHashAsync(path, "source"), check.ContentHash);
+        var readBack = Assert.IsType<PlcReadBackEvidence>(check.ReadBack);
+        Assert.False(readBack.RawTextEqual);
+        Assert.True(readBack.BudgetExhausted);
+        Assert.Equal(32, readBack.SubmittedChangedSpanLineCount);
+        Assert.Equal(32, readBack.ObservedChangedSpanLineCount);
+        Assert.Empty(readBack.Submitted.Excerpt.Lines);
+        Assert.Empty(readBack.Observed.Excerpt.Lines);
+        Assert.Null(readBack.Omission);
+
+        item.ExpectedContentHash = check.ContentHash;
+        var next = await fixture.RunAsync(false, item);
+
+        Assert.True(next.Success, CanonicalJson.Serialize(next));
+        Assert.Equal("succeeded", Assert.Single(next.Batch!.Operations).Status);
+        var freshCheck = Assert.Single(next.Verification!.Operations);
+        var fresh = Assert.IsType<PlcReadBackEvidence>(freshCheck.ReadBack);
+        Assert.False(fresh.BudgetExhausted);
+        Assert.NotEmpty(fresh.Submitted.Excerpt.Lines);
+        Assert.NotEmpty(fresh.Observed.Excerpt.Lines);
+        Assert.Equal(comparisonChars, fresh.Submitted.Excerpt.Lines.Sum(line => line.Text.Length)
+            + fresh.Observed.Excerpt.Lines.Sum(line => line.Text.Length));
+        Assert.Equal(await fixture.ReadHashAsync(path, "source"), freshCheck.ContentHash);
+    }
+
     [Theory]
     [InlineData("xml", "failed")]
     [InlineData("source", "failed")]
@@ -437,6 +654,8 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.False(response.Verification!.Success);
         Assert.Equal(new[] { ("trusted", true), ("contentHash", false) }, response.Verification.Operations.Select(o => (o.Check, o.Success)));
         Assert.Contains(WriteExecution.VerificationFailureMessage, response.Warnings);
+        Assert.All(response.Verification.Operations, operation => Assert.Null(operation.ReadBack));
+        Assert.DoesNotContain("\"readBack\"", CanonicalJson.Serialize(response));
     }
 
     private static PlcOperationRequest Patch(string id, string path, string hash, string? format = null,
@@ -479,6 +698,7 @@ public sealed class PlcGuardedWriteDomainTests
         var verification = Assert.Single(response.Verification!.Operations);
         Assert.Equal("contentHash", verification.Check);
         Assert.Equal(ContentHashRules.Compute(format, expected), verification.ContentHash);
+        Assert.True(Assert.IsType<PlcReadBackEvidence>(verification.ReadBack).RawTextEqual);
         Assert.Single(requests.Methods(), method => method == "update_block_logic");
         Assert.DoesNotContain("patch_block_logic", requests.Methods());
         Assert.Null(patch.Content);
@@ -569,6 +789,8 @@ public sealed class PlcGuardedWriteDomainTests
 
         Assert.True(response.Success, JsonSerializer.Serialize(response));
         Assert.Equal("superseded", response.Verification!.Operations[0].Check);
+        Assert.Null(response.Verification.Operations[0].ReadBack);
+        Assert.DoesNotContain("\"readBack\"", CanonicalJson.Serialize(response));
         Assert.Equal("patch_block_logic", response.Batch!.Operations[0].Operation);
     }
 
@@ -668,6 +890,8 @@ public sealed class PlcGuardedWriteDomainTests
         Assert.Equal("succeeded", Assert.Single(response.Batch!.Operations).Status);
         Assert.Single(requests.Methods(), method => method == "update_block_logic");
         Assert.Equal("", await ExportAsync(fixture, "PLC_2/Main", "source"));
+        Assert.Null(Assert.Single(response.Verification!.Operations).ReadBack);
+        Assert.DoesNotContain("\"readBack\"", CanonicalJson.Serialize(response));
         using var record = JsonDocument.Parse(Assert.Single(NetworkGuardedWriteMcpTests.AuditLines(audit.Path)));
         Assert.Equal("", record.RootElement.GetProperty("items")[0].GetProperty("resolvedOperation").GetProperty("content").GetString());
     }
