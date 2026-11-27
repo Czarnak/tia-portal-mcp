@@ -292,8 +292,10 @@ cancel, timeout, or transport failure denies with `access_denied`. Full uses pol
 without server elicitation. Block guards stop a call in every mode, and `dryRun:true` never elicits.
 Lifecycle accepts `dryRun` with its operation inputs; the former agent confirmation array is removed.
 After accepted elicitation the server resolves fresh state under the same binding lease before
-dispatch. Audit v2 records confirmation by `user`, `policy`, or `none`; acknowledge guard satisfaction
-is `user`, `policy`, or null. `plc_write` and `network_write` use guarded writes without server
+dispatch. Audit v2 records confirmation by `client`, `policy`, or `none`; outcomes distinguish
+explicit `declined` from `unconfirmed` client acceptance. Acknowledge guard satisfaction is `client`,
+`policy`, or null. `client` records only the protocol response and does not prove that a person saw
+the form. `plc_write` and `network_write` use guarded writes without server
 elicitation: preview with `dryRun:true`; omitted `dryRun` executes. No tool uses safety tokens.
 
 An elicitation client's accepted response does not prove that a person saw a dialog. Keep

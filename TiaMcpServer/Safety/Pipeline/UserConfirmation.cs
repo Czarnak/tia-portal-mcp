@@ -4,16 +4,19 @@ using ModelContextProtocol.Server;
 
 namespace TiaMcpServer.Safety.Pipeline;
 
-/// <summary>The ways a human confirmation prompt can end.</summary>
+/// <summary>The ways an MCP confirmation request can end.</summary>
 public static class UserConfirmationOutcomes
 {
-    /// <summary>The user accepted and ticked the confirm box.</summary>
+    /// <summary>The client reported acceptance and supplied the required confirmation value.</summary>
     public const string Confirmed = "confirmed";
 
-    /// <summary>The user declined, or accepted without confirming (an auto-accepting client sends <c>{}</c>).</summary>
+    /// <summary>The client explicitly declined.</summary>
     public const string Declined = "declined";
 
-    /// <summary>The user dismissed the prompt, or the client answered with an unknown action.</summary>
+    /// <summary>The client accepted without supplying the required confirmation value.</summary>
+    public const string Unconfirmed = "unconfirmed";
+
+    /// <summary>The client dismissed the prompt, or answered with an unknown action.</summary>
     public const string Cancelled = "cancelled";
 
     /// <summary>The client did not answer within the timeout.</summary>
@@ -26,15 +29,15 @@ public static class UserConfirmationOutcomes
     public const string Failed = "failed";
 }
 
-/// <summary>Outcome of one confirmation prompt; <see cref="Detail"/> carries diagnostic text for <c>failed</c>.</summary>
+/// <summary>Outcome of one confirmation request; <see cref="Detail"/> carries diagnostic text for <c>failed</c>.</summary>
 public sealed record UserConfirmationResult(string Outcome, string? Detail = null)
 {
-    /// <summary>True only when the user explicitly confirmed.</summary>
+    /// <summary>True only when the client reported acceptance with the required confirmation value.</summary>
     public bool IsConfirmed => Outcome == UserConfirmationOutcomes.Confirmed;
 }
 
 /// <summary>
-/// Asks the human behind the client a yes/no question through MCP form elicitation. Only an
+/// Requests confirmation through MCP form elicitation. Only an
 /// explicit <c>accept</c> with <c>confirm: true</c> counts as confirmation.
 /// </summary>
 public sealed class UserConfirmation
@@ -100,7 +103,7 @@ public sealed class UserConfirmation
 
     private static string Classify(ElicitResult result) => result.Action switch
     {
-        "accept" => IsConfirmTrue(result) ? UserConfirmationOutcomes.Confirmed : UserConfirmationOutcomes.Declined,
+        "accept" => IsConfirmTrue(result) ? UserConfirmationOutcomes.Confirmed : UserConfirmationOutcomes.Unconfirmed,
         "decline" => UserConfirmationOutcomes.Declined,
         _ => UserConfirmationOutcomes.Cancelled,
     };

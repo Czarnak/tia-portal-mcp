@@ -86,7 +86,10 @@ worker-reported copied project path; verify it with a subsequent status or read 
 - `access_denied` naming elicitation: every actual lifecycle call in read-write requires one form
   acceptance with boolean `confirm:true`, even with no guards or only info guards. Decline, cancel,
   timeout, unsupported capability, or transport failure blocks mutation. Use a supporting client;
-  full runs lifecycle under policy without server elicitation.
+  full runs lifecycle under policy without server elicitation. Audit `confirmation.by:client` records
+  the MCP client's response, not a verified human decision; it does not prove that a person saw the
+  form. An `accept` without `confirm:true` is recorded as `unconfirmed`, not `declined`. If no form
+  appeared, check the client's elicitation/permission behavior before retrying.
 - `guard_blocked`: inspect `guards`. An existing create/save-as destination, archive inside the
   project folder, or forced close of a modified worker-owned source blocks in every mode. A dirty
   no-save close fires the acknowledge-severity `discards_unsaved_changes` guard, satisfied by client

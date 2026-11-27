@@ -425,7 +425,7 @@ leaves applied state unknown. Request/subset equality is checked later during ty
 objects, performs host authorization, invokes the transport, normalizes failure
 categories, caps warning output, and applies project-binding transitions.
 Both host and worker authorize operations through `OperationPolicyCatalog`;
-worker requests carry no confirmation flag. Lifecycle user confirmation stays in
+worker requests carry no confirmation flag. Lifecycle confirmation stays in
 the host's guarded pipeline before dispatch.
 
 The worker dispatch loop maps every method name to a focused Siemens operation.
@@ -1490,10 +1490,11 @@ UTF-8 without a BOM). The legacy write audit stream was retired. The record has
 `recordKind: "write"` and `recordVersion: 2`, and holds the tool, contract version, access mode,
 project path, the pinned binding, the requested operations, the phase, the response text and its
 `sha256:` hash, every fired guard, and per item the target, checked preconditions, status, failure,
-warnings, and duration. Call-level `confirmation.by` is `user`, `policy`, or `none`; outcomes include
-`confirmed`, `declined`, `cancelled`, `unsupported`, `timed_out`, `failed`, and `not_requested`.
-Accepted elicitation guard satisfaction is `user`, including when a fresh check then refuses stale
-state; full apply satisfaction is `policy`. Dry runs and blocks before confirmation record
+warnings, and duration. Call-level `confirmation.by` is `client`, `policy`, or `none`; outcomes include
+`confirmed`, `declined`, `unconfirmed`, `cancelled`, `unsupported`, `timed_out`, `failed`, and `not_requested`.
+`client` records the MCP response and does not establish that a person saw the form. Accepted
+elicitation guard satisfaction is `client`, including when a fresh check then refuses stale state;
+full apply satisfaction is `policy`. Dry runs and blocks before confirmation record
 `none/not_requested` and null guard satisfaction. Validation and binding rejections are audited
 outside the lease.
 

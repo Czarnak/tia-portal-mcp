@@ -353,9 +353,11 @@ acceptance the server re-resolves targets/effects/guards; changes cannot expand 
 For an intentional dirty discard, use `{"saveBeforeClose":false}`; confirmation follows the mode.
 The former agent confirmation array is removed. Dry runs report acknowledge guard
 `acknowledged:false` in read-write and `true` in full, with null guard audit satisfaction and
-`confirmation:none/not_requested`. Applied satisfaction is `user` or `policy`.
-Client-returned acceptance does not prove that a human saw a dialog.
-Read-write refusal after an elicitation response retains `confirmation:user/declined`; previews
+`confirmation:none/not_requested`. Applied satisfaction is `client` or `policy`.
+Client-returned acceptance does not prove that a human saw a dialog. Applied elicitation
+satisfaction and call confirmation are recorded as `client`, not as a verified human decision.
+Read-write refusal after an elicitation response records `confirmation.by:client`; explicit
+decline is `declined`, while acceptance without `confirm:true` is `unconfirmed`. Previews
 and pre-prompt guard denials use `none/not_requested`. Siemens dialogs are separate from MCP
 elicitation; full policy confirmation does not establish absence of vendor UI.
 
@@ -406,7 +408,8 @@ response's rejection-versus-attempted-failure classification remain intact.
 Each call appends one guarded-write audit record, including previews and refusals, to
 `%LOCALAPPDATA%\TiaMcpServer\audit\writes-yyyy-MM-dd.jsonl`. The record retains the exact returned
 canonical document/hash, requested operation, prepared binding, target, guards, and acknowledgement
-provenance. Audit v2 records call confirmation by `user`, `policy`, or `none`. No tool adds or consumes a safety token: Network, PLC, HMI and VCI writes use the same guarded pipeline and
+provenance. Audit v2 records call confirmation by `client`, `policy`, or `none`; `client` identifies
+the MCP response, not a verified person or proof that a form was displayed. No tool adds or consumes a safety token: Network, PLC, HMI and VCI writes use the same guarded pipeline and
 audit stream, and the legacy write audit was retired.
 
 Migrating from the retired token flow: remove client preview/token/apply loops for these

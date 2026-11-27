@@ -91,7 +91,7 @@ public sealed class WriteExecutionTests
         Assert.False(result.IsError == true);
         Assert.Equal(1, prompts);
         Assert.Equal(new[] { "validate", "plan", "guards", "plan", "guards", "mutate:a", "project:a", "verify", "compose" }, _domain.Calls);
-        Assert.Equal("user", Assert.Single(_audit.Records).Confirmation.By);
+        Assert.Equal("client", Assert.Single(_audit.Records).Confirmation.By);
     }
 
     [Fact]

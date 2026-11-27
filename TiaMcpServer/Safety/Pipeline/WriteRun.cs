@@ -38,7 +38,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
     private StructuredOperationBatch? _batch;
     private bool _applyStarted;
     private bool _audited;
-    private bool _userAccepted;
+    private bool _clientAccepted;
     private WriteAuditConfirmation _auditConfirmation = new("none", "not_requested");
     private int _current = -1;
     private long _itemStart;
@@ -286,7 +286,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         var message = _domain.DescribeForConfirmation(Items, planned.Items) + "\n" + string.Join("\n", _guards
             .Where(guard => guard.Severity == WriteGuardSeverities.Acknowledge)
             .Select(guard => guard.Message));
-        _auditConfirmation = new("user", UserConfirmationOutcomes.Failed);
+        _auditConfirmation = new("client", UserConfirmationOutcomes.Failed);
         UserConfirmationResult reply;
         try
         {
@@ -296,20 +296,23 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
         }
         catch (OperationCanceledException)
         {
-            _auditConfirmation = new("user", UserConfirmationOutcomes.Cancelled);
+            _auditConfirmation = new("client", UserConfirmationOutcomes.Cancelled);
             throw;
         }
-        _auditConfirmation = new("user", reply.Outcome);
+        _auditConfirmation = new("client", reply.Outcome);
         _cancellationToken.ThrowIfCancellationRequested();
         if (!reply.IsConfirmed)
         {
+            var denialMessage = reply.Outcome is UserConfirmationOutcomes.Declined or UserConfirmationOutcomes.Unconfirmed
+                ? $"The write was refused because the MCP client returned '{reply.Outcome}'. This response does not prove that a person saw a prompt. If no form appeared, see the troubleshooting guide."
+                : $"The write was refused because confirmation was {reply.Outcome}.";
             return new WriteToolError(WorkerFailureCategories.AccessDenied,
                 reply.Outcome == UserConfirmationOutcomes.Unsupported
                     ? "This write requires form elicitation, but this client does not support the required elicitation capability."
-                    : $"The write was refused because user confirmation was {reply.Outcome}.");
+                    : denialMessage);
         }
 
-        _userAccepted = true;
+        _clientAccepted = true;
         for (var index = 0; index < _guards.Count; index++)
         {
             if (_guards[index].Severity == WriteGuardSeverities.Acknowledge)
@@ -587,7 +590,7 @@ internal sealed class WriteRun<TItem, TEffect, TVerification, TResponse>
             guard.Message,
             guard.Acknowledged,
             guard.Acknowledged == true
-                ? _userAccepted ? GuardSatisfactions.User : _auditConfirmation.By == "policy" ? GuardSatisfactions.Policy : null
+                ? _clientAccepted ? GuardSatisfactions.Client : _auditConfirmation.By == "policy" ? GuardSatisfactions.Policy : null
                 : null);
 
     /// <summary>One audit item; an operation that never ran is recorded as skipped with no duration.</summary>

@@ -220,7 +220,8 @@ guards, requiring `accept` plus boolean `confirm:true`. Unsupported clients, dec
 timeout, or transport failure deny mutation. Full applies under policy without server elicitation.
 Block guards stop mutation in every mode, and dry runs never prompt. Confirm that all six tools
 expose `dryRun` and structured outputs with no agent confirmation array or public `confirm`
-or token argument; no tool accepts token inputs. Audit v2 records `user`, `policy`, or `none`.
+or token argument; no tool accepts token inputs. Audit v2 records `client`, `policy`, or `none`;
+`client` is protocol provenance and does not prove a person saw the form.
 
 Read the lifecycle `result` and `verification` as typed outcomes. A mutation or verification
 attempt that fails has `success:false`, `error:null`, and `isError:false`, with failure evidence
