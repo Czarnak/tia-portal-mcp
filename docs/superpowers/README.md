@@ -12,6 +12,11 @@ are the authorities on current behavior. For why the design is as it is, and the
 start at the [architecture decision records](../adr/README.md). Removed plans and specs remain at the
 `docs-archive-2026-10-30` tag; later working files remain in their PR commit history.
 
+## Active working documents
+
+- [Issue #223: approved submitted/observed PLC content design](specs/2026-11-27-issue-223-readback-diff-design.md)
+- [Issue #223: implementation plan](plans/2026-11-27-issue-223-readback-diff.md)
+
 ## Acceptance definitions
 
 | Date | Document |
