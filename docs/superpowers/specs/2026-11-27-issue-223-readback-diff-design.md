@@ -6,6 +6,8 @@ Issue: <https://github.com/Czarnak/tia-portal-mcp/issues/223>
 
 Branch: `feat/issue-223-readback-diff`; inspected baseline: `e19e46599681`.
 
+Release baseline: the latest published release is [v4.4.0](https://github.com/Czarnak/tia-portal-mcp/releases/tag/v4.4.0), whose PLC write contract is `2.0`. The branch already has unreleased PLC write contract `2.1` from earlier PRs. Issue #223 joins that unreleased contract without another bump; PLC reads stay at `1.0`.
+
 ## Problem
 
 The caller can submit a small logical change, receive a successful write, and remain unaware that the subsequent export differs elsewhere. `PlcVerificationPolicy.ReadBackAsync` already holds the execution request's content and a fresh export, but publishes only the observed export hash. The issue reporter supplied a neutral-block v4.3.0 reproduction in which an FBD constant's `LReal` text became `Real`; this is reported evidence, not verification performed for this plan, and its functional effect has not been assessed.
@@ -21,7 +23,7 @@ MCP callers need compact evidence of the text that currently exists after a cont
 - [S-3] Retain existing execution success, verification success, actual full-export hash, supersession, failed-attempt observation, and shared-compilation ordering.
 - [S-4] Share the existing excerpt allowance across `TiaMcpServer/Plc/PlcWritePlanner.cs` initial/dependent resolution and `TiaMcpServer/Plc/PlcVerificationPolicy.cs` read-back; preserve informative summaries when excerpts cannot be retained.
 - [S-5] Budget comparison diagnostics before existing verification checks, with explicit omission evidence and truthful delivery success.
-- [S-6] Publish the additive PLC write contract as `2.2` in `TiaMcpServer/Plc/PlcContractVersion.cs`, update schema discovery and `docs/SupportedOperations/PLC_OPERATIONS_SUMMARY.md`, and verify the change with meaningful offline tests.
+- [S-6] Include the additive evidence in existing unreleased PLC write contract `2.1`, update schema discovery and `docs/SupportedOperations/PLC_OPERATIONS_SUMMARY.md`, and verify the change with meaningful offline tests.
 
 ## Out of scope
 
@@ -30,6 +32,7 @@ This work does not diagnose or change Siemens import normalization, infer functi
 ## Constraints
 
 - Host and worker remain separate processes; this change adds no worker method, worker capability, or Siemens API call.
+- Reuse existing unreleased PLC write contract `2.1`; issue #223 adds no further contract-version bump. Keep PLC read contract `1.0` and existing version assertions unchanged.
 - Compare the resolved execution content, including resolved patches, with the existing nonempty read-back export under the existing binding lease.
 - A mismatch alone never changes mutation status, verification success, `expected`, `actual`, or `contentHash`.
 - Both equality flags describe the selected comparison scope; do not add a second whole-export equality flag.

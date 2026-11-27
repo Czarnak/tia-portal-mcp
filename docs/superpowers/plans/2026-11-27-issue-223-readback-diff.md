@@ -8,6 +8,8 @@ Issue: <https://github.com/Czarnak/tia-portal-mcp/issues/223>
 
 Branch: `feat/issue-223-readback-diff`; baseline: `e19e46599681`.
 
+Release baseline: [v4.4.0](https://github.com/Czarnak/tia-portal-mcp/releases/tag/v4.4.0) published PLC write contract `2.0`; earlier, still-unreleased PRs already changed it to `2.1`. This issue reuses `2.1` and leaves PLC read contract `1.0` unchanged.
+
 ## Goal
 
 Report bounded, observational evidence of submitted versus freshly observed PLC content without changing write outcomes or concurrency hashes.
@@ -19,6 +21,7 @@ Add PLC-only comparison evidence after the existing content read-back, collect i
 ## Constraints
 
 - Host and worker remain separate processes; this change adds no worker method, worker capability, or Siemens API call.
+- Reuse existing unreleased PLC write contract `2.1`; issue #223 adds no further contract-version bump. Keep PLC read contract `1.0` and existing version assertions unchanged.
 - Compare the resolved execution content, including resolved patches, with the existing nonempty read-back export under the existing binding lease.
 - A mismatch alone never changes mutation status, verification success, `expected`, `actual`, or `contentHash`.
 - Both equality flags describe the selected comparison scope; do not add a second whole-export equality flag.
@@ -149,13 +152,12 @@ Files:
 - Modify `TiaMcpServer/Plc/PlcWriteModels.cs`: conditional init-only property and PLC-specific evidence projection.
 - Modify `TiaMcpServer/Plc/PlcWritePlanner.cs`: optional allowance parameters on initial planning and replanning.
 - Modify `TiaMcpServer/Plc/PlcWriteDomain.cs`: own and pass the per-call allowance.
-- Modify `TiaMcpServer/Plc/PlcContractVersion.cs`: write version `2.2`, leaving read version `1.0`.
 - Modify `TiaMcpServer.FakeWorker/Plc/PlcWriteRoundtripScenario.cs` and `TiaMcpServer.FakeWorker/Program.cs`: isolated import-normalization and compile-transformation scenarios.
 - Modify `TiaMcpServer.Tests/Plc/PlcGuardedWriteDomainTests.cs`: successful/failed observations, patches, types, and absence cases.
 - Modify `TiaMcpServer.Tests/Plc/PlcSharedCompilationPipelineTests.cs`: observation after a compile-time text transformation.
-- Modify `TiaMcpServer.Tests/Plc/PlcGuardedWriteMcpTests.cs`: canonical text/structured/audit response equality and updated emitted version assertions.
-- Modify `TiaMcpServer.Tests/Tools/McpToolSchemaTests.cs`, `TiaMcpServer.Tests/Tools/ToolOutputContractConformanceTests.cs`, `TiaMcpServer.Tests/Json/ConditionalMemberRegisterTests.cs`, and `TiaMcpServer.Tests/Tools/Snapshots/output-schemas.json`: conditional schema, version assertions, register, and PLC schema snapshot.
-- Modify `docs/SupportedOperations/PLC_OPERATIONS_SUMMARY.md`, `docs/SupportedOperations/IMPORT_EXPORT_OPTIONS_SUMMARY.md`, `docs/ARCHITECTURE.md`, and `AGENTS.md`: current contract version and observational semantics only; preserve historical reports.
+- Modify `TiaMcpServer.Tests/Plc/PlcGuardedWriteMcpTests.cs`: canonical text/structured/audit response equality; preserve emitted version assertions at `2.1`.
+- Modify `TiaMcpServer.Tests/Tools/McpToolSchemaTests.cs`, `TiaMcpServer.Tests/Json/ConditionalMemberRegisterTests.cs`, and `TiaMcpServer.Tests/Tools/Snapshots/output-schemas.json`: conditional schema, register, and PLC schema snapshot.
+- Modify `docs/SupportedOperations/PLC_OPERATIONS_SUMMARY.md`, `docs/SupportedOperations/IMPORT_EXPORT_OPTIONS_SUMMARY.md`, `docs/ARCHITECTURE.md`, and `AGENTS.md`: observational semantics only; preserve current contract numbers and historical reports.
 
 Interfaces:
 
@@ -203,7 +205,7 @@ The policy owns an ordinal `Dictionary<string, PlcReadBackEvidence>`. After a no
 - [ ] Run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~ReadBack|FullyQualifiedName~PatchExecutesExistingImportAndVerifiesResolvedFormat"`; expect FAIL on missing/null `ReadBack` or absent expected observed marker before policy wiring.
 - [ ] Implement policy collection, PLC-only projection and shared allowance propagation as specified. Keep shared compilation before verification and preserve the shared verifier's supersession/failure logic.
 - [ ] Add `typeof(PlcOperationVerification)` to the host-type scan and register `PlcOperationVerification.ReadBack` with its appearance condition. Keep `PlcReadBackEvidence.Omission` explicit nullable, requiring no conditional-register entry.
-- [ ] Change `PlcWriteContractVersion.Current` to `2.2` and its comment; update assertions pinning emitted PLC write version in `PlcGuardedWriteMcpTests` and `ToolOutputContractConformanceTests`. Do not globally rewrite historical `2.1` text or fabricated budget fixtures that intentionally test a literal shape.
+- [ ] Keep `PlcWriteContractVersion.Current` at `2.1`, PLC read version at `1.0`, and emitted-version assertions unchanged. `PlcContractVersion.cs` and `ToolOutputContractConformanceTests.cs` need no changes for versioning; retain the conformance suite in regression validation. Preserve historical text and literal budget fixtures.
 - [ ] Add schema assertions using the existing current/`2025-11-25` protocol theory: `readBack` is optional, its present members are typed/required according to the records, nullable omission remains represented, and no unrelated tool schema gains the field.
 - [ ] Refresh only the generated `plc_write` subtree using the temporary capture procedure below; the repository currently has a snapshot reader/comparer, not an updater. Remove the temporary capture method before committing and inspect that only the `plc_write` subtree changed. The permanent schema theory and `OutputSchemasMatchMain` must pass for both protocols afterward.
 
@@ -251,7 +253,7 @@ Remove-Item Env:\TIA_ISSUE223_SCHEMA_PATH
 ```
 
 - [ ] Remove `CaptureIssue223PlcWriteSchema` from `McpToolSchemaTests.cs`, retain the permanent assertions, and run `dotnet test TiaMcpServer.Tests --filter "FullyQualifiedName~McpToolSchemaTests"`; expect both protocol snapshot comparisons to pass.
-- [ ] Update active PLC/import-export/architecture references to `2.2`, document the comparison scope and newline rules, distinguish side `sha256` from the reusable full-export `contentHash`, and state that failed/after-compile evidence is observational. Update the compact current rule/version in `AGENTS.md` without copying acceptance claims.
+- [ ] Document the comparison scope and newline rules under existing unreleased PLC write contract `2.1`, distinguish side `sha256` from the reusable full-export `contentHash`, and state that failed/after-compile evidence is observational. Update the compact current behavior rule in `AGENTS.md` without changing its contract number or copying acceptance claims.
 - [ ] Run `dotnet test TiaMcpServer.Tests --filter "Category!=Packaging&(FullyQualifiedName~Plc|FullyQualifiedName~McpToolSchemaTests|FullyQualifiedName~ConditionalMemberRegisterTests|FullyQualifiedName~ToolOutputContractConformanceTests)"`; expect all selected tests to pass.
 - [ ] Review source, schema and FakeWorker changes, update the code index, and commit `feat: report PLC submitted versus observed content`.
 
@@ -331,7 +333,7 @@ Only the test `.csproj` is planned to change, so Packaging is not triggered. If 
 | S-3 | Task 2: unchanged shared verifier and hash path, failed/superseded/empty tests, post-compile marker and audit checks. |
 | S-4 | Tasks 1-2: common domain-owned allowance and plan/replan/verification exhaustion regression. |
 | S-5 | Task 3: encoded item/document tests, omission accounting, immutable copies and hash preservation. |
-| S-6 | Tasks 2-3: contract 2.2, two protocol schema paths, canonical/audit checks, documentation and final offline qualification. |
+| S-6 | Tasks 2-3: existing unreleased contract 2.1, unchanged version assertions, two protocol schema paths, canonical/audit checks, documentation and final offline qualification. |
 
 The offline implementation is complete only when all tasks and corresponding acceptance criteria pass and review has no unresolved actionable findings. Report live normalization as unverified by this branch until separately authorized and executed. A later optional live check can use the reporter's neutral FBD FC with `val: Real`, `res: Bool`, `Ne`/`SrcType=Real`, and an `LReal` literal, then compare the returned evidence and fresh hash; its outcome must not be presumed from FakeWorker tests.
 
