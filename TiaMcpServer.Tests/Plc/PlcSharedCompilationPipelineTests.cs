@@ -16,6 +16,41 @@ public sealed class PlcSharedCompilationPipelineTests
     private const string SecondPath = "Station_1/Blocks/Motors/FB_Motor";
 
     [Fact]
+    public async Task ReadBackObservesSharedCompileTransformation()
+    {
+        using var audit = new TempAuditDirectory();
+        Directory.CreateDirectory(audit.Path);
+        using var requests = new FakeWorkerRequestLog(audit.Path);
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.ReadWrite,
+            audit.Path, "plc-write-readback-compile-transform");
+        var first = await UpdateAsync(harness.Client, "first", FirstPath, "READBACK_BEFORE_COMPILE");
+        var second = await UpdateAsync(harness.Client, "second", SecondPath, "READBACK_BEFORE_COMPILE");
+        var before = requests.Methods().Length;
+
+        var root = CanonicalToolDocument.Read(await WriteAsync(harness.Client, false, first, second));
+
+        Assert.True(root.GetProperty("success").GetBoolean(), root.GetRawText());
+        Assert.Equal("shared-per-plc", root.GetProperty("compilationMode").GetString());
+        var methods = requests.Methods().Skip(before).ToArray();
+        Assert.Equal(2, methods.Count(method => method == "update_block_logic"));
+        Assert.Single(methods, method => method == "compile_check");
+        Assert.Equal(4, methods.Count(method => method == "get_block_content"));
+        var compile = Array.IndexOf(methods, "compile_check");
+        Assert.Equal(2, methods.Skip(compile + 1).Count(method => method == "get_block_content"));
+        var checks = root.GetProperty("verification").GetProperty("operations").EnumerateArray().ToArray();
+        foreach (var check in checks)
+        {
+            Assert.True(check.GetProperty("success").GetBoolean());
+            var comparison = check.GetProperty("readBack");
+            Assert.False(comparison.GetProperty("rawTextEqual").GetBoolean());
+            Assert.Contains("READBACK_BEFORE_COMPILE", comparison.GetProperty("submitted").GetProperty("excerpt").GetRawText());
+            Assert.Contains("READBACK_AFTER_COMPILE", comparison.GetProperty("observed").GetProperty("excerpt").GetRawText());
+        }
+        Assert.Equal((await ReadAsync(harness.Client, FirstPath)).Hash, checks[0].GetProperty("contentHash").GetString());
+        Assert.Equal((await ReadAsync(harness.Client, SecondPath)).Hash, checks[1].GetProperty("contentHash").GetString());
+    }
+
+    [Fact]
     public async Task TwoSourceUpdates_OneCompilePerSelector_AfterAllImports()
     {
         using var audit = new TempAuditDirectory();

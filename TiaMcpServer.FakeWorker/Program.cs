@@ -77,6 +77,8 @@ var blockScenarios = new TiaMcpServer.FakeWorker.Block.BlockScenarios();
 var vciWriteRoundtrip = new TiaMcpServer.FakeWorker.Vci.VciWriteRoundtripScenario();
 var hmiWriteRoundtrip = new TiaMcpServer.FakeWorker.Hmi.HmiWriteRoundtripScenario();
 var plcWriteRoundtrip = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"));
+var plcWriteReadBackNormalizes = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), normalizeReadBackConstant: true);
+var plcWriteReadBackCompileTransform = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "succeeded"), transformReadBackOnCompile: true);
 var plcWriteCompileFailed = new PlcWriteRoundtripScenario(
     format => CompletedBlockOutcome(format, "failed") with { ImportResultState = "success" });
 var plcWriteCompileUnavailable = new PlcWriteRoundtripScenario(format => CompletedBlockOutcome(format, "unavailable"));
@@ -758,6 +760,12 @@ while ((line = Console.In.ReadLine()) is not null)
             break;
         case "plc-write-roundtrip":
             Respond(plcWriteRoundtrip.Handle(line, scenario));
+            break;
+        case "plc-write-readback-normalizes":
+            Respond(plcWriteReadBackNormalizes.Handle(line, scenario));
+            break;
+        case "plc-write-readback-compile-transform":
+            Respond(plcWriteReadBackCompileTransform.Handle(line, scenario));
             break;
         case "plc-write-compile-failed":
             Respond(plcWriteCompileFailed.Handle(line, scenario));

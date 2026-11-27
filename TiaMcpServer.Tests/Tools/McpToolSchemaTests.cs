@@ -511,6 +511,79 @@ public class McpToolSchemaTests
 
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("2025-11-25")]
+    public async Task PlcWrite_OutputSchema_DescribesOptionalReadBackEvidence(string? protocolVersion)
+    {
+        await using var harness = await McpProtocolTestHarness.StartProductionSurfaceAsync(McpAccessMode.Full,
+            clientOptions: new McpClientOptions { ProtocolVersion = protocolVersion });
+        var tools = await harness.Client.ListToolsAsync();
+        var schema = tools.Single(tool => tool.Name == "plc_write").ProtocolTool.OutputSchema!.Value;
+        var entry = schema.GetProperty("properties").GetProperty("verification")
+            .GetProperty("properties").GetProperty("operations").GetProperty("items");
+        Assert.DoesNotContain("readBack", entry.GetProperty("required").EnumerateArray()
+            .Select(member => member.GetString()));
+        var comparison = ResolveSchemaReference(schema, entry.GetProperty("properties").GetProperty("readBack"));
+        Assert.Equal(new[] { "object", "null" }, comparison.GetProperty("type")
+            .EnumerateArray().Select(type => type.GetString()));
+        Assert.Equal(new[]
+        {
+            "budgetExhausted", "comparisonScope", "lineEndingOnly", "normalizedLinesEqual", "observed",
+            "observedChangedSpanLineCount", "omission", "rawTextEqual", "submitted", "submittedChangedSpanLineCount"
+        }, comparison.GetProperty("required").EnumerateArray().Select(member => member.GetString()).Order());
+        var properties = comparison.GetProperty("properties");
+        Assert.Equal("string", properties.GetProperty("comparisonScope").GetProperty("type").GetString());
+        foreach (var name in new[] { "rawTextEqual", "normalizedLinesEqual", "lineEndingOnly", "budgetExhausted" })
+            Assert.Equal("boolean", properties.GetProperty(name).GetProperty("type").GetString());
+        foreach (var name in new[] { "submittedChangedSpanLineCount", "observedChangedSpanLineCount" })
+            Assert.Equal("integer", properties.GetProperty(name).GetProperty("type").GetString());
+        foreach (var name in new[] { "submitted", "observed" })
+        {
+            var side = ResolveSchemaReference(schema, properties.GetProperty(name));
+            Assert.Equal("object", side.GetProperty("type").GetString());
+            Assert.Equal(new[] { "characterCount", "excerpt", "lineCount", "sha256" },
+                side.GetProperty("required").EnumerateArray().Select(member => member.GetString()).Order());
+            var sideProperties = side.GetProperty("properties");
+            Assert.Equal("string", sideProperties.GetProperty("sha256").GetProperty("type").GetString());
+            Assert.Equal("integer", sideProperties.GetProperty("characterCount").GetProperty("type").GetString());
+            Assert.Equal("integer", sideProperties.GetProperty("lineCount").GetProperty("type").GetString());
+            var excerpt = ResolveSchemaReference(schema, sideProperties.GetProperty("excerpt"));
+            Assert.Equal(new[] { "budgetExhausted", "lines", "omittedCharacterCount", "omittedLineCount" },
+                excerpt.GetProperty("required").EnumerateArray().Select(member => member.GetString()).Order());
+            Assert.Equal("array", excerpt.GetProperty("properties").GetProperty("lines").GetProperty("type").GetString());
+        }
+        var omission = ResolveSchemaReference(schema, properties.GetProperty("omission"));
+        Assert.Equal(new[] { "object", "null" }, omission.GetProperty("type")
+            .EnumerateArray().Select(type => type.GetString()));
+        Assert.Contains("originalChars", omission.GetProperty("required").EnumerateArray()
+            .Select(member => member.GetString()));
+        Assert.All(tools.Where(tool => tool.Name != "plc_write"), tool =>
+            Assert.False(tool.ProtocolTool.OutputSchema is { } other && ContainsSchemaProperty(other, "readBack"), tool.Name));
+    }
+
+    private static JsonElement ResolveSchemaReference(JsonElement root, JsonElement schema)
+    {
+        while (schema.TryGetProperty("$ref", out var reference))
+        {
+            Assert.StartsWith("#/", reference.GetString());
+            schema = root;
+            foreach (var segment in reference.GetString()![2..].Split('/'))
+                schema = schema.GetProperty(segment.Replace("~1", "/").Replace("~0", "~"));
+        }
+        return schema;
+    }
+
+    private static bool ContainsSchemaProperty(JsonElement schema, string name)
+        => schema.ValueKind switch
+        {
+            JsonValueKind.Object => (schema.TryGetProperty("properties", out var properties)
+                && properties.TryGetProperty(name, out _))
+                || schema.EnumerateObject().Any(property => ContainsSchemaProperty(property.Value, name)),
+            JsonValueKind.Array => schema.EnumerateArray().Any(value => ContainsSchemaProperty(value, name)),
+            _ => false,
+        };
+
     /// <summary>
     /// The snapshot is the tools/list outputSchema on main. Wrapped tools skip the SDK's legacy-wire
     /// reshaping, so the legacy protocol is compared too; on main both protocols emit the same schemas.

@@ -108,6 +108,8 @@ public sealed class ConditionalMemberRegisterTests
         "CrossReferenceSelectorInfo.Hmi",
         // Supplied only on public patch requests; absent for other operations and normalized execution requests.
         "PlcOperationRequest.Edits",
+        // Present only when written PLC content has a nonempty fresh export to compare with execution content.
+        "PlcOperationVerification.ReadBack",
         // Resolved input selected immediately before an attempted patch mutation; absent previews, denials, skipped items and failed replans.
         "WriteAuditItem.ResolvedOperation",
     };
@@ -123,6 +125,7 @@ public sealed class ConditionalMemberRegisterTests
             .Append(typeof(TiaMcpServer.ProjectLifecycle.LifecycleEffects))
             .Append(typeof(TiaMcpServer.Library.LibraryWriteEffect))
             .Append(typeof(TiaMcpServer.Plc.PlcOperationRequest))
+            .Append(typeof(TiaMcpServer.Plc.PlcOperationVerification))
             .Append(typeof(TiaMcpServer.Safety.Pipeline.WriteAuditItem))
             .SelectMany(type => type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)

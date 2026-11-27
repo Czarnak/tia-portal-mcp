@@ -128,8 +128,9 @@ evidence only, not part of the hash check.
 - When a changed span exceeds 40 lines, each excerpt contains the first 20 plus last 20 lines.
 - Each displayed line is limited to 512 characters.
 - The complete call is limited to 320 excerpt lines and 32,768 excerpt characters in request
-  order. After that excerpt budget is exhausted, every eligible entry still retains its raw hashes,
-  counts, and equality flags.
+  order across initial planning, dependent replanning and read-back verification. Spent allowance
+  is not refunded when evidence is replaced or omitted. After that excerpt budget is exhausted,
+  every eligible entry still retains its raw hashes, counts, and equality flags.
 - Raw SHA-256, raw character count, and raw line count use the original text. For line-window
   comparison only, line-ending normalization maps CRLF and CR to LF; it performs no other
   normalization. The response also reports `rawTextEqual`, `normalizedLinesEqual`, and
@@ -146,6 +147,34 @@ evidence only, not part of the hash check.
   `items[].resolvedOperation.content` retains the full input selected for an attempted patch;
   the public diff remains bounded evidence, and neither establishes import success.
 - Every other operation has `contentDiff: null`.
+
+### Submitted versus observed content
+
+The existing nonempty verification re-export can supply optional `verification.operations[].readBack`
+for block updates, resolved patches and type updates. It compares the submitted execution content
+with the observed export after any shared compilation. A failed attempt can still expose observed
+content without changing its failure. Successful superseded items, previews, non-content items,
+skipped or denied items, and unavailable or empty exports omit this member. This observation adds
+no worker call and never changes import outcome, verification success or the reusable full-export
+`actual`/`contentHash`.
+
+`comparisonScope` is `xmlDocument` when a raw XML or single-XML-document submission selects XML
+on both sides, excluding observed companions and bundle separators. Source, multiple-document
+submissions and selection fallbacks use `wholeText`. `rawTextEqual` is exact selected-text equality;
+`normalizedLinesEqual` converts CRLF and lone CR to LF only. `lineEndingOnly` means raw unequal
+but newline-normalized equal. No semantic or XML normalization is performed. `submitted` and
+`observed` carry diagnostic side hashes, counts and bounded excerpts; their `sha256` values are
+not concurrency hashes. Changed-span line counts include unchanged lines between differences.
+
+The preview generation bounds above also cover read-back. Generation exhaustion retains summaries
+and records excerpt omission counts without failing execution or verification; an exhausted budget
+can accompany equal text with zero omissions. Outer encoded response budgeting removes retained
+read-back excerpts, then whole comparisons, before existing verification checks and hashes.
+Excerpt removal records `readBack.omission`; whole-comparison removal records
+`verification.omission`. Delivery omissions can make root `success:false` while item statuses and
+verification success remain true. See [execution, verification and audit](PLC_OPERATIONS_SUMMARY.md#execution-verification-and-audit)
+for fields, omission order and hash-preserving inspection guidance. Differences are observational
+and may include compilation effects; they do not establish import success or the cause of a change.
 
 ## Format matrix
 

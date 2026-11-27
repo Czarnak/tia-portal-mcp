@@ -1332,6 +1332,42 @@ submissions and bundle-selection failures retain whole-text comparisons. This se
 diff evidence only: `expectedContentHash` still protects the whole served export, including
 companions and separator bytes.
 
+PLC verification also compares resolved execution content with its existing nonempty re-export,
+after shared compilation. `PlcVerificationPolicy` collects typed `PlcReadBackEvidence` by ordinal
+operation ID, then `PlcWriteVerification.From` joins it into conditional
+`verification.operations[].readBack` after the unchanged shared verifier completes. Patches use
+the resolved full candidate and format. Failed content attempts can expose current observations;
+successful superseded items, previews, non-content items and unavailable/empty exports omit the
+field. No worker protocol, capability, Siemens call or shared verification contract is added.
+A mismatch leaves mutation status, verification success and the full-export `actual`/`contentHash`
+unchanged.
+
+`PlcReadBackComparison` reuses `PlcContentDiffSides.SelectWithScope` and `PlcContentDiff` with
+submitted and observed orientation. Scope is `xmlDocument` for selected XML documents, excluding
+companions/separators; source, multiple-document submissions and selection fallbacks use
+`wholeText`. Exact and newline-normalized equality both concern that scope; normalization converts
+CRLF and lone CR to LF only. Side SHA-256 values are diagnostic selected-text hashes, never
+concurrency hashes. Changed-span counts include unchanged intervening lines. Differences remain
+observational and can include compilation effects without proving import success or causation.
+
+One `PlcWriteDomain`-owned `PlcContentDiffBudget` passes through initial planning, late replanning
+and verification: 40 lines and 8,192 raw characters per side, 512 characters per line, 320 lines
+and 32,768 raw excerpt characters across the call. Spent allowance is not refunded. Generation
+truncation keeps flags/counts/hashes and records excerpt omission counts and `budgetExhausted`
+without failing execution or verification. Equal text may report prior exhaustion with zero
+omissions.
+
+`PlcWritePayloadBudget` separately measures canonical encoded size using effective shared limits.
+It removes preview diffs, shared compile reports and failed import outcomes before read-back
+excerpts, then whole comparisons, aggregate verification checks, effects and the existing batch
+fallback. Item budgeting checks the aggregate verification operations array, removing comparison
+diagnostics before compact checks/hashes. Excerpt removal adds only retained text to existing
+omission counts and records `readBack.omission`; whole-comparison removal records
+`verification.omission`. Presentation copies preserve the execution response. Nested omissions
+can set root delivery success false while item status, verification success and deliverable
+`actual`/`contentHash` remain unchanged. One canonical serialization still supplies text,
+structured content and the exact delivered audit document/hash.
+
 `patch_block_logic` is the fifteenth public PLC write operation, with the same registration and
 access gates; PLC reads stay contract `1.0`. The public operation name and closed request shape
 are validated and authorized before binding, reads or normalization. A patch supplies a block

@@ -11694,6 +11694,135 @@
                     "string",
                     "null"
                   ]
+                },
+                "readBack": {
+                  "description": "Present only when written PLC content was successfully re-exported and compared with the submitted execution content.",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "comparisonScope": {
+                      "type": "string"
+                    },
+                    "rawTextEqual": {
+                      "type": "boolean"
+                    },
+                    "normalizedLinesEqual": {
+                      "type": "boolean"
+                    },
+                    "lineEndingOnly": {
+                      "type": "boolean"
+                    },
+                    "submitted": {
+                      "type": "object",
+                      "properties": {
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "characterCount": {
+                          "type": "integer"
+                        },
+                        "lineCount": {
+                          "type": "integer"
+                        },
+                        "excerpt": {
+                          "$ref": "#/properties/effects/items/properties/effect/properties/contentDiff/properties/current/properties/excerpt"
+                        }
+                      },
+                      "required": [
+                        "sha256",
+                        "characterCount",
+                        "lineCount",
+                        "excerpt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "observed": {
+                      "type": "object",
+                      "properties": {
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "characterCount": {
+                          "type": "integer"
+                        },
+                        "lineCount": {
+                          "type": "integer"
+                        },
+                        "excerpt": {
+                          "$ref": "#/properties/effects/items/properties/effect/properties/contentDiff/properties/current/properties/excerpt"
+                        }
+                      },
+                      "required": [
+                        "sha256",
+                        "characterCount",
+                        "lineCount",
+                        "excerpt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "submittedChangedSpanLineCount": {
+                      "type": "integer"
+                    },
+                    "observedChangedSpanLineCount": {
+                      "type": "integer"
+                    },
+                    "budgetExhausted": {
+                      "type": "boolean"
+                    },
+                    "omission": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "reason": {
+                          "type": "string"
+                        },
+                        "limitChars": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "originalChars": {
+                          "type": "integer"
+                        },
+                        "retryTool": {
+                          "type": "string"
+                        },
+                        "guidance": {
+                          "type": "string"
+                        },
+                        "subject": {
+                          "$ref": "#/properties/effects/items/properties/omission/properties/subject",
+                          "default": null
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "limitChars",
+                        "originalChars",
+                        "retryTool",
+                        "guidance"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "comparisonScope",
+                    "rawTextEqual",
+                    "normalizedLinesEqual",
+                    "lineEndingOnly",
+                    "submitted",
+                    "observed",
+                    "submittedChangedSpanLineCount",
+                    "observedChangedSpanLineCount",
+                    "budgetExhausted",
+                    "omission"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [

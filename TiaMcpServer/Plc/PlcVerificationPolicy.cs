@@ -5,9 +5,13 @@ using TiaMcpServer.Safety.Pipeline;
 
 namespace TiaMcpServer.Plc;
 
-public sealed class PlcVerificationPolicy(OpennessWorkerClient client, IReadOnlyDictionary<string, PlcWriteEffect> effects)
+public sealed class PlcVerificationPolicy(OpennessWorkerClient client, IReadOnlyDictionary<string, PlcWriteEffect> effects,
+    PlcContentDiffBudget? budget = null)
     : IWriteVerificationPolicy<PlcOperationRequest>
 {
+    private readonly PlcContentDiffBudget _contentDiffBudget = budget ?? new();
+    private readonly Dictionary<string, PlcReadBackEvidence> _readBack = new(StringComparer.Ordinal);
+
     public string ReadTool => "plc_read";
 
     public bool HasReadBack(PlcOperationRequest item)
@@ -15,9 +19,13 @@ public sealed class PlcVerificationPolicy(OpennessWorkerClient client, IReadOnly
 
     public static async Task<PlcWriteVerification> VerifyAsync(OpennessWorkerClient client,
         IReadOnlyList<PlcOperationRequest> items, IReadOnlyDictionary<string, PlcWriteEffect> effects,
-        StructuredOperationBatch batch)
-        => PlcWriteVerification.From(await new TrustedWriteVerifier<PlcOperationRequest>(items,
-            new PlcVerificationPolicy(client, effects)).VerifyAsync(batch).ConfigureAwait(false));
+        StructuredOperationBatch batch, PlcContentDiffBudget? budget = null)
+    {
+        var policy = new PlcVerificationPolicy(client, effects, budget);
+        var verification = await new TrustedWriteVerifier<PlcOperationRequest>(items, policy)
+            .VerifyAsync(batch).ConfigureAwait(false);
+        return PlcWriteVerification.From(verification, policy._readBack);
+    }
 
     /// <summary>Hierarchical object keys: a container's key prefixes its members' keys.</summary>
     public IReadOnlyList<string> ObjectKeys(PlcOperationRequest item, bool asLater)
@@ -63,6 +71,7 @@ public sealed class PlcVerificationPolicy(OpennessWorkerClient client, IReadOnly
         if (!export.Success || string.IsNullOrEmpty(export.Payload))
             return Fail(item, $"Operation '{item.OperationId}': the written content could not be re-exported ({(export.Success ? "the export was empty" : export.Error)}).");
         var hash = ContentHashes.Compute(format, export.Payload);
+        _readBack[item.OperationId] = PlcReadBackComparison.Build(format, item.Content!, export.Payload, _contentDiffBudget);
         return new(item.OperationId, true, "contentHash", null, hash, failure is null ? null
             : $"Operation '{item.OperationId}' failed with {failure.Category}; the current content hash is reported.");
     }

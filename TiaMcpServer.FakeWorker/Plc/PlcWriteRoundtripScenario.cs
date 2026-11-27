@@ -29,7 +29,8 @@ namespace TiaMcpServer.FakeWorker.Plc;
 /// </summary>
 sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> completedOutcome, bool inventoryIncomplete = false,
     bool incompleteAfterWrite = false, bool driftAtImport = false, bool skippedBlock = false, bool exportLostAfterWrite = false,
-    bool driftAfterWrite = false, string? importFailure = null, bool invalidImportOutcome = false)
+    bool driftAfterWrite = false, string? importFailure = null, bool invalidImportOutcome = false,
+    bool normalizeReadBackConstant = false, bool transformReadBackOnCompile = false)
 {
     private const string RejectedTagName = "RejectedByPortal";
 
@@ -237,7 +238,9 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
             if (importFailure == WorkerFailureCategories.EngineeringRejected) throw PortalRejection("The block import was rejected.");
             Throw(importFailure, "The scripted block import failed.");
         }
-        _content[Key(path, format)] = request.Content!;
+        _content[Key(path, format)] = normalizeReadBackConstant
+            ? request.Content!.Replace("<ConstantType>LReal</ConstantType>", "<ConstantType>Real</ConstantType>", StringComparison.Ordinal)
+            : request.Content!;
         if (invalidImportOutcome || request.Content.Contains("// fixture: shared-import-protocol-error", StringComparison.Ordinal))
             return JsonSerializer.Serialize(new WorkerResponse { Success = true, Payload = "Import succeeded." }, WorkerJson.Envelope);
         var outcome = completedOutcome(format);
@@ -258,6 +261,12 @@ sealed class PlcWriteRoundtripScenario(Func<string, BlockImportOutcomeInfo> comp
         if (request.BlockPath is not null)
             Throw(WorkerFailureCategories.ValidationError, "Shared compilation requires a null blockPath.");
         var plcs = _plcs.Where(p => request.PlcName is null || Matches(p, request.PlcName)).ToArray();
+        if (transformReadBackOnCompile)
+        {
+            foreach (var key in _content.Keys.Where(key => plcs.Any(plc =>
+                key.StartsWith($"source:{plc.Software}/", StringComparison.OrdinalIgnoreCase))).ToArray())
+                _content[key] = _content[key].Replace("READBACK_BEFORE_COMPILE", "READBACK_AFTER_COMPILE", StringComparison.Ordinal);
+        }
         var content = plcs.SelectMany(p => _content.Where(entry => entry.Key.StartsWith($"source:{p.Software}/", StringComparison.OrdinalIgnoreCase)))
             .Select(entry => entry.Value).ToArray();
         if (content.Any(value => value.Contains("// fixture: shared-compile-worker-failure", StringComparison.Ordinal)))

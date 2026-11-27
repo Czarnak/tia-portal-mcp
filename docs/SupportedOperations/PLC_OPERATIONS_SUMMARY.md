@@ -462,6 +462,45 @@ used as the next `expectedContentHash`. It cannot be computed from the submitted
 carries a generated id, and four identical `update_block_logic` writes gave four different hashes.
 Take it from the verification or a fresh read.
 
+When a content item has a nonempty fresh export, its verification entry can also carry optional
+`readBack` evidence comparing submitted execution content with observed content. For a patch this
+is the full resolved candidate, with its resolved format. Failed content attempts can carry the
+same observation while retaining their original failed status. Successful superseded items,
+non-content items, previews, skipped or denied items, and empty or failed exports omit `readBack`.
+The comparison uses the existing verification export after any shared compilation; it adds no
+export or compile call. A mismatch alone changes neither item success nor verification success,
+`expected`, `actual`, or `contentHash`. Differences can include compilation effects and do not
+establish their cause, semantic equivalence, or import success.
+
+The `readBack` object has these required members when present:
+
+| Member | Meaning |
+|---|---|
+| `comparisonScope` | `xmlDocument` for selected XML documents; `wholeText` for source, multiple-document submissions and selection fallbacks. Raw XML and single-XML-document bundles compare with the observed XML member, excluding companions and separators. |
+| `rawTextEqual` | Exact ordinal equality of the selected texts. |
+| `normalizedLinesEqual` | Equality after converting CRLF and lone CR to LF only; whitespace and XML remain otherwise unchanged. Both equality flags describe the selected scope. |
+| `lineEndingOnly` | Raw unequal and newline-normalized equal. |
+| `submitted`, `observed` | Each side has diagnostic `sha256`, raw `characterCount`, raw `lineCount`, and a bounded `excerpt`. These side hashes cover selected text and cannot be used as concurrency hashes. |
+| `submittedChangedSpanLineCount`, `observedChangedSpanLineCount` | Counts from first to last changed line after removing a common prefix and suffix, including unchanged intervening lines; these are not counts of unequal lines or an edit script. |
+| `budgetExhausted` | The common excerpt allowance was exhausted when the evidence was built. Inspect excerpt omission counts; equal text can report true after earlier exhaustion with zero omitted lines and characters. |
+| `omission` | Explicit null normally; delivery omission metadata when retained comparison excerpts were removed to fit encoded response limits. |
+
+Planning diffs, dependent replanning and read-back share one call-owned generation allowance:
+40 excerpt lines and 8,192 raw excerpt characters per side, 512 characters per displayed line,
+and 320 excerpt lines and 32,768 raw excerpt characters across the call. Earlier planning can
+leave no excerpt allowance for verification. Spent allowance is not refunded when evidence is
+replaced or omitted. Generation truncation retains flags, side hashes and counts, recording
+excerpt omission counts and `budgetExhausted`; it does not itself fail execution or verification.
+
+Encoded delivery limits are separate and use the effective item/document budgets. Diagnostics
+yield in this order: preview content diffs, shared compile reports, failed import outcomes,
+read-back excerpts, whole read-back comparisons, aggregate verification checks, effects, then the
+existing batch fallback. Removal of excerpts records `readBack.omission`; removal of a whole
+comparison records `verification.omission`, retaining operations, `actual` and `contentHash` while
+the compact checks fit. These delivery omissions can make root `success:false` without changing
+batch item statuses or `verification.success`. The canonical delivered response and audit carry
+the same omissions; inspect affected objects before deciding on another write.
+
 Audit `requestedOperations` retains the public patch and its edits. An attempted patch additionally
 records the exact full normalized `update_block_logic` input in `items[].resolvedOperation`, including
 `content`, explicit format, selector and original hash. This is the input selected for that mutation
