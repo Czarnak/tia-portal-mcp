@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "action": "delete_udt",
+  "plc": "PLC_1",
+  "prefix": "_MCP_PR1_e706c4f1_",
+  "result": {
+    "name": "_MCP_PR1_e706c4f1_Udt",
+    "present": false
+  },
+  "mutationAttempted": true,
+  "nativeReturned": true,
+  "transactionCommitted": true
+}

@@ -1250,20 +1250,36 @@ cleanup and automatic opener replay remain absent.
 `info` guards (`PlcGuardDefinitions`), so no mode and no dry run elicits. Audit confirmation is
 `none` in read-write and `policy` in full. The principle is that TIA Portal is the authority on its
 own rejections: the host and worker do not re-implement name collisions, existing blocks, existing
-groups or tables, or the default tag table. `PlcWritePlanner` plans from public reads only, and
-only the reads a kept guard or a target pre-flight needs: the tag inventory for tag, table and
+groups or tables, or the default tag table. `PlcWritePlanner` plans from ordinary read evidence and
+the bound library-instance inspector, using only reads a kept guard or a target pre-flight needs: the tag inventory for PLC selection and tag, table and
 constant targets, a project-tree snapshot only for `delete_block`, `delete_block_group` and OB
 creates, and one export per content item. It applies earlier items to an in-call working state
 (identity overlay and `DependsOn` marking, no collision evaluation) and fires guards:
 
 | Guard | Severity | Fires when |
 | --- | --- | --- |
-| `plc_state_unverifiable` | block | The PLC inventory is incomplete, the update or delete target or what a delete removes is unreadable, the user-constant value an update replaces is unreadable, or the content cannot be exported |
-| `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class whose number an OB already holds, or an earlier item in the call creates (kept: Portal's own rejection was not reachable through the tool) |
+| `plc_state_unverifiable` | block | The PLC inventory is incomplete, the update or delete target or what a delete removes is unreadable, the user-constant value an update replaces is unreadable, content cannot be exported, or required library linkage/version/descendant evidence is unavailable |
+| `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class whose number an OB already holds, or an earlier item in the call creates it; native duplicate OB82 imports were accepted and full compile failed |
+| `plc_library_instance_edit` | block | A block or PLC data type whose content would be replaced is linked to any library type version, including committed versions and resolved patches |
+| `plc_library_test_instance_delete` | block | A directly deleted block or a descendant of a deleted block group is an in-work library test instance |
 | `plc_deletes_block` | info | `delete_block` removes the block and its content |
 | `plc_deletes_group_contents` | info | `delete_block_group` removes every block and group inside it |
 | `plc_deletes_table_contents` | info | `delete_tag_table` removes its tags and user constants |
 | `plc_address_overlap` | info | The requested logical address is already used by another tag (exact string match) |
+
+The internal `inspect_plc_write_target` operation is a bound `Observe` read through
+`WithEngineeringRoot`, using the same typed library-instance inspector as worker mutation paths.
+It adds no public tool or implicit binding. Preview defers only exact targets proved absent and
+created by earlier simulated operations. Execution checks the live object before source registration
+and immediately before import, generation or deletion; group deletion inspects all descendants.
+Plain objects and committed-instance deletion remain allowed. Missing required inspection evidence
+blocks; fatal Portal-loss exceptions retain their classification. A late refusal can leave earlier
+items applied under the existing stop/no-rollback contract. Linked content changes use the Library
+type-version workflow.
+
+Singleton protection is supported by the [October 8 native spike](superpowers/acceptance/reports/2026-10-08-ob-creation-spike.md)
+T4a/T4b. October 26 L6 was a guarded-tool refusal and did not repeat native duplicate creation;
+neither result establishes every singleton event class's native behavior.
 
 Update and delete targets are resolved before the first mutation (`target_not_found` fails the whole
 call); creates are not, so a create into a missing parent group or folder fails at mutation. A

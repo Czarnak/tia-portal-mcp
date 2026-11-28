@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "action": "inspect",
+  "plc": "PLC_1",
+  "prefix": "_MCP_PR1_e706c4f1_",
+  "result": {
+    "kind": "block",
+    "name": "_MCP_PR1_e706c4f1_Fb",
+    "targetPath": "PLC_1/Blocks/_MCP_PR1_e706c4f1_Group/_MCP_PR1_e706c4f1_Fb",
+    "present": true,
+    "linkage": {
+      "linked": true,
+      "versionGuid": "1dd9135d-6113-448b-ad95-7deafabaad10",
+      "versionNumber": "0.0.1",
+      "state": "Committed"
+    }
+  },
+  "mutationAttempted": false,
+  "nativeReturned": false,
+  "transactionCommitted": false
+}

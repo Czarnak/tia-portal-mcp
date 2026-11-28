@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "action": "create_udt",
+  "plc": "PLC_1",
+  "prefix": "_MCP_PR1_e706c4f1_",
+  "result": {
+    "name": "_MCP_PR1_e706c4f1_Udt",
+    "present": true,
+    "linkage": {
+      "linked": false,
+      "versionGuid": null,
+      "versionNumber": null,
+      "state": null
+    }
+  },
+  "mutationAttempted": true,
+  "nativeReturned": true,
+  "transactionCommitted": true
+}

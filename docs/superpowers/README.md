@@ -12,18 +12,6 @@ are the authorities on current behavior. For why the design is as it is, and the
 start at the [architecture decision records](../adr/README.md). Removed plans and specs remain at the
 `docs-archive-2026-10-30` tag; later working files remain in their PR commit history.
 
-## Active working documents
-
-| Date | Spec | Implementation plan |
-| --- | --- | --- |
-| 2026-11-28 | [All mutation tools: direct apply and reusable previews](specs/2026-11-28-write-preview-execution-design.md) | [Seven-PR implementation plan](plans/2026-11-28-write-preview-execution.md) |
-
-These are transient documents for `feat/plc-write-preview-execution`; implementation and live
-acceptance have not run. The earlier PLC-only documents are superseded and retained for review
-history. Standardize apply across all 63 mutation/lifecycle operations before adding references;
-`compile_check` remains direct without planning. Remove this entry when the working documents
-are pruned before merge.
-
 ## Acceptance definitions
 
 | Date | Document |
@@ -39,6 +27,7 @@ The PR 5 and PR 6 safety-scope reports (2026-09-05/06) qualified token-bound sna
 
 | Date | Document |
 | --- | --- |
+| 2026-11-28 | [PLC library-instance guards — scoped PASS for the full Debug suite, installed-reference Release build and executed V21 guards/committed controls; fixture inventories restored, Portal left open modified and unsaved; instrumented Release startup failures and pending CI remain explicit](acceptance/reports/2026-11-28-plc-library-instance-guards-verification.md) |
 | 2026-11-27 | [Issue #223 read-back comparisons — scoped candidate-MCP PASS: LReal/Real observation, XML/source patches, equal-source control, shared compilation, fresh hashes, exact audits and verified cleanup; project left open, modified and unsaved](acceptance/reports/2026-11-27-issue-223-readback-diff-live-verification.md) |
 | 2026-11-26 | [Issue #238 shared source compilation — scoped installed-MCP PASS: independent and dependent source updates, informational compile failures, committed-prefix generation stop, source patch/tag mix, fresh hashes, one-pair timing comparison and verified discard/reopen restoration](acceptance/reports/2026-11-26-issue-238-shared-source-compilation-live.md) |
 | 2026-11-26 | [Issue #224 PR 2 relaxed JSON — PARTIAL: native read-only baseline/candidate comparison and candidate Codex reads; baseline in the actual client, BMP and model-facing evidence remain open](acceptance/reports/2026-11-26-issue-224-pr2-relaxed-json-client-verification.md) |
