@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<Document>
+  <Engineering version="V21" />
+  <SW.Types.PlcStruct ID="0">
+    <AttributeList>
+      <Interface>
+        <Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+          <Section Name="None">
+            <Member Name="Scaling" Datatype="Struct">
+              <Member Name="Type" Datatype="Bool">
+                
+                <StartValue>TRUE</StartValue>
+              </Member>
+              <Member Name="regMin" Datatype="Int">
+                <StartValue>0</StartValue>
+              </Member>
+              <Member Name="regMax" Datatype="Int">
+                <StartValue>27648</StartValue>
+              </Member>
+              <Member Name="valueMin" Datatype="Real" />
+              <Member Name="valueMax" Datatype="Real" />
+              <Member Name="Multiplier" Datatype="Real" />
+            </Member>
+            <Member Name="Limits" Datatype="Struct">
+              <Member Name="regMin" Datatype="Int">
+                <StartValue>-500</StartValue>
+              </Member>
+              <Member Name="regMax" Datatype="Int">
+                <StartValue>30000</StartValue>
+              </Member>
+              <Member Name="regAlarmDelay" Datatype="Time">
+                <StartValue>T#1s</StartValue>
+              </Member>
+            </Member>
+          </Section>
+        </Sections>
+      </Interface>
+      <Name>_MCP_PR1_e706c4f1_Udt</Name>
+      <Namespace />
+    </AttributeList>
+    
+  </SW.Types.PlcStruct>
+</Document>

@@ -1,0 +1,91 @@
+{
+  "candidateCommit": "fe604c5788b0dd70808bf812c2effcfb21c40d9b",
+  "helperSourceSha256": "67e4050b6e1feee10e6665a2aa28109de14631ab98259c3a7d76ae7fb9792944",
+  "sourceExcerpts": [
+    {
+      "file": "prepare-fixture-xml.cs.txt",
+      "sourceLineStart": 124,
+      "sourceLineEnd": 151,
+      "sha256": "8351381bd0ef27dd8dc6b671105955ac0272bc0c7df2c4d18946c8ce546bfe7a",
+      "bytes": 2191,
+      "completeStandaloneSource": false
+    },
+    {
+      "file": "native-operations.cs.txt",
+      "sourceLineStart": 206,
+      "sourceLineEnd": 372,
+      "sha256": "f33fb6073c38e6144525db352578f37ed77e9d13056a16ec3d5b8f29b9154073",
+      "bytes": 10031,
+      "completeStandaloneSource": false
+    }
+  ],
+  "selectedReceiptFields": [
+    {
+      "file": "native-create-udt-neutral.fields.json",
+      "sourceFileName": "native-create-udt-neutral.json",
+      "sourceSha256": "ce6dbd1825bf61babba0fc34784592abbc38ebd339a2ab2d5fc8a1d7409ba140",
+      "sourceBytes": 604,
+      "sha256": "1eeec9169079b9172363ee5520f525f40ebba75fbedc742790da2230cbd8933f",
+      "bytes": 386,
+      "omittedFields": [
+        "portalProcessId",
+        "projectPath",
+        "result.source"
+      ],
+      "completeRawResponse": false,
+      "retainedValuesModified": false
+    },
+    {
+      "file": "native-fb-committed.fields.json",
+      "sourceFileName": "native-fb-committed.json",
+      "sourceSha256": "e610763920e7a1f1e19acb3c0c8cff29c34d96eda9a2813f03b62037680f7459",
+      "sourceBytes": 566,
+      "sha256": "830b99dc6e39ea3c7fe8e3d04f80c92c8866fa755d26c9dbf4ef5719003ef0ea",
+      "bytes": 528,
+      "omittedFields": [
+        "portalProcessId",
+        "projectPath"
+      ],
+      "completeRawResponse": false,
+      "retainedValuesModified": false
+    },
+    {
+      "file": "native-fc-committed.fields.json",
+      "sourceFileName": "native-fc-committed.json",
+      "sourceSha256": "579c3737e230844b6f87b287214f1e928fe0de06dc15b981119e2fd816ccea47",
+      "sourceBytes": 591,
+      "sha256": "908c526b13e73eb70fb8126577c55d64307514dced9922437c8e8cf9c6ef446e",
+      "bytes": 553,
+      "omittedFields": [
+        "portalProcessId",
+        "projectPath"
+      ],
+      "completeRawResponse": false,
+      "retainedValuesModified": false
+    },
+    {
+      "file": "native-delete-udt.fields.json",
+      "sourceFileName": "native-delete-udt.json",
+      "sourceSha256": "7934c2f185fa085dca7fb62495e1a5cec848965f86f6f8c09eb576c07ebe5705",
+      "sourceBytes": 357,
+      "sha256": "34075e3daa14de877add4cbca57d6ebc2ce2ec2815356e72d057b7a3f0b8587e",
+      "bytes": 264,
+      "omittedFields": [
+        "portalProcessId",
+        "projectPath"
+      ],
+      "completeRawResponse": false,
+      "retainedValuesModified": false
+    }
+  ],
+  "nativeImportInputs": [
+    {
+      "file": "native-udt-neutral.xml",
+      "sourceFileName": "native-udt-neutral.xml",
+      "sha256": "d6d40c3e87058ea3f197d7ec507e021ad1c9eac59fa741cce22f72fb6bcbd051",
+      "bytes": 1576,
+      "byteExact": true,
+      "usedByReceipt": "native-create-udt-neutral.fields.json"
+    }
+  ]
+}

@@ -28,3 +28,5 @@
 /docs/superpowers/evidence/** -text
 /docs/superpowers/acceptance/reports/inputs/** linguist-generated
 /docs/superpowers/acceptance/reports/inputs/** -text
+# Preserve the executed XML input byte-for-byte, including native whitespace.
+/docs/superpowers/acceptance/reports/inputs/2026-11-28-plc-library-instance-guards/native-udt-neutral.xml binary

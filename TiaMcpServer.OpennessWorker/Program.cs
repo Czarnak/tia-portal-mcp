@@ -177,6 +177,7 @@ internal static partial class Program
                 "update_subnet" => NetworkWorkerDispatch.UpdateSubnet(request),
                 "delete_subnet" => NetworkWorkerDispatch.DeleteSubnet(request),
                 "read_cross_references" => ReadCrossReferences(request),
+                "inspect_plc_write_target" => PlcWorkerDispatch.InspectPlcWriteTarget(request),
                 "get_block_content"   => PlcWorkerDispatch.GetBlockContent(request),
                 "update_block_logic"  => PlcWorkerDispatch.UpdateBlockLogic(request),
                 "get_type_content"    => PlcWorkerDispatch.GetTypeContent(request),

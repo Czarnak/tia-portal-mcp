@@ -2,6 +2,7 @@ using TiaMcpServer.Contracts.CrossReferences;
 using TiaMcpServer.Contracts.Hmi;
 using TiaMcpServer.Contracts.Library;
 using TiaMcpServer.Contracts.Network;
+using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Vci;
 
@@ -26,6 +27,9 @@ public class WorkerRequest
     public HmiWriteRequestInfo? HmiWrite { get; set; }
 
     public LibraryWriteRequestInfo? LibraryWrite { get; set; }
+
+    /// <summary>Closed request for inspect_plc_write_target; a bound, non-mutating PLC protection inspection.</summary>
+    public PlcWriteGuardRequestInfo? PlcWriteGuard { get; set; }
 
     #region Common — dispatch and project identity
 

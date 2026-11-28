@@ -12,6 +12,10 @@ internal static partial class Program
 {
     private static class PlcWorkerDispatch
     {
+        public static WorkerResponse InspectPlcWriteTarget(WorkerRequest request)
+            => WithEngineeringRoot(request, project => Success(
+                PlcWriteTargetInspector.Inspect(project, request.PlcWriteGuard)));
+
         public static WorkerResponse GetBlockContent(WorkerRequest request)
         {
             if (string.IsNullOrEmpty(request.BlockPath))

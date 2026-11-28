@@ -58,11 +58,11 @@ Remaining work:
   previous default. Callers can add `set_default_type_version` explicitly.
 - Consider requiring a dry run before any delete. This PR leaves preview optional and lets Portal decide
   apply-time deletion; preview observations are sequential and non-atomic.
-- Guard the `plc_write` type-instance hazard: a test-instance content update can block behind a modal Portal
-  dialog, which does not raise the Openness `Confirmation` event, until answered or timed out. A direct test
-  instance delete showed "Cannot delete or replace (0026:000074)". A released-instance content update can
-  silently unlink it from its type. These are the native probe's P11c/P12c/P15a/P15d findings, not an approved
-  editing route; change content with `create_type_version`.
+- Extend qualification of the `plc_write` library-instance guards beyond the recorded standalone
+  [public refusals and positive controls](superpowers/acceptance/reports/2026-11-28-plc-library-instance-guards-verification.md).
+  The exhaustive format/container matrix, local sessions, and native-adjacent late-linkage and fatal
+  paths remain unqualified live. Use `create_type_version` for linked content changes; do not repeat
+  the original unguarded modal/unlink probes.
 - Determine Portal's release-number range safely. `0.0.0` killed Portal in T7Z and is rejected; exactly three
   numeric Int32 parts are required (maximum 2147483647 each), but this representation bound is not evidence
   that arbitrary large accepted numbers are safe. Larger release parts remain unprobed.
@@ -395,9 +395,11 @@ and its [live verification](superpowers/acceptance/reports/2026-10-26-plc-write-
 - **`engineeringError` bounds are silent.** `WorkerExecution.Describe` cuts a message at 4,000
   characters and the inner chain at 8 entries without a marker, which contradicts "verbatim". Drop the
   caps or add a truncation marker.
-- **`plc_ob_singleton_exists` is retained, not proven redundant.** Portal's own response to a duplicate
-  singleton OB was never observed because no `plc_write` input reaches it. Retiring the guard needs a
-  probe outside `plc_write` (a direct Openness or TIA Scripting import of a second OB 80).
+- **`plc_ob_singleton_exists` is retained, not proven redundant.** The
+  [October 8 native spike](superpowers/acceptance/reports/2026-10-08-ob-creation-spike.md) T4a/T4b accepted
+  duplicate DiagnosticErrorInterrupt OB82 imports and then failed full PLC compile. The October 26 L6
+  guarded-tool run did not reach native duplicate creation. It does not supersede that earlier evidence
+  or justify removing the guard; other event classes remain unqualified. Do not repeat the unsafe import.
 - **Namespace coverage remains scoped.** Additional probes cover cross-table tag creation, a constant against an existing tag, a tag against an FC and child-folder tag-table creation against an existing root-table name. Cross-group block duplicates, the reverse cross-kind directions and arbitrary pairs of child
   folders remain unverified; do not generalize those four rejection cases.
 - **`update_tag` partial application (review finding, not exercised live).** An unsupported external-access flag can fail mid-update, after a
@@ -609,6 +611,10 @@ cases, four additional namespace directions and default-table delete failed `eng
   rejection unreachable through the tool (L6); an `update_tag` unsupported-flag failure can follow an
   applied rename or type change; a create into a missing parent group or folder now fails at mutation;
   14 CLI startup tests are flaky under parallel load (pre-existing).
+
+  Scope clarification (2026-11-28): L6 describes the October 26 guarded-tool run. Earlier October 8
+  T4a/T4b native imports accepted duplicate OB82 instances and full PLC compile failed; that evidence
+  remains the reason to retain singleton protection.
 
 ## Completed: network_write native rejections (2026-10-29)
 

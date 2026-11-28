@@ -41,6 +41,7 @@ public class PlcWritePlannerTests
 
     private const string Inventory = "list_tag_tables";
     private const string TreeRead = "browse_project_tree_v3_snapshot";
+    private const string LibraryInspection = "inspect_plc_write_target";
 
     private static PlcOperationRequest Blocks(string id, string operation, string path, string? blockType = null)
         => new() { OperationId = id, Operation = operation, BlockPath = path, BlockType = blockType };
@@ -87,15 +88,15 @@ public class PlcWritePlannerTests
             new PlcOperationRequest { OperationId = "tag", Operation = "delete_tag", PlcName = "PLC_2", TableName = "Default tag table", Name = "Start" },
         }));
 
-        Assert.Equal(new[] { Inventory, TreeRead }, reads);
+        Assert.Equal(new[] { Inventory, TreeRead, LibraryInspection, LibraryInspection }, reads);
     }
 
     [Fact]
-    public async Task ContentUpdateReadsOnlyItsExport()
+    public async Task ContentUpdateReadsItsExportAndProtectionOnly()
     {
         var reads = await PlanningReadsAsync(async client => new[] { UpdateBlock("content", "Station_1/Main", await HashOf(client, "Station_1/Main")) });
 
-        Assert.Equal(new[] { Inventory, "get_block_content" }, reads);
+        Assert.Equal(new[] { Inventory, "get_block_content", LibraryInspection }, reads);
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public class PlcWritePlannerTests
         var result = await new PlcWritePlanner(client).PlanAsync(new[] { request });
 
         Assert.True(result.Plan.Success, result.Plan.Error?.Message);
-        Assert.Equal(new[] { Inventory, "get_block_content" }, log.Methods().Skip(before));
+        Assert.Equal(new[] { Inventory, "get_block_content", LibraryInspection }, log.Methods().Skip(before));
         var effect = Assert.Single(result.Plan.Items).Effect!;
         Assert.Equal("patch_block_logic", effect.Operation);
         Assert.Equal(1, effect.ContentDiff!.CurrentChangedLineCount);
@@ -502,7 +503,7 @@ public class PlcWritePlannerTests
         var replan = await planner.ReplanAsync(patch);
 
         Assert.True(replan.Replan.Success, replan.Replan.Error?.Message);
-        Assert.Equal(new[] { Inventory, "get_block_content" }, log.Methods().Skip(before));
+        Assert.Equal(new[] { Inventory, "get_block_content", LibraryInspection }, log.Methods().Skip(before));
         Assert.NotSame(initial.ResolvedOperations["patch"], replan.ResolvedOperation);
         Assert.Equal(initial.ResolvedOperations["patch"].Content, replan.ResolvedOperation!.Content);
         Assert.Null(replan.Replan.Plan!.DependsOn);

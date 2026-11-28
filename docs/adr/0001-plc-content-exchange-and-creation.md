@@ -8,7 +8,7 @@
 ## Context
 - SimaticML is the only round-trip format at first and is far larger than the equivalent source text.
 - Openness external-source import has no multiplicity switch: it creates every object a file declares, and `CreateFromFile` leaves a visible `PlcExternalSource` node in the project.
-- Openness V21 has no `CreateOB`. OB import uses the supplied number verbatim; a duplicate singleton imports silently and only a full compile fails.
+- Openness V21 has no `CreateOB`. OB import uses the supplied number verbatim; the native spike accepted duplicate DiagnosticErrorInterrupt OB82 imports and only a full compile failed.
 - Siemens types cannot be referenced by the test project, so any logic left in the Siemens shells has no offline coverage.
 
 ## Decision
@@ -27,7 +27,7 @@
 - Rules that still bind code: the Siemens-free/shell split, explicit options on every export path, re-resolve a block after any import (it is destroyed and recreated), and never let callers choose OB numbers.
 - Live traps for future harnesses: a stale handle after block recreation reads as a false attribute reset; Portal renames a colliding member to `<name>_1`, so probes need per-run unique names.
 - Live findings the design relies on: the two-argument `GenerateSource` defaults to no dependencies; an interface-changing FB update keeps instance DBs; non-optimized DBs have no offset column, so no offset handling exists.
-- `plc_ob_singleton_exists` is kept because Portal's own rejection was never reachable through the tool; retiring it needs a probe outside `plc_write` (see [ADR-0012](0012-portal-as-rejection-authority.md)).
+- `plc_ob_singleton_exists` is kept because the October 8 native spike T4a/T4b accepted duplicate OB82 imports and full PLC compile failed. The October 26 guarded-tool L6 run did not reach native duplicate creation; that narrower result does not erase the earlier evidence (see [ADR-0012](0012-portal-as-rejection-authority.md)). Other singleton classes remain unqualified.
 - Type-content reads sit in the read-only capability set, consistent with block-content reads, so they are available in every access mode ([ADR-0007](0007-access-tiers-lifecycle-confirmation-and-binding.md)).
 - The write path later moved onto the guarded pipeline ([ADR-0004](0004-guarded-single-call-write-pipeline.md)); the content exchange rules above are unchanged by it.
 

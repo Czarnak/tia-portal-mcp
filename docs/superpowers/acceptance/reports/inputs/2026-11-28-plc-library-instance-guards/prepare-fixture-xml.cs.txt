@@ -1,0 +1,28 @@
+    private static string PrepareFixtureXml(string text, string ownedName)
+    {
+        XDocument document;
+        using (var reader = XmlReader.Create(new StringReader(text), new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }))
+            document = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+        var structure = document.Descendants().Single(element => element.Name.LocalName == "SW.Types.PlcStruct");
+        var attributes = structure.Elements().Single(element => element.Name.LocalName == "AttributeList");
+        var typeInterface = attributes.Elements().Single(element => element.Name.LocalName == "Interface");
+        foreach (var comment in typeInterface.Descendants().Where(element => element.Name.LocalName == "Comment").ToArray()) comment.Remove();
+        foreach (var objectList in structure.Elements().Where(element => element.Name.LocalName == "ObjectList").ToArray())
+        {
+            foreach (var metadata in objectList.Elements().ToArray())
+            {
+                var composition = (string)metadata.Attribute("CompositionName");
+                if (metadata.Name.LocalName != "MultilingualText" || (composition != "Comment" && composition != "Title"))
+                    throw new InvalidOperationException("Unexpected non-comment/title fixture object must not be removed.");
+                metadata.Remove();
+            }
+            objectList.Remove();
+        }
+        var cultureMetadata = new HashSet<string>(new[] { "Comment", "MultiLanguageText", "MultilingualText", "MultilingualTextItem", "Culture" }, StringComparer.Ordinal);
+        if (document.Descendants().Any(element => cultureMetadata.Contains(element.Name.LocalName)
+            || element.Attributes().Any(attribute => attribute.Name.LocalName == "Lang")))
+            throw new InvalidOperationException("The fixture still contains culture-specific metadata.");
+        attributes.Elements().Single(element => element.Name.LocalName == "Name").Value = ownedName;
+        return (document.Declaration == null ? "" : document.Declaration + Environment.NewLine)
+            + document.ToString(SaveOptions.DisableFormatting);
+    }

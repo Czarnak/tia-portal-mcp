@@ -335,23 +335,36 @@ by the effective read budget, and a `withDependencies` source read supplies no w
 
 Guards are evaluated for every item before the first mutation. Block guards stop the call in every
 mode (a dry run lists them and still returns `preview`); info guards become warnings. Guards cover
-consequence and unreadable-evidence checks, plus the retained singleton-OB check. Name collisions, existing blocks, existing groups and
+consequence and unreadable-evidence checks, library-instance protection, and the retained singleton-OB check. Name collisions, existing blocks, existing groups and
 tables, and the default tag table are not guarded: planning does not check creates. Scoped live cases show native
 rejections, with the exact namespace directions and limits below (see [Failures from TIA Portal](#failures-from-tia-portal)).
 
 | Guard | Severity | Fires when |
 |---|---|---|
-| `plc_state_unverifiable` | block | The PLC inventory is incomplete, the update or delete target or what a delete removes is unreadable, the user-constant value an update replaces is unreadable, or the content cannot be exported. Unreadable evidence is never treated as empty. |
+| `plc_state_unverifiable` | block | The PLC inventory is incomplete, the update or delete target or what a delete removes is unreadable, the user-constant value an update replaces is unreadable, the content cannot be exported, or required library linkage/version/descendant evidence is unavailable. Unreadable evidence is never treated as empty. |
 | `plc_ob_singleton_exists` | block | `create_block` creates an OB of a singleton event class and the PLC already holds that class's OB number, or an earlier item in the same call creates it. The message names the class, the number and the existing block. |
+| `plc_library_instance_edit` | block | A block or PLC data type whose content would be replaced is linked to a library type version, whether in-work or committed. This also covers block patches. |
+| `plc_library_test_instance_delete` | block | A directly deleted block, or any descendant of a deleted block group, is linked to an in-work library type version. |
 | `plc_deletes_block` | info | `delete_block` removes the block and its content. |
 | `plc_deletes_group_contents` | info | `delete_block_group` removes every block and group inside it; the effect lists them. |
 | `plc_deletes_table_contents` | info | `delete_tag_table` removes its tags and user constants. |
 | `plc_address_overlap` | info | The requested logical address is already used by another tag; TIA Portal allows the overlap. |
 
-`plc_ob_singleton_exists` stayed because Portal's own rejection of a duplicate singleton OB was never
-observed: `create_block` picks the OB number itself, and an `update_block_logic` that declares a
-duplicate number or event class is refused before any import, so no `plc_write` input reaches Portal
-with one. The second `TimeErrorInterrupt` OB was blocked by the guard, also within one call.
+The same library-instance inspector serves preview and execution. Content protection covers XML,
+supported SIMATIC SD block imports and source generation. It runs before temporary source
+registration and immediately before replacement or deletion; group deletion inspects all descendants.
+Only an exact target proved absent and created by an earlier simulated item defers preview inspection.
+Execution always checks the live object, so a linkage change after planning can fail the current item
+after earlier items have applied. Plain objects and committed-instance deletion remain allowed.
+Change linked content through the [Library type-version workflow](LIBRARY_OPERATIONS_SUMMARY.md),
+using `create_type_version`, rather than replacing it with `plc_write`.
+
+`plc_ob_singleton_exists` remains necessary: the [October 8 native spike](../superpowers/acceptance/reports/2026-10-08-ob-creation-spike.md)
+T4a/T4b accepted duplicate `DiagnosticErrorInterrupt` OB82 imports and then failed full PLC compile.
+The [October 26 guarded-tool run](../superpowers/acceptance/reports/2026-10-26-plc-write-native-rejections-live-verification.md)
+L6 did not reach native duplicate creation. Those results have different scopes; the guarded refusal
+does not prove that Portal safely rejects a duplicate. Other singleton event classes are not
+exhaustively qualified. The second `TimeErrorInterrupt` OB was blocked by the guard, also within one call.
 
 The guards `plc_name_collision`, `plc_block_exists`, `plc_default_tag_table` and
 `plc_attribute_unreadable` were removed with write contract `2.0`. Deleting the default tag table
@@ -530,8 +543,14 @@ of public-response budgets; inspect dispatch and outcome evidence separately.
   tag-table folders; arbitrary pairs of child folders were not exercised.
 - Review identified, without live exercise, that an `update_tag` requesting an unsupported external-access flag can fail after a rename or
   data-type change in the same item has applied (no rollback).
-- Portal's own rejection of a duplicate singleton OB was never observed (see the guard note above).
-- Content importers (`update_block_logic`, also used by patches, and `update_type_content`) still flatten import failures to
+- Duplicate singleton behavior is scoped to the October 8 OB82 native probe and guarded-tool refusals;
+  it is not an exhaustive guarantee for every event class (see the guard note above).
+- The [November 7 library probes](../superpowers/acceptance/reports/2026-11-07-library-types-native-probes.md)
+  motivate linked-instance protection. Recorded standalone public refusals and committed-deletion
+  controls are covered by the [guard verification report](../superpowers/acceptance/reports/2026-11-28-plc-library-instance-guards-verification.md).
+  The exhaustive format/container matrix, local sessions, and native-adjacent late-linkage and fatal
+  paths remain unqualified live.
+- Content importers (`update_block_logic`, also used by patches, and `update_type_content`) still flatten recoverable import failures to
   `worker_operation_failed` without `engineeringError`; see the
   [improvement log](../IMPROVEMENT_LOG.md).
 - Created OBs use TIA Portal defaults: no event parameters (cyclic time, phase offset, priority,

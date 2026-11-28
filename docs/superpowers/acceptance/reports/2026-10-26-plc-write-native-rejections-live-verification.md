@@ -150,6 +150,12 @@ Rulings by the controller, in order. Each was provisional against the plan's "Ap
 
 ## Evidence limits
 
+Scope clarification added 2026-11-28: L6 and R13 record what this October 26 guarded-tool run
+could reach. Earlier [October 8 native spike](2026-10-08-ob-creation-spike.md) T4a/T4b imports
+accepted duplicate DiagnosticErrorInterrupt OB82 instances and then failed full PLC compile.
+The statements below about an unknown native response describe this run's L6 limit, not an
+absence of earlier native evidence. The original run results are retained unchanged.
+
 - **L2** initially covered same-folder duplicates only. The additional C4 probe covers child-folder creation against an existing root table in another PLC; arbitrary child-folder pairs remain unverified.
 - **Other namespaces** remain unverified beyond the four additional directions: cross-group block duplicates, reverse cross-kind creates and arbitrary namespace combinations are not covered.
 - **L6** was not reachable through `plc_write`: Portal's own response to a duplicate singleton OB is unknown, so the guard stays.

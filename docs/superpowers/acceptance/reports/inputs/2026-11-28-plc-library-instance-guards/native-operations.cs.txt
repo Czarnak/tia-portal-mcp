@@ -1,0 +1,167 @@
+    private static class Native
+    {
+        internal static object Run(Options options)
+        {
+            var processes = TiaPortal.GetProcesses().Where(process => process.Id == options.PortalPid).ToArray();
+            if (processes.Length != 1) throw new InvalidOperationException("The exact Portal process is unavailable.");
+            using (var portal = processes[0].Attach())
+            {
+                var project = FindProject(portal, options.ProjectPath);
+                var plc = FindPlc(project, options.Plc);
+                if (options.Action == "inspect") return Inspect(plc, options);
+                if (options.Action == "create_udt") return CreateUdt(portal, project, plc, options);
+                return DeleteUdt(portal, project, plc, options);
+            }
+        }
+
+        private static Project FindProject(TiaPortal portal, string path)
+        {
+            var matches = portal.Projects.Where(project => string.Equals(Path.GetFullPath(project.Path.FullName),
+                Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (matches.Length != 1) throw new InvalidOperationException("The approved project is not uniquely open in the exact Portal.");
+            return matches[0];
+        }
+
+        private static PlcSoftware FindPlc(Project project, string selector)
+        {
+            var matches = Devices(project).SelectMany(device => Softwares(device.DeviceItems)
+                .Where(software => string.Equals(software.Name, selector, StringComparison.Ordinal))).ToArray();
+            if (matches.Length != 1) throw new InvalidOperationException("The exact PLC software name is missing or ambiguous.");
+            return matches[0];
+        }
+
+        private static IEnumerable<Device> Devices(Project project)
+        {
+            foreach (Device device in project.Devices) yield return device;
+            foreach (DeviceUserGroup group in project.DeviceGroups)
+                foreach (Device device in Devices(group)) yield return device;
+            foreach (Device device in project.UngroupedDevicesGroup.Devices) yield return device;
+        }
+
+        private static IEnumerable<Device> Devices(DeviceUserGroup group)
+        {
+            foreach (Device device in group.Devices) yield return device;
+            foreach (DeviceUserGroup child in group.Groups)
+                foreach (Device device in Devices(child)) yield return device;
+        }
+
+        private static IEnumerable<PlcSoftware> Softwares(DeviceItemComposition items)
+        {
+            foreach (DeviceItem item in items)
+            {
+                var software = item.GetService<SoftwareContainer>()?.Software as PlcSoftware;
+                if (software != null) yield return software;
+                foreach (var child in Softwares(item.DeviceItems)) yield return child;
+            }
+        }
+
+        private static object Inspect(PlcSoftware plc, Options options)
+        {
+            var targetPath = plc.Name + "/" + (options.Kind == "plcType" ? "Types/" : "Blocks/")
+                + (options.Group.Length == 0 ? "" : options.Group + "/") + options.Name;
+            IEngineeringServiceProvider target;
+            if (options.Kind == "plcType") target = plc.TypeGroup.Types.Find(options.Name);
+            else
+            {
+                PlcBlockGroup group = plc.BlockGroup;
+                foreach (var segment in options.Group.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    group = group.Groups.Find(segment);
+                    if (group == null) return new { kind = options.Kind, name = options.Name, targetPath, present = false };
+                }
+                var block = group.Blocks.Find(options.Name);
+                if (block != null && !(block is FB) && !(block is FC))
+                    throw new InvalidOperationException("Owned block inspection permits only FB and FC fixtures.");
+                target = block;
+            }
+            return target == null ? (object)new { kind = options.Kind, name = options.Name, targetPath, present = false }
+                : new { kind = options.Kind, name = options.Name, targetPath, present = true, linkage = Linkage(target) };
+        }
+
+        private static object CreateUdt(TiaPortal portal, Project project, PlcSoftware plc, Options options)
+        {
+            if (plc.TypeGroup.Types.Find(options.Name) != null) throw new InvalidOperationException("Owned type name already exists; no overwrite is allowed.");
+            WriteFixtureXml(options);
+            using (var access = portal.ExclusiveAccess("Create owned PR1 disposable UDT fixture"))
+            using (var transaction = access.Transaction(project, "Create owned PR1 disposable UDT fixture"))
+            {
+                Recheck(portal, project, plc, options);
+                if (plc.TypeGroup.Types.Find(options.Name) != null) throw new InvalidOperationException("Owned type appeared before import; refusing overwrite.");
+                MutationAttempted = true;
+                var imported = plc.TypeGroup.Types.Import(new FileInfo(options.OutputXml), ImportOptions.None);
+                NativeReturned = true;
+                var target = plc.TypeGroup.Types.Find(options.Name);
+                if (imported == null || imported.Count != 1 || target == null || target.Name != options.Name
+                    || !object.Equals(imported[0], target) || target.GetService<LibraryTypeInstanceInfo>() != null)
+                    throw new InvalidOperationException("Fixture import did not produce exactly the owned plain UDT.");
+                if (!transaction.CanCommit) throw new InvalidOperationException("Fixture transaction cannot commit.");
+                transaction.CommitOnDispose();
+            }
+            TransactionCommitted = true;
+            return new { name = options.Name, present = true, linkage = Linkage(plc.TypeGroup.Types.Find(options.Name)), source = options.OutputXml };
+        }
+
+        private static object DeleteUdt(TiaPortal portal, Project project, PlcSoftware plc, Options options)
+        {
+            var target = plc.TypeGroup.Types.Find(options.Name)
+                ?? throw new InvalidOperationException("Owned type is absent; no deletion attempted.");
+            RequireDeletable(target);
+            using (var access = portal.ExclusiveAccess("Delete owned PR1 disposable UDT fixture"))
+            using (var transaction = access.Transaction(project, "Delete owned PR1 disposable UDT fixture"))
+            {
+                Recheck(portal, project, plc, options);
+                var current = plc.TypeGroup.Types.Find(options.Name);
+                if (current == null || current.Name != options.Name || !object.Equals(current, target))
+                    throw new InvalidOperationException("Owned type identity changed before deletion.");
+                RequireDeletable(current);
+                MutationAttempted = true;
+                current.Delete();
+                NativeReturned = true;
+                if (plc.TypeGroup.Types.Find(options.Name) != null) throw new InvalidOperationException("Owned UDT deletion postcondition failed.");
+                if (!transaction.CanCommit) throw new InvalidOperationException("Fixture cleanup transaction cannot commit.");
+                transaction.CommitOnDispose();
+            }
+            TransactionCommitted = true;
+            return new { name = options.Name, present = false };
+        }
+
+        private static void Recheck(TiaPortal portal, Project project, PlcSoftware plc, Options options)
+        {
+            var currentProject = FindProject(portal, options.ProjectPath);
+            if (!object.Equals(project, currentProject) || !object.Equals(plc, FindPlc(currentProject, options.Plc)))
+                throw new InvalidOperationException("Approved source identity changed before fixture mutation.");
+        }
+
+        private static object Linkage(IEngineeringServiceProvider target)
+        {
+            var info = target.GetService<LibraryTypeInstanceInfo>();
+            if (info == null) return new { linked = false, versionGuid = (string)null, versionNumber = (string)null, state = (string)null };
+            var version = info.LibraryTypeVersion ?? throw new InvalidOperationException("Linked fixture version is unavailable.");
+            var state = version.State;
+            if (state != LibraryTypeVersionState.InWork && state != LibraryTypeVersionState.Committed)
+                throw new InvalidOperationException("Linked fixture version state is unknown.");
+            return new { linked = true, versionGuid = version.Guid.ToString("D"),
+                versionNumber = version.VersionNumber.ToString(), state = state.ToString() };
+        }
+
+        private static void RequireDeletable(IEngineeringServiceProvider target)
+        {
+            var info = target.GetService<LibraryTypeInstanceInfo>();
+            if (info == null) return;
+            var version = info.LibraryTypeVersion;
+            if (version == null || version.State != LibraryTypeVersionState.Committed)
+                throw new InvalidOperationException("Refusing deletion of an in-work, unknown or unreadable linked UDT fixture.");
+        }
+
+        private static void WriteFixtureXml(Options options)
+        {
+            var template = Path.Combine(Repository, @"TiaMcpServer.Tests\Fixtures\AnalogInputSettings.xml");
+            var bytes = File.ReadAllBytes(template);
+            var text = File.ReadAllText(template, Encoding.UTF8);
+            var changed = PrepareFixtureXml(text, options.Name);
+            Directory.CreateDirectory(Path.GetDirectoryName(options.OutputXml));
+            var bom = bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf;
+            using (var stream = new FileStream(options.OutputXml, FileMode.CreateNew, FileAccess.Write))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(bom))) writer.Write(changed);
+        }
+    }

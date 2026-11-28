@@ -88,6 +88,7 @@ public static class BlockMutationService
         // ResolveForExport throws target_not_found on a miss, so Block is set here.
         var target = BlockTargetResolver.ResolveForExport(plcSoftware, address);
 
+        PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectDelete(target.Block!));
         target.Block!.Delete();
 
         return new BlockMutationResultInfo
@@ -118,25 +119,17 @@ public static class BlockMutationService
 
     public static BlockMutationResultInfo DeleteBlockGroup(ProjectBase project, string blockPath)
     {
-        var address = BlockAddress.Parse(blockPath);
-        var plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
-
-        // The group to delete is FolderPath + BlockName
-        var allSegments = new List<string>(address.FolderPath) { address.BlockName };
-        var rootGroup = ResolveRootGroup(plcSoftware, address);
-        var group = FindUserGroupByPath(rootGroup, allSegments)
-            ?? throw new WorkerOperationException(
-                WorkerFailureCategories.TargetNotFound,
-                $"Block group '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
-
+        var target = BlockTargetResolver.ResolveDeleteBlockGroup(project, blockPath);
+        var group = target.Group;
         PlcWritePreconditions.RequireReadableDescendants(group);
+        PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectDeleteDescendants(group));
         group.Delete();
 
         return new BlockMutationResultInfo
         {
             Operation = "delete_block_group",
             ProjectPath = project.Path?.FullName,
-            PlcName = address.PlcName ?? plcSoftware.Name,
+            PlcName = target.Address.PlcName ?? target.Plc.Software.Name,
             BlockPath = blockPath
         };
     }
@@ -167,35 +160,6 @@ public static class BlockMutationService
         }
 
         return plcSoftware.BlockGroup;
-    }
-
-    // Same traversal as FindGroupByPath but typed as PlcBlockUserGroup so Delete() is available.
-    private static PlcBlockUserGroup? FindUserGroupByPath(PlcBlockGroup root, IEnumerable<string> path)
-    {
-        PlcBlockGroup current = root;
-        PlcBlockUserGroup? result = null;
-        foreach (var segment in path)
-        {
-            PlcBlockUserGroup? next = null;
-            foreach (PlcBlockUserGroup child in current.Groups)
-            {
-                if (string.Equals(child.Name, segment, StringComparison.OrdinalIgnoreCase))
-                {
-                    next = child;
-                    break;
-                }
-            }
-
-            if (next is null)
-            {
-                return null;
-            }
-
-            result = next;
-            current = next;
-        }
-
-        return result;
     }
 
     private static ObEventClass ResolveObEventClass(string? name)

@@ -51,6 +51,8 @@ public static class BlockImporter
                         + "block that is already in the project; it never creates one.");
                 }
 
+                PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(existing.Block));
+
                 // Kept for the companion check: one export serves both checks of this request.
                 var currentExport = BlockExporter.Export(project, blockPath, SourceFormatNames.Xml);
                 PlcWritePreconditions.RequireContentHash(
@@ -91,6 +93,11 @@ public static class BlockImporter
         BlockImportInvocationBoundary boundary)
     {
         var target = BlockTargetResolver.ResolveForImport(project, address);
+        if (target.Block is null)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                $"No block exists at '{address.ToDisplayPath()}'. update_block_logic never creates one.");
+        }
 
         if (BlockImportRouting.SelectRoute(bundle) == BlockImportRoute.SimaticMl)
         {
@@ -104,6 +111,7 @@ public static class BlockImporter
             }
 
             var xmlPath = Path.Combine(directory.FullName, authoritative.SafeFileName);
+            PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(target.Block));
             boundary.BeforeSiemensCall();
             target.Group.Blocks.Import(new FileInfo(xmlPath), ImportOptions.Override);
             boundary.AfterSiemensCallReturned();
@@ -111,6 +119,7 @@ public static class BlockImporter
             return;
         }
 
+        PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(target.Block));
         boundary.BeforeSiemensCall();
         var result = target.Group.Blocks.ImportFromDocuments(
             directory,
@@ -144,6 +153,8 @@ public static class BlockImporter
                         $"No block exists at '{address.ToDisplayPath()}'. update_block_logic only updates a "
                         + "block that is already in the project; it never creates one.");
                 }
+
+                PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(target.Block));
 
                 var decision = BlockExporter.DecideSourceFormat(target.Block, address);
                 var targetName = target.Block.Name;
@@ -182,6 +193,7 @@ public static class BlockImporter
         return BlockImportCoordinator.ExecuteSource(
             (boundary, sourceTracker) =>
             {
+                PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(preflight.Target.Block!));
                 var scope = ExternalSourceScope.Create(
                     preflight.Target.ExternalSourceGroup,
                     preflight.TargetName + preflight.Decision.Extension,
@@ -191,6 +203,7 @@ public static class BlockImporter
 
                 try
                 {
+                    PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(preflight.Target.Block!));
                     boundary.BeforeSiemensCall();
                     if (preflight.Target.UserGroup is not null)
                     {

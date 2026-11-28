@@ -6,6 +6,7 @@ using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Project;
 using TiaMcpServer.Contracts.Worker;
+using System.Text.Json;
 
 namespace TiaMcpServer.Plc;
 
@@ -60,6 +61,9 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
             if (outcome.Error is { } error) return Failed(error);
             var effect = outcome.Effect ?? throw new InvalidOperationException($"Operation '{item.OperationId}' resolved without an effect or an error.");
             var dependsOn = outcome.State?.LastTouchedBy(effect.Target);
+            outcome = await InspectLibraryProtectionAsync(item, outcome,
+                outcome.State?.IsSimulatedCreation(effect.Target) == true).ConfigureAwait(false);
+            if (outcome.Error is { } inspectionError) return Failed(inspectionError);
             if (outcome.ResolvedOperation is { } executionItem)
             {
                 outcome.State?.Apply(executionItem);
@@ -83,9 +87,59 @@ public sealed class PlcWritePlanner(OpennessWorkerClient client)
         var outcome = evidence.Error is { } inventoryError
             ? new ItemOutcome(null, null, Array.Empty<FiredGuard>(), Array.Empty<CheckedPrecondition>(), inventoryError)
             : await ResolveAsync(item, new CallReads(evidence.Inventory!, new[] { item }), budget).ConfigureAwait(false);
+        if (outcome.Error is null)
+            outcome = await InspectLibraryProtectionAsync(item, outcome, deferred: false).ConfigureAwait(false);
         return outcome.Error is { } error
             ? new PlcWriteReplanResult(ItemReplan<PlcWriteEffect>.Fail(error.Category, error.Message), Array.Empty<FiredGuard>(), null)
             : new PlcWriteReplanResult(ItemReplan<PlcWriteEffect>.Ok(ItemPlan<PlcWriteEffect>.Resolved(outcome.Effect!, outcome.Preconditions)), outcome.Guards, outcome.ResolvedOperation);
+    }
+
+    private async Task<ItemOutcome> InspectLibraryProtectionAsync(
+        PlcOperationRequest item, ItemOutcome outcome, bool deferred)
+    {
+        var operation = item.Operation == "patch_block_logic"
+            ? PlcWriteGuardOperation.UpdateBlockLogic : item.Operation;
+        if (!PlcWriteGuardOperation.IsSupported(operation) || deferred
+            || outcome.Guards.Any(guard => guard.Id == PlcGuardDefinitions.StateUnverifiable))
+            return outcome;
+
+        var result = await client.InspectPlcWriteTargetAsync(operation, item.BlockPath, item.TypePath).ConfigureAwait(false);
+        if (!result.Success)
+        {
+            var category = result.FailureCategory ?? WorkerFailureCategories.WorkerOperationFailed;
+            if (category != WorkerFailureCategories.WorkerOperationFailed)
+                return Fail(new(category, $"Operation '{item.OperationId}': the PLC library protection inspection failed: {result.Error}"));
+            return outcome with
+            {
+                Guards = outcome.Guards.Append(new FiredGuard(PlcGuardDefinitions.StateUnverifiable, item.OperationId,
+                    $"Operation '{item.OperationId}': library-instance protection could not be verified ({result.Error}).")).ToArray()
+            };
+        }
+
+        try
+        {
+            var inspection = CanonicalJson.DeserializeWorkerPayload<PlcWriteGuardInfo>(result.Payload);
+            if (!inspection.Blocked)
+            {
+                if (inspection.GuardId is not null || inspection.Message is not null) throw new JsonException();
+                return outcome;
+            }
+
+            var expectedGuard = operation is PlcWriteGuardOperation.UpdateBlockLogic or PlcWriteGuardOperation.UpdateTypeContent
+                ? PlcGuardDefinitions.LibraryInstanceEdit : PlcGuardDefinitions.LibraryTestInstanceDelete;
+            if ((inspection.GuardId != expectedGuard && inspection.GuardId != PlcGuardDefinitions.StateUnverifiable)
+                || string.IsNullOrWhiteSpace(inspection.Message))
+                throw new JsonException();
+            return outcome with
+            {
+                Guards = outcome.Guards.Append(new FiredGuard(inspection.GuardId!, item.OperationId, inspection.Message!)).ToArray()
+            };
+        }
+        catch (JsonException)
+        {
+            return Fail(new(WorkerFailureCategories.ProtocolError,
+                $"Operation '{item.OperationId}': PLC library protection evidence did not match its typed payload contract."));
+        }
     }
 
     private async Task<ItemOutcome> ResolveAsync(PlcOperationRequest item, CallReads reads, PlcContentDiffBudget budget)

@@ -107,6 +107,7 @@ public static class ProjectCapabilityCatalog
         return method switch
         {
             "browse_project_tree_v3_snapshot" or "read_hardware_page_candidates" => "browse_project_tree",
+            "inspect_plc_write_target" => "plc_write",
             "get_basic_project_status" => "get_project_status",
             "probe_open_project_rebind" or "probe_project_status_for_lifecycle" => "open_project",
             _ => method
