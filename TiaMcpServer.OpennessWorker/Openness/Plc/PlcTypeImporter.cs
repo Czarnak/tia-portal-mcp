@@ -45,6 +45,8 @@ internal static class PlcTypeImporter
                 + "updates a type that is already in the project; it never creates one.");
         }
 
+        PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(target.Type));
+
         var targetName = target.Type.Name;
 
         // 3. Refuse if the submitted document declares a different object.
@@ -108,6 +110,7 @@ internal static class PlcTypeImporter
             var path = Path.Combine(stagingDirectory, target.DocumentName + ".xml");
             File.WriteAllText(path, sourceContent, Encoding.UTF8);
 
+            PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(target.Type!));
             var imported = target.Group.Types.Import(new FileInfo(path), ImportOptions.Override);
             return new ImportOutcome(projectNodeRemoved: true, imported?.Count ?? 0);
         }
@@ -131,6 +134,7 @@ internal static class PlcTypeImporter
         // target.ExternalSourceGroup, not one re-derived from the type: for a type inside a
         // software unit this is the unit's own group, and registering under the top-level PLC
         // instead would generate a stray type there and leave the real one untouched.
+        PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(target.Type!));
         var scope = ExternalSourceScope.Create(
             target.ExternalSourceGroup, targetName + ".udt", sourceContent);
 
@@ -138,6 +142,7 @@ internal static class PlcTypeImporter
 
         try
         {
+            PlcLibraryInstanceGuard.RequireAllowed(PlcLibraryInstanceGuard.InspectContentUpdate(target.Type!));
             generated = target.UserGroup is not null
                 ? scope.Source.GenerateBlocksFromSource(target.UserGroup, GenerateBlockOption.None)
                 // The Types root is a PlcTypeSystemGroup, not a user group, so there is no group to

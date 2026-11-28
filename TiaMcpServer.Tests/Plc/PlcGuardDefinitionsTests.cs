@@ -15,6 +15,8 @@ public class PlcGuardDefinitionsTests
         {
             [PlcGuardDefinitions.StateUnverifiable] = WriteGuardSeverities.Block,
             [PlcGuardDefinitions.ObSingletonExists] = WriteGuardSeverities.Block,
+            [PlcGuardDefinitions.LibraryInstanceEdit] = WriteGuardSeverities.Block,
+            [PlcGuardDefinitions.LibraryTestInstanceDelete] = WriteGuardSeverities.Block,
             [PlcGuardDefinitions.DeletesBlock] = WriteGuardSeverities.Info,
             [PlcGuardDefinitions.DeletesGroupContents] = WriteGuardSeverities.Info,
             [PlcGuardDefinitions.DeletesTableContents] = WriteGuardSeverities.Info,
@@ -23,6 +25,8 @@ public class PlcGuardDefinitionsTests
         Assert.Equal("plc_state_unverifiable", PlcGuardDefinitions.StateUnverifiable);
         Assert.Equal("plc_address_overlap", PlcGuardDefinitions.AddressOverlap);
         Assert.Equal("plc_ob_singleton_exists", PlcGuardDefinitions.ObSingletonExists);
+        Assert.Equal("plc_library_instance_edit", PlcGuardDefinitions.LibraryInstanceEdit);
+        Assert.Equal("plc_library_test_instance_delete", PlcGuardDefinitions.LibraryTestInstanceDelete);
         _ = new WriteGuardCatalog(PlcGuardDefinitions.Definitions);
     }
 }

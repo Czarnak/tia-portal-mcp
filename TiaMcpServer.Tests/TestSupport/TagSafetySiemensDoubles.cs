@@ -30,12 +30,18 @@ namespace Siemens.Engineering
         public CrossReference.CrossReferenceService? CrossReferenceService { get; set; }
         public Library.Types.LibraryTypeInstanceInfo? LibraryTypeInstanceInfo { get; set; }
         public Exception? LibraryTypeInstanceInfoFailure { get; set; }
+        public Func<Library.Types.LibraryTypeInstanceInfo?>? ReadLibraryTypeInstanceInfo { get; set; }
+        public int LibraryTypeInstanceInfoRequests { get; private set; }
         public Exception? CrossReferenceServiceFailure { get; set; }
         public int CrossReferenceServiceRequests { get; private set; }
         public virtual T? GetService<T>() where T : class
         {
             if (typeof(T) == typeof(Library.Types.LibraryTypeInstanceInfo))
-                return LibraryTypeInstanceInfoFailure is null ? LibraryTypeInstanceInfo as T : throw LibraryTypeInstanceInfoFailure;
+            {
+                LibraryTypeInstanceInfoRequests++;
+                if (LibraryTypeInstanceInfoFailure is not null) throw LibraryTypeInstanceInfoFailure;
+                return (ReadLibraryTypeInstanceInfo is null ? LibraryTypeInstanceInfo : ReadLibraryTypeInstanceInfo()) as T;
+            }
             if (typeof(T) != typeof(CrossReference.CrossReferenceService)) return null;
             CrossReferenceServiceRequests++;
             if (CrossReferenceServiceFailure is not null) throw CrossReferenceServiceFailure;
@@ -441,6 +447,14 @@ namespace Siemens.Engineering.SW.Blocks
         public PlcBlock CreateFrom(Library.MasterCopies.MasterCopy copy, Library.MasterCopies.MasterCopyMode mode)
             => (CreateFromAction ?? throw new InvalidOperationException("Unconfigured block CreateFrom."))(copy, mode);
         public List<ImportOptions> ImportCalls { get; } = new();
+        public List<(DirectoryInfo Directory, string Name, SW.ImportDocumentOptions Options)> ImportFromDocumentsCalls { get; } = new();
+        public Func<DirectoryInfo, string, SW.ImportDocumentOptions, SW.DocumentImportResultForBlocks>? ImportFromDocumentsAction { get; set; }
+        public SW.DocumentImportResultForBlocks ImportFromDocuments(DirectoryInfo directory, string name, SW.ImportDocumentOptions options)
+        {
+            ImportFromDocumentsCalls.Add((directory, name, options));
+            return ImportFromDocumentsAction is null ? new() { State = SW.DocumentResultState.Success }
+                : ImportFromDocumentsAction(directory, name, options);
+        }
         public List<string> ImportedDocuments { get; } = new();
         // Blocks the next import yields; they are also added to this composition, as TIA would.
         public List<PlcBlock> ImportResult { get; } = new();
@@ -504,6 +518,12 @@ namespace Siemens.Engineering.SW.Types
     }
     public sealed class PlcTypeComposition : Composition<PlcType>
     {
+        public List<ImportOptions> ImportCalls { get; } = new();
+        public IList<PlcType> Import(FileInfo path, ImportOptions importOptions)
+        {
+            ImportCalls.Add(importOptions);
+            return Items.ToList();
+        }
         public List<(PlcTypeLibraryTypeVersion Version, Library.Types.UpdatePathsMode Mode)> CreateFromVersionCalls { get; } = new();
         public Func<PlcTypeLibraryTypeVersion, Library.Types.UpdatePathsMode, PlcType>? CreateFromVersionAction { get; set; }
         public PlcType CreateFrom(PlcTypeLibraryTypeVersion version, Library.Types.UpdatePathsMode mode)
@@ -528,10 +548,48 @@ namespace Siemens.Engineering.SW.ExternalSources
 {
     public interface IGenerateSource { }
     public enum GenerateOptions { None = 0, WithDependencies = 1 }
+    public enum GenerateBlockOption { None = 0 }
+    public sealed class PlcExternalSource : NamedObject
+    {
+        public int GenerateCalls { get; private set; }
+        public int DeleteCalls { get; private set; }
+        public Action? DeleteAction { get; set; }
+        public Func<IEngineeringObject?, GenerateBlockOption, IList<IEngineeringObject>>? GenerateAction { get; set; }
+        public IList<IEngineeringObject> GenerateBlocksFromSource(GenerateBlockOption option) => Generate(null, option);
+        public IList<IEngineeringObject> GenerateBlocksFromSource(Blocks.PlcBlockUserGroup group, GenerateBlockOption option) => Generate(group, option);
+        public IList<IEngineeringObject> GenerateBlocksFromSource(Types.PlcTypeUserGroup group, GenerateBlockOption option) => Generate(group, option);
+        private IList<IEngineeringObject> Generate(IEngineeringObject? group, GenerateBlockOption option)
+        {
+            GenerateCalls++;
+            return (GenerateAction ?? throw new InvalidOperationException("Unconfigured GenerateBlocksFromSource."))(group, option);
+        }
+        public void Delete()
+        {
+            DeleteCalls++;
+            if (DeleteAction is not null) { DeleteAction(); return; }
+            if (Parent is PlcExternalSourceComposition owner) owner.Items.Remove(this);
+        }
+    }
+    public sealed class PlcExternalSourceComposition : NamedObject
+    {
+        public List<PlcExternalSource> Items { get; } = new();
+        public List<(string Name, string Path)> CreateFromFileCalls { get; } = new();
+        public Func<string, string, PlcExternalSource>? CreateFromFileAction { get; set; }
+        public PlcExternalSource CreateFromFile(string name, string path)
+        {
+            CreateFromFileCalls.Add((name, path));
+            var source = (CreateFromFileAction ?? throw new InvalidOperationException("Unconfigured source CreateFromFile."))(name, path);
+            source.Parent = this;
+            Items.Add(source);
+            return source;
+        }
+    }
     public sealed class PlcExternalSourceSystemGroup
     {
+        public PlcExternalSourceComposition ExternalSources { get; } = new();
+        public Action<IEnumerable<IGenerateSource>, FileInfo, GenerateOptions>? GenerateSourceAction { get; set; }
         public void GenerateSource(IEnumerable<IGenerateSource> sources, FileInfo file, GenerateOptions options)
-            => throw new InvalidOperationException("Unconfigured GenerateSource.");
+            => (GenerateSourceAction ?? throw new InvalidOperationException("Unconfigured GenerateSource."))(sources, file, options);
     }
 }
 

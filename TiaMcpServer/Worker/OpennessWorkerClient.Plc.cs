@@ -1,10 +1,26 @@
 using TiaMcpServer.Contracts.Block;
+using TiaMcpServer.Contracts.Plc;
 using TiaMcpServer.Contracts.Worker;
 
 namespace TiaMcpServer.Worker;
 
 public partial class OpennessWorkerClient
 {
+    public Task<WorkerCallResult> InspectPlcWriteTargetAsync(
+        string operation,
+        string? blockPath = null,
+        string? typePath = null)
+        => SendBoundProjectRequestAsync(
+            "inspect_plc_write_target",
+            null,
+            request => request.PlcWriteGuard = new PlcWriteGuardRequestInfo
+            {
+                Operation = operation,
+                BlockPath = blockPath,
+                TypePath = typePath
+            },
+            "{}");
+
     public Task<WorkerCallResult> GetBlockContentAsync(
         string blockPath,
         string? format = null,

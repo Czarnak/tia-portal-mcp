@@ -319,7 +319,18 @@ namespace Siemens.Engineering.Library.Types
     public interface IInstanceSearchScope { }
     public sealed class LibraryTypeInstanceInfo : Library.LibraryDouble, IEngineeringService
     {
-        public LibraryTypeVersion LibraryTypeVersion { get; set; } = null!;
+        private LibraryTypeVersion libraryTypeVersion = null!;
+        public Func<LibraryTypeVersion>? ReadLibraryTypeVersion { get; set; }
+        public int LibraryTypeVersionReads { get; private set; }
+        public LibraryTypeVersion LibraryTypeVersion
+        {
+            get
+            {
+                LibraryTypeVersionReads++;
+                return Live(ReadLibraryTypeVersion is null ? libraryTypeVersion : ReadLibraryTypeVersion());
+            }
+            set => libraryTypeVersion = value;
+        }
         public IEngineeringObject LibraryTypeInstance { get; set; } = null!;
     }
 

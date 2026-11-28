@@ -1,5 +1,6 @@
 using TiaMcpServer.Contracts.Block;
 using TiaMcpServer.Contracts.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Infrastructure;
 using TiaMcpServer.OpennessWorker.Worker;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
@@ -93,11 +94,11 @@ internal static class BlockImportCoordinator
         {
             return operation();
         }
-        catch (WorkerOperationException failure) when (failure.BlockImportOutcome is null)
+        catch (WorkerOperationException failure) when (failure.BlockImportOutcome is null && IsRecoverableFailure(failure))
         {
             throw CreatePreTargetFailure(failure, sourceApplicable);
         }
-        catch (Exception failure) when (failure is not WorkerOperationException)
+        catch (Exception failure) when (failure is not WorkerOperationException && IsRecoverableFailure(failure))
         {
             throw CreatePreTargetFailure(failure, sourceApplicable);
         }
@@ -118,9 +119,17 @@ internal static class BlockImportCoordinator
         {
             invokeTarget(boundary, sourceTracker);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (IsRecoverableFailure(exception))
         {
             primaryFailure = exception;
+        }
+        catch
+        {
+            // A fatal target/guard failure keeps its original identity. XML staging still
+            // belongs to this operation and must be cleaned before propagating that failure.
+            try { cleanup?.Invoke(); }
+            catch { /* Cleanup cannot replace the original fatal failure. */ }
+            throw;
         }
 
         BlockImportInvocationSnapshot invocation;
@@ -346,6 +355,10 @@ internal static class BlockImportCoordinator
                 throw new InvalidOperationException("Block import staging did not preserve the declared document order.");
         }
     }
+
+    private static bool IsRecoverableFailure(Exception failure)
+        => OpennessExceptions.IsRecoverable(failure)
+           && failure is not WorkerOperationException { FailureCategory: WorkerFailureCategories.PortalLost };
 
     private static void AddWarnings(List<string> destination, IReadOnlyList<string> source)
     {

@@ -23,6 +23,31 @@ namespace TiaMcpServer.OpennessWorker.Openness.Block;
 /// </summary>
 internal static class BlockTargetResolver
 {
+    internal static ResolvedDeleteBlockGroup ResolveDeleteBlockGroup(ProjectBase project, string blockPath)
+    {
+        var address = BlockAddress.Parse(blockPath);
+        var plc = PlcSoftwareLocator.FindUnique(project, address.PlcName);
+        if (!address.IsDeterministic && address.PlcName is null)
+        {
+            throw new WorkerOperationException(WorkerFailureCategories.ValidationError,
+                "The block path must name the PLC: use 'PLC/Name' for the PLC root group or "
+                + "'PLC/Blocks/.../Name' for a folder.");
+        }
+
+        var owner = address.IsDeterministic
+            ? ResolveOwnerForDeterministicPath(plc.Software, address)
+            : new ResolvedBlockOwner("Plc", plc.Software.Name, null,
+                $"{plc.Software.Name}/Blocks", plc.Software.BlockGroup, plc.Software.ExternalSourceGroup);
+        var segments = address.FolderPath.Concat(new[] { address.BlockName }).ToArray();
+        var resolved = ResolveBlockGroupPath(owner.RootBlockGroup, segments);
+        var group = resolved.Group as PlcBlockUserGroup
+            ?? throw new WorkerOperationException(WorkerFailureCategories.TargetNotFound,
+                $"Block group '{address.BlockName}' was not found at '{address.ToDisplayPath()}'.");
+
+        return new ResolvedDeleteBlockGroup(plc, address, group,
+            owner.RootBlocksPath + "/" + string.Join("/", resolved.ResolvedFolderNames));
+    }
+
     public static ResolvedBlockTarget ResolveForExport(ProjectBase project, BlockAddress address)
     {
         PlcSoftware plcSoftware = PlcSoftwareLocator.FindUnique(project, address.PlcName).Software;
@@ -221,6 +246,23 @@ internal static class BlockTargetResolver
             CollectMatches(owner, childGroup, blockName, matches);
         }
     }
+}
+
+internal sealed class ResolvedDeleteBlockGroup
+{
+    internal ResolvedDeleteBlockGroup(PlcSoftwareLocator.DiscoveredPlcSoftware plc, BlockAddress address,
+        PlcBlockUserGroup group, string canonicalPath)
+    {
+        Plc = plc;
+        Address = address;
+        Group = group;
+        CanonicalPath = canonicalPath;
+    }
+
+    internal PlcSoftwareLocator.DiscoveredPlcSoftware Plc { get; }
+    internal BlockAddress Address { get; }
+    internal PlcBlockUserGroup Group { get; }
+    internal string CanonicalPath { get; }
 }
 
 internal sealed class ResolvedBlockGroupPath

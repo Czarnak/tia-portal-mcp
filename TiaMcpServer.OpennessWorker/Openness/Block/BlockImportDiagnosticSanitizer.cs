@@ -1,4 +1,5 @@
 using TiaMcpServer.OpennessWorker.Worker;
+using TiaMcpServer.OpennessWorker.Openness.Plc;
 
 namespace TiaMcpServer.OpennessWorker.Openness.Block;
 
@@ -18,6 +19,9 @@ internal static class BlockImportDiagnosticSanitizer
 
     public static string Failure(BlockImportDiagnosticContext context, Exception? exception = null)
     {
+        if (PlcLibraryInstanceGuard.TryGetControlledFailureMessage(exception, out var controlledMessage))
+            return controlledMessage;
+
         if (exception is WorkerOperationException workerFailure
             && IsClosedFailureSummary(workerFailure.Message))
             return workerFailure.Message;

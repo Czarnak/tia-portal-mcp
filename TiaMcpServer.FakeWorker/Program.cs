@@ -167,6 +167,42 @@ while ((line = Console.In.ReadLine()) is not null)
         continue;
     }
 
+    if (currentMethod == "inspect_plc_write_target")
+    {
+        if (scenario == "plc-write-library-inspection-lost")
+        {
+            Respond(JsonSerializer.Serialize(new WorkerResponse
+            {
+                Success = false, FailureCategory = WorkerFailureCategories.PortalLost,
+                Error = "Scripted Portal loss during PLC library-instance inspection."
+            }, WorkerJson.Envelope));
+        }
+        else if (scenario == "plc-write-library-inspection-malformed")
+        {
+            Respond(Success("{\"blocked\":false,\"guardId\":null}"));
+        }
+        else
+        {
+            var query = JsonSerializer.Deserialize<WorkerRequest>(line, WorkerJson.Envelope)?.PlcWriteGuard;
+            var content = query?.Operation is PlcWriteGuardOperation.UpdateBlockLogic or PlcWriteGuardOperation.UpdateTypeContent;
+            var deleting = query?.Operation is PlcWriteGuardOperation.DeleteBlock or PlcWriteGuardOperation.DeleteBlockGroup;
+            var guardId = scenario switch
+            {
+                "plc-write-library-edit-blocked" when content => "plc_library_instance_edit",
+                "plc-write-library-delete-blocked" when deleting => "plc_library_test_instance_delete",
+                "plc-write-library-inspection-unreadable" => "plc_state_unverifiable",
+                _ => null
+            };
+            Respond(Success(WorkerJson.SerializePayload(new PlcWriteGuardInfo
+            {
+                Blocked = guardId is not null, GuardId = guardId,
+                Message = guardId is null ? null : "The scripted library-instance inspection blocks this operation."
+            })));
+        }
+        // Inspection is Observe: do not send it through a scenario that records mutations.
+        continue;
+    }
+
     if (currentMethod == "list_tia_portal_processes")
     {
         // Script external loss observed while stamping a successful discovery response.
@@ -758,6 +794,11 @@ while ((line = Console.In.ReadLine()) is not null)
         case "hmi-write-roundtrip":
             Respond(hmiWriteRoundtrip.Handle(line));
             break;
+        case "plc-write-library-edit-blocked":
+        case "plc-write-library-delete-blocked":
+        case "plc-write-library-inspection-unreadable":
+        case "plc-write-library-inspection-malformed":
+        case "plc-write-library-inspection-lost":
         case "plc-write-roundtrip":
             Respond(plcWriteRoundtrip.Handle(line, scenario));
             break;

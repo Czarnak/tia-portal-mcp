@@ -45,6 +45,8 @@ internal sealed class PlcWorkingState
     private readonly IReadOnlyList<ProjectTreeSkippedNodeInfo> _skipped;
     private readonly IReadOnlyList<ProjectTreeSelectorSegment> _basePath;
     private readonly Dictionary<string, (int Sequence, string OperationId)> _touches = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _simulatedBlockPaths = new(Names);
+    private readonly HashSet<string> _simulatedGroupPaths = new(Names);
     private int _sequence;
 
     private PlcWorkingState(PlcTagInventoryPlcInfo plc, bool inventoryComplete, ProjectTreeObservation? tree)
@@ -79,6 +81,17 @@ internal sealed class PlcWorkingState
     /// </summary>
     public static bool NeedsTree(PlcOperationRequest item)
         => item.Operation is "delete_block" or "delete_block_group" || item.Operation == "create_block" && IsOb(item);
+
+    /// <summary>Positive in-call creation provenance; conservative scheduling keys never prove native absence.</summary>
+    public bool IsSimulatedCreation(PlcTargetIdentity target)
+    {
+        if (!_inventoryComplete || target.BlockPath is not { } path
+            || target.Kind is not (PlcNameRules.Block or PlcNameRules.BlockGroup))
+            return false;
+        return target.Kind == PlcNameRules.Block && _simulatedBlockPaths.Contains(path)
+            || _simulatedGroupPaths.Any(group => Names.Equals(group, path)
+                || path.StartsWith(group + "/", StringComparison.OrdinalIgnoreCase));
+    }
 
     public PlcResolution Resolve(PlcOperationRequest item)
     {
@@ -194,8 +207,14 @@ internal sealed class PlcWorkingState
                 Touch(CpuKey(address.BlockName), item);
                 // Without a tree no later item reads blocks; a missing parent is Portal's rejection, never a plan error.
                 if (_hasTree)
-                    CreationParent(item, address).Blocks.Add(new Block(address.BlockName, BlockNodeType(item.BlockType!),
+                {
+                    var blockParent = CreationParent(item, address);
+                    if (!blockParent.Blocks.Any(existing => Names.Equals(existing.Name, address.BlockName))
+                        && !HiddenAt(blockParent.Selector))
+                        _simulatedBlockPaths.Add($"{blockParent.Path}/{address.BlockName}");
+                    blockParent.Blocks.Add(new Block(address.BlockName, BlockNodeType(item.BlockType!),
                         item.BlockType == "GlobalDB" ? "DB" : item.Language ?? "LAD", false, IsOb(item) ? PlanObNumber(ObClass(item)) : null));
+                }
                 break;
             case "delete_block":
                 var (group, block) = FindBlock(item, BlockAddress.Parse(item.BlockPath!));
@@ -207,7 +226,11 @@ internal sealed class PlcWorkingState
                 Touch(GroupKey(PlannedPath(target)), item);
                 if (!_hasTree) break;
                 var parent = CreationParent(item, target);
-                parent.Groups.Add(new Group(target.BlockName, $"{parent.Path}/{target.BlockName}", parent,
+                var createdPath = $"{parent.Path}/{target.BlockName}";
+                if (!parent.Groups.Any(existing => Names.Equals(existing.Name, target.BlockName))
+                    && !HiddenAt(parent.Selector))
+                    _simulatedGroupPaths.Add(createdPath);
+                parent.Groups.Add(new Group(target.BlockName, createdPath, parent,
                     parent.Selector.Append(Segment(ProjectTreeNodeTypes.BlockFolder, target.BlockName)).ToArray(), false));
                 break;
             case "delete_block_group":

@@ -21,7 +21,11 @@
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryWriter.cs" Link="Library\LibraryWriter.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Library\LibraryTypeWriter.cs" Link="Library\LibraryTypeWriter.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockExporter.cs" Link="Block\BlockExporter.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Block\BlockImporter.cs" Link="Block\BlockImporter.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypeExporter.cs" Link="Plc\PlcTypeExporter.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypeImporter.cs" Link="Plc\PlcTypeImporter.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypePostconditionVerifier.cs" Link="Plc\PlcTypePostconditionVerifier.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\ExternalSourceScope.cs" Link="Plc\ExternalSourceScope.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcTypeTargetResolver.cs" Link="Plc\PlcTypeTargetResolver.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Worker\WorkerExecution.cs" Link="Worker\WorkerExecution.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Network\NetworkConfigurationTargetBinding.cs" Link="Network\NetworkConfigurationTargetBinding.cs" />
@@ -78,6 +82,10 @@
       Link="Linked\Openness\Vci\%(Filename)%(Extension)" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcWritePreconditions.cs"
       Link="Plc\PlcWritePreconditions.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcLibraryInstanceGuard.cs"
+      Link="Plc\PlcLibraryInstanceGuard.cs" />
+    <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\PlcWriteTargetInspector.cs"
+      Link="Plc\PlcWriteTargetInspector.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagMutationService.cs"
       Link="Plc\TagMutationService.cs" />
     <Compile Include="..\TiaMcpServer.OpennessWorker\Openness\Plc\TagTargetResolver.cs"
