@@ -16,10 +16,13 @@ start at the [architecture decision records](../adr/README.md). Removed plans an
 
 | Date | Spec | Implementation plan |
 | --- | --- | --- |
-| 2026-11-12 | [PLC preview references and mandatory execution checks](specs/2026-11-12-plc-write-preview-execution-design.md) | [PLC implementation plan](plans/2026-11-12-plc-write-preview-execution.md) |
+| 2026-11-28 | [All mutation tools: direct apply and reusable previews](specs/2026-11-28-write-preview-execution-design.md) | [Seven-PR implementation plan](plans/2026-11-28-write-preview-execution.md) |
 
 These are transient documents for `feat/plc-write-preview-execution`; implementation and live
-acceptance have not run. Remove this entry when the working documents are pruned before merge.
+acceptance have not run. The earlier PLC-only documents are superseded and retained for review
+history. Standardize apply across all 63 mutation/lifecycle operations before adding references;
+`compile_check` remains direct without planning. Remove this entry when the working documents
+are pruned before merge.
 
 ## Acceptance definitions
 

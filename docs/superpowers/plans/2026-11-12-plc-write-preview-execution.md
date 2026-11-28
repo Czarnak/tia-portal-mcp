@@ -1,6 +1,6 @@
 # PLC writes: preview references and execution checks — implementation plan
 
-Status: planned; tasks have not been implemented or executed.
+Status: superseded on 2026-11-28 by the [all-mutation-tools phased plan](2026-11-28-write-preview-execution.md). Retained for review history; do not execute this PLC-only plan.
 Spec: [PLC write design](../specs/2026-11-12-plc-write-preview-execution-design.md)
 Branch: `feat/plc-write-preview-execution`
 

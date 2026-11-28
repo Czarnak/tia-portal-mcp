@@ -1,6 +1,6 @@
 # PLC writes: reusable previews and mandatory execution checks
 
-Status: specified for implementation; implementation and new live acceptance have not run.
+Status: superseded on 2026-11-28 by the [all-mutation-tools design](2026-11-28-write-preview-execution-design.md). Retained for review history; do not implement this PLC-only scope or its single-use retirement policy.
 Date: 2026-11-12
 Branch: `feat/plc-write-preview-execution`
 Plan: [Implementation plan](../plans/2026-11-12-plc-write-preview-execution.md)
