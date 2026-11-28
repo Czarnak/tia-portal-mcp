@@ -91,7 +91,7 @@ public sealed class ModeDerivedConfirmationTests
         Assert.False(result.IsError == true);
         Assert.Equal(expectedPrompts, prompts);
         Assert.Equal(2, domain.MutationCount);
-        Assert.Equal(new WriteAuditConfirmation(expectedPrompts == 1 ? "user" : "none",
+        Assert.Equal(new WriteAuditConfirmation(expectedPrompts == 1 ? "client" : "none",
             expectedPrompts == 1 ? "confirmed" : "not_requested"), Assert.Single(audit.Records).Confirmation);
     }
 
@@ -124,6 +124,7 @@ public sealed class ModeDerivedConfirmationTests
 
     [Theory]
     [InlineData(UserConfirmationOutcomes.Declined)]
+    [InlineData(UserConfirmationOutcomes.Unconfirmed)]
     [InlineData(UserConfirmationOutcomes.Cancelled)]
     [InlineData(UserConfirmationOutcomes.TimedOut)]
     [InlineData(UserConfirmationOutcomes.Unsupported)]
@@ -137,7 +138,15 @@ public sealed class ModeDerivedConfirmationTests
         {
             if (outcome == UserConfirmationOutcomes.Failed) throw new IOException("private detail");
             if (outcome == UserConfirmationOutcomes.TimedOut) await Task.Delay(Timeout.Infinite, ct);
-            return new ElicitResult { Action = outcome == UserConfirmationOutcomes.Declined ? "decline" : "cancel" };
+            return new ElicitResult
+            {
+                Action = outcome switch
+                {
+                    UserConfirmationOutcomes.Declined => "decline",
+                    UserConfirmationOutcomes.Unconfirmed => "accept",
+                    _ => "cancel",
+                }
+            };
         }, TimeSpan.FromMilliseconds(10));
         var result = await new WriteExecution(gate, audit, FakeWriteDomain.Catalog, TimeProvider.System)
             .RunAsync(domain, new WriteCall<FakeWriteItem>([new("a")], false), new(confirmation));
@@ -146,16 +155,16 @@ public sealed class ModeDerivedConfirmationTests
         var record = Assert.Single(audit.Records);
         using var doc = JsonDocument.Parse(record.ResponseText);
         Assert.Equal(WorkerFailureCategories.AccessDenied, doc.RootElement.GetProperty("error").GetProperty("category").GetString());
-        Assert.Equal(new WriteAuditConfirmation("user", outcome), record.Confirmation);
+        Assert.Equal(new WriteAuditConfirmation("client", outcome), record.Confirmation);
         Assert.DoesNotContain("private detail", record.ResponseText);
     }
 
     [Theory]
-    [InlineData(McpAccessMode.ReadWrite, false, false, "user", "confirmed")]
+    [InlineData(McpAccessMode.ReadWrite, false, false, "client", "confirmed")]
     [InlineData(McpAccessMode.Full, false, false, "policy", "not_requested")]
     [InlineData(McpAccessMode.Full, true, false, "none", "not_requested")]
     [InlineData(McpAccessMode.ReadWrite, true, false, "none", "not_requested")]
-    [InlineData(McpAccessMode.ReadWrite, false, true, "user", "declined")]
+    [InlineData(McpAccessMode.ReadWrite, false, true, "client", "declined")]
     public async Task AuditV2_RecordsConfirmation(McpAccessMode mode, bool dryRun, bool declined, string by, string outcome)
     {
         var gate = new FakeWriteBindingGate { AccessMode = mode };
@@ -172,7 +181,7 @@ public sealed class ModeDerivedConfirmationTests
         var record = Assert.Single(audit.Records);
         Assert.Equal(2, record.RecordVersion);
         Assert.Equal(new WriteAuditConfirmation(by, outcome), record.Confirmation);
-        Assert.Equal(by == "user" ? 1 : 0, prompts);
+        Assert.Equal(by == "client" ? 1 : 0, prompts);
         Assert.Equal(dryRun || declined ? null : by, Assert.Single(record.Guards).SatisfiedBy);
     }
 

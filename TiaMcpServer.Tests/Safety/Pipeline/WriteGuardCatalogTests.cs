@@ -122,7 +122,7 @@ public sealed class WriteGuardCatalogTests
         Assert.Equal("blocked", WritePhases.Blocked);
         Assert.Equal("error", WritePhases.Error);
         Assert.Equal("policy", GuardSatisfactions.Policy);
-        Assert.Equal("user", GuardSatisfactions.User);
+        Assert.Equal("client", GuardSatisfactions.Client);
         Assert.True(WriteGuardSeverities.IsKnown("block"));
         Assert.False(WriteGuardSeverities.IsKnown(null));
     }

@@ -38,7 +38,7 @@ public sealed class WriteConfirmationPipelineTests
         Assert.Equal(new[] { "validate", "plan", "guards", "plan", "guards", "mutate:a", "project:a", "verify", "compose" }, _domain.Calls);
         Assert.Equal(1, _gate.LeaseCalls);
         Assert.True(Assert.Single(_audit.LeaseActiveAtAppend));
-        Assert.Equal(GuardSatisfactions.User, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+        Assert.Equal(GuardSatisfactions.Client, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
 
     [Theory]
@@ -51,6 +51,13 @@ public sealed class WriteConfirmationPipelineTests
         var (result, doc) = await RunAsync(Reply(action, confirm));
 
         AssertDenied(result, doc, WorkerFailureCategories.AccessDenied);
+        var message = doc.GetProperty("error").GetProperty("message").GetString()!;
+        if (action == "decline" || action == "accept" && confirm != true)
+        {
+            Assert.Contains($"MCP client returned '{(action == "decline" ? "declined" : "unconfirmed")}'", message);
+            Assert.Contains("does not prove that a person saw a prompt", message);
+        }
+        Assert.DoesNotContain("user confirmation was", message);
         Assert.Equal(0, _domain.MutationCount);
         Assert.Null(Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
@@ -211,7 +218,7 @@ public sealed class WriteConfirmationPipelineTests
         AssertDenied(result, doc, WorkerFailureCategories.BindingConflict);
         Assert.Single(_prompts);
         Assert.Equal(0, _domain.MutationCount);
-        Assert.Equal(GuardSatisfactions.User, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+        Assert.Equal(GuardSatisfactions.Client, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
 
     [Fact]
@@ -223,7 +230,7 @@ public sealed class WriteConfirmationPipelineTests
         AssertDenied(result, doc, WorkerFailureCategories.BindingConflict);
         Assert.Single(_prompts);
         Assert.Equal(0, _domain.MutationCount);
-        Assert.Equal(GuardSatisfactions.User, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
+        Assert.Equal(GuardSatisfactions.Client, Assert.Single(_audit.Records[0].Guards).SatisfiedBy);
     }
 
     [Fact]
@@ -249,7 +256,7 @@ public sealed class WriteConfirmationPipelineTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => _execution.RunAsync(
             _domain, Call(), new WriteConfirmationContext(confirmation)));
 
-        Assert.Equal(GuardSatisfactions.User, Assert.Single(Assert.Single(_audit.Records).Guards).SatisfiedBy);
+        Assert.Equal(GuardSatisfactions.Client, Assert.Single(Assert.Single(_audit.Records).Guards).SatisfiedBy);
         Assert.True(Assert.Single(_audit.LeaseActiveAtAppend));
         Assert.Equal(1, _domain.MutationCount);
     }

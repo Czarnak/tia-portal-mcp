@@ -211,12 +211,12 @@ public sealed class LifecycleMcpProtocolTests
         => method is "open_project" or "create_project" or "save_project" or "save_project_as" or "archive_project" or "close_project";
 
     [Theory]
-    [InlineData("accept", true, true)]
-    [InlineData("accept", false, false)]
-    [InlineData("decline", true, false)]
-    [InlineData("cancel", true, false)]
+    [InlineData("accept", true, true, "confirmed")]
+    [InlineData("accept", false, false, "unconfirmed")]
+    [InlineData("decline", true, false, "declined")]
+    [InlineData("cancel", true, false, "cancelled")]
     public async Task ReadWrite_ModifiedClose_ConfirmsAndAuditsOutcome(
-        string action, bool confirm, bool applied)
+        string action, bool confirm, bool applied, string outcome)
     {
         using var audit = new TempAuditDirectory();
         using var fixture = new LifecycleProtocolFixture("-modified");
@@ -250,8 +250,14 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Equal(applied ? ProjectBindingSnapshot.UnboundState : ProjectBindingSnapshot.VerifiedState,
             harness.WorkerClient.BindingSnapshot.State);
         Assert.Empty(StructuredContractInspector.FindViolations(result));
-        AssertAudit(audit.Path, result, applied ? "user" : null, confirmationBy: "user",
-            confirmationOutcome: applied ? "confirmed" : action == "cancel" ? "cancelled" : "declined");
+        if (outcome is "declined" or "unconfirmed")
+        {
+            var message = document.GetProperty("error").GetProperty("message").GetString()!;
+            Assert.Contains($"MCP client returned '{outcome}'", message);
+            Assert.Contains("does not prove that a person saw a prompt", message);
+        }
+        AssertAudit(audit.Path, result, applied ? "client" : null, confirmationBy: "client",
+            confirmationOutcome: outcome);
     }
 
     [Fact]
@@ -324,7 +330,7 @@ public sealed class LifecycleMcpProtocolTests
         Assert.Contains("get_project_status", methods);
         Assert.DoesNotContain(methods, IsLifecycleMutation);
         Assert.Empty(StructuredContractInspector.FindViolations(result));
-        AssertAudit(audit.Path, result, null, confirmationBy: "user", confirmationOutcome: "failed");
+        AssertAudit(audit.Path, result, null, confirmationBy: "client", confirmationOutcome: "failed");
     }
 
     [Fact]

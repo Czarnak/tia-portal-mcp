@@ -39,6 +39,6 @@ public static class GuardSatisfactions
     /// <summary>The access-mode policy satisfies the guard.</summary>
     public const string Policy = "policy";
 
-    /// <summary>Only the human user may satisfy the guard.</summary>
-    public const string User = "user";
+    /// <summary>The client-reported confirmation satisfies the guard.</summary>
+    public const string Client = "client";
 }

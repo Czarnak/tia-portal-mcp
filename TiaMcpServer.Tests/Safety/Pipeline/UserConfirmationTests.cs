@@ -42,29 +42,29 @@ public class UserConfirmationTests
     [InlineData("false")]
     [InlineData("\"true\"")]
     [InlineData("1")]
-    public async Task AskAsync_declines_accept_with_non_true_confirm(string json)
+    public async Task AskAsync_reports_unconfirmed_accept_with_non_true_confirm(string json)
     {
         var outcome = await Build(Result("accept", json)).AskAsync("m", CancellationToken.None);
 
-        Assert.Equal(UserConfirmationOutcomes.Declined, outcome.Outcome);
+        Assert.Equal(UserConfirmationOutcomes.Unconfirmed, outcome.Outcome);
     }
 
     [Fact]
-    public async Task AskAsync_declines_accept_with_empty_content()
+    public async Task AskAsync_reports_unconfirmed_accept_with_empty_content()
     {
         var result = new ElicitResult { Action = "accept", Content = new Dictionary<string, JsonElement>() };
 
         var outcome = await Build(result).AskAsync("m", CancellationToken.None);
 
-        Assert.Equal(UserConfirmationOutcomes.Declined, outcome.Outcome);
+        Assert.Equal(UserConfirmationOutcomes.Unconfirmed, outcome.Outcome);
     }
 
     [Fact]
-    public async Task AskAsync_declines_accept_with_missing_content()
+    public async Task AskAsync_reports_unconfirmed_accept_with_missing_content()
     {
         var outcome = await Build(Result("accept")).AskAsync("m", CancellationToken.None);
 
-        Assert.Equal(UserConfirmationOutcomes.Declined, outcome.Outcome);
+        Assert.Equal(UserConfirmationOutcomes.Unconfirmed, outcome.Outcome);
     }
 
     [Fact]

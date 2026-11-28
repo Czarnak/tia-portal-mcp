@@ -22,7 +22,7 @@
 - Rejected: per-tool or name-based permission lists (drift from real capability); keeping `--confirm-with-user` (a second switch that contradicted the mode); letting reads bind or open implicitly (silent project change with no prompt); a per-call path on content tools (two sources of truth for the target).
 
 ## Consequences
-- Read-write and full advertise the same tools and differ only in whether lifecycle calls prompt; audit records the confirmation as user, policy or none.
+- Read-write and full advertise the same tools and differ only in whether lifecycle calls prompt; audit records confirmation as client, policy or none, without asserting a human saw the form.
 - A new operation must be classified in the catalog or it is denied. Tests must use the real tool surface and honest identity fixtures, not manufactured identities.
 - Clients without form elicitation cannot run read-write lifecycle calls. Clients may prompt on dry runs because of the destructive hints.
 - A caller must `bind_project` before any content call; guidance strings name it first.

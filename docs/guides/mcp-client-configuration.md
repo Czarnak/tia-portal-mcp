@@ -47,7 +47,8 @@ Remove the old startup confirmation switch; it is rejected with:
 
 Lifecycle inputs use `dryRun`; remove former agent confirmation arrays and old public `confirm`
 and the former safety-token argument. Read the structured `result` and `verification` outcomes and audit v2
-confirmation by `user`, `policy`, or `none`. A dry run never elicits, although a client
+confirmation by `client`, `policy`, or `none`. `client` identifies the MCP response, not a verified
+person or proof that a form was displayed. A dry run never elicits, although a client
 may still show its destructive-tool permission prompt. No tool uses safety tokens; replace
 `preview_write_batch`/`apply_write_batch` callers with `plc_write`, passing `content` plus
 `expectedContentHash` (from `plc_read`) instead of `yamlContent`/`sourceContent`.

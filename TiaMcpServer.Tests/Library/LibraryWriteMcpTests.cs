@@ -31,7 +31,7 @@ public sealed class LibraryWriteMcpTests
             .GetProperty("result").GetProperty("metadataChange").GetProperty("comments")[0];
         Assert.Equal("  exact\ntext  ", comment.GetProperty("after").GetString());
         Assert.Equal("pl-PL", comment.GetProperty("culture").GetString());
-        AssertAudit(fixture, reply, lifecycle ? "user" : mode == McpAccessMode.Full ? "policy" : "none",
+        AssertAudit(fixture, reply, lifecycle ? "client" : mode == McpAccessMode.Full ? "policy" : "none",
             lifecycle ? "confirmed" : "not_requested", lifecycle ? ["succeeded", "succeeded", "succeeded"] : ["succeeded", "succeeded"]);
     }
 
@@ -288,7 +288,7 @@ public sealed class LibraryWriteMcpTests
         Assert.Contains(operation, Assert.Single(prompts));
         Assert.Equal(new[] { "library_global_" + operation }, fixture.Mutations());
         Assert.Equal(2, fixture.Requests.Methods().Count(method => method == "library_global_plan"));
-        AssertAudit(fixture, reply, "user", "confirmed", "succeeded");
+        AssertAudit(fixture, reply, "client", "confirmed", "succeeded");
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public sealed class LibraryWriteMcpTests
         AssertApplied(reply, "save_global", "create_folder");
         Assert.Single(prompts);
         Assert.Equal(new[] { "library_global_save_global", "library_global_create_folder" }, fixture.Mutations());
-        AssertAudit(fixture, reply, "user", "confirmed", "succeeded", "succeeded");
+        AssertAudit(fixture, reply, "client", "confirmed", "succeeded", "succeeded");
     }
 
     [Fact]
@@ -354,7 +354,7 @@ public sealed class LibraryWriteMcpTests
         Assert.Single(prompts);
         Assert.Empty(fixture.Mutations());
         Assert.True(before.SameBinding(fixture.Harness.WorkerClient.BindingSnapshot));
-        AssertAudit(fixture, reply, "user", "declined", "skipped");
+        AssertAudit(fixture, reply, "client", "declined", "skipped");
     }
 
     [Fact]

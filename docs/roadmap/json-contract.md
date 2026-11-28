@@ -288,8 +288,8 @@ built lifecycle tokens only for the redesign to delete them.
   exact source/destination revision, ownership, recovery, and save-as transition checks. Ordinary
   project writes keep the default verified-binding requirement.
 - One canonical audit record per call, through the pipeline's audit sink, including dry runs and
-  blocked calls; audit v2 records confirmation by `user`, `policy`, or `none` and guard satisfaction
-  by `user`, `policy`, or null.
+  blocked calls; audit v2 records confirmation by `client`, `policy`, or `none` and guard satisfaction
+  by `client`, `policy`, or null. Client provenance does not prove that a person saw a form.
 - The decision reserved here earlier, where an attempted but failed operation reports its failure,
   is settled by redesign §4.7: `isError` is `true` only for rejection before anything ran
   (validation, access mode, binding, `blocked`); a write that ran and failed reports
