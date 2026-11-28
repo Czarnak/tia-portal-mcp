@@ -58,12 +58,11 @@ Remaining work:
   previous default. Callers can add `set_default_type_version` explicitly.
 - Consider requiring a dry run before any delete. This PR leaves preview optional and lets Portal decide
   apply-time deletion; preview observations are sequential and non-atomic.
-- Qualify the new `plc_write` library-instance guards on disposable native targets. They refuse linked
-  content replacement and protect in-work instances from direct or group deletion; use
-  `create_type_version` for linked content changes. The original P11c/P12c/P15a/P15d probes observed
-  modal replacement/deletion refusals and silent unlinking of a released instance, not successful guarded
-  execution. Direct deletion evidence was UDT-only; FB/FC, nested-group, format and local-session guard
-  paths remain subject to separate live qualification. Do not repeat the unguarded modal/unlink paths.
+- Extend qualification of the `plc_write` library-instance guards beyond the recorded standalone
+  [public refusals and positive controls](superpowers/acceptance/reports/2026-11-28-plc-library-instance-guards-verification.md).
+  The exhaustive format/container matrix, local sessions, and native-adjacent late-linkage and fatal
+  paths remain unqualified live. Use `create_type_version` for linked content changes; do not repeat
+  the original unguarded modal/unlink probes.
 - Determine Portal's release-number range safely. `0.0.0` killed Portal in T7Z and is rejected; exactly three
   numeric Int32 parts are required (maximum 2147483647 each), but this representation bound is not evidence
   that arbitrary large accepted numbers are safe. Larger release parts remain unprobed.

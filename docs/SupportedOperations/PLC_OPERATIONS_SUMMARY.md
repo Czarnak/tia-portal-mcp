@@ -546,8 +546,10 @@ of public-response budgets; inspect dispatch and outcome evidence separately.
 - Duplicate singleton behavior is scoped to the October 8 OB82 native probe and guarded-tool refusals;
   it is not an exhaustive guarantee for every event class (see the guard note above).
 - The [November 7 library probes](../superpowers/acceptance/reports/2026-11-07-library-types-native-probes.md)
-  motivate linked-instance protection. Their direct deletion observation was UDT-only; new FB/FC,
-  group-deletion and importer guard paths need separate live qualification.
+  motivate linked-instance protection. Recorded standalone public refusals and committed-deletion
+  controls are covered by the [guard verification report](../superpowers/acceptance/reports/2026-11-28-plc-library-instance-guards-verification.md).
+  The exhaustive format/container matrix, local sessions, and native-adjacent late-linkage and fatal
+  paths remain unqualified live.
 - Content importers (`update_block_logic`, also used by patches, and `update_type_content`) still flatten recoverable import failures to
   `worker_operation_failed` without `engineeringError`; see the
   [improvement log](../IMPROVEMENT_LOG.md).
